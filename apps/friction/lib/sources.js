@@ -289,7 +289,13 @@ async function appsForTerm(term, country = 'us', limit = 6) {
 async function fromAppStore(app, country = 'us', maxStars = 3) {
   const url = `${ITUNES_REVIEWS}/${country}/rss/customerreviews/page=1/id=${app.id}/sortby=mostrecent/json`;
   const body = await getJson(url);
-  const entries = (body && body.feed && body.feed.entry) || [];
+  const raw = (body && body.feed && body.feed.entry) || [];
+  // Apple's feed gives a bare object rather than a one-element array when an
+  // app has exactly ONE review, and the old code went straight to .filter on
+  // it - so a single-review app threw "entries.filter is not a function" and
+  // the run recorded an error instead of the review. Seen live on two apps in
+  // the data-eng lens.
+  const entries = Array.isArray(raw) ? raw : [raw];
   // Apple's first entry is the app itself, not a review, when it is present.
   return entries.filter((e) => e && e['im:rating']).map((e) => {
     const stars = Number((e['im:rating'] || {}).label || 0);
