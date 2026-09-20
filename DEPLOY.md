@@ -335,6 +335,36 @@ service, not something a normal deploy does. That is the safety property that
 stops a stale config file from dropping a secret from production; do not
 "fix" it by declaring env vars in `apps.json`.
 
+### The admin password can be changed from the admin page
+
+`ADMIN_PASSWORD` used to be the whole story, and it lived in an env var fed
+from `landing-admin-password` — so changing it meant a new secret version and
+a redeploy, and forgetting it meant editing the service.
+
+`shared/sitepass.js` now backs it: a scrypt hash in `control/site-password`,
+preferred over `ADMIN_PASSWORD` when present. The env var stays as the
+**bootstrap** — what works on a fresh deploy, and what still works if the
+stored record is cleared. The plaintext is never stored, and the row is in the
+same database as everything else, so no new infrastructure.
+
+The admin session cookie carries `via` — how the session was proved:
+
+- A **Face ID** session may set a new password without the old one. There is
+  no mail sender on this service, so no reset link is possible; Face ID is the
+  only reset door there is, which is the argument for enrolling one before it
+  is needed.
+- A **password-proved** session may not. It must produce the current password,
+  or a stolen cookie could replace it and take the account permanently.
+
+Sessions issued before `via` existed parse as password-proved, so nobody was
+signed out. `/api/admin/me` reports `via` and whether a custom password is set;
+the UI is in the "Face ID & password" sheet on `/admin`.
+
+**`adminPasswordOk` is async now.** `if (!adminPasswordOk(...))` is always
+false once it returns a Promise — which would have let any signed-in session
+enrol a passkey with no password at all. `lib/passkeys.js` awaits it. If you
+add a password check here, await it.
+
 ### Degrading instead of breaking
 
 Each dependency is optional and the service says so rather than failing:
@@ -344,7 +374,7 @@ Each dependency is optional and the service says so rather than failing:
 | `FIRESTORE_DATABASE_ID` | In-memory store, nothing persisted. The admin UI shows a warning pill. Fine for local work, never for production. |
 | `RESEND_API_KEY` / `NEWSLETTER_FROM` | Signups are recorded as pending, no mail goes out, sending returns 503 with a clear message. |
 | `ANTHROPIC_API_KEY` | The Claude tab reports itself off. Writing and sending are unaffected. |
-| `ADMIN_PASSWORD` | `/admin` cannot be entered at all. The public site is unaffected. |
+| `ADMIN_PASSWORD` | `/admin` cannot be entered *unless a password has been stored* (see above). The public site is unaffected. |
 
 The landing page keeps serving in every one of those cases. That is
 deliberate: the front page must not depend on the newsletter.
