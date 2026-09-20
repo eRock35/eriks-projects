@@ -166,6 +166,34 @@ rental confirmation numbers. The quieter URL beat the nicer one. That trade has
 since been revisited — see **Settled decisions**. The app keeps its `*.run.app`
 URL; don't add a domain mapping for it.
 
+## Domain mappings
+
+The deployer service account **can** create these, since it was added as an
+**Owner** of the `strongtechnicalconsulting.com` property in Google Search
+Console (2026-09-20). Cloud Run checks whether the calling identity is a
+verified owner of the domain; before that, only Erik's own account was, which
+produced "Caller is not authorized to administer the domain". It is not a
+user-vs-service-account restriction, as the football app's docs used to claim.
+
+```
+POST us-central1-run.googleapis.com/apis/domains.cloudrun.com/v1/namespaces/$P/domainmappings
+{"apiVersion":"domains.cloudrun.com/v1","kind":"DomainMapping",
+ "metadata":{"name":"<host>","namespace":"<project>"},
+ "spec":{"routeName":"<service>"}}
+```
+
+Use the **regional** endpoint. The global one lists mappings but 404s fetching
+a single one — an easy half-hour lost.
+
+Creating a mapping is inert until DNS points at Google, so it changes nothing
+for visitors on its own, and it can be deleted. Adding records at the
+registrar is Erik's step. Google returns the exact records in the mapping's
+`status.resourceRecords`: an apex takes four A and four AAAA records, a
+subdomain takes `CNAME <name> ghs.googlehosted.com.`
+
+**Before mapping anything, re-read "Settled decisions".** One app must never
+get a mapping.
+
 ## Scheduler jobs
 
 | Job | Schedule (America/New_York) |
