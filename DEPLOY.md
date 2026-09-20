@@ -228,6 +228,27 @@ re-copy.
   on each service. The rpID is what makes ONE Face ID enrolment work on every
   subdomain.
 
+### Migrate an app's users BEFORE switching its login over
+
+Learned the hard way on 2026-09-20. trip-planner's login was moved to identity
+while the `identity` database was empty, which locked out every existing
+account for about fifteen minutes - including three people who had registered
+that evening. The deploy reported success; nothing was broken except that
+nobody could sign in.
+
+Both systems derive `scryptSync(password, salt, 64)` and differ only in
+encoding (trip-planner hex, identity base64), so the four accounts were
+migrated losslessly by converting the hash - existing passwords kept working
+and nobody had to reset anything. `createdBy: 'trip-planner'` and `migratedAt`
+mark the migrated records.
+
+The rule, for any app wired next: **count the live users first, migrate them,
+and only then point the login at identity.** An app whose own login route is
+shadowed by identity's is exactly as broken as a deleted password column, and
+it looks fine from the deploy output. A dry run against the real database
+beats a survey taken hours earlier - on this project the user count went from
+1 to 4 in the time it took to write the integration.
+
 ### Identity is not authorization
 
 The account says who you are. It never says what you may do - one account now
