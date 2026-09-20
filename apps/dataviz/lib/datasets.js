@@ -7,6 +7,12 @@
 //
 // Each is chosen to show off a different animation, so someone who has not
 // signed up still sees what the tool can do.
+//
+// Every one carries its own `spec` - the column mapping the model would
+// otherwise be asked for. These datasets are fixed, so that answer is fixed
+// too, and paying Opus to re-derive it on every click was a live cost leak:
+// six buttons on a public page, any stranger, up to the global daily cap.
+// Samples now cost nothing to serve and are therefore genuinely unlimited.
 
 const DATASETS = [
   {
@@ -31,6 +37,7 @@ const DATASETS = [
 2023,Atlanta,610
 2023,Denver,300
 2023,Austin,700`,
+    spec: { vizType: 'race', nameCol: 'city', timeCol: 'year', valueCol: 'visits', seriesCol: '', fromCol: '', toCol: '', valueFormat: 'number', valueLabel: 'visits', title: 'Austin overtakes Atlanta', subtitle: 'Visits by city, five years', note: '' },
   },
   {
     id: 'lending-mix',
@@ -59,6 +66,7 @@ const DATASETS = [
 2024Q1,Auto,2410
 2024Q1,Card,1810
 2024Q1,Consumer,905`,
+    spec: { vizType: 'race', nameCol: 'product', timeCol: 'quarter', valueCol: 'balance', seriesCol: '', fromCol: '', toCol: '', valueFormat: 'compact', valueLabel: 'balance', title: 'Auto overtakes Mortgage', subtitle: 'Book balance by product, eight quarters', note: 'Sample data.' },
   },
   {
     id: 'hub-traffic',
@@ -75,6 +83,7 @@ Seattle,Atlanta,430
 Denver,Austin,275
 Austin,Seattle,120
 Seattle,Denver,390`,
+    spec: { vizType: 'flow', nameCol: '', timeCol: '', valueCol: 'trips', seriesCol: '', fromCol: 'from', toCol: 'to', valueFormat: 'number', valueLabel: 'trips', title: 'Traffic between hubs', subtitle: 'Volume along each route', note: '' },
   },
   {
     id: 'channels',
@@ -101,6 +110,7 @@ May,Direct,2700
 Jun,Search,6100
 Jun,Social,6400
 Jun,Direct,2900`,
+    spec: { vizType: 'line', nameCol: '', timeCol: 'month', valueCol: 'sessions', seriesCol: 'channel', fromCol: '', toCol: '', valueFormat: 'compact', valueLabel: 'sessions', title: 'Social catches Search', subtitle: 'Sessions by channel', note: '' },
   },
   {
     id: 'ticket-mix',
@@ -116,6 +126,7 @@ Integration broken,720
 Report is wrong,540
 Feature request,410
 Everything else,280`,
+    spec: { vizType: 'bars', nameCol: 'cause', timeCol: '', valueCol: 'tickets', seriesCol: '', fromCol: '', toCol: '', valueFormat: 'number', valueLabel: 'tickets', title: 'What support actually spends its day on', subtitle: 'Tickets by cause', note: '' },
   },
   {
     id: 'launch-week',
@@ -144,6 +155,7 @@ Fri 09,120
 Fri 12,118
 Fri 15,112
 Fri 18,108`,
+    spec: { vizType: 'line', nameCol: '', timeCol: 'hour', valueCol: 'signups', seriesCol: '', fromCol: '', toCol: '', valueFormat: 'number', valueLabel: 'signups', title: 'A spike and a long tail', subtitle: 'Signups through launch week', note: '' },
   },
 ];
 
@@ -155,4 +167,9 @@ function get(id) {
   return DATASETS.find((d) => d.id === id) || null;
 }
 
-module.exports = { list, get, DATASETS };
+/** True when a sample can be served without asking the model anything. */
+function isFree(ds) {
+  return Boolean(ds && ds.spec && ds.spec.vizType);
+}
+
+module.exports = { list, get, isFree, DATASETS };

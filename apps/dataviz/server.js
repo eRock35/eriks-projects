@@ -175,16 +175,36 @@ app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
 
 app.post('/api/viz', async (req, res) => {
   try {
-    await quota.check(req);
-
     const { url, text, hint, datasetId } = req.body || {};
     let source, usedHint = hint;
 
+    // A sample with a baked spec costs nothing to serve: fixed data, fixed
+    // mapping, no model call. So it is answered before the quota is touched
+    // and never counts against it. Anything else goes through the quota,
+    // because anything else is an Opus call on Erik's key.
     if (datasetId) {
-      // Sample data is free forever. It is the thing that lets someone find
-      // out whether this is any good before being asked for money.
       const ds = datasets.get(String(datasetId));
       if (!ds) return res.status(404).json({ error: 'No such sample.' });
+      const table = extract.fromText(ds.csv).tables[0];
+      if (datasets.isFree(ds) && table) {
+        const viz = builder.build(table, ds.spec);
+        return res.json({
+          viz,
+          title: ds.spec.title || ds.title,
+          subtitle: ds.spec.subtitle || '',
+          note: ds.spec.note || '',
+          fromProse: false,
+          sample: ds.title,
+          free: true,
+          sourceUrl: null,
+          rowCount: table.length - 1,
+          columns: table[0],
+          remaining: await quota.remaining(req).catch(() => null),
+        });
+      }
+      // A sample without a baked spec falls back to the model, and then it
+      // costs the same as anything else and is metered the same way.
+      await quota.check(req);
       source = Object.assign({ sourceUrl: null, sample: ds.title }, extract.fromText(ds.csv));
       if (!usedHint) usedHint = ds.hint;
     } else if ((url && String(url).trim()) || (text && String(text).trim())) {
@@ -196,6 +216,7 @@ app.post('/api/viz', async (req, res) => {
           upgrade: true,
         });
       }
+      await quota.check(req);
       source = url && String(url).trim()
         ? await extract.fromUrl(String(url).trim())
         : Object.assign({ sourceUrl: null }, extract.fromText(String(text)));

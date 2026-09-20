@@ -38,6 +38,22 @@ public hostname can redirect to a private one.
 Redirects are followed BY HAND for exactly that reason. Never replace this
 with `redirect: 'follow'`, and never skip the per-hop check.
 
+## Samples cost nothing, and must stay that way
+
+Each sample in `lib/datasets.js` carries a baked `spec` - the column mapping
+the model would otherwise be asked for. The data is fixed, so the answer is
+fixed, so there is nothing to ask.
+
+This was a live cost leak before it was fixed: six buttons on a public page,
+open to any stranger, each one an Opus call, bounded only by the global daily
+cap. If you add a sample, **give it a spec**. `datasets.isFree()` is what the
+route checks, and a sample without one silently falls back to the model and
+starts costing money again.
+
+Because they are free to serve, samples are answered BEFORE `quota.check()`
+and never count against it. That is deliberate: metering something that costs
+nothing only teaches people the free tier is stingy.
+
 ## Cost ceilings
 
 `/api/viz` is open to the public and costs Anthropic tokens on every call, so
