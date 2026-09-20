@@ -663,6 +663,14 @@
       setTimeout(async function () { await refreshMe(); toast(me.pro ? 'You are on Pro' : 'Payment received, unlocking…'); }, 1500);
       history.replaceState(null, '', '/');
     }
+    // Every other app's "you are out of credit" points here, because checkout
+    // is built once and the balance it buys is shared. Land them on the panel
+    // that sells it rather than on the home page to hunt for it.
+    if (/[?&]topup=1/.test(location.search)) {
+      history.replaceState(null, '', '/');
+      if (me.signedIn) $('authBtn').click();
+      else { openAuth(); toast('Sign in first, then top up'); }
+    }
     var m = location.pathname.match(/^\/v\/([A-Za-z0-9_-]+)$/);
     if (m) {
       try {
