@@ -28,6 +28,26 @@ app.use((req, _res, next) => {
   next();
 });
 
+// The shared account. Signing in here signs you in across the domain, and a
+// session made on any sibling app is accepted here.
+//
+// Mounted BEFORE every route below, for two reasons - and the second is the
+// one that broke a deploy. identity.mount installs attachUser and the request
+// context, so a route registered above it sees no user and cannot read a
+// budget. And a `const` referenced by a route registered earlier throws a
+// temporal-dead-zone error at startup, which is a container that never boots.
+const identity = identityLib.create({
+  store: identityStore.store,
+  secret: () => process.env.IDENTITY_SESSION_SECRET || '',
+  app: 'friction',
+  baseDomain: process.env.PASSKEY_RP_ID || '',
+  rpName: 'Erik Strong',
+});
+identity.mount(app);
+
+// Price and record every model call this app makes.
+score.useMeter(identity.meter);
+
 /* ---------- open routes: health, login, cron ---------- */
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
@@ -103,19 +123,6 @@ app.post('/api/cron/scan', auth.requireLoginOrCron, identity.requireBudget, asyn
 // one page that never measures. Serves an inert file unless
 // GA_MEASUREMENT_ID is set on the service.
 analytics.mount(app, 'friction');
-
-// The shared account. Signing in here signs you in across the domain, and a
-// session made on any sibling app is accepted here.
-const identity = identityLib.create({
-  store: identityStore.store,
-  secret: () => process.env.IDENTITY_SESSION_SECRET || '',
-  app: 'friction',
-  baseDomain: process.env.PASSKEY_RP_ID || '',
-  rpName: 'Erik Strong',
-});
-identity.mount(app);
-// Price and record every model call this app makes.
-score.useMeter(identity.meter);
 
 // Two doors, and they answer different questions.
 //
