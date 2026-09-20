@@ -83,7 +83,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 // The one route Cloud Scheduler calls. Session OR cron key - never neither,
 // because everything past here spends Anthropic tokens.
-app.post('/api/cron/scan', auth.requireLoginOrCron, async (req, res) => {
+app.post('/api/cron/scan', auth.requireLoginOrCron, identity.requireBudget, async (req, res) => {
   try {
     const summary = await scan.runScan({
       trigger: auth.hasSession(req) ? 'manual' : 'cron',

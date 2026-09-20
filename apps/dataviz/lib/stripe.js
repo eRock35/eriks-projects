@@ -72,6 +72,53 @@ async function createCheckout({ uid, email, successUrl, cancelUrl, customerId })
   return call('/checkout/sessions', payload);
 }
 
+// What a top-up can be bought in. Fixed amounts rather than a free-text box:
+// an arbitrary-amount field invites typos and card-testing, and three choices
+// cover the range anyone needs.
+const TOP_UPS = [
+  { key: '5', usd: 5, label: '$5 of credit' },
+  { key: '10', usd: 10, label: '$10 of credit' },
+  { key: '25', usd: 25, label: '$25 of credit' },
+];
+
+/**
+ * A one-off purchase of API credit, spendable across every app.
+ *
+ * `mode: 'payment'`, NOT subscription - and the webhook must tell them apart,
+ * because the existing checkout.session.completed handler grants Pro. A credit
+ * purchase that fell through that path would hand someone a subscription they
+ * did not buy. `kind` in the metadata is what keeps them separate.
+ *
+ * The price is built inline rather than as a stored Price object so the set of
+ * amounts can change without anything being created in the Stripe dashboard.
+ */
+async function createTopUp({ uid, email, usd, successUrl, cancelUrl, customerId }) {
+  const option = TOP_UPS.find((t) => t.usd === Number(usd));
+  if (!option) throw Object.assign(new Error('That is not a top-up amount.'), { status: 400 });
+  const payload = {
+    mode: 'payment',
+    line_items: [{
+      quantity: 1,
+      price_data: {
+        currency: 'usd',
+        unit_amount: option.usd * 100,
+        product_data: {
+          name: `${option.label} — Erik's apps`,
+          description: 'Credit for AI requests, usable across every app on strongtechnicalconsulting.com.',
+        },
+      },
+    }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    client_reference_id: uid,
+    // `kind` is load-bearing: it is how the webhook knows not to grant Pro.
+    metadata: { uid, kind: 'credit', creditUsd: String(option.usd) },
+  };
+  if (customerId) payload.customer = customerId;
+  else if (email) payload.customer_email = email;
+  return call('/checkout/sessions', payload);
+}
+
 /** The Stripe-hosted page where someone cancels or changes their card. Doing
  *  this ourselves would mean handling card details, which is the one thing
  *  using Stripe is meant to avoid. */
@@ -123,4 +170,4 @@ function verifyWebhook(rawBody, signatureHeader) {
   return JSON.parse(rawBody.toString('utf8'));
 }
 
-module.exports = { enabled, createCheckout, createPortal, verifyWebhook, call, form, priceId };
+module.exports = { enabled, createCheckout, createTopUp, createPortal, verifyWebhook, call, form, priceId, TOP_UPS };

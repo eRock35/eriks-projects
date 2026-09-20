@@ -530,6 +530,14 @@
                                    : 'Free plan &mdash; samples only.') + '</p>' +
       (me.billing && !me.pro ? '<button class="btn" id="upBtn2">Upgrade</button>' : '') +
       (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
+      // The credit meter. Shown to anyone on an allowance - Pro and the owner
+      // are not metered, so a balance would be meaningless to them.
+      (!me.pro && me.budget && !me.budget.unlimited
+        ? '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
+          '<p class="hint" style="margin:0 0 8px"><b>$' + me.budget.remainingUsd.toFixed(2) + '</b> of $' +
+          me.budget.allowanceUsd.toFixed(2) + ' credit left &mdash; it works across every app on this domain.</p>' +
+          '<div class="btn-row" id="topUps"></div></div>'
+        : '') +
       // Not everyone who wants Pro wants to pay for it today - a teacher, a
       // friend, someone trying it for a project. Asking is a second door to
       // the same place, and it reaches Erik by email rather than going into a
@@ -597,6 +605,25 @@
     })();
     var up = el.querySelector('#upBtn2');
     if (up) up.addEventListener('click', startCheckout);
+    var ups = el.querySelector('#topUps');
+    if (ups) {
+      fetch('/api/credit').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.billing) { ups.innerHTML = '<p class="hint">Top-ups are not available on this deployment.</p>'; return; }
+        ups.innerHTML = d.options.map(function (o) {
+          return '<button class="btn sec" data-usd="' + o.usd + '">' + esc(o.label) + '</button>';
+        }).join('');
+        ups.querySelectorAll('[data-usd]').forEach(function (b) {
+          b.addEventListener('click', async function () {
+            b.disabled = true;
+            try {
+              var out = await api('/api/credit/checkout', { method: 'POST', body: JSON.stringify({ usd: Number(b.getAttribute('data-usd')) }) });
+              window.location.href = out.url;
+            } catch (e) { toast(e.message, 'error'); b.disabled = false; }
+          });
+        });
+      }).catch(function () { ups.textContent = ''; });
+    }
+
     var askPro = el.querySelector('#askProBtn');
     if (askPro) askPro.addEventListener('click', async function () {
       var note = window.prompt('Anything you want to tell Erik? (optional)') || '';

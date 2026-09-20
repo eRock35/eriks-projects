@@ -266,6 +266,51 @@ it looks fine from the deploy output. A dry run against the real database
 beats a survey taken hours earlier - on this project the user count went from
 1 to 4 in the time it took to write the integration.
 
+### The shared budget
+
+Every account gets **$2 of API credit**, spendable across every app - not $2
+per app. Five separate allowances would be $10 and would let anyone who
+exhausted one simply move to the next, which is the thing this exists to stop.
+
+Denominated in dollars, not calls: one Opus request with a long document is
+worth many Haiku ones, and a call-count budget prices them the same.
+
+| Who | What they get |
+|---|---|
+| The owner (`admin: true`) | Never metered. It is his API key. |
+| A Pro account | Never metered; the subscription covers it. |
+| Everyone else | `$2 + toppedUpUsd − spentUsd` |
+| Signed out | No personal allowance; each app's own gate decides. |
+
+`spentUsd` is charged by `recordUsage` using Firestore's atomic increment -
+a read-modify-write would lose charges whenever two apps billed the same
+account at once. `identity.requireBudget` sits in front of every route that
+spends and answers **402** with the numbers when the credit is gone.
+
+Attribution is automatic: `identity.mount` runs each request inside an
+AsyncLocalStorage context, and the metered client reads the current user from
+it. That is what lets one client per process charge the right person without
+threading a uid through every function that might call a model.
+
+Spending is recorded AFTER a call, so the last one allowed can overshoot by
+its own cost. Bounded, and reserving an estimate up front then reconciling is
+a lot of machinery for a couple of cents.
+
+### Buying more
+
+DataViz hosts the checkout (it holds the Stripe keys and the verified
+webhook), but what it sells is account-level: `$5 / $10 / $25`, one-off
+`mode: 'payment'`, credited to the shared identity record.
+
+**The webhook must tell a top-up from a subscription.** The existing
+`checkout.session.completed` handler grants Pro; a credit purchase falling
+through it would hand someone a subscription they did not buy. `metadata.kind
+= 'credit'` is what keeps them apart - do not remove it.
+
+The admin can also grant credit directly from the dashboard's account rows
+(`POST /api/admin/credit`), for comping a friend or refunding a bad run.
+Negative amounts are allowed so a mistake can be taken back.
+
 ### Identity is not authorization
 
 The account says who you are. It never says what you may do - one account now

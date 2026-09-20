@@ -106,6 +106,8 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, async (req, res) => 
     // So the sheet can say "your request is in" rather than offering the
     // button again to someone who already pressed it.
     askedPro: Boolean(identityLib.pendingRequest(req.user, 'dataviz')),
+    // The shared credit balance, so the sheet can show the meter.
+    budget: identityLib.budgetFor(req.user),
     remaining: await quota.remaining(req).catch(() => null),
   });
 });
@@ -148,6 +150,20 @@ async function applyBillingEvent(event) {
 
   if (event.type === 'checkout.session.completed') {
     if (!uid) return;
+
+    // A credit top-up is NOT a subscription. Without this branch it would fall
+    // into the code below and hand someone Pro for a one-off $5 payment.
+    if ((obj.metadata && obj.metadata.kind) === 'credit' || obj.mode === 'payment') {
+      const usd = Number((obj.metadata && obj.metadata.creditUsd) || 0);
+      if (usd > 0) {
+        // Credit lands on the SHARED account, because it is spendable in every
+        // app - not in this app's own billing record.
+        await identityStore.store.bump('users', uid, { toppedUpUsd: usd });
+        await identity.log('credit.purchased', null, { uid, detail: `$${usd}` });
+      }
+      return;
+    }
+
     await db.merge('users', uid, {
       plan: 'pro',
       stripeCustomerId: obj.customer || null,
@@ -298,6 +314,33 @@ app.get('/api/stripe/health', accounts.requireUser, async (req, res) => {
   res.json(out);
 });
 
+// Buying credit. Hosted here because this is the service holding the Stripe
+// keys and the verified webhook, but what it buys is account-level: the
+// balance is on the shared identity record and spends in every app.
+app.get('/api/credit', accounts.requireUser, (req, res) => {
+  res.json({
+    budget: identityLib.budgetFor(req.user),
+    options: stripe.TOP_UPS,
+    billing: stripe.enabled(),
+  });
+});
+
+app.post('/api/credit/checkout', accounts.requireUser, async (req, res) => {
+  try {
+    if (!stripe.enabled()) return res.status(503).json({ error: 'Billing is not set up on this deployment.' });
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.createTopUp({
+      uid: req.user.id,
+      email: req.user.email,
+      usd: Number((req.body || {}).usd),
+      customerId: req.user.stripeCustomerId || null,
+      successUrl: `${origin}/?credited=1`,
+      cancelUrl: `${origin}/`,
+    });
+    res.json({ url: session.url });
+  } catch (err) { fail(res, err, 'Could not start that purchase.'); }
+});
+
 app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
   try {
     if (!req.user.stripeCustomerId) return res.status(400).json({ error: 'No subscription to manage yet.' });
@@ -309,7 +352,7 @@ app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
 
 /* ---------- the one route that costs money ---------- */
 
-app.post('/api/viz', async (req, res) => {
+app.post('/api/viz', identity.requireBudget, async (req, res) => {
   try {
     const { url, text, hint, datasetId } = req.body || {};
     let source, usedHint = hint;

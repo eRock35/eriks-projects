@@ -271,6 +271,16 @@
   // apps, so each is granted separately. Absent means no.
   var GRANTABLE = { friction: 'member', football: 'research', dataviz: 'pro', 'trip-planner': 'member' };
 
+  // The shared balance. Unlimited accounts show why rather than a number,
+  // because "$Infinity left" is not information.
+  function creditCell(u) {
+    var b = u.budget || {};
+    if (b.unlimited) return '<span style="color:var(--text-muted)">' + esc(b.reason === 'owner' ? 'owner' : 'pro') + '</span>';
+    var left = Number(b.remainingUsd || 0), all = Number(b.allowanceUsd || 0);
+    return '<span title="$' + left.toFixed(2) + ' of $' + all.toFixed(2) + ' left">$' + left.toFixed(2) + '</span>' +
+      ' <button class="chip" data-credit="' + esc(u.uid) + '" title="Give this account credit">+$5</button>';
+  }
+
   function grantChips(u) {
     return Object.keys(GRANTABLE).map(function (app) {
       var on = u.access && u.access[app];
@@ -311,6 +321,26 @@
   // A preview never sends and never advances the watermark, so checking what
   // is outstanding costs nothing and cannot swallow a real notification.
   // Grant or turn down an ask, in one tap, from the place it is shown.
+  function wireCredit(root) {
+    root.querySelectorAll('[data-credit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        fetch('/api/admin/credit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: btn.getAttribute('data-credit'), usd: 5 })
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) throw new Error(j.error || 'Could not do that.');
+            return j;
+          });
+        }).then(function (j) {
+          btn.previousSibling.textContent = '$' + Number(j.budget.remainingUsd).toFixed(2);
+          btn.disabled = false;
+        }).catch(function (err) { btn.title = err.message; btn.classList.add('err-chip'); btn.disabled = false; });
+      });
+    });
+  }
+
   function wireDecisions(root) {
     root.querySelectorAll('#pendingCard [data-decide]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -438,12 +468,13 @@
     if (!d.users.list.length) {
       html += '<p class="empty">No shared accounts yet. Register once at any app on this domain and it works on all of them.</p>';
     } else {
-      html += '<div class="table-wrap"><table><thead><tr><th>Email</th><th>Joined</th><th>Last seen</th><th>Access</th></tr></thead><tbody>';
+      html += '<div class="table-wrap"><table><thead><tr><th>Email</th><th>Joined</th><th>Last seen</th><th>Credit</th><th>Access</th></tr></thead><tbody>';
       d.users.list.forEach(function (u) {
         html += '<tr><td>' + esc(u.email) + (u.disabled ? ' <span class="fail">(disabled)</span>' : '') +
             '<br><span style="color:var(--text-muted);font-size:12px">via ' + esc(u.createdBy || '—') + '</span></td>' +
           '<td>' + esc(u.createdAt ? String(u.createdAt).slice(0, 10) : '—') + '</td>' +
           '<td>' + esc(ago(u.lastSeenAt)) + '</td>' +
+          '<td class="num">' + creditCell(u) + '</td>' +
           '<td class="grants" data-uid="' + esc(u.uid) + '">' + grantChips(u) + '</td></tr>';
       });
       html += '</tbody></table></div>';
@@ -468,6 +499,7 @@
 
     root.innerHTML = html;
     wireGrants(root);
+    wireCredit(root);
     wireDecisions(root);
     wireNotify();
 

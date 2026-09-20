@@ -741,6 +741,28 @@ app.post('/api/admin/access/deny', requireAdmin, async (req, res) => {
   }
 });
 
+// Give someone credit without a payment. The paid route is DataViz's Stripe
+// checkout; this is for comping a friend, or refunding a bad run.
+app.post('/api/admin/credit', requireAdmin, async (req, res) => {
+  try {
+    const { uid, usd } = req.body || {};
+    const amount = Number(usd);
+    if (!uid || !Number.isFinite(amount) || amount === 0) {
+      return res.status(400).json({ error: 'uid and a non-zero usd are required.' });
+    }
+    if (Math.abs(amount) > 100) return res.status(400).json({ error: 'Keep it under $100 a time.' });
+    const user = await identityStore.store.get('users', uid);
+    if (!user) return res.status(404).json({ error: 'No such account.' });
+    // Negative is allowed, so a mistake can be taken back.
+    await identityStore.store.bump('users', uid, { toppedUpUsd: amount });
+    await identity.log('credit.granted', req, { uid, detail: `${amount > 0 ? '+' : ''}$${amount}` });
+    const after = await identityStore.store.get('users', uid);
+    res.json({ ok: true, budget: identityLib.budgetFor(after) });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: 'Could not change that.' });
+  }
+});
+
 app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GRANTABLE }));
 
 // The notifier tick. Cloud Scheduler calls this; it sends only when there is
