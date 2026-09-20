@@ -101,6 +101,9 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, (req, res) => {
     email: req.user ? req.user.email : null,
     via: req.user ? req.user.via : null,
     plan: planOf(req.user),
+    // So the sheet can say "your request is in" instead of offering the
+    // button again to someone who already pressed it.
+    askedPro: Boolean(identityLib.pendingRequest(req.user, 'dataviz')),
   });
 });
 

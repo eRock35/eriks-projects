@@ -535,6 +535,15 @@
                                    : 'Free plan &mdash; samples only.') + '</p>' +
       (me.billing && !me.pro ? '<button class="btn" id="upBtn2">Upgrade</button>' : '') +
       (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
+      // Not everyone who wants Pro wants to pay for it today - a teacher, a
+      // friend, someone trying it for a project. Asking is a second door to
+      // the same place, and it reaches Erik by email rather than going into a
+      // void.
+      (!me.pro
+        ? (me.askedPro
+            ? '<p class="hint" style="margin-top:10px">Your request for Pro is in \u2014 Erik has been emailed.</p>'
+            : '<button class="btn sec" id="askProBtn" style="margin-top:8px">Ask for Pro instead</button>')
+        : '') +
       '<div id="secBody" style="margin-top:18px"></div>' +
       '<button class="btn sec" id="outBtn" style="margin-top:8px">Sign out</button>');
 
@@ -593,6 +602,16 @@
     })();
     var up = el.querySelector('#upBtn2');
     if (up) up.addEventListener('click', startCheckout);
+    var askPro = el.querySelector('#askProBtn');
+    if (askPro) askPro.addEventListener('click', async function () {
+      var note = window.prompt('Anything you want to tell Erik? (optional)') || '';
+      askPro.disabled = true;
+      try {
+        await api('/api/auth/access/request', { method: 'POST', body: JSON.stringify({ note: note }) });
+        askPro.outerHTML = '<p class="hint" style="margin-top:10px">Your request for Pro is in \u2014 Erik has been emailed.</p>';
+        toast('Request sent');
+      } catch (e) { toast(e.message, 'error'); askPro.disabled = false; }
+    });
     var man = el.querySelector('#manageBtn');
     if (man) man.addEventListener('click', async function () {
       try { var d = await api('/api/billing-portal', { method: 'POST' }); location.href = d.url; }

@@ -136,13 +136,29 @@ function gate(req, res, next) {
     // to a login page they have already passed.
     identity.log('access.denied', req, { detail: APP_KEY, ok: false });
     if (wantsHtml) {
+      const who = String(req.user.email || '').replace(/[<>&"]/g, '');
+      const asked = req.user.requests && req.user.requests[APP_KEY] && req.user.requests[APP_KEY].state !== 'denied';
       return res.status(403).send(
-        '<!doctype html><meta charset="utf-8"><title>No access</title>' +
-        '<body style="font:16px -apple-system,sans-serif;max-width:32em;margin:18vh auto;padding:0 20px">' +
-        '<h1 style="font-size:20px">Your account does not have access to Friction</h1>' +
-        '<p style="color:#666">Signed in as ' + String(req.user.email || '').replace(/[<>&"]/g, '') +
-        '. This one is invite-only — ask Erik to add it to your account.</p>' +
-        '<p><a href="/login">Use the app password instead</a></p></body>');
+        '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<meta name="color-scheme" content="light dark"><title>No access</title>' +
+        '<script src="/analytics.js" async></script>' +
+        '<body style="font:16px/1.5 -apple-system,sans-serif;max-width:32em;margin:16vh auto;padding:0 20px">' +
+        '<h1 style="font-size:20px;margin:0 0 8px">Friction is invite-only</h1>' +
+        '<p style="opacity:.7;margin:0 0 18px">Signed in as ' + who + '.</p>' +
+        (asked
+          ? '<p style="opacity:.7">Your request is in — Erik has been emailed. You will get in once he approves it.</p>'
+          : '<label for="n" style="display:block;font-size:13px;opacity:.7;margin-bottom:6px">Why would you like access? (optional)</label>' +
+            '<textarea id="n" rows="3" style="width:100%;font:inherit;padding:9px;border-radius:10px;border:1px solid #8884;background:transparent;color:inherit"></textarea>' +
+            '<button id="go" style="font:inherit;margin-top:10px;padding:10px 16px;border-radius:10px;border:0;background:#2a78d6;color:#fff;cursor:pointer">Ask for access</button>' +
+            '<p id="s" style="min-height:1.4em;font-size:14px;opacity:.75"></p>' +
+            '<script>document.getElementById("go").onclick=function(){' +
+            'var b=this,s=document.getElementById("s");b.disabled=true;s.textContent="Sending\u2026";' +
+            'fetch("/api/id/access/request",{method:"POST",headers:{"Content-Type":"application/json"},' +
+            'body:JSON.stringify({note:document.getElementById("n").value})})' +
+            '.then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||"Could not send that.");return j;})})' +
+            '.then(function(){s.textContent="Sent. Erik has been emailed.";})' +
+            '.catch(function(e){s.textContent=e.message;b.disabled=false;});};</script>') +
+        '<p style="margin-top:22px"><a href="/login" style="color:#2a78d6">Use the app password instead</a></p></body>');
     }
     return res.status(403).json({ error: 'Your account does not have access to Friction.' });
   }

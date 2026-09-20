@@ -310,6 +310,36 @@
 
   // A preview never sends and never advances the watermark, so checking what
   // is outstanding costs nothing and cannot swallow a real notification.
+  // Grant or turn down an ask, in one tap, from the place it is shown.
+  function wireDecisions(root) {
+    root.querySelectorAll('#pendingCard [data-decide]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.health-row');
+        var uid = row.getAttribute('data-uid');
+        var app = row.getAttribute('data-app');
+        var grant = btn.getAttribute('data-decide') === 'grant';
+        row.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+        var url = grant ? '/api/admin/access' : '/api/admin/access/deny';
+        var body = grant ? { uid: uid, app: app, level: GRANTABLE[app] } : { uid: uid, app: app };
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+          .then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (j) {
+              if (!r.ok) throw new Error(j.error || 'Could not do that.');
+              return j;
+            });
+          })
+          .then(function () {
+            row.innerHTML = '<span style="color:var(--text-muted)">' +
+              (grant ? 'Granted' : 'Declined') + ' \u2014 ' + esc(app) + '</span>';
+          })
+          .catch(function (err) {
+            row.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+            btn.title = err.message; btn.classList.add('err-chip');
+          });
+      });
+    });
+  }
+
   function wireNotify() {
     var state = document.getElementById('notifyState');
     var btn = document.getElementById('notifySend');
@@ -358,6 +388,21 @@
       '<div class="card tile"><div class="label">Apps needing a look</div><div class="value">' + worst + '</div>' +
         '<div class="foot">of ' + d.health.length + ' tracked</div></div>' +
       '</div>';
+
+    // --- people waiting on a decision --------------------------------------
+    if (d.users.pending && d.users.pending.length) {
+      html += '<h2>Access requests</h2><div class="card" id="pendingCard">';
+      d.users.pending.forEach(function (p) {
+        html += '<div class="health-row" data-uid="' + esc(p.uid) + '" data-app="' + esc(p.app) + '">' +
+          '<span><b>' + esc(p.email) + '</b> \u2014 ' + esc(p.app) +
+            (p.note ? '<br><span style="color:var(--text-muted);font-size:12.5px">\u201c' + esc(p.note) + '\u201d</span>' : '') +
+            '<br><span style="color:var(--text-muted);font-size:12px">asked ' + esc(ago(p.at)) + '</span></span>' +
+          '<span style="white-space:nowrap">' +
+            '<button class="chip on" data-decide="grant">Grant</button>' +
+            '<button class="chip" data-decide="deny">Deny</button></span></div>';
+      });
+      html += '</div>';
+    }
 
     // --- what is waiting on Erik ------------------------------------------
     html += '<h2>Notifications</h2><div class="card" id="notifyCard">' +
@@ -423,6 +468,7 @@
 
     root.innerHTML = html;
     wireGrants(root);
+    wireDecisions(root);
     wireNotify();
 
     // --- mount the charts -------------------------------------------------

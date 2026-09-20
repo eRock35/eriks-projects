@@ -725,6 +725,18 @@ app.post('/api/admin/access', requireAdmin, async (req, res) => {
   }
 });
 
+app.post('/api/admin/access/deny', requireAdmin, async (req, res) => {
+  try {
+    const { uid, app: appKey } = req.body || {};
+    if (!uid || !appKey) return res.status(400).json({ error: 'uid and app are required.' });
+    await identity.denyRequest(uid, appKey);
+    await identity.log('access.denied-request', req, { uid, detail: appKey });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Could not change that.' });
+  }
+});
+
 app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GRANTABLE }));
 
 // The notifier tick. Cloud Scheduler calls this; it sends only when there is
