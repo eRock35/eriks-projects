@@ -275,7 +275,9 @@ print('  updateTime    ', d.get('updateTime'))
 
 # --- landing page ----------------------------------------------------------
 cmd_page() {
-  local src="${REPO_ROOT:-/home/user}/eriks-projects/index.html"
+  # The page moved under site/ when the landing page was containerised; the
+  # bucket is kept only as the pre-Cloud-Run rollback.
+  local src="${REPO_ROOT:-/home/user}/eriks-projects/site/index.html"
   [[ -f "$src" ]] || die "no index.html at $src"
   say "uploading landing page"
   curl -sS -o /dev/null -f -X POST -H "Authorization: Bearer $(tok)" \
@@ -295,7 +297,8 @@ gcpdeploy — deploy Erik's apps to Cloud Run (no gcloud, no local Docker)
   gcpdeploy status            services, scheduler jobs, Firestore databases
   gcpdeploy ship <app>        build from the checked-out repo and deploy
   gcpdeploy verify <app>      force the cron job, read what it wrote
-  gcpdeploy page              upload the landing page to its bucket
+  gcpdeploy page              upload the landing page to its ROLLBACK bucket
+                              (the live page is the 'landing' Cloud Run service)
 
 apps: $(python3 -c "import json;print(', '.join(json.load(open('$CFG'))['apps']))")
 EOF

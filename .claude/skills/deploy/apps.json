@@ -1,5 +1,5 @@
 {
-  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here — gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
+  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here \u2014 gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
   "project": "metal-celerity-236019",
   "region": "us-central1",
   "registry": "erik-projects",
@@ -33,7 +33,14 @@
       "db": "hopscotch",
       "verify_job": "hopscotch-dispatch",
       "verify_doc": null,
-      "unsupported": "Hopscotch builds through its own cloudbuild.yaml with a git-sha image tag, an APP_VERSION build arg, and a separate 'hopscotch' Artifact Registry repo. Its committed deploy tooling also assumes gcloud, which does not exist here, and names two secrets that do not exist in this project (hopscotch-anthropic-key, hopscotch-cron-secret) — the live service uses the shared anthropic-api-key and cron-secret. Deploy it by hand until that is reconciled."
+      "unsupported": "Hopscotch builds through its own cloudbuild.yaml with a git-sha image tag, an APP_VERSION build arg, and a separate 'hopscotch' Artifact Registry repo. Its committed deploy tooling also assumes gcloud, which does not exist here, and names two secrets that do not exist in this project (hopscotch-anthropic-key, hopscotch-cron-secret) \u2014 the live service uses the shared anthropic-api-key and cron-secret. Deploy it by hand until that is reconciled."
+    },
+    "landing": {
+      "repo": "eriks-projects",
+      "service": "landing-page",
+      "db": null,
+      "verify_job": null,
+      "verify_doc": null
     }
   }
 }
