@@ -103,7 +103,7 @@ initial state*, not a failure.
 | College Football | `college-football-app` | `college-football-app` | `footballapp.strongtechnicalconsulting.com` |
 | Hopscotch (beer) | `hopscotch` | `hopscotch` | `beer.strongtechnicalconsulting.com` |
 | Trip Planner | `trip-planner` | `trip-planner` | `trip-planner-…-uc.a.run.app` |
-| Santa Rosa Beach Trip | *see that repo's CLAUDE.md* | *same* | *deliberately unpublished* |
+| Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
 | Landing page | — (GCS bucket) | — | `www.strongtechnicalconsulting.com` |
 
 Per-app secrets are deliberately **not** shared. The football app's login is the
@@ -114,9 +114,8 @@ must not also open the trip apps.
 - Trip Planner: `trip-planner-login-username`, `-login-password`, `-cron-secret`, `-session-secret`
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
 
-Cloud Run service and database names for the Santa Rosa app are kept out of this
-public file on purpose: the project hash is already public, so naming the
-service here would let anyone reconstruct its URL. See **Known open items**.
+Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
+See **Settled decisions**.
 
 ### Why two apps have no custom domain
 
@@ -126,9 +125,9 @@ The default `*.run.app` URL rides Google's wildcard cert, so the service name
 never appears there.
 
 `santa-rosa-beach-trip` holds two young kids' details, exact travel dates, and
-rental confirmation numbers. The quieter URL beat the nicer one. Don't add a
-mapping for it, and don't publish its URL, without Erik explicitly revisiting
-that trade.
+rental confirmation numbers. The quieter URL beat the nicer one. That trade has
+since been revisited — see **Settled decisions**. The app keeps its `*.run.app`
+URL; don't add a domain mapping for it.
 
 ## Scheduler jobs
 
@@ -152,14 +151,22 @@ up to 24h latency) and goes live hourly on Saturdays. Batch supports
   IAM — ask Erik.
 - **Empty `cover-sheet` Firestore database (us-east4) still exists.** Deleting it
   was blocked by a safety classifier. Left in place; harmless but untidy.
-- **The Santa Rosa app's "quiet URL" protection is already defeated by these
-  public repos.** `college-football-app/docs/gcp-deployment.md` and
-  `trip-planner/CLAUDE.md` both publish the project hash, both name
-  `santa-rosa-beach-trip` (one of them labels it as the app holding real PII),
-  and both demonstrate that the Cloud Run service name matches the repo name.
-  Its `*.run.app` hostname is therefore trivially derivable from public data —
-  which is exactly what skipping the custom domain was meant to prevent.
-  The app itself is still gated behind a password and passkeys, so this is
-  discoverability, not access. Erik needs to decide between accepting it,
-  scrubbing the public references and renaming the service, or concluding the
-  benefit is gone and adding a custom domain for convenience.
+
+## Settled decisions
+
+Don't re-open these; they were decided deliberately.
+
+### The Santa Rosa app's URL exposure — reviewed and accepted (2026-09-20)
+
+The `*.run.app` hostname for that app is less private than originally intended.
+Erik reviewed the specifics, was offered the alternatives (rename the service,
+or add a custom domain since the original benefit was largely spent), and chose
+to accept the current state. The app is gated behind a password and passkeys,
+and that gate was always the real protection.
+
+Full details are in `eRock35/santa-rosa-beach-trip`'s CLAUDE.md, which is
+private and the right place for them. Don't restate them here.
+
+Two rules still stand: **no custom domain mapping** for that app (a mapping
+publishes the hostname to Certificate Transparency logs), and **no literal
+URL in any public file**.
