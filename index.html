@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Erik's Projects</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --bg2: #10161d;
+    --card: #131a22;
+    --border: #1f2833;
+    --text: #e8edf2;
+    --muted: #8a97a5;
+    --accent: #22d3ee;
+    --accent2: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, rgba(34,211,238,0.12), transparent 60%),
+      radial-gradient(1000px 600px at 100% 0%, rgba(167,139,250,0.10), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 64px 20px 40px;
+  }
+  header { text-align: center; max-width: 560px; margin-bottom: 48px; }
+  .eyebrow {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    font-size: 40px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px;
+    background: linear-gradient(90deg, var(--text), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  p.sub { color: var(--muted); font-size: 16px; line-height: 1.5; margin: 0; }
+
+  .grid {
+    width: 100%; max-width: 720px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  a.card {
+    display: block; background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 22px; text-decoration: none; color: inherit; transition: border-color 0.15s, transform 0.15s;
+  }
+  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  a.card.placeholder { opacity: 0.55; cursor: default; }
+  a.card.placeholder:hover { border-color: var(--border); transform: none; }
+  .card-icon { font-size: 26px; margin-bottom: 10px; display: block; }
+  .card h2 { font-size: 17px; margin: 0 0 6px; }
+  .card p { font-size: 13.5px; color: var(--muted); margin: 0; line-height: 1.4; }
+  .card .tag {
+    display: inline-block; margin-top: 12px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+    background: rgba(34,211,238,0.12); color: var(--accent);
+  }
+
+  footer { margin-top: 56px; color: var(--muted); font-size: 12.5px; text-align: center; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">strongtechnicalconsulting.com</p>
+    <h1>Erik's Projects</h1>
+    <p class="sub">A home base for the things I'm building — live apps, experiments, whatever's next.</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="https://coversheet.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <span class="card-icon">🏈</span>
+      <h2>Cover Sheet</h2>
+      <p>College football betting research — live odds, picks, and AI-backed research on demand.</p>
+      <span class="tag">Live</span>
+    </a>
+
+    <a class="card placeholder">
+      <span class="card-icon">✨</span>
+      <h2>More on the way</h2>
+      <p>Next project lands here.</p>
+    </a>
+  </div>
+
+  <footer>
+    Built and run by Erik &middot; <a href="https://github.com/eRock35" target="_blank" rel="noopener">github.com/eRock35</a>
+  </footer>
+</body>
+</html>
