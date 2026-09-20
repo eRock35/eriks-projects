@@ -292,6 +292,54 @@ means football already sees you on the next request. Its own two-tap WebAuthn
 registration was the riskiest thing to rewrite for the least gain, so it was
 left alone as the second door.
 
+## Email notifications
+
+`landing-notify` (Cloud Scheduler, every 15 minutes) POSTs
+`/api/cron/notify` on this service. It emails the address in `ADMIN_EMAIL`
+when something needs a person, and **sends nothing when there is nothing to
+say** - a quiet day produces no mail at all.
+
+What it reports:
+
+| Thing | Source |
+|---|---|
+| New account | identity `events`, kind `register` |
+| AI-access request | trip-planner `users` with `aiAccess: pending` |
+| Password-reset request | trip-planner `users` with `resetRequestedAt` |
+| Failed sign-in burst | identity `events`, 5+ failures against one address |
+
+Deliberately NOT reported: Erik's own admin actions (he just did them) and
+ordinary sign-ins, which would make the mail worthless within a week.
+
+### Why a job and not an inline send
+
+Sending from wherever the event happens would mean mounting `RESEND_API_KEY`
+on all five services and putting a third-party HTTP call in the middle of a
+user's sign-up - if Resend is slow, registration is slow. One job reading what
+already happened keeps the key in one place and keeps mail off the request
+path.
+
+### The two deduplication shapes
+
+Events already happened, so a timestamp watermark (`control/notify.lastEventAt`
+in the identity database) is enough. An unanswered request persists until
+acted on, so a timestamp would re-send it every tick forever; those are keyed
+individually in `control/notify.notified` by the timestamp already reported -
+which means a SECOND request from the same person does notify again.
+
+**The watermark only advances after a successful send.** A Resend outage
+delays notifications; it does not lose them.
+
+### Checking it without spending a send
+
+`GET /api/admin/notify/preview` reports what the next tick would say, and
+neither sends nor advances the watermark. The dashboard's Notifications card
+uses it, and has a button to send on demand.
+
+Verified end to end on 2026-09-20 by setting a reset flag on Erik's own
+record, watching `lastSubject` appear (it is written only after the send
+returns), then clearing the flag and confirming the next run stayed quiet.
+
 ## Analytics
 
 One GA4 property covers every app. They are all subdomains of one registrable
