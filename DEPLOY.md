@@ -142,6 +142,7 @@ initial state*, not a failure.
 | Trip Planner | `trip-planner` | `trip-planner` | `trip-planner-…-uc.a.run.app` |
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
 | Landing page + writing | `landing-page` | `eriks-projects` | `strongtechnicalconsulting.com` and `www.` |
+| Friction (signal board) | `friction` | `friction` | `friction.strongtechnicalconsulting.com` |
 
 Per-app secrets are deliberately **not** shared. The football app's login is the
 kind of thing Erik might hand to a friend so they can run research; that password
@@ -151,6 +152,7 @@ must not also open the trip apps.
 - Trip Planner: `trip-planner-login-username`, `-login-password`, `-cron-secret`, `-session-secret`
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
 - Landing page: `landing-session-secret`, `landing-admin-password`, `resend-api-key`
+- Friction: `friction-app-password`, `friction-session-secret`, `friction-cron-secret`
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.
@@ -204,10 +206,22 @@ get a mapping.
 | `cfb-saturday-live` | `0 9-23 * * 6` |
 | `trip-planner-check-watches` | `0 * * * *` |
 | `hopscotch-dispatch` | `0 8 * * 4` (America/Chicago) |
+| `friction-scan` | `15 */4 * * *` |
 
 Weekday football research runs through the **Anthropic Batch API** (50% cost,
 up to 24h latency) and goes live hourly on Saturdays. Batch supports
 `web_search_20260209`; this was verified with a real test batch, not assumed.
+
+`friction-scan` fires every four hours rather than daily on purpose. It scans
+the single stalest of six lenses per run, so six runs a day gives each lens a
+daily cadence while keeping one invocation inside its request timeout. Do not
+"simplify" it to one daily run that scans everything - that is 144 rate-limited
+requests in one handler.
+
+Friction is also the one app whose source lives in a **subdirectory** of
+another repo (`eriks-projects/apps/friction`), because the installed GitHub App
+cannot create repositories. `apps.json` handles this by setting `repo` to the
+path; nothing else knows or cares.
 
 ## Known open items
 
