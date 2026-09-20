@@ -681,18 +681,21 @@ app.get('/robots.txt', (req, res) => {
 
 // The login page is public by necessity; everything behind it is not.
 app.get('/admin/login', (req, res) => res.sendFile(path.join(SITE_DIR, 'admin-login.html')));
-app.get('/admin', (req, res) => {
-  if (!isAdmin(req) && !isIdentityAdmin(req)) return res.redirect('/admin/login');
-  res.sendFile(path.join(SITE_DIR, 'admin.html'));
-});
+// /admin is the OVERVIEW, not the blog editor. Landing an admin panel on a
+// text editor buries the things that actually need attention - an access
+// request someone is waiting on, an app that has stopped running - behind a
+// list of posts. Writing is one tool among several and lives at its own path.
+const adminGate = (req, res, next) =>
+  (isAdmin(req) || isIdentityAdmin(req)) ? next() : res.redirect('/admin/login');
+
+app.get('/admin', adminGate, (_req, res) => res.sendFile(path.join(SITE_DIR, 'admin-insights.html')));
+app.get('/admin/writing', adminGate, (_req, res) => res.sendFile(path.join(SITE_DIR, 'admin.html')));
 
 // The dashboard: who is using the apps, what happened, what it cost, what is
 // broken. Its own page rather than another tab inside admin.html, which is
 // already carrying the whole writing flow.
-app.get('/admin/insights', (req, res) => {
-  if (!isAdmin(req) && !isIdentityAdmin(req)) return res.redirect('/admin/login');
-  res.sendFile(path.join(SITE_DIR, 'admin-insights.html'));
-});
+// Kept so older links and bookmarks still land somewhere sensible.
+app.get('/admin/insights', adminGate, (_req, res) => res.redirect(301, '/admin'));
 
 // Granting per-app access. This is the other half of the `access` map: apps
 // read it, and this is the only place it is written. Without it the map is

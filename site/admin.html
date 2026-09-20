@@ -108,7 +108,7 @@
       <svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg>Posts
     </button>
     <span class="nav-title" id="navTitle">Blog</span>
-    <a class="nav-btn" id="dashLink" href="/admin/insights" aria-label="Dashboard" title="Dashboard">
+    <a class="nav-btn" id="dashLink" href="/admin" aria-label="Dashboard" title="Dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg>
     </a>
     <button class="nav-btn" id="newBtn" aria-label="New post">
@@ -282,7 +282,7 @@
       if (subs && subs.pending) pills.push('<span class="pill"><b>' + subs.pending + '</b> pending</span>');
       if (!info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
       pills.push('<button class="pill" id="emailCheck" style="border:none;cursor:pointer">Check email setup</button>');
-      pills.push('<a class="pill" href="/admin/insights" style="text-decoration:none">Dashboard &rarr;</a>');
+      pills.push('<a class="pill" href="/admin" style="text-decoration:none">&larr; Dashboard</a>');
       pills.push('<button class="pill" id="faceSetup" style="border:none;cursor:pointer">Face ID &amp; password</button>');
       if (!info.ai.enabled) pills.push('<span class="pill warn">Claude not configured</span>');
       if (info.store === 'memory') pills.push('<span class="pill warn">Local memory store, nothing is saved</span>');

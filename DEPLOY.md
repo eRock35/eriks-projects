@@ -209,6 +209,23 @@ only once `/api/stripe/health` reports `ok: true` again.
 A key that has been pasted into a chat, a terminal transcript, a ticket or a
 screenshot should be rolled on principle, even a test one.
 
+## The admin surface
+
+- **`/admin`** is the overview: access requests waiting on a decision, app
+  health, spend, accounts, the audit log. Landing an admin panel on the blog
+  editor buried the things that actually need attention behind a list of
+  posts, so the editor moved.
+- **`/admin/writing`** is the blog editor, linked from the overview's header
+  and reachable by the chart icon in its own nav bar.
+- **`/admin/insights`** 301s to `/admin`, so older links still land somewhere
+  sensible.
+- Everything under `/admin` answers **404** to a non-admin, not 403, so the
+  surface is not advertised.
+
+Ordering on the overview is deliberate: the two "something needs you" sections
+(requests, then health) sit together, and the control that emails them comes
+after the things it reports.
+
 ## The shared account
 
 One email + password + passkey opens landing, football, friction, trip-planner

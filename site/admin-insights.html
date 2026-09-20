@@ -131,8 +131,8 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Dashboard</h1>
-    <a class="back" href="/admin">&larr; Writing</a>
+    <h1>Admin</h1>
+    <a class="back" href="/admin/writing">Writing &rarr;</a>
   </header>
   <p class="sub" id="generated">Loading&hellip;</p>
   <div id="root"></div>
@@ -404,12 +404,6 @@
       html += '</div>';
     }
 
-    // --- what is waiting on Erik ------------------------------------------
-    html += '<h2>Notifications</h2><div class="card" id="notifyCard">' +
-      '<p class="chart-note" id="notifyState">Checking what is outstanding\u2026</p>' +
-      '<button class="chip" id="notifySend" type="button">Send me the summary now</button> ' +
-      '<span id="notifyResult" style="font-size:13px;color:var(--text-muted)"></span></div>';
-
     // --- health ----------------------------------------------------------
     html += '<h2>App health</h2><div class="card">';
     d.health.forEach(function (h) {
@@ -421,6 +415,12 @@
         '</div>';
     });
     html += '</div>';
+
+    // --- the control that mails the above, after the things it reports -----
+    html += '<h2>Notifications</h2><div class="card" id="notifyCard">' +
+      '<p class="chart-note" id="notifyState">Checking what is outstanding\u2026</p>' +
+      '<button class="chip" id="notifySend" type="button">Send me the summary now</button> ' +
+      '<span id="notifyResult" style="font-size:13px;color:var(--text-muted)"></span></div>';
 
     // --- charts -----------------------------------------------------------
     html += '<h2>Activity &amp; cost</h2><div class="grid cols">' +
