@@ -8,12 +8,47 @@ const extract = require('./lib/extract');
 const shape = require('./lib/shape');
 const builder = require('./lib/build');
 const quota = require('./lib/quota');
+const stripe = require('./lib/stripe');
+const datasets = require('./lib/datasets');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const MAX_PROJECTS = 60;
 
 app.set('trust proxy', 1);
+
+/* ---------- Stripe webhook: raw body, mounted FIRST ----------
+ * express.json() parses and re-serialises, which changes the bytes and makes
+ * every signature fail for a reason that is not obvious from the error. This
+ * route must stay above the JSON parser. */
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
+  let event;
+  try {
+    event = stripe.verifyWebhook(req.body, req.get('Stripe-Signature'));
+  } catch (err) {
+    console.error('stripe webhook rejected:', err.message);
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  try {
+    // Stripe's own guidance: an endpoint can receive the same event more than
+    // once, and in some cases two distinct Event objects for one change. Both
+    // handlers here are writes, so replaying one would re-grant or re-revoke
+    // access. Record the id first and skip anything already applied.
+    const seen = await db.get('billing-events', event.id);
+    if (seen) return res.json({ received: true, duplicate: true });
+    await applyBillingEvent(event);
+    await db.set('billing-events', event.id, {
+      type: event.type, appliedAt: new Date().toISOString(),
+    });
+    res.json({ received: true });
+  } catch (err) {
+    // A 500 makes Stripe retry, which is what we want when our own write
+    // failed. Never 200 an event that was not applied.
+    console.error('stripe webhook handling failed:', event.type, err.message);
+    res.status(500).json({ error: 'Could not apply that event.' });
+  }
+});
+
 app.use(express.json({ limit: '2mb' }));
 app.use((req, _res, next) => {
   req.cookies = {};
@@ -27,6 +62,53 @@ app.use(accounts.attachUser);
 
 const fail = (res, err, fallback = 'Something went wrong.') =>
   res.status(err.status || 500).json({ error: err.status ? err.message : fallback });
+
+/** With no Stripe keys configured the app is entirely free, so it keeps
+ *  working before billing exists and if the keys are ever removed. */
+function isPro(user) {
+  if (!stripe.enabled()) return true;
+  if (!user) return false;
+  if (user.plan !== 'pro') return false;
+  // A cancelled subscription keeps access to the end of the paid period.
+  if (user.currentPeriodEnd && Date.parse(user.currentPeriodEnd) < Date.now()) return false;
+  return true;
+}
+
+/** Fold one Stripe event into the account it belongs to. Only the events that
+ *  change whether someone has paid are handled; the rest are acknowledged. */
+async function applyBillingEvent(event) {
+  const obj = (event.data && event.data.object) || {};
+  const uid = (obj.metadata && obj.metadata.uid) || obj.client_reference_id || null;
+
+  if (event.type === 'checkout.session.completed') {
+    if (!uid) return;
+    await db.merge('users', uid, {
+      plan: 'pro',
+      stripeCustomerId: obj.customer || null,
+      stripeSubscriptionId: obj.subscription || null,
+      proSince: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+    // The uid rides on subscription_data.metadata, set when checkout started.
+    let target = uid;
+    if (!target && obj.customer) {
+      const rows = await db.list('users', { where: [['stripeCustomerId', '==', obj.customer]], limit: 1 });
+      target = rows.length ? rows[0].id : null;
+    }
+    if (!target) return;
+    const active = event.type !== 'customer.subscription.deleted'
+      && ['active', 'trialing', 'past_due'].includes(obj.status);
+    await db.merge('users', target, {
+      plan: active ? 'pro' : 'free',
+      stripeSubscriptionId: obj.id || null,
+      currentPeriodEnd: obj.current_period_end ? new Date(obj.current_period_end * 1000).toISOString() : null,
+      subscriptionStatus: obj.status || null,
+    });
+  }
+}
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
@@ -54,8 +136,39 @@ app.get('/api/auth/me', async (req, res) => {
   res.json({
     signedIn: Boolean(req.user),
     email: req.user ? req.user.email : null,
+    plan: req.user ? (req.user.plan || 'free') : 'free',
+    pro: isPro(req.user),
+    billing: stripe.enabled(),
     remaining: await quota.remaining(req).catch(() => null),
   });
+});
+
+/* ---------- billing ---------- */
+
+app.get('/api/datasets', (_req, res) => res.json({ datasets: datasets.list() }));
+
+app.post('/api/checkout', accounts.requireUser, async (req, res) => {
+  try {
+    if (!stripe.enabled()) return res.status(503).json({ error: 'Billing is not set up on this deployment.' });
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.createCheckout({
+      uid: req.user.id,
+      email: req.user.email,
+      customerId: req.user.stripeCustomerId || null,
+      successUrl: `${origin}/?upgraded=1`,
+      cancelUrl: `${origin}/`,
+    });
+    res.json({ url: session.url });
+  } catch (err) { fail(res, err, 'Could not start checkout.'); }
+});
+
+app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
+  try {
+    if (!req.user.stripeCustomerId) return res.status(400).json({ error: 'No subscription to manage yet.' });
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.createPortal({ customerId: req.user.stripeCustomerId, returnUrl: `${origin}/` });
+    res.json({ url: session.url });
+  } catch (err) { fail(res, err, 'Could not open the billing page.'); }
 });
 
 /* ---------- the one route that costs money ---------- */
@@ -64,14 +177,30 @@ app.post('/api/viz', async (req, res) => {
   try {
     await quota.check(req);
 
-    const { url, text, hint } = req.body || {};
-    let source;
-    if (url && String(url).trim()) {
-      source = await extract.fromUrl(String(url).trim());
-    } else if (text && String(text).trim()) {
-      source = Object.assign({ sourceUrl: null }, extract.fromText(String(text)));
+    const { url, text, hint, datasetId } = req.body || {};
+    let source, usedHint = hint;
+
+    if (datasetId) {
+      // Sample data is free forever. It is the thing that lets someone find
+      // out whether this is any good before being asked for money.
+      const ds = datasets.get(String(datasetId));
+      if (!ds) return res.status(404).json({ error: 'No such sample.' });
+      source = Object.assign({ sourceUrl: null, sample: ds.title }, extract.fromText(ds.csv));
+      if (!usedHint) usedHint = ds.hint;
+    } else if ((url && String(url).trim()) || (text && String(text).trim())) {
+      if (!isPro(req.user)) {
+        return res.status(402).json({
+          error: req.user
+            ? 'Your own data is part of the paid plan. The samples are free and always will be.'
+            : 'Make an account and upgrade to use your own data. The samples are free without one.',
+          upgrade: true,
+        });
+      }
+      source = url && String(url).trim()
+        ? await extract.fromUrl(String(url).trim())
+        : Object.assign({ sourceUrl: null }, extract.fromText(String(text)));
     } else {
-      return res.status(400).json({ error: 'Paste some data or give me a link.' });
+      return res.status(400).json({ error: 'Pick a sample, paste some data, or give me a link.' });
     }
 
     let table = source.tables && source.tables[0];
@@ -84,7 +213,7 @@ app.post('/api/viz', async (req, res) => {
       fromProse = true;
     }
 
-    const spec = await shape.design(table, hint);
+    const spec = await shape.design(table, usedHint);
     const viz = builder.build(table, spec);
 
     await quota.record(req);
@@ -94,6 +223,7 @@ app.post('/api/viz', async (req, res) => {
       subtitle: spec.subtitle,
       note: spec.note,
       fromProse,
+      sample: source.sample || null,
       sourceUrl: source.sourceUrl || null,
       rowCount: table.length - 1,
       columns: table[0],

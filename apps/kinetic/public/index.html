@@ -56,6 +56,20 @@
   .btn.sec { background: var(--panel-2); color: var(--ink); }
   .btn.row { width: auto; flex: 1; margin-top: 0; font-size: 14px; padding: 11px 14px; }
   .btnrow { display: flex; gap: 8px; margin-top: 12px; }
+  .samples { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 4px; }
+  .sample {
+    text-align: left; font: inherit; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 13px; padding: 11px 12px; cursor: pointer; color: var(--ink);
+  }
+  .sample:hover { border-color: rgba(255,255,255,0.22); }
+  .sample b { display: block; font-size: 14.5px; font-weight: 650; margin-bottom: 3px; }
+  .sample span { display: block; font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
+  .sample i { display: inline-block; font-style: normal; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--accent); margin-top: 7px; }
+  .locked { border: 1px dashed var(--line); border-radius: 13px; padding: 13px; margin-top: 12px; color: var(--ink-2); font-size: 14px; }
+  .locked b { color: var(--ink); display: block; margin-bottom: 4px; font-size: 15px; }
+  .plan { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--green); background: rgba(61,214,140,0.14); border-radius: 6px; padding: 3px 8px; }
   .examples { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
   .ex { font: inherit; font-size: 13px; color: var(--ink-2); background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 999px; padding: 6px 12px; cursor: pointer; }
@@ -133,21 +147,26 @@
 <div class="wrap">
   <div id="intro">
     <h1 class="hero">Make your data <em>move</em>.</h1>
-    <p class="sub">Point at a link or paste a table. Get a visual that plays &mdash; bars overtaking each other, lines drawing themselves, traffic flowing. No account needed.</p>
+    <p class="sub">Pick a sample or bring your own. Get a visual that plays &mdash; bars overtaking each other, lines drawing themselves, traffic flowing. The samples are free, no account needed.</p>
   </div>
 
   <div class="card" id="inputCard">
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tabLink" aria-selected="true">From a link</button>
+      <button class="tab" role="tab" id="tabSample" aria-selected="true">Sample data</button>
+      <button class="tab" role="tab" id="tabLink" aria-selected="false">From a link</button>
       <button class="tab" role="tab" id="tabPaste" aria-selected="false">Paste data</button>
     </div>
-    <div id="paneLink">
+    <div id="paneSample">
+      <div class="samples" id="samples"></div>
+    </div>
+    <div id="paneLink" hidden>
       <input type="url" id="urlInput" placeholder="https://en.wikipedia.org/wiki/..." inputmode="url"
              autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Link to a page with data">
-      <div class="examples" id="examples"></div>
+      <div class="locked" id="lockedLink" hidden></div>
     </div>
     <div id="panePaste" hidden>
       <textarea id="textInput" placeholder="year,city,visits&#10;2020,Atlanta,120&#10;2021,Atlanta,340&#10;2021,Denver,90" spellcheck="false" aria-label="Paste CSV, JSON or a table"></textarea>
+      <div class="locked" id="lockedPaste" hidden></div>
     </div>
     <label class="lbl" for="hintInput">What do you want to see? (optional)</label>
     <input type="text" id="hintInput" placeholder="race the cities over time" aria-label="What to show">
@@ -187,14 +206,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var player = null, current = null, me = { signedIn: false }, mode = 'link';
-
-  var EXAMPLES = [
-    { label: 'US state populations', url: 'https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States_by_population', hint: 'rank the states' },
-    { label: 'Tallest buildings', url: 'https://en.wikipedia.org/wiki/List_of_tallest_buildings', hint: 'rank them by height' },
-    { label: 'Try sample data', sample: true }
-  ];
-  var SAMPLE = 'year,city,visits\n2019,Atlanta,120\n2019,Denver,180\n2019,Austin,90\n2020,Atlanta,260\n2020,Denver,190\n2020,Austin,150\n2021,Atlanta,410\n2021,Denver,210\n2021,Austin,320\n2022,Atlanta,520\n2022,Denver,250\n2022,Austin,480\n2023,Atlanta,610\n2023,Denver,300\n2023,Austin,700';
+  var player = null, current = null, me = { signedIn: false, pro: false, billing: false }, mode = 'sample';
 
   function toast(msg) {
     var t = $('toast'); t.textContent = msg; t.className = 'toast in';
@@ -220,29 +232,65 @@
   /* ---------- input ---------- */
   function setMode(next) {
     mode = next;
-    $('tabLink').setAttribute('aria-selected', String(next === 'link'));
-    $('tabPaste').setAttribute('aria-selected', String(next === 'paste'));
-    $('paneLink').hidden = next !== 'link';
-    $('panePaste').hidden = next !== 'paste';
+    ['sample', 'link', 'paste'].forEach(function (m) {
+      $('tab' + m.charAt(0).toUpperCase() + m.slice(1)).setAttribute('aria-selected', String(next === m));
+      $('pane' + m.charAt(0).toUpperCase() + m.slice(1)).hidden = next !== m;
+    });
+    $('goBtn').hidden = next === 'sample';
+    $('hintInput').parentNode && ($('hintInput').previousElementSibling.hidden = next === 'sample');
+    $('hintInput').hidden = next === 'sample';
+    renderLocks();
   }
-  $('tabLink').addEventListener('click', function () { setMode('link'); });
-  $('tabPaste').addEventListener('click', function () { setMode('paste'); });
-
-  $('examples').innerHTML = EXAMPLES.map(function (e, i) {
-    return '<button class="ex" data-ex="' + i + '">' + esc(e.label) + '</button>';
-  }).join('');
-  $('examples').addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-ex]');
-    if (!btn) return;
-    var ex = EXAMPLES[Number(btn.getAttribute('data-ex'))];
-    if (ex.sample) { setMode('paste'); $('textInput').value = SAMPLE; $('hintInput').value = 'race the cities over time'; }
-    else { setMode('link'); $('urlInput').value = ex.url; $('hintInput').value = ex.hint || ''; }
-    go();
+  ['sample', 'link', 'paste'].forEach(function (m) {
+    $('tab' + m.charAt(0).toUpperCase() + m.slice(1)).addEventListener('click', function () { setMode(m); });
   });
 
-  async function go() {
-    var body = { hint: $('hintInput').value.trim() };
-    if (mode === 'link') {
+  // Own data is the paid part. Say so before they type, not after.
+  function renderLocks() {
+    var locked = me.billing && !me.pro;
+    var copy = '<b>Your own data is the paid plan</b>' +
+      (me.signedIn ? 'Samples stay free. Unlock links and pasting for everything you make.'
+                   : 'Samples are free without an account. Sign in and upgrade to use your own.') +
+      '<div class="btnrow"><button class="btn row" id="upBtn">' +
+      (me.signedIn ? 'Upgrade' : 'Sign in to upgrade') + '</button></div>';
+    ['lockedLink', 'lockedPaste'].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      el.hidden = !locked;
+      if (locked) el.innerHTML = copy;
+    });
+    if (locked) {
+      document.querySelectorAll('#upBtn').forEach(function (b) {
+        b.addEventListener('click', function () { me.signedIn ? startCheckout() : openAuth('Upgrading needs an account.'); });
+      });
+    }
+  }
+
+  async function loadSamples() {
+    try {
+      var d = await api('/api/datasets');
+      $('samples').innerHTML = (d.datasets || []).map(function (s2) {
+        return '<button type="button" class="sample" data-sample="' + esc(s2.id) + '">' +
+          '<b>' + esc(s2.title) + '</b><span>' + esc(s2.blurb) + '</span><i>' + esc(s2.best) + '</i></button>';
+      }).join('');
+    } catch (e) { $('samples').innerHTML = '<p style="color:var(--ink-2);font-size:14px">Could not load the samples.</p>'; }
+  }
+  $('samples').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-sample]');
+    if (btn) go({ datasetId: btn.getAttribute('data-sample') });
+  });
+
+  async function startCheckout() {
+    try {
+      var d = await api('/api/checkout', { method: 'POST' });
+      location.href = d.url;
+    } catch (err) { toast(err.message); }
+  }
+
+  async function go(override) {
+    var body = override || { hint: $('hintInput').value.trim() };
+    if (override) { /* a sample: nothing else to gather */ }
+    else if (mode === 'link') {
       if (!$('urlInput').value.trim()) { say('Paste a link first.', true); return; }
       body.url = $('urlInput').value.trim();
     } else {
@@ -260,11 +308,14 @@
       }
     } catch (err) {
       say(esc(err.message), true);
+      if (/paid plan|upgrade/i.test(err.message)) {
+        me.signedIn ? startCheckout() : openAuth('Upgrading needs an account.');
+      }
     } finally {
       $('goBtn').disabled = false;
     }
   }
-  $('goBtn').addEventListener('click', go);
+  $('goBtn').addEventListener('click', function () { go(); });
 
   /* ---------- stage ---------- */
   function show(out, readOnly) {
@@ -280,6 +331,7 @@
     var chips = [];
     chips.push('<span class="chip">' + esc(out.viz.type) + '</span>');
     if (out.rowCount) chips.push('<span class="chip">' + out.rowCount + ' rows</span>');
+    if (out.sample) chips.push('<span class="chip">sample: ' + esc(out.sample) + '</span>');
     if (out.fromProse) chips.push('<span class="chip">read from text</span>');
     if (out.sourceUrl) chips.push('<span class="chip">' + esc((out.sourceUrl.split('/')[2] || '')) + '</span>');
     $('vizMeta').innerHTML = chips.join('');
@@ -444,12 +496,23 @@
 
   $('authBtn').addEventListener('click', function () {
     if (!me.signedIn) return openAuth();
-    sheet('<h3>' + esc(me.email) + '</h3><p class="hint">Signed in.</p>' +
-      '<button class="btn sec" id="outBtn">Sign out</button>')
-      .querySelector('#outBtn').addEventListener('click', async function () {
-        await api('/api/auth/logout', { method: 'POST' });
-        closeSheet(); await refreshMe(); toast('Signed out');
-      });
+    var el = sheet('<h3>' + esc(me.email) + '</h3>' +
+      '<p class="hint">' + (me.pro ? '<span class="plan">Pro</span> &nbsp;Your own data is unlocked.'
+                                   : 'Free plan &mdash; samples only.') + '</p>' +
+      (me.billing && !me.pro ? '<button class="btn" id="upBtn2">Upgrade</button>' : '') +
+      (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
+      '<button class="btn sec" id="outBtn" style="margin-top:8px">Sign out</button>');
+    var up = el.querySelector('#upBtn2');
+    if (up) up.addEventListener('click', startCheckout);
+    var man = el.querySelector('#manageBtn');
+    if (man) man.addEventListener('click', async function () {
+      try { var d = await api('/api/billing-portal', { method: 'POST' }); location.href = d.url; }
+      catch (err) { toast(err.message); }
+    });
+    el.querySelector('#outBtn').addEventListener('click', async function () {
+      await api('/api/auth/logout', { method: 'POST' });
+      closeSheet(); await refreshMe(); toast('Signed out');
+    });
   });
   $('libBtn').addEventListener('click', openLibrary);
 
@@ -457,11 +520,19 @@
     try { me = await api('/api/auth/me'); } catch (e) { me = { signedIn: false }; }
     $('authBtn').textContent = me.signedIn ? 'Account' : 'Sign in';
     $('libBtn').hidden = !me.signedIn;
+    renderLocks();
   }
 
   /* ---------- shared view ---------- */
   async function boot() {
     await refreshMe();
+    await loadSamples();
+    setMode('sample');
+    if (/[?&]upgraded=1/.test(location.search)) {
+      // The webhook may land a moment after the redirect, so re-read once.
+      setTimeout(async function () { await refreshMe(); toast(me.pro ? 'You are on Pro' : 'Payment received, unlocking…'); }, 1500);
+      history.replaceState(null, '', '/');
+    }
     var m = location.pathname.match(/^\/v\/([A-Za-z0-9_-]+)$/);
     if (m) {
       try {
