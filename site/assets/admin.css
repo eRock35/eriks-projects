@@ -1,0 +1,67 @@
+/* Shared chrome for the two admin pages, and nothing else.
+ *
+ * There are exactly two places to be behind /admin - the overview (users,
+ * access requests, app health, spend) and writing (posts and the newsletter).
+ * That used to be unclear: one page called itself "Admin" and the other
+ * called itself "Blog", and getting between them meant finding one of three
+ * different one-way links - a chart icon in the toolbar, a "Dashboard" pill
+ * among the stats, or a "Writing" link in the corner. Nothing said the two
+ * were halves of the same thing, or which half you were looking at.
+ *
+ * One segmented control, identical on both pages, says both: here are the two
+ * sections, and this is the one you are in. It is built from links, not
+ * buttons, so it works before any script runs.
+ *
+ * Loaded by admin-insights.html and admin.html only - it is deliberately NOT
+ * in reader.css, which the public site downloads.
+ */
+
+/* The two pages have separate palettes - writing uses reader.css's tokens,
+ * the overview its own chart palette - so the bar resolves whichever exists
+ * rather than hardcoding a colour that would be wrong on one of them. Each
+ * page's own tokens already flip for dark mode, so this follows for free. */
+.adminbar, .adminseg {
+  --seg-track:  var(--fill, var(--grid, rgba(120,120,128,.12)));
+  --seg-active: var(--card, var(--surface-2, #fff));
+  --seg-ink:    var(--label, var(--text-primary, #0b0b0b));
+  --seg-dim:    var(--label-2, var(--text-muted, #71717a));
+  --seg-edge:   var(--sep, var(--border, rgba(60,60,67,.14)));
+}
+
+/* No width or padding of its own: it sits inside whatever container the page
+ * already has (720px on writing, 1040px on the overview) so the toggle always
+ * lines up with the content under it. */
+.adminbar h1 {
+  font-size: 28px; letter-spacing: -.02em; margin: 0 0 3px;
+}
+.adminbar .where {
+  font-size: 14px; margin: 0 0 14px;
+  color: var(--seg-dim);
+}
+
+/* The toggle. Sized for a thumb: 44px of target, full width on a phone. */
+.adminseg {
+  display: flex; gap: 3px; padding: 3px; margin: 0 0 22px;
+  background: var(--seg-track);
+  border-radius: 12px;
+}
+.adminseg a {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+  min-height: 40px; padding: 0 10px;
+  font-size: 14.5px; font-weight: 600; text-decoration: none;
+  color: var(--seg-dim);
+  border-radius: 9px;
+  -webkit-tap-highlight-color: transparent;
+}
+.adminseg a:active { opacity: .55; }
+/* aria-current is what a screen reader reads AND what the highlight keys off,
+ * so the two can never disagree. */
+/* The ring, not a border: a border on the selected one alone would make it
+ * 2px taller than its neighbour. In dark mode the raised surface and the
+ * track are nearly the same colour, so without it the selection reads only
+ * as slightly brighter text. */
+.adminseg a[aria-current="page"] {
+  background: var(--seg-active);
+  color: var(--seg-ink);
+  box-shadow: 0 0 0 1px var(--seg-edge), 0 1px 3px rgba(0,0,0,.18);
+}

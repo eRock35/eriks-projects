@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Dashboard</title>
+<title>Overview &middot; Admin</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/assets/admin.css">
 <style>
   /* Chart roles as tokens so light/dark swap in one place and the charts are
      written against roles rather than raw hex. Values are the validated
@@ -66,11 +68,8 @@
     -webkit-text-size-adjust: 100%;
   }
   .wrap { max-width: 1040px; margin: 0 auto; }
-  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
   h1 { font-size: 26px; letter-spacing: -.02em; margin: 0; }
   .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 20px; }
-  a.back { color: var(--series-1); text-decoration: none; font-size: 15px; }
-  a.back:hover { text-decoration: underline; }
 
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin: 28px 0 10px; font-weight: 650; }
 
@@ -129,11 +128,19 @@
 </style>
 </head>
 <body>
+<!-- The same two-section bar sits at the top of /admin/writing. Keep them
+     identical: it is the only thing telling you that these are two halves of
+     one admin area, and which half you are in. -->
+<div class="wrap adminbar">
+  <h1>Admin</h1>
+  <p class="where">Who is using the apps, what it cost, and what needs you.</p>
+  <nav class="adminseg" aria-label="Admin sections">
+    <a href="/admin" aria-current="page">Overview</a>
+    <a href="/admin/writing">Writing</a>
+  </nav>
+</div>
+
 <div class="wrap">
-  <header>
-    <h1>Admin</h1>
-    <a class="back" href="/admin/writing">Writing &rarr;</a>
-  </header>
   <p class="sub" id="generated">Loading&hellip;</p>
   <div id="root"></div>
 </div>
