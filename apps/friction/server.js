@@ -8,6 +8,8 @@ const scan = require('./lib/scan');
 const score = require('./lib/score');
 const webauthn = require('./lib/webauthn');
 const sitepass = require('./lib/sitepass');
+const identityLib = require('./lib/identity');
+const identityStore = require('./lib/identity-store');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -102,7 +104,51 @@ app.post('/api/cron/scan', auth.requireLoginOrCron, async (req, res) => {
 // GA_MEASUREMENT_ID is set on the service.
 analytics.mount(app, 'friction');
 
-app.use(auth.requireLogin);
+// The shared account. Signing in here signs you in across the domain, and a
+// session made on any sibling app is accepted here.
+const identity = identityLib.create({
+  store: identityStore.store,
+  secret: () => process.env.IDENTITY_SESSION_SECRET || '',
+  app: 'friction',
+  baseDomain: process.env.PASSKEY_RP_ID || '',
+  rpName: 'Erik Strong',
+});
+identity.mount(app);
+
+// Two doors, and they answer different questions.
+//
+// Identity says who you are. It does NOT say you may be here: this is a
+// private research tool, and one account now opens five apps, so an ordinary
+// registration on the public dataviz page must not walk straight in. Access is
+// granted per app by the admin, and absent means no.
+//
+// The original APP_PASSWORD session stays working as the second door, so a
+// fault in the shared identity service cannot lock Erik out of his own tool.
+const APP_KEY = 'friction';
+function gate(req, res, next) {
+  if (auth.hasSession(req)) return next();               // the app's own password
+  if (identityLib.hasAccess(req.user, APP_KEY)) return next();
+  const wantsHtml = (req.get('Accept') || '').indexOf('text/html') !== -1;
+  if (req.user) {
+    // Signed in, just not entitled. Say so plainly rather than bouncing them
+    // to a login page they have already passed.
+    identity.log('access.denied', req, { detail: APP_KEY, ok: false });
+    if (wantsHtml) {
+      return res.status(403).send(
+        '<!doctype html><meta charset="utf-8"><title>No access</title>' +
+        '<body style="font:16px -apple-system,sans-serif;max-width:32em;margin:18vh auto;padding:0 20px">' +
+        '<h1 style="font-size:20px">Your account does not have access to Friction</h1>' +
+        '<p style="color:#666">Signed in as ' + String(req.user.email || '').replace(/[<>&"]/g, '') +
+        '. This one is invite-only — ask Erik to add it to your account.</p>' +
+        '<p><a href="/login">Use the app password instead</a></p></body>');
+    }
+    return res.status(403).json({ error: 'Your account does not have access to Friction.' });
+  }
+  if (wantsHtml) return res.redirect('/login');
+  return res.status(401).json({ error: 'not signed in' });
+}
+
+app.use(gate);
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/auth/logout', (_req, res) => { auth.clear(res); res.json({ ok: true }); });

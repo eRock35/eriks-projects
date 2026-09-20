@@ -1,7 +1,9 @@
 // Face ID / Touch ID, as one module several apps can mount.
 //
-// COPY of eriks-projects/shared/webauthn.js. Another copy lives in
-// apps/friction/lib/. Fix the shared one first, then re-copy.
+// COPY, NOT A PACKAGE. There is no shared npm package across these repos, so
+// this file is copied into each app that needs it. If you fix something here,
+// the header in each copy says where the others are. The alternative -
+// publishing a package for six small apps - is worse.
 //
 // It deliberately does NOT own sessions. Each app already has its own idea of
 // what a session is (a signed cookie here, a uid cookie there, an admin
@@ -78,7 +80,9 @@ function rpInfo(req, baseDomain) {
  * @param opts.secret         () => string, for signing challenge cookies
  * @param opts.rpName         name shown in the OS prompt
  * @param opts.baseDomain     registrable domain, or '' to use the hostname
- * @param opts.issueSession   (res, ownerId) => void
+ * @param opts.issueSession   (res, ownerId, req) => void   -- req is passed so a
+ *                            host that scopes its cookie to a parent domain can
+ *                            read the hostname; hosts that don't need it ignore it
  * @param opts.currentOwner   (req) => ownerId | null
  * @param opts.canEnrol       async (req) => ownerId | null   -- proves identity
  * @param opts.mountPath      route prefix, default '/api/auth/passkey'
@@ -224,7 +228,7 @@ function create(opts) {
         await store.set(COLLECTION, id, Object.assign({}, stored, patch));
 
         setCookie(res, 'pk_auth', '', 0);
-        issueSession(res, stored.ownerId);
+        issueSession(res, stored.ownerId, req);
         res.json({ ok: true, ownerId: stored.ownerId });
       } catch (err) {
         console.error('passkey login/verify', err);

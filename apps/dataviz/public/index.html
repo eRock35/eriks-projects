@@ -584,7 +584,7 @@
         var st2 = body.querySelector('#secStatus');
         this.disabled = true; st2.className = 'status'; st2.textContent = 'Saving\u2026';
         try {
-          await api('/api/auth/password/change', { method: 'POST', body: JSON.stringify({
+          await api('/api/auth/password', { method: 'POST', body: JSON.stringify({
             current: body.querySelector('#cCur').value, next: body.querySelector('#cNew').value }) });
           st2.className = 'status'; st2.textContent = 'Changed.'; toast('Password changed');
         } catch (e2) { st2.className = 'status err'; st2.textContent = e2.message; }

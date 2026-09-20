@@ -12,6 +12,8 @@ const stripe = require('./lib/stripe');
 const datasets = require('./lib/datasets');
 const analytics = require('./lib/analytics');
 const webauthn = require('./lib/webauthn');
+const identityLib = require('./lib/identity');
+const identityStore = require('./lib/identity-store');
 const mail = require('./lib/mail');
 const reset = require('./lib/reset');
 
@@ -62,7 +64,55 @@ app.use((req, _res, next) => {
   }
   next();
 });
-app.use(accounts.attachUser);
+// The shared account. Mounted at /api/auth, which is where this app's UI
+// already posts - so register, login, logout and the Face ID routes all keep
+// their URLs and the frontend needs no change.
+//
+// This app keeps its OWN users/<uid> record for billing (plan,
+// stripeCustomerId) and still owns every project by that uid. The uid is
+// unchanged: both this app and identity derive it as base64url of the
+// lowercased email, so nothing is orphaned by the move.
+const identity = identityLib.create({
+  store: identityStore.store,
+  secret: () => process.env.IDENTITY_SESSION_SECRET || '',
+  app: 'dataviz',
+  baseDomain: process.env.PASSKEY_RP_ID || '',
+  rpName: 'DataViz',
+  mountPath: '/api/auth',
+});
+
+/** Merge this app's own record onto the identity it belongs to, so routes can
+ *  keep reading req.user.plan and req.user.stripeCustomerId as before. */
+async function attachProfile(req, _res, next) {
+  if (req.user) {
+    const own = await db.get('users', req.user.id).catch(() => null);
+    if (own) Object.assign(req.user, own, { id: req.user.id, email: req.user.email });
+  }
+  next();
+}
+
+// Registered BEFORE identity.mount so it wins the /api/auth/me route: the page
+// needs `plan`, which is this app's business and not identity's. The two
+// middlewares are explicit because identity's own attachUser has not been
+// registered yet at this point in the chain.
+app.get('/api/auth/me', identity.attachUser, attachProfile, (req, res) => {
+  res.json({
+    signedIn: Boolean(req.user),
+    email: req.user ? req.user.email : null,
+    via: req.user ? req.user.via : null,
+    plan: planOf(req.user),
+  });
+});
+
+identity.mount(app);
+app.use(attachProfile);
+
+/** Pro either because Stripe says so, or because the admin granted it. */
+function planOf(user) {
+  if (!user) return 'free';
+  if (user.plan === 'pro') return 'pro';
+  return identityLib.hasAccess(user, 'dataviz', 'pro') ? 'pro' : 'free';
+}
 
 const fail = (res, err, fallback = 'Something went wrong.') =>
   res.status(err.status || 500).json({ error: err.status ? err.message : fallback });
@@ -118,41 +168,6 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 /* ---------- accounts (only ever needed to SAVE) ---------- */
 
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const uid = await accounts.register((req.body || {}).email, (req.body || {}).password);
-    accounts.issue(res, uid);
-    res.json({ ok: true, email: String((req.body || {}).email).trim().toLowerCase() });
-  } catch (err) { fail(res, err, 'Could not create that account.'); }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const uid = await accounts.signIn((req.body || {}).email, (req.body || {}).password);
-    accounts.issue(res, uid);
-    res.json({ ok: true });
-  } catch (err) { fail(res, err, 'Could not sign you in.'); }
-});
-
-app.post('/api/auth/logout', (_req, res) => { accounts.clear(res); res.json({ ok: true }); });
-
-/* ---------- Face ID ---------- */
-
-webauthn.create({
-  store: db,
-  secret: () => process.env.SESSION_SECRET || '',
-  rpName: 'DataViz',
-  displayName: 'DataViz',
-  baseDomain: process.env.PASSKEY_RP_ID || '',
-  issueSession: (res, uid) => accounts.issue(res, uid),
-  currentOwner: (req) => (req.user ? req.user.id : null),
-  // Enrolling needs the account's own password, not just its session: a
-  // borrowed session could otherwise leave itself permanent access.
-  canEnrol: async (req) => {
-    if (!req.user) return null;
-    return accounts.verify(String((req.body || {}).password || ''), req.user) ? req.user.id : null;
-  },
-}).mount(app);
 
 /* ---------- forgotten passwords ---------- */
 
@@ -162,11 +177,16 @@ app.post('/api/auth/reset/request', async (req, res) => {
   // asking which addresses have accounts here.
   const same = { ok: true, message: 'If that address has an account, a reset link is on its way.' };
   try {
-    const uid = accounts.uidFor(address);
-    const user = await db.get('users', uid);
-    if (user && mail.enabled()) {
+    // The password lives in the shared identity record now, not in this
+    // app's own users/<uid> (which holds billing only).
+    const uid = identityLib.uidFor(address);
+    const user = await identityStore.store.get('users', uid);
+    if (user && user.password && mail.enabled()) {
       const origin = `${req.protocol}://${req.get('host')}`;
-      const link = `${origin}/reset?t=${encodeURIComponent(reset.makeToken(uid, user.hash))}`;
+      // The token carries the CURRENT hash, which is what makes it single-use:
+      // setting a new password changes the hash and the old link stops
+      // verifying, with nothing stored to expire.
+      const link = `${origin}/reset?t=${encodeURIComponent(reset.makeToken(uid, user.password.hash))}`;
       const body = reset.emailBody({ link, origin });
       await mail.send({ to: user.email, subject: body.subject, html: body.html, text: body.text });
     }
@@ -183,29 +203,27 @@ app.post('/api/auth/reset/complete', async (req, res) => {
     const { token, password } = req.body || {};
     const raw = String(token || '');
     const uid = raw.includes('.') ? Buffer.from(raw.slice(0, raw.indexOf('.')), 'base64url').toString().split('.')[0] : '';
-    const user = uid ? await db.get('users', uid) : null;
-    if (!user || reset.readToken(raw, user.hash) !== uid) {
+    const user = uid ? await identityStore.store.get('users', uid) : null;
+    if (!user || !user.password || reset.readToken(raw, user.password.hash) !== uid) {
       return res.status(400).json({ error: 'That link has expired or has already been used.' });
     }
-    await accounts.setPassword(uid, String(password || ''));
-    accounts.issue(res, uid);
+    const next = String(password || '');
+    if (next.length < identityLib.MIN_PASSWORD) {
+      return res.status(400).json({ error: `Use at least ${identityLib.MIN_PASSWORD} characters.` });
+    }
+    await identityStore.store.set('users', uid, {
+      ...user,
+      password: identityLib.makeHash(next),
+      passwordChangedAt: new Date().toISOString(),
+    });
+    identity.issueSession(res, req, uid, 'password');
+    await identity.log('password.reset', req, { uid, email: user.email });
     res.json({ ok: true });
   } catch (err) {
     fail(res, err, 'Could not set that password.');
   }
 });
 
-app.post('/api/auth/password/change', accounts.requireUser, async (req, res) => {
-  try {
-    const { current, next } = req.body || {};
-    if (!accounts.verify(String(current || ''), req.user)) {
-      await new Promise((r) => setTimeout(r, 350));
-      return res.status(401).json({ error: 'That current password is not right.' });
-    }
-    await accounts.setPassword(req.user.id, String(next || ''));
-    res.json({ ok: true });
-  } catch (err) { fail(res, err, 'Could not change the password.'); }
-});
 
 app.get('/reset', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'reset.html')));
 
