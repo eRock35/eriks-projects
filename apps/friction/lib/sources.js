@@ -18,6 +18,38 @@
 
 const HN_API = 'https://hn.algolia.com/api/v1/search_by_date';
 const REDDIT = 'https://www.reddit.com';
+const SE_API = 'https://api.stackexchange.com/2.3/search/excerpts';
+const GH_API = 'https://api.github.com/search/issues';
+
+// Which sources may appear in anything shown to someone other than the
+// account owner. This is not a style preference, it is the difference between
+// a product and a lawsuit:
+//
+//   reddit      Commercial use needs explicit written approval and an
+//               enterprise agreement - reported floor around $12,000/month,
+//               2-4 week manual review, no self-serve tier. Reading it on a
+//               free registration for your own research is fine. Charging
+//               anyone for what it produced is not.
+//   twitter/x   No longer has a $200 Basic tier; new developers get
+//               pay-per-use at ~$0.005 per post read. Affordable at low
+//               volume, so it is a cost decision rather than a blocker - but
+//               it needs a paid key before a line of code is worth writing.
+//   hackernews  Public API, no key, no licence.
+//   stackex     Free API. Content is CC BY-SA: attribution and a link back
+//               are REQUIRED wherever an excerpt is displayed.
+//   github      Free API, generous under a token.
+//
+// Anything false here must never reach a public or paid surface.
+const SOURCE_META = {
+  hackernews: { commercialSafe: true, attribution: null },
+  stackex: { commercialSafe: true, attribution: 'CC BY-SA, Stack Exchange' },
+  github: { commercialSafe: true, attribution: null },
+  reddit: { commercialSafe: false, attribution: null },
+};
+
+function commercialSafe(source) {
+  return Boolean((SOURCE_META[source] || {}).commercialSafe);
+}
 const UA = 'friction/1.0 (personal research tool; contact via strongtechnicalconsulting.com)';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -43,7 +75,7 @@ const INTENT_PHRASES = [
 // written to Firestore on first sight, and from then on the saved copy wins -
 // which is right for what Erik edits, and wrong for a bug shipped in a query.
 // Without this, fixing a query in code changes nothing that already ran.
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 
 // `hn` is a LIST because Algolia ANDs every word in a query and has no OR
 // operator - one string of alternatives matches nothing, which is exactly how
@@ -51,22 +83,34 @@ const SEED_VERSION = 2;
 const DEFAULT_LENSES = [
   { id: 'lending-ops', label: 'Lending & servicing ops', enabled: true,
     subs: ['fintech', 'Banking', 'creditunions', 'Mortgages'],
-    hn: ['loan servicing', 'mortgage', 'collections', 'underwriting'] },
+    hn: ['loan servicing', 'mortgage', 'collections', 'underwriting'],
+    se: [['money', 'loan servicing'], ['money', 'mortgage payment']],
+    gh: ['loan origination', 'payment reconciliation'] },
   { id: 'risk-fraud', label: 'Risk, fraud & compliance', enabled: true,
     subs: ['cybersecurity', 'GRC', 'AskNetsec', 'compliance'],
-    hn: ['fraud detection', 'KYC', 'compliance', 'audit'] },
+    hn: ['fraud detection', 'KYC', 'compliance', 'audit'],
+    se: [['security', 'fraud detection'], ['security', 'compliance evidence']],
+    gh: ['KYC verification', 'audit log compliance'] },
   { id: 'it-ops', label: 'IT & MSP operations', enabled: true,
     subs: ['sysadmin', 'msp', 'ITManagers', 'devops'],
-    hn: ['saas sprawl', 'offboarding', 'shadow IT', 'sysadmin'] },
+    hn: ['saas sprawl', 'offboarding', 'shadow IT', 'sysadmin'],
+    se: [['serverfault', 'user offboarding'], ['serverfault', 'license audit']],
+    gh: ['offboarding automation', 'SaaS license tracking'] },
   { id: 'back-office', label: 'Accounting & back office', enabled: true,
     subs: ['accounting', 'Bookkeeping', 'smallbusiness', 'taxpros'],
-    hn: ['bookkeeping', 'reconciliation', 'invoicing', 'payroll'] },
+    hn: ['bookkeeping', 'reconciliation', 'invoicing', 'payroll'],
+    se: [['money', 'bookkeeping'], ['money', 'invoice tracking']],
+    gh: ['bank reconciliation', 'invoice parsing'] },
   { id: 'data-eng', label: 'Data & analytics', enabled: true,
     subs: ['dataengineering', 'analytics', 'BusinessIntelligence'],
-    hn: ['data pipeline', 'data quality', 'reverse ETL', 'dashboards'] },
+    hn: ['data pipeline', 'data quality', 'reverse ETL', 'dashboards'],
+    se: [['dba', 'data quality'], ['stackoverflow', 'pipeline failure silent']],
+    gh: ['data quality check', 'pipeline silent failure'] },
   { id: 'builders', label: 'Founders & builders', enabled: true,
     subs: ['SaaS', 'startups', 'Entrepreneur', 'indiehackers'],
-    hn: ['ask hn tool', 'is there a tool', 'i wish there was'] },
+    hn: ['ask hn tool', 'is there a tool', 'i wish there was'],
+    se: [['softwareengineering', 'is there a tool']],
+    gh: ['feature request workflow'] },
 ];
 
 function clean(s, max = 4000) {
@@ -162,6 +206,56 @@ async function fromReddit(sub, phrase, window = 'month', limit = 25) {
   })).filter((i) => (i.title + i.text).length > 40);
 }
 
+/** Stack Exchange excerpts. Free, no key needed at this volume, and usable
+ *  commercially - but the content is CC BY-SA, so anywhere an excerpt is
+ *  shown must carry attribution and a link back. SOURCE_META records that;
+ *  do not display one of these quotes without it. */
+async function fromStackExchange(query, site, sinceUnix, pagesize = 25) {
+  const url = `${SE_API}?order=desc&sort=creation&q=${encodeURIComponent(query)}`
+    + `&site=${encodeURIComponent(site)}&pagesize=${pagesize}&fromdate=${sinceUnix}`;
+  const body = await getJson(url);
+  return (body.items || []).map((it) => ({
+    id: `se:${site}:${it.question_id}`,
+    source: 'stackex',
+    channel: `${site}.stackexchange`,
+    title: clean(it.title || ''),
+    text: clean((it.excerpt || '') + ' ' + (it.body || '')),
+    url: `https://${site === 'stackoverflow' ? 'stackoverflow.com' : site + '.stackexchange.com'}/q/${it.question_id}`,
+    permalink: `https://${site === 'stackoverflow' ? 'stackoverflow.com' : site + '.stackexchange.com'}/q/${it.question_id}`,
+    votes: it.score || 0,
+    comments: it.answer_count || 0,
+    author: (it.owner && it.owner.display_name) || '',
+    createdAt: it.creation_date ? new Date(it.creation_date * 1000).toISOString() : null,
+  })).filter((i) => (i.title + i.text).length > 40);
+}
+
+/** GitHub issues. Where people describe a tool's shortcoming in the tool's
+ *  own tracker, which is about as close to a stated requirement as this gets.
+ *  Unauthenticated search is 10 requests/minute, enough at this cadence;
+ *  GITHUB_TOKEN raises it if one is ever set. */
+async function fromGitHub(query, sinceIso, perPage = 25) {
+  const q = `${query} in:body state:open created:>${sinceIso.slice(0, 10)}`;
+  const url = `${GH_API}?q=${encodeURIComponent(q)}&sort=created&order=desc&per_page=${perPage}`;
+  const headers = { 'User-Agent': UA, Accept: 'application/vnd.github+json' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = await res.json();
+  return (body.items || []).map((it) => ({
+    id: `gh:${it.id}`,
+    source: 'github',
+    channel: (it.repository_url || '').split('/').slice(-2).join('/') || 'github',
+    title: clean(it.title || ''),
+    text: clean(it.body || ''),
+    url: it.html_url,
+    permalink: it.html_url,
+    votes: (it.reactions && it.reactions.total_count) || 0,
+    comments: it.comments || 0,
+    author: (it.user && it.user.login) || '',
+    createdAt: it.created_at || null,
+  })).filter((i) => (i.title + i.text).length > 40);
+}
+
 /** 24 copies of "HTTP 403" is not 24 pieces of information. */
 function collapse(errors) {
   const byKey = new Map();
@@ -199,6 +293,31 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
     }
   }
 
+  for (const [site, q] of (lens.se || [])) {
+    try {
+      const hits = await fromStackExchange(q, site, sinceUnix);
+      probes.push({ source: 'stackex', q: `${site}: ${q}`, hits: hits.length });
+      for (const item of hits) byId.set(item.id, item);
+    } catch (err) {
+      probes.push({ source: 'stackex', q: `${site}: ${q}`, hits: -1, error: err.message });
+      errors.push({ source: 'stackex', lens: lens.id, channel: site, message: err.message });
+    }
+    await sleep(400);
+  }
+
+  const sinceIso = new Date(sinceUnix * 1000).toISOString();
+  for (const q of (lens.gh || [])) {
+    try {
+      const hits = await fromGitHub(q, sinceIso);
+      probes.push({ source: 'github', q, hits: hits.length });
+      for (const item of hits) byId.set(item.id, item);
+    } catch (err) {
+      probes.push({ source: 'github', q, hits: -1, error: err.message });
+      errors.push({ source: 'github', lens: lens.id, channel: q, message: err.message });
+    }
+    await sleep(6500); // unauthenticated search is 10/minute
+  }
+
   if (redditEnabled && !redditConfigured()) {
     errors.push({
       source: 'reddit', lens: lens.id,
@@ -225,4 +344,7 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
   return { items: [...byId.values()], errors: collapse(errors), probes };
 }
 
-module.exports = { SEED_VERSION, DEFAULT_LENSES, INTENT_PHRASES, harvest, fromHN, fromReddit, redditConfigured, collapse };
+module.exports = {
+  SEED_VERSION, DEFAULT_LENSES, INTENT_PHRASES, SOURCE_META, commercialSafe,
+  harvest, fromHN, fromReddit, fromStackExchange, fromGitHub, redditConfigured, collapse,
+};

@@ -16,6 +16,27 @@ const STATUSES = ['new', 'digging', 'building', 'passed'];
 
 function nowIso() { return new Date().toISOString(); }
 
+// An item id carries its origin, so a signal can be traced back to the
+// licences its evidence came under without storing the items themselves.
+const ID_PREFIX = { hn: 'hackernews', rd: 'reddit', se: 'stackex', gh: 'github' };
+
+function sourcesOf(evidence) {
+  const set = new Set();
+  for (const e of evidence || []) {
+    const src = ID_PREFIX[String(e.itemId || '').split(':')[0]];
+    if (src) set.add(src);
+  }
+  return [...set].sort();
+}
+
+/** A signal may only be shown to anyone other than the owner when EVERY
+ *  source behind it may be used commercially. One Reddit quote makes the
+ *  whole row private, because that is the quote a subscriber would be paying
+ *  to read. See SOURCE_META in sources.js for what each licence allows. */
+function publicSafe(srcs) {
+  return srcs.length > 0 && srcs.every(sources.commercialSafe);
+}
+
 async function loadLenses() {
   const saved = await db.list('lenses');
   const byId = new Map(saved.map((l) => [l.id, l]));
@@ -38,7 +59,7 @@ async function loadLenses() {
     // fixed in code has to reach the rows that were seeded with the broken
     // one; a lens he switched off has to stay off.
     if (Number(existing.seedVersion || 1) < sources.SEED_VERSION) {
-      const patch = { hn: def.hn, label: def.label, seedVersion: sources.SEED_VERSION };
+      const patch = { hn: def.hn, se: def.se || [], gh: def.gh || [], label: def.label, seedVersion: sources.SEED_VERSION };
       await db.merge('lenses', def.id, patch);
       byId.set(def.id, Object.assign({}, existing, patch));
     }
@@ -53,8 +74,12 @@ async function upsertSignal(lens, problem, runId) {
   const existing = await db.get('signals', id);
   const when = nowIso();
 
+  const srcs = sourcesOf(problem.evidence);
+
   if (!existing) {
     const doc = {
+      sources: srcs,
+      publicSafe: publicSafe(srcs),
       lensId: lens.id,
       lensLabel: lens.label,
       slug: problem.slug,
@@ -84,7 +109,10 @@ async function upsertSignal(lens, problem, runId) {
     problem.evidence.filter((e) => !seen.has(e.quote))
   ).slice(-EVIDENCE_CAP);
 
+  const mergedSources = sourcesOf(merged);
   const patch = {
+    sources: mergedSources,
+    publicSafe: publicSafe(mergedSources),
     summary: problem.summary,
     existingTools: problem.existingTools,
     angle: problem.angle,
@@ -164,4 +192,4 @@ async function runScan({ trigger = 'manual', sinceDays = 14, scope = 'next' } = 
   return summary;
 }
 
-module.exports = { runScan, loadLenses, upsertSignal, pickNext, STATUSES, EVIDENCE_CAP };
+module.exports = { runScan, loadLenses, upsertSignal, pickNext, sourcesOf, publicSafe, STATUSES, EVIDENCE_CAP };
