@@ -39,6 +39,12 @@ const INTENT_PHRASES = [
 // Markets, not topics. Each one is a place where Erik could plausibly reach a
 // buyer, plus the broad builder communities for general signal. Editable from
 // the app - this is only the starting set.
+// Bump SEED_VERSION whenever the machine-tuned fields below change. A lens is
+// written to Firestore on first sight, and from then on the saved copy wins -
+// which is right for what Erik edits, and wrong for a bug shipped in a query.
+// Without this, fixing a query in code changes nothing that already ran.
+const SEED_VERSION = 2;
+
 // `hn` is a LIST because Algolia ANDs every word in a query and has no OR
 // operator - one string of alternatives matches nothing, which is exactly how
 // the first live run returned zero results with no error to explain it.
@@ -219,4 +225,4 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
   return { items: [...byId.values()], errors: collapse(errors), probes };
 }
 
-module.exports = { DEFAULT_LENSES, INTENT_PHRASES, harvest, fromHN, fromReddit, redditConfigured, collapse };
+module.exports = { SEED_VERSION, DEFAULT_LENSES, INTENT_PHRASES, harvest, fromHN, fromReddit, redditConfigured, collapse };

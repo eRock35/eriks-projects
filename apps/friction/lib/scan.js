@@ -19,15 +19,31 @@ function nowIso() { return new Date().toISOString(); }
 async function loadLenses() {
   const saved = await db.list('lenses');
   const byId = new Map(saved.map((l) => [l.id, l]));
-  // Seed each missing default individually rather than only when the
-  // collection is empty: a lens added in a later release would otherwise stay
-  // invisible forever just because some other lens already existed.
-  for (const lens of sources.DEFAULT_LENSES) {
-    if (!byId.has(lens.id)) {
-      await db.set('lenses', lens.id, lens);
-      byId.set(lens.id, Object.assign({}, lens));
+
+  for (const def of sources.DEFAULT_LENSES) {
+    const existing = byId.get(def.id);
+
+    // Seed each missing default individually rather than only when the
+    // collection is empty: a lens added in a later release would otherwise
+    // stay invisible forever just because some other lens already existed.
+    if (!existing) {
+      const doc = Object.assign({}, def, { seedVersion: sources.SEED_VERSION });
+      await db.set('lenses', def.id, doc);
+      byId.set(def.id, doc);
+      continue;
+    }
+
+    // Refresh the machine-tuned fields when the code's seed moves ahead of
+    // what is on file, and leave alone the two fields Erik controls. A query
+    // fixed in code has to reach the rows that were seeded with the broken
+    // one; a lens he switched off has to stay off.
+    if (Number(existing.seedVersion || 1) < sources.SEED_VERSION) {
+      const patch = { hn: def.hn, label: def.label, seedVersion: sources.SEED_VERSION };
+      await db.merge('lenses', def.id, patch);
+      byId.set(def.id, Object.assign({}, existing, patch));
     }
   }
+
   return [...byId.values()];
 }
 
