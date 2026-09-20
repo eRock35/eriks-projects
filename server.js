@@ -21,6 +21,7 @@ const email = require('./lib/email');
 const ai = require('./lib/ai');
 const view = require('./lib/render');
 const passkeys = require('./lib/passkeys');
+const sitepass = require('./shared/sitepass');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -46,23 +47,35 @@ function adminPassword() {
   return process.env.ADMIN_PASSWORD || '';
 }
 
-function issueAdminSession(res) {
-  tokens.setSessionCookie(res, SESSION_COOKIE, `admin|${Date.now()}`, SESSION_DAYS * 24 * 60 * 60);
+// `via` records HOW the session was proved. A password-proved session must
+// not be enough to replace the password - a stolen cookie would take the
+// account permanently. A Face ID one is at least as strong as the password it
+// is replacing, which is what makes "I forgot it" recoverable here without an
+// email sender.
+function issueAdminSession(res, via = 'password') {
+  tokens.setSessionCookie(res, SESSION_COOKIE, `admin|${Date.now()}|${via}`, SESSION_DAYS * 24 * 60 * 60);
 }
 
-function adminPasswordOk(supplied) {
-  const expected = adminPassword();
-  if (!expected || !supplied) return false;
-  return tokens.safeEqual(String(supplied).padEnd(64).slice(0, 64), expected.padEnd(64).slice(0, 64));
+/** The CURRENT password: the stored one when there is one, the environment
+ *  variable otherwise. Async for that reason - see shared/sitepass.js. */
+async function adminPasswordOk(supplied) {
+  return sitePassword.verify(supplied);
+}
+
+function adminSession(req) {
+  const value = tokens.readSessionCookie(req, SESSION_COOKIE);
+  if (!value) return null;
+  // Sessions issued before `via` existed have two fields, not three. They are
+  // treated as password-proved, which is the safe reading.
+  const [marker, issuedAt, via] = value.split('|');
+  if (marker !== 'admin') return null;
+  const age = Date.now() - Number(issuedAt || 0);
+  if (!(age >= 0 && age < SESSION_DAYS * 24 * 60 * 60 * 1000)) return null;
+  return { issuedAt: Number(issuedAt || 0), via: via === 'passkey' ? 'passkey' : 'password' };
 }
 
 function isAdmin(req) {
-  const value = tokens.readSessionCookie(req, SESSION_COOKIE);
-  if (!value) return false;
-  const [marker, issuedAt] = value.split('|');
-  if (marker !== 'admin') return false;
-  const age = Date.now() - Number(issuedAt || 0);
-  return age >= 0 && age < SESSION_DAYS * 24 * 60 * 60 * 1000;
+  return !!adminSession(req);
 }
 
 // 404 rather than 401 for the admin surface, so its existence is not
@@ -77,9 +90,10 @@ function requireAdmin(req, res, next) {
 
 app.post('/api/admin/login', async (req, res) => {
   const supplied = String((req.body && req.body.password) || '');
-  const expected = adminPassword();
-  if (!expected) return res.status(503).json({ error: 'Admin access is not configured on this deployment.' });
-  if (!supplied || !tokens.safeEqual(supplied.padEnd(64).slice(0, 64), expected.padEnd(64).slice(0, 64))) {
+  if (!adminPassword() && !(await sitePassword.isCustom())) {
+    return res.status(503).json({ error: 'Admin access is not configured on this deployment.' });
+  }
+  if (!(await adminPasswordOk(supplied))) {
     // A deliberate pause: this is the only password on the service, and it
     // makes a scripted guessing run expensive without affecting a real login.
     await new Promise((r) => setTimeout(r, 400));
@@ -96,10 +110,35 @@ passkeys.create({
   tokens,
   rpName: 'Erik Strong',
   userName: 'admin',
-  issueSession: issueAdminSession,
+  // A session minted by Face ID is marked as such, which is what lets it
+  // stand in for a forgotten password below.
+  issueSession: (res) => issueAdminSession(res, 'passkey'),
   requireAdmin,
   adminPasswordOk,
 }).mount(app);
+
+// The admin password can now be changed without a deploy. ADMIN_PASSWORD
+// stays as the bootstrap: it is what works on a fresh deploy, and what still
+// works if the stored one is ever cleared.
+//
+// There is no email sender on this service, so there is no reset link. The
+// two doors are the current password and a Face ID session - the same trade
+// documented in trip-planner's CLAUDE.md, and the reason enrolling a passkey
+// is worth doing before you need it.
+const sitePassword = sitepass.create({
+  store: {
+    get: (collection, id) => store().get(collection, id),
+    set: (collection, id, value) => store().set(collection, id, value),
+  },
+  envPassword: adminPassword,
+  canChange: async (req) => {
+    const supplied = (req.body || {}).current;
+    if (supplied && await sitePassword.verify(supplied)) return true;
+    const session = adminSession(req);
+    return !!(session && session.via === 'passkey');
+  },
+});
+sitePassword.mount(app, '/api/admin/password');
 
 app.post('/api/admin/logout', (req, res) => {
   tokens.clearSessionCookie(res, SESSION_COOKIE);
@@ -120,9 +159,14 @@ app.get('/api/admin/email-check', requireAdmin, async (req, res) => {
   });
 });
 
-app.get('/api/admin/me', (req, res) => {
+app.get('/api/admin/me', async (req, res) => {
+  const session = adminSession(req);
   res.json({
-    signedIn: isAdmin(req),
+    signedIn: !!session,
+    // How this session was proved, so the page knows whether to ask for the
+    // current password before changing it.
+    via: session ? session.via : null,
+    password: { custom: await sitePassword.isCustom(), minLength: sitePassword.MIN_LENGTH },
     email: { enabled: email.enabled(), from: email.from() },
     ai: { enabled: ai.enabled(), model: ai.MODEL },
     store: store().kind,

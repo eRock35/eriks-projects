@@ -275,7 +275,7 @@
       if (subs && subs.pending) pills.push('<span class="pill"><b>' + subs.pending + '</b> pending</span>');
       if (!info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
       pills.push('<button class="pill" id="emailCheck" style="border:none;cursor:pointer">Check email setup</button>');
-      pills.push('<button class="pill" id="faceSetup" style="border:none;cursor:pointer">Face ID</button>');
+      pills.push('<button class="pill" id="faceSetup" style="border:none;cursor:pointer">Face ID &amp; password</button>');
       if (!info.ai.enabled) pills.push('<span class="pill warn">Claude not configured</span>');
       if (info.store === 'memory') pills.push('<span class="pill warn">Local memory store, nothing is saved</span>');
       $('stats').innerHTML = pills.join('');
@@ -328,7 +328,7 @@
     var back = document.createElement('div');
     back.className = 'sheet-backdrop';
     back.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' +
-      '<div class="grabber"></div><h2>Face ID</h2>' +
+      '<div class="grabber"></div><h2>Face ID &amp; password</h2>' +
       '<div id="fsBody"><p>Loading\u2026</p></div>' +
       '<div class="btn-row"><button class="btn2 wide" data-a="close">Close</button></div></div>';
     back.addEventListener('click', function (e) {
@@ -370,6 +370,56 @@
         });
       });
       $('fsAdd').addEventListener('click', enrol);
+      renderPassword(body);
+    }
+
+    // Changing the admin password. There is no email sender on this service,
+    // so there is no reset link - the two doors are the current password and
+    // a session that was itself proved by Face ID. A password-proved session
+    // gets no shortcut, or a stolen cookie could take the account.
+    function renderPassword(body) {
+      var info = state.info || {};
+      var viaPasskey = info.via === 'passkey';
+      var min = (info.password && info.password.minLength) || 10;
+      var wrap = document.createElement('div');
+      wrap.innerHTML =
+        '<h3 style="margin:22px 0 6px;font-size:17px">Password</h3>' +
+        '<p style="color:var(--label-2);font-size:14px">' +
+        (viaPasskey
+          ? 'You signed in with Face ID, so you can set a new one without the old one.'
+          : 'Changing it needs the current one, or a session signed in with Face ID.') +
+        '</p>' +
+        (viaPasskey ? '' :
+          '<label style="display:block;font-size:13px;color:var(--label-2);margin:12px 0 4px">Current password</label>' +
+          '<input id="cpCur" type="password" autocomplete="current-password" style="width:100%;min-height:44px;font:inherit;font-size:17px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">') +
+        '<label style="display:block;font-size:13px;color:var(--label-2);margin:12px 0 4px">New password</label>' +
+        '<input id="cpNew" type="password" autocomplete="new-password" placeholder="At least ' + min + ' characters" style="width:100%;min-height:44px;font:inherit;font-size:17px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">' +
+        '<div class="btn-row"><button class="btn wide" id="cpGo">Change password</button></div>' +
+        '<div id="cpStatus" style="min-height:1.3em;font-size:14px;margin-top:10px"></div>';
+      body.appendChild(wrap);
+
+      $('cpGo').addEventListener('click', async function () {
+        var st = $('cpStatus');
+        var cur = $('cpCur');
+        var next = $('cpNew').value;
+        if (!next) { st.style.color = 'var(--red)'; st.textContent = 'Enter a new password.'; return; }
+        this.disabled = true; st.style.color = ''; st.textContent = 'Saving\u2026';
+        try {
+          await api('/api/admin/password/change', {
+            method: 'POST',
+            body: JSON.stringify(cur ? { current: cur.value, next: next } : { next: next })
+          });
+          if (cur) cur.value = '';
+          $('cpNew').value = '';
+          st.style.color = 'var(--green,#1d8a3b)';
+          st.textContent = 'Changed. The old one no longer works.';
+          toast('Password changed');
+        } catch (err) {
+          st.style.color = 'var(--red)';
+          st.textContent = err.message || 'That did not work.';
+        }
+        this.disabled = false;
+      });
     }
 
     async function enrol() {
