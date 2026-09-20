@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Friction</title>
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --tint: #007AFF; --bg: #F2F2F7; --card: #FFFFFF; --label: #1C1C1E;
+    --label-2: #6E6E73; --label-3: #A1A1A6; --sep: rgba(60,60,67,0.16); --red: #FF3B30;
+    --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #000000; --card: #1C1C1E; --label: #F5F5F7; --label-2: #98989D;
+            --label-3: #6E6E73; --sep: rgba(84,84,88,0.5); }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; min-height: 100dvh; background: var(--bg); color: var(--label);
+    font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(var(--sat) + 24px) 20px calc(var(--sab) + 24px);
+  }
+  .box { width: 100%; max-width: 380px; text-align: center; }
+  .mark { width: 64px; height: 64px; margin: 0 auto 18px; display: block; }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; }
+  p.sub { color: var(--label-2); font-size: 15px; margin: 0 0 26px; }
+  form { background: var(--card); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  input {
+    font: inherit; font-size: 16px; padding: 13px 14px; border-radius: 11px;
+    border: 1px solid var(--sep); background: var(--bg); color: var(--label); width: 100%;
+  }
+  input:focus { outline: 2px solid var(--tint); outline-offset: -1px; }
+  button {
+    font: inherit; font-weight: 600; font-size: 16px; padding: 13px; border: 0;
+    border-radius: 11px; background: var(--tint); color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; }
+  .err { color: var(--red); font-size: 14px; min-height: 1.3em; margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<div class="box">
+  <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <rect width="64" height="64" rx="15" fill="#007AFF"/>
+    <path d="M20 40c6-3 8-9 12-13s8-5 12-3" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="24" cy="26" r="4" fill="#fff"/>
+  </svg>
+  <h1>Friction</h1>
+  <p class="sub">Problems worth building around.</p>
+  <form id="f">
+    <input type="password" id="pw" placeholder="Password" autocomplete="current-password"
+           enterkeyhint="go" aria-label="Password" required>
+    <button type="submit" id="go">Sign in</button>
+  </form>
+  <p class="err" id="err"></p>
+</div>
+<script>
+  var f = document.getElementById("f"), pw = document.getElementById("pw");
+  var go = document.getElementById("go"), err = document.getElementById("err");
+  f.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    err.textContent = ""; go.disabled = true; go.textContent = "Signing in…";
+    try {
+      var res = await fetch("/api/auth/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw.value })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || "Sign-in failed.");
+      location.href = "/";
+    } catch (e2) {
+      err.textContent = e2.message;
+      go.disabled = false; go.textContent = "Sign in";
+      pw.select();
+    }
+  });
+  pw.focus();
+</script>
+</body>
+</html>
