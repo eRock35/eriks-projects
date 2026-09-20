@@ -226,6 +226,25 @@
   .list-facts .row-icon { margin-top: 1px; }
   .list-facts .row-sub { white-space: normal; overflow: visible; line-height: 1.35; margin-top: 1px; }
 
+  /* Subscribe */
+  .sub-form { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sub-form input {
+    flex: 1 1 220px; min-width: 0; min-height: 50px; padding: 12px 16px; font: inherit; font-size: 16px;
+    border: 1px solid var(--sep); border-radius: 14px; background: var(--bg); color: var(--label);
+  }
+  .sub-form input:focus { outline: 2px solid var(--tint); outline-offset: 1px; border-color: transparent; }
+  .sub-form button {
+    flex: 0 0 auto; min-height: 50px; padding: 12px 24px; font: inherit; font-size: 16px; font-weight: 600;
+    border: none; border-radius: 14px; background: var(--tint); color: #fff; cursor: pointer;
+    transition: transform 0.15s var(--ease);
+  }
+  .sub-form button:active { transform: scale(0.97); }
+  .sub-form button:disabled { opacity: 0.5; }
+  .sub-note { margin: 12px 0 0; font-size: 13.5px; color: var(--label-3); }
+  .sub-note.ok { color: var(--green); }
+  .sub-note.error { color: #d70015; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sub-note.error { color: #FF453A; } }
+
   footer { text-align: center; color: var(--label-3); font-size: 13px; padding: 40px 20px 0; line-height: 1.6; position: relative; z-index: 1; }
   footer a { color: var(--label-2); }
 
@@ -271,6 +290,7 @@
   <div class="nav-inner">
     <a class="brand" href="#top"><img src="/assets/erik-320.jpg" alt="" width="28" height="28"><span>Erik Strong</span></a>
     <div class="nav-links">
+      <a href="/writing">Writing</a>
       <a href="#projects" data-nav="projects">Projects</a>
       <a href="#about" data-nav="about">About</a>
       <a href="#contact" data-nav="contact">Contact</a>
@@ -410,6 +430,20 @@
       </div>
     </div>
     <blockquote data-reveal>"I'm a coach player. I love to teach, but I don't like standing on the sidelines."<b>Erik Strong</b></blockquote>
+  </section>
+
+  <section id="writing">
+    <div class="section-head" data-reveal><h2>Writing</h2><span class="sub">Occasional, when there's something to say</span></div>
+    <div class="card" data-reveal>
+      <p style="margin-bottom:16px">Short pieces on what actually works when you put data and AI in front of a business. New posts go out by email, and you can unsubscribe in one tap.</p>
+      <form class="sub-form" id="subForm" method="POST" action="/api/subscribe">
+        <input type="email" name="email" id="subEmail" inputmode="email" autocomplete="email" autocapitalize="none"
+               spellcheck="false" enterkeyhint="go" placeholder="you@example.com" aria-label="Your email" required>
+        <button type="submit" id="subBtn">Subscribe</button>
+      </form>
+      <p class="sub-note" id="subNote">You will get one email to confirm. Nothing else until there is something to read.</p>
+      <p style="margin-top:14px"><a href="/writing" style="font-weight:600">Read the posts <span aria-hidden="true">&rsaquo;</span></a></p>
+    </div>
   </section>
 
   <section id="contact">
@@ -578,6 +612,40 @@
       });
     }, { threshold: 0.5 });
     stats.forEach(function (el) { counter.observe(el); });
+  }
+
+  /* ---------- Subscribe ---------- */
+  // The form posts on its own without JavaScript; this just keeps the reader
+  // on the page and answers inline.
+  var subForm = document.getElementById("subForm");
+  if (subForm) {
+    subForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var input = document.getElementById("subEmail");
+      var btn = document.getElementById("subBtn");
+      var note = document.getElementById("subNote");
+      var address = input.value.trim();
+      if (!address) return;
+      btn.disabled = true;
+      note.className = "sub-note";
+      note.textContent = "Signing you up…";
+      try {
+        var res = await fetch("/api/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: address, source: "landing" })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.error || "That did not work.");
+        note.className = "sub-note ok";
+        note.textContent = data.message || "Check your inbox to confirm.";
+        input.value = "";
+      } catch (err) {
+        note.className = "sub-note error";
+        note.textContent = err.message || "That did not work. Try again.";
+      }
+      btn.disabled = false;
+    });
   }
 
   /* ---------- Pointer spotlight + gentle tilt on the project cards ---------- */

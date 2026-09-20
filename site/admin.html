@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Writing</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Writing">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/erik-320.jpg">
+<link rel="stylesheet" href="/assets/reader.css">
+<style>
+  body { padding: calc(var(--sat) + 52px) 0 calc(var(--sab) + 40px); }
+  .wrap { max-width: 720px; }
+  .nav-inner { max-width: 720px; }
+  .nav-btn { background: none; border: none; color: var(--tint); font: inherit; font-size: 17px; font-weight: 500; min-height: 44px; padding: 0 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; }
+  .nav-btn:active { opacity: 0.5; }
+  .nav-btn[disabled] { opacity: 0.4; }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-inner { gap: 8px; }
+  .nav-title { flex: 1 1 auto; text-align: center; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .head { padding: 26px 0 16px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  .head h1 { font-size: 32px; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .pill { font-size: 13px; font-weight: 600; color: var(--label-2); background: var(--card); box-shadow: var(--shadow); border-radius: 999px; padding: 7px 13px; }
+  .pill b { color: var(--label); font-variant-numeric: tabular-nums; }
+  .pill.warn { color: #8a5a00; background: #fff3d6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pill.warn { color: #ffd479; background: #3a2c08; } }
+
+  .list { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 12px 16px; background: none; border: none; color: inherit; text-align: left; position: relative; font: inherit; cursor: pointer; }
+  .row + .row::before { content: ""; position: absolute; left: 16px; right: 0; top: 0; height: 1px; background: var(--sep); }
+  .row:active { background: var(--fill); }
+  .row-main { flex: 1 1 auto; min-width: 0; }
+  .row-title { font-size: 17px; font-weight: 600; line-height: 1.3; }
+  .row-sub { font-size: 13.5px; color: var(--label-2); margin-top: 2px; }
+  .badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 999px; padding: 3px 8px; flex: 0 0 auto; }
+  .badge.draft { background: var(--fill); color: var(--label-2); }
+  .badge.published { background: #34C759; color: #04280f; }
+  .badge.sent { background: var(--indigo); color: #fff; }
+
+  .seg { display: flex; background: var(--fill); border-radius: 12px; padding: 3px; margin: 4px 0 18px; }
+  .seg button { flex: 1; font: inherit; font-size: 14px; font-weight: 600; border: none; background: transparent; color: var(--label-2); border-radius: 9px; min-height: 38px; cursor: pointer; }
+  .seg button[aria-selected="true"] { background: var(--card); color: var(--label); box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
+
+  .panel[hidden] { display: none; }
+  .field { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 16px; margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: var(--label-2); margin-bottom: 4px; }
+  .field:focus-within label { color: var(--tint); }
+  .field input, .field textarea {
+    width: 100%; font: inherit; font-size: 17px; border: none; background: transparent; color: var(--label);
+    outline: none; resize: vertical; line-height: 1.5; padding: 0; border-radius: 0;
+  }
+  .field textarea { min-height: 260px; font-size: 16.5px; }
+  .field textarea.short { min-height: 88px; }
+  .hint { font-size: 12.5px; color: var(--label-3); margin: 6px 0 0; }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn2 { flex: 1 1 auto; min-height: 48px; padding: 12px 18px; font: inherit; font-size: 16px; font-weight: 600; border: none; border-radius: 14px; cursor: pointer; background: var(--card); color: var(--tint); box-shadow: var(--shadow); transition: transform 0.15s var(--ease); }
+  .btn2:active { transform: scale(0.97); }
+  .btn2[disabled] { opacity: 0.45; }
+  .btn2.primary { background: var(--tint); color: #fff; }
+  .btn2.danger { color: var(--red); }
+  .btn2.wide { flex-basis: 100%; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { font: inherit; font-size: 14px; font-weight: 600; border: none; border-radius: 999px; padding: 9px 14px; min-height: 40px; background: var(--card); color: var(--tint); box-shadow: var(--shadow); cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--tint); color: #fff; }
+
+  .result { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
+  .result pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 16px; line-height: 1.55; max-height: 46vh; overflow-y: auto; -webkit-user-select: text; user-select: text; }
+  .typing { display: inline-flex; gap: 4px; align-items: center; height: 18px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--label-3); animation: blink 1.2s infinite ease-in-out; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 0%,80%,100% { opacity:.3; transform: translateY(0);} 40% { opacity:1; transform: translateY(-2px);} }
+
+  .status { min-height: 1.3em; font-size: 13.5px; color: var(--label-2); padding: 2px 4px 10px; }
+  .status.error { color: var(--red); }
+  .status.ok { color: #1d8a3b; }
+
+  .sheet-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.4); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--bg); width: 100%; max-width: 640px; border-radius: 20px 20px 0 0; padding: 6px 20px calc(20px + var(--sab)); max-height: calc(100dvh - var(--sat) - 12px); overflow-y: auto; box-shadow: 0 -8px 40px rgba(0,0,0,0.25); animation: rise .28s var(--ease); }
+  @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
+  .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--label-3); margin: 6px auto 14px; opacity: .6; }
+  .sheet h2 { margin: 0 0 8px; font-size: 22px; font-weight: 700; }
+  .sheet p { color: var(--label-2); margin: 0 0 16px; font-size: 16px; }
+  @media (min-width: 768px) { .sheet-backdrop { align-items: center; padding: 24px; } .sheet { border-radius: 20px; max-width: 460px; } .grabber { display: none; } }
+
+  .toast { position: fixed; top: calc(var(--sat) + 10px); left: 50%; transform: translate(-50%,-20px); z-index: 70; background: var(--card); box-shadow: var(--shadow), 0 0 0 1px var(--bar-border); border-radius: 999px; padding: 10px 18px; font-size: 15px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); text-align: center; }
+  .toast.show { opacity: 1; transform: translate(-50%,0); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <button class="nav-btn" id="backBtn" hidden aria-label="Back">
+      <svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg>Posts
+    </button>
+    <span class="nav-title" id="navTitle">Writing</span>
+    <button class="nav-btn" id="newBtn" aria-label="New post">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="nav-btn" id="saveBtn" hidden>Save</button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="view-list">
+    <div class="head"><h1>Writing</h1></div>
+    <div class="stats" id="stats"></div>
+    <div id="postList"></div>
+  </section>
+
+  <section id="view-post" hidden>
+    <div class="seg" role="tablist">
+      <button role="tab" id="tab-write" aria-selected="true">Write</button>
+      <button role="tab" id="tab-claude" aria-selected="false">Claude</button>
+      <button role="tab" id="tab-send" aria-selected="false">Send</button>
+    </div>
+
+    <div class="panel" id="panel-write">
+      <div class="field"><label for="fTitle">Title</label><input id="fTitle" enterkeyhint="next" autocomplete="off"></div>
+      <div class="field"><label for="fSubtitle">Subtitle (optional)</label><input id="fSubtitle" enterkeyhint="next" autocomplete="off"></div>
+      <div class="field"><label for="fBody">Post</label><textarea id="fBody" placeholder="Markdown. ## for a heading, - for a list, **bold**."></textarea></div>
+      <div class="field"><label for="fExcerpt">Excerpt</label><textarea id="fExcerpt" class="short" placeholder="One sentence for the card, the preview and the email."></textarea></div>
+      <div class="status" id="writeStatus"></div>
+      <div class="btn-row">
+        <button class="btn2" id="previewBtn">Preview</button>
+        <button class="btn2 primary" id="publishBtn">Publish</button>
+      </div>
+      <div class="btn-row"><button class="btn2 danger wide" id="deleteBtn">Delete post</button></div>
+    </div>
+
+    <div class="panel" id="panel-claude" hidden>
+      <div class="chips" id="modeChips">
+        <button class="chip" data-mode="draft" aria-pressed="true">Draft from notes</button>
+        <button class="chip" data-mode="tighten" aria-pressed="false">Tighten</button>
+        <button class="chip" data-mode="expand" aria-pressed="false">Expand</button>
+        <button class="chip" data-mode="outline" aria-pressed="false">Outline</button>
+        <button class="chip" data-mode="meta" aria-pressed="false">Title &amp; subject</button>
+        <button class="chip" data-mode="ideas" aria-pressed="false">Ideas</button>
+      </div>
+      <div class="field" id="notesField">
+        <label for="fNotes">Your notes</label>
+        <textarea id="fNotes" class="short" placeholder="Rough thoughts, bullets, a half-formed argument. Claude works from these."></textarea>
+      </div>
+      <div class="field"><label for="fInstruction">Anything else? (optional)</label><input id="fInstruction" placeholder="Keep it under 500 words" autocomplete="off"></div>
+      <div class="btn-row"><button class="btn2 primary wide" id="runBtn">Ask Claude</button></div>
+      <div class="status" id="aiStatus"></div>
+      <div class="result" id="aiResult" hidden><pre id="aiText"></pre></div>
+      <div class="btn-row" id="aiActions" hidden>
+        <button class="btn2" id="copyBtn">Copy</button>
+        <button class="btn2" id="appendBtn">Append</button>
+        <button class="btn2 primary" id="replaceBtn">Replace post</button>
+      </div>
+      <p class="hint">Claude never publishes or sends. It writes into the editor and you decide.</p>
+    </div>
+
+    <div class="panel" id="panel-send" hidden>
+      <div class="field"><label for="fSubject">Email subject</label><input id="fSubject" placeholder="Defaults to the post title" autocomplete="off"></div>
+      <div class="stats" id="sendStats"></div>
+      <div class="field"><label for="fTest">Send a test to</label><input id="fTest" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="you@example.com"></div>
+      <div class="btn-row"><button class="btn2 wide" id="testBtn">Send test</button></div>
+      <div class="btn-row"><button class="btn2 primary wide" id="sendBtn">Send to subscribers</button></div>
+      <div class="status" id="sendStatus"></div>
+      <p class="hint">Sending is separate from publishing on purpose. A post going live never mails anyone by itself, and an email cannot be taken back.</p>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { post: null, mode: 'draft', ai: '', meta: null, info: null, subs: null, dirty: false };
+
+  /* ---------- helpers ---------- */
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  var toastTimer;
+  function toast(msg) {
+    var el = $('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+  function setStatus(el, msg, kind) {
+    el.textContent = msg || '';
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+  async function api(path, options) {
+    var res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options || {}));
+    if (res.status === 404 && path.indexOf('/api/') === 0) {
+      // The admin API 404s rather than 401s when the session is gone.
+      location.href = '/admin/login';
+      throw new Error('Signed out');
+    }
+    var data = null;
+    try { data = await res.json(); } catch (e) { data = {}; }
+    if (!res.ok) throw new Error(data.error || 'That did not work.');
+    return data;
+  }
+
+  /* ---------- sheets ---------- */
+  var openSheetEl = null;
+  function closeSheet() {
+    if (openSheetEl && openSheetEl.parentNode) openSheetEl.parentNode.removeChild(openSheetEl);
+    openSheetEl = null;
+    document.body.style.overflow = '';
+  }
+  function confirmSheet(opts) {
+    return new Promise(function (resolve) {
+      closeSheet();
+      var back = document.createElement('div');
+      back.className = 'sheet-backdrop';
+      back.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' +
+        '<div class="grabber"></div><h2>' + esc(opts.title) + '</h2><p>' + esc(opts.message || '') + '</p>' +
+        '<div class="btn-row"><button class="btn2 wide ' + (opts.destructive ? 'danger' : 'primary') + '" data-a="ok">' + esc(opts.confirmLabel || 'Confirm') + '</button></div>' +
+        '<div class="btn-row"><button class="btn2 wide" data-a="no">Cancel</button></div></div>';
+      var settle = function (v) { closeSheet(); resolve(v); };
+      back.addEventListener('click', function (e) {
+        if (e.target === back) settle(false);
+        var a = e.target.closest && e.target.closest('[data-a]');
+        if (a) settle(a.dataset.a === 'ok');
+      });
+      document.body.appendChild(back);
+      document.body.style.overflow = 'hidden';
+      openSheetEl = back;
+    });
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+  /* ---------- routing ---------- */
+  function route() {
+    var m = (location.hash || '').match(/^#\/post\/(.+)$/);
+    if (m) { openPost(decodeURIComponent(m[1])); }
+    else { showList(); }
+  }
+  window.addEventListener('hashchange', route);
+  $('backBtn').addEventListener('click', function () { location.hash = ''; });
+
+  function showList() {
+    state.post = null;
+    $('view-post').hidden = true; $('view-list').hidden = false;
+    $('backBtn').hidden = true; $('newBtn').hidden = false; $('saveBtn').hidden = true;
+    $('navTitle').textContent = 'Writing';
+    loadList();
+  }
+
+  /* ---------- list ---------- */
+  async function loadList() {
+    var list = $('postList');
+    list.innerHTML = '<div class="empty"><p>Loading…</p></div>';
+    try {
+      var info = await api('/api/admin/me');
+      state.info = info;
+      var subs = await api('/api/subscribers').catch(function () { return null; });
+      state.subs = subs;
+
+      var pills = [];
+      if (subs) pills.push('<span class="pill"><b>' + subs.confirmed + '</b> subscribers</span>');
+      if (subs && subs.pending) pills.push('<span class="pill"><b>' + subs.pending + '</b> pending</span>');
+      if (!info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
+      if (!info.ai.enabled) pills.push('<span class="pill warn">Claude not configured</span>');
+      if (info.store === 'memory') pills.push('<span class="pill warn">Local memory store, nothing is saved</span>');
+      $('stats').innerHTML = pills.join('');
+
+      var posts = await api('/api/posts');
+      if (!posts.length) {
+        list.innerHTML = '<div class="empty"><h3>No posts yet</h3><p>Tap + to start one. Rough notes are enough; Claude can take it from there.</p></div>';
+        return;
+      }
+      list.innerHTML = '<div class="list">' + posts.map(function (p) {
+        var badge = p.sentAt ? '<span class="badge sent">Sent</span>'
+          : p.status === 'published' ? '<span class="badge published">Live</span>'
+          : '<span class="badge draft">Draft</span>';
+        var when = p.publishedAt || p.updatedAt;
+        var sub = (when ? new Date(when).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '') +
+          ' · ' + p.words + ' words' + (p.sentCount ? ' · sent to ' + p.sentCount : '');
+        return '<button class="row" data-slug="' + esc(p.slug) + '">' +
+          '<span class="row-main"><span class="row-title">' + esc(p.title) + '</span>' +
+          '<span class="row-sub">' + esc(sub) + '</span></span>' + badge + '</button>';
+      }).join('') + '</div>';
+      list.querySelectorAll('[data-slug]').forEach(function (b) {
+        b.addEventListener('click', function () { location.hash = '#/post/' + encodeURIComponent(b.dataset.slug); });
+      });
+    } catch (err) {
+      list.innerHTML = '<div class="empty"><h3>Could not load</h3><p>' + esc(err.message) + '</p></div>';
+    }
+  }
+
+  $('newBtn').addEventListener('click', async function () {
+    try {
+      var post = await api('/api/posts', { method: 'POST', body: JSON.stringify({ title: 'Untitled' }) });
+      location.hash = '#/post/' + encodeURIComponent(post.slug);
+    } catch (err) { toast(err.message); }
+  });
+
+  /* ---------- editor ---------- */
+  var tabs = ['write', 'claude', 'send'];
+  function selectTab(name) {
+    tabs.forEach(function (t) {
+      $('panel-' + t).hidden = t !== name;
+      $('tab-' + t).setAttribute('aria-selected', String(t === name));
+    });
+    if (name === 'send') refreshSendPanel();
+  }
+  tabs.forEach(function (t) { $('tab-' + t).addEventListener('click', function () { selectTab(t); }); });
+
+  async function openPost(slug) {
+    $('view-list').hidden = true; $('view-post').hidden = false;
+    $('backBtn').hidden = false; $('newBtn').hidden = true; $('saveBtn').hidden = false;
+    selectTab('write');
+    try {
+      var post = await api('/api/posts/' + encodeURIComponent(slug));
+      state.post = post;
+      $('navTitle').textContent = post.title || 'Untitled';
+      $('fTitle').value = post.title || '';
+      $('fSubtitle').value = post.subtitle || '';
+      $('fBody').value = post.body || '';
+      $('fExcerpt').value = post.excerpt || '';
+      $('fSubject').value = post.emailSubject || '';
+      $('publishBtn').textContent = post.status === 'published' ? 'Unpublish' : 'Publish';
+      setStatus($('writeStatus'), post.status === 'published' ? 'Published' : 'Draft');
+      state.dirty = false;
+      autosize($('fBody'));
+    } catch (err) {
+      toast(err.message);
+      location.hash = '';
+    }
+  }
+
+  function autosize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.max(260, el.scrollHeight) + 'px';
+  }
+  $('fBody').addEventListener('input', function () { autosize(this); markDirty(); });
+  ['fTitle', 'fSubtitle', 'fExcerpt', 'fSubject'].forEach(function (id) {
+    $(id).addEventListener('input', markDirty);
+  });
+
+  var saveTimer = null;
+  function markDirty() {
+    state.dirty = true;
+    setStatus($('writeStatus'), 'Unsaved changes');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 1800);
+  }
+
+  async function save() {
+    if (!state.post || !state.dirty) return;
+    clearTimeout(saveTimer);
+    setStatus($('writeStatus'), 'Saving…');
+    try {
+      var saved = await api('/api/posts/' + encodeURIComponent(state.post.slug), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: $('fTitle').value,
+          subtitle: $('fSubtitle').value,
+          body: $('fBody').value,
+          excerpt: $('fExcerpt').value,
+          emailSubject: $('fSubject').value,
+        }),
+      });
+      state.dirty = false;
+      state.post.title = saved.title;
+      // A draft's URL follows its title, so the slug can change under us.
+      if (saved.slug && saved.slug !== state.post.slug) {
+        state.post.slug = saved.slug;
+        history.replaceState(null, '', '#/post/' + encodeURIComponent(saved.slug));
+      }
+      $('navTitle').textContent = state.post.title || 'Untitled';
+      setStatus($('writeStatus'), 'Saved', 'ok');
+    } catch (err) {
+      setStatus($('writeStatus'), err.message, 'error');
+    }
+  }
+  $('saveBtn').addEventListener('click', save);
+  window.addEventListener('beforeunload', function (e) {
+    if (state.dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  $('previewBtn').addEventListener('click', async function () {
+    await save();
+    window.open('/writing/' + encodeURIComponent(state.post.slug), '_blank', 'noopener');
+  });
+
+  $('publishBtn').addEventListener('click', async function () {
+    await save();
+    var publishing = state.post.status !== 'published';
+    if (publishing) {
+      var ok = await confirmSheet({
+        title: 'Publish this post?',
+        message: 'It goes live at /writing straight away. This does not email anyone; sending is a separate step.',
+        confirmLabel: 'Publish',
+      });
+      if (!ok) return;
+    }
+    try {
+      var updated = await api('/api/posts/' + encodeURIComponent(state.post.slug) + (publishing ? '/publish' : '/unpublish'), { method: 'POST' });
+      state.post.status = updated.status;
+      state.post.publishedAt = updated.publishedAt;
+      $('publishBtn').textContent = updated.status === 'published' ? 'Unpublish' : 'Publish';
+      setStatus($('writeStatus'), updated.status === 'published' ? 'Published' : 'Draft', 'ok');
+      toast(updated.status === 'published' ? 'Published' : 'Back to draft');
+    } catch (err) { setStatus($('writeStatus'), err.message, 'error'); }
+  });
+
+  $('deleteBtn').addEventListener('click', async function () {
+    var ok = await confirmSheet({
+      title: 'Delete this post?', message: 'This cannot be undone.',
+      confirmLabel: 'Delete', destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api('/api/posts/' + encodeURIComponent(state.post.slug), { method: 'DELETE' });
+      state.dirty = false;
+      toast('Deleted');
+      location.hash = '';
+    } catch (err) { toast(err.message); }
+  });
+
+  /* ---------- Claude ---------- */
+  $('modeChips').addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) return;
+    state.mode = chip.dataset.mode;
+    $('modeChips').querySelectorAll('.chip').forEach(function (c) {
+      c.setAttribute('aria-pressed', String(c === chip));
+    });
+    $('notesField').hidden = !(state.mode === 'draft' || state.mode === 'outline' || state.mode === 'ideas');
+  });
+
+  $('runBtn').addEventListener('click', async function () {
+    if (state.dirty) await save();
+    var btn = $('runBtn');
+    btn.disabled = true;
+    $('aiResult').hidden = false;
+    $('aiActions').hidden = true;
+    $('aiText').innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    setStatus($('aiStatus'), 'Thinking. This can take a minute on a long piece.');
+    try {
+      var result = await api('/api/ai/assist', {
+        method: 'POST',
+        body: JSON.stringify({
+          mode: state.mode,
+          title: $('fTitle').value,
+          body: $('fBody').value,
+          notes: $('fNotes').value,
+          instruction: $('fInstruction').value,
+        }),
+      });
+      state.ai = result.text || '';
+      state.meta = (result.title || result.excerpt || result.subject) ? result : null;
+      $('aiText').textContent = state.ai;
+      $('aiActions').hidden = false;
+      $('replaceBtn').textContent = state.meta ? 'Apply title & subject' : 'Replace post';
+      $('appendBtn').hidden = Boolean(state.meta);
+      setStatus($('aiStatus'), result.remaining + ' calls left today', 'ok');
+    } catch (err) {
+      $('aiText').textContent = '';
+      $('aiResult').hidden = true;
+      setStatus($('aiStatus'), err.message, 'error');
+    }
+    btn.disabled = false;
+  });
+
+  $('copyBtn').addEventListener('click', async function () {
+    try { await navigator.clipboard.writeText(state.ai); toast('Copied'); }
+    catch (e) { toast('Could not copy'); }
+  });
+  $('appendBtn').addEventListener('click', function () {
+    $('fBody').value = ($('fBody').value.trim() + '\n\n' + state.ai).trim();
+    autosize($('fBody')); markDirty(); selectTab('write');
+    toast('Added to the post');
+  });
+  $('replaceBtn').addEventListener('click', async function () {
+    if (state.meta) {
+      if (state.meta.title) $('fTitle').value = state.meta.title;
+      if (state.meta.excerpt) $('fExcerpt').value = state.meta.excerpt;
+      if (state.meta.subject) $('fSubject').value = state.meta.subject;
+      markDirty(); selectTab('write');
+      toast('Applied');
+      return;
+    }
+    var ok = await confirmSheet({
+      title: 'Replace the whole post?',
+      message: 'Your current text is overwritten with what Claude wrote.',
+      confirmLabel: 'Replace', destructive: true,
+    });
+    if (!ok) return;
+    $('fBody').value = state.ai;
+    autosize($('fBody')); markDirty(); selectTab('write');
+    toast('Replaced');
+  });
+
+  /* ---------- send ---------- */
+  function refreshSendPanel() {
+    var pills = [];
+    if (state.subs) pills.push('<span class="pill"><b>' + state.subs.confirmed + '</b> confirmed subscribers</span>');
+    if (state.post && state.post.sentCount) pills.push('<span class="pill">already sent to <b>' + state.post.sentCount + '</b></span>');
+    if (state.info && !state.info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
+    if (state.post && state.post.status !== 'published') pills.push('<span class="pill warn">Publish before sending</span>');
+    $('sendStats').innerHTML = pills.join('');
+  }
+
+  $('testBtn').addEventListener('click', async function () {
+    await save();
+    var to = $('fTest').value.trim();
+    if (!to) { setStatus($('sendStatus'), 'Enter an address to test with.', 'error'); return; }
+    $('testBtn').disabled = true;
+    setStatus($('sendStatus'), 'Sending test…');
+    try {
+      await api('/api/posts/' + encodeURIComponent(state.post.slug) + '/send', {
+        method: 'POST', body: JSON.stringify({ testTo: to }),
+      });
+      setStatus($('sendStatus'), 'Test sent to ' + to, 'ok');
+    } catch (err) { setStatus($('sendStatus'), err.message, 'error'); }
+    $('testBtn').disabled = false;
+  });
+
+  $('sendBtn').addEventListener('click', async function () {
+    await save();
+    var count = state.subs ? state.subs.confirmed : 0;
+    var ok = await confirmSheet({
+      title: 'Send to ' + count + ' subscriber' + (count === 1 ? '' : 's') + '?',
+      message: 'This cannot be taken back. Anyone already sent this post is skipped automatically.',
+      confirmLabel: 'Send it',
+    });
+    if (!ok) return;
+    $('sendBtn').disabled = true;
+    setStatus($('sendStatus'), 'Sending…');
+    try {
+      var r = await api('/api/posts/' + encodeURIComponent(state.post.slug) + '/send', { method: 'POST', body: '{}' });
+      var msg = 'Sent ' + r.sent + (r.failed ? ', ' + r.failed + ' failed' : '');
+      if (r.remaining) msg += '. ' + r.remaining + ' left, press send again to continue.';
+      setStatus($('sendStatus'), msg, r.failed ? 'error' : 'ok');
+      state.post.sentCount = (r.alreadySent || 0) + r.sent;
+      refreshSendPanel();
+      toast('Sent ' + r.sent);
+    } catch (err) { setStatus($('sendStatus'), err.message, 'error'); }
+    $('sendBtn').disabled = false;
+  });
+
+  route();
+})();
+</script>
+</body>
+</html>

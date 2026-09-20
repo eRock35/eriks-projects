@@ -13,8 +13,9 @@ The Santa Rosa Beach trip app is intentionally **not** linked here — it holds
 family PII and its URL is deliberately kept off public surfaces. See
 `DEPLOY.md` for the reasoning before adding it.
 
-Deploying this page is simpler than the Node apps — it's a Storage-API upload
-of `index.html` to the root bucket, no Cloud Build or Cloud Run involved.
+It is no longer only a landing page. `/writing` is a small blog with an email
+newsletter attached, written from `/admin` on a phone with Claude helping. See
+"Writing and the newsletter" in `DEPLOY.md` for what it needs to run.
 
 See `DEPLOY.md` for the shared GCP project details and the full deploy runbook
 covering every app on this domain.

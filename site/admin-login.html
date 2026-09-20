@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Writing">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/erik-320.jpg">
+<link rel="stylesheet" href="/assets/reader.css">
+<style>
+  body { padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100dvh; }
+  .box { width: 100%; max-width: 380px; padding: 24px 20px calc(24px + var(--sab)); }
+  .hero { text-align: center; margin-bottom: 22px; }
+  .hero img { width: 68px; height: 68px; border-radius: 50%; object-fit: cover; box-shadow: var(--shadow); }
+  .hero h1 { font-size: 26px; margin: 14px 0 0; }
+  .hero p { color: var(--label-2); margin: 6px 0 0; font-size: 15px; }
+  form { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 6px 16px 16px; }
+  label { display: block; font-size: 13px; color: var(--label-2); margin: 12px 0 4px; }
+  input { width: 100%; min-height: 44px; padding: 10px 0; font: inherit; font-size: 17px; border: none; border-bottom: 1px solid var(--sep); background: transparent; color: var(--label); outline: none; border-radius: 0; }
+  input:focus { border-bottom-color: var(--tint); }
+  .btn { width: 100%; margin-top: 18px; }
+  .status { min-height: 1.3em; text-align: center; font-size: 14px; color: var(--red); margin-top: 14px; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="hero">
+      <img src="/assets/erik-320.jpg" alt="" width="68" height="68">
+      <h1>Writing</h1>
+      <p>Sign in to draft and send.</p>
+    </div>
+    <form id="form">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password" enterkeyhint="go" autofocus>
+      <button class="btn" type="submit" id="go">Sign in</button>
+    </form>
+    <div class="status" id="status" role="status"></div>
+  </div>
+<script>
+(function () {
+  "use strict";
+  var form = document.getElementById('form');
+  var pw = document.getElementById('pw');
+  var go = document.getElementById('go');
+  var status = document.getElementById('status');
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var password = pw.value;
+    if (!password) { status.textContent = 'Enter the password.'; return; }
+    go.disabled = true;
+    status.textContent = 'Signing in…';
+    try {
+      var res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: password })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || 'That did not work.');
+      location.href = '/admin';
+    } catch (err) {
+      status.textContent = err.message || 'That did not work.';
+      go.disabled = false;
+      pw.select();
+    }
+  });
+})();
+</script>
+</body>
+</html>

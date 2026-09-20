@@ -235,3 +235,96 @@ private and the right place for them. Don't restate them here.
 Two rules still stand: **no custom domain mapping** for that app (a mapping
 publishes the hostname to Certificate Transparency logs), and **no literal
 URL in any public file**.
+
+## Writing and the newsletter
+
+`/writing` is a small blog with an email list, served by the same Cloud Run
+service as the landing page. Posts are written from `/admin` on a phone, with
+Claude available in the composer as a drafting partner.
+
+### The shape of it
+
+- **Posts** live in Firestore, not in the repo, so a post does not need a
+  deploy. A draft's URL follows its title; publishing freezes the slug,
+  because a live URL that moves is a broken link in someone's inbox.
+- **Publishing and sending are separate actions.** Making a post live never
+  mails anyone. Sending is a second, explicitly confirmed step. An email
+  cannot be recalled, so it does not get to happen as a side effect.
+- **Double opt-in.** A signup is `pending` until the address clicks the
+  confirmation link. Only `confirmed` addresses are ever mailed. This protects
+  the domain's sending reputation, which is the thing that is slow to repair.
+- **One-click unsubscribe** on every send: a `List-Unsubscribe` header, a
+  `List-Unsubscribe-Post` header, and an unauthenticated `POST /unsubscribe`.
+  Gmail and Yahoo expect this from bulk senders. Do not put that route behind
+  any gate.
+- **Idempotent sends.** Each recipient is recorded in
+  `posts_<slug>_recipients/<subscriberId>`. Pressing send again resumes and
+  skips anyone already mailed, so a timeout mid-send is safe. One run mails at
+  most `MAX_SEND_PER_RUN` (default 500).
+- **Confirm and unsubscribe links are HMAC tokens**, not stored rows. They are
+  purpose-scoped, so an unsubscribe link cannot be replayed as a confirmation.
+  They are signed with `SESSION_SECRET`: rotating that secret invalidates every
+  outstanding link and every admin session.
+- **Claude is admin-only and capped** at `AI_DAILY_CALL_CAP` calls a day
+  (default 100). It writes into the editor and never publishes or sends.
+
+### What the service needs
+
+Firestore: a **named** Native-mode database, `eriks-projects`, in
+`us-central1`. Never `(default)` on this project.
+
+One composite index is required, on `posts`:
+
+```
+posts: status ASC, publishedAt DESC
+```
+
+Without it the `/writing` index and the RSS feed return 500s. Everything else
+is a single-field query and is auto-indexed.
+
+Secret Manager (names only; values are not in this repo):
+
+- `landing-session-secret` — HMAC key for admin sessions and email tokens
+- `landing-admin-password` — the one password that opens `/admin`
+- `resend-api-key` — the mail provider key
+
+Plain env vars on the Cloud Run service:
+
+- `FIRESTORE_DATABASE_ID=eriks-projects`
+- `GOOGLE_CLOUD_PROJECT`
+- `SITE_ORIGIN=https://www.strongtechnicalconsulting.com` — used to build the
+  confirm and unsubscribe links, so it must match the real hostname or people
+  get links to the wrong place
+- `NEWSLETTER_FROM` — e.g. `Erik Strong <erik@strongtechnicalconsulting.com>`
+- `NEWSLETTER_REPLY_TO` — optional
+- `ANTHROPIC_API_KEY` — the shared secret, same as the other apps
+
+`gcpdeploy ship` deliberately swaps only the image digest and never
+reconstructs env vars, so **adding these is a one-time manual update** to the
+service, not something a normal deploy does. That is the safety property that
+stops a stale config file from dropping a secret from production; do not
+"fix" it by declaring env vars in `apps.json`.
+
+### Degrading instead of breaking
+
+Each dependency is optional and the service says so rather than failing:
+
+| Missing | What happens |
+|---|---|
+| `FIRESTORE_DATABASE_ID` | In-memory store, nothing persisted. The admin UI shows a warning pill. Fine for local work, never for production. |
+| `RESEND_API_KEY` / `NEWSLETTER_FROM` | Signups are recorded as pending, no mail goes out, sending returns 503 with a clear message. |
+| `ANTHROPIC_API_KEY` | The Claude tab reports itself off. Writing and sending are unaffected. |
+| `ADMIN_PASSWORD` | `/admin` cannot be entered at all. The public site is unaffected. |
+
+The landing page keeps serving in every one of those cases. That is
+deliberate: the front page must not depend on the newsletter.
+
+### DNS, which is Erik's step
+
+Resend needs SPF and DKIM records on `strongtechnicalconsulting.com` before it
+will send as that domain, and a DMARC record is worth adding at the same time.
+Resend's dashboard prints the exact records when the domain is added. Until
+those records resolve, mail either does not send or lands in spam.
+
+This is the same class of step as the Cloud Run domain mappings: the records go
+in at the registrar by hand.
