@@ -302,8 +302,14 @@ Plain env vars on the Cloud Run service:
 - `SITE_ORIGIN=https://www.strongtechnicalconsulting.com` — used to build the
   confirm and unsubscribe links, so it must match the real hostname or people
   get links to the wrong place
-- `NEWSLETTER_FROM` — e.g. `Erik Strong <erik@strongtechnicalconsulting.com>`
-- `NEWSLETTER_REPLY_TO` — optional
+- `NEWSLETTER_FROM` — currently `Erik Strong <erik-noreply@strongtechnicalconsulting.com>`.
+  A no-reply address so no mailbox has to exist on the domain; verifying a
+  domain for sending does not create one. Any address on the verified domain
+  works here, with no extra DNS.
+- `NEWSLETTER_REPLY_TO` — optional, and currently unset. Point it at a mailbox
+  Erik actually reads if readers should be able to reply; pointing it at an
+  address that does not exist is worse than leaving it off, because the reply
+  bounces silently instead of never being offered.
 - `ANTHROPIC_API_KEY` — the shared secret, same as the other apps
 
 `gcpdeploy ship` deliberately swaps only the image digest and never
@@ -346,7 +352,7 @@ Done:
 - Secrets `landing-session-secret`, `landing-admin-password`, `resend-api-key`
 - The `landing-page` service carries `GOOGLE_CLOUD_PROJECT`,
   `FIRESTORE_DATABASE_ID`, `SITE_ORIGIN`, `NEWSLETTER_FROM`,
-  `NEWSLETTER_REPLY_TO`, `NODE_ENV`, and secret refs for `SESSION_SECRET`,
+  `NODE_ENV`, and secret refs for `SESSION_SECRET`,
   `ADMIN_PASSWORD`, `RESEND_API_KEY` and the shared `ANTHROPIC_API_KEY`.
 
 Still Erik's, and sending will not work until it is done:
@@ -354,8 +360,9 @@ Still Erik's, and sending will not work until it is done:
 - Add `strongtechnicalconsulting.com` as a domain in Resend and put the SPF
   and DKIM records it prints at the registrar. Until those resolve, Resend
   only sends from its own sandbox address to Erik's own account address.
-- Make sure `erik@strongtechnicalconsulting.com` receives mail, since it is
-  both the From and the Reply-To.
+- Nothing else. The From is a no-reply address on the same domain, so no
+  mailbox is needed. If Erik later wants replies to reach him, set
+  `NEWSLETTER_REPLY_TO` to an address he reads.
 
 Because `gcpdeploy ship` swaps only the image digest, a normal deploy will
 never disturb any of the above. If the service ever loses these env vars, it
