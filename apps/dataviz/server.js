@@ -238,6 +238,44 @@ app.post('/api/checkout', accounts.requireUser, async (req, res) => {
   } catch (err) { fail(res, err, 'Could not start checkout.'); }
 });
 
+// Nothing in the build container can reach api.stripe.com, and nothing can
+// reach this app over HTTP either, so "the key is mounted" and "the key works"
+// are separate claims. This route settles the second one from inside the
+// running service: it makes one real, read-only call to Stripe and reports
+// what came back.
+//
+// It never echoes a key - only whether each is present, and what Stripe said
+// about the price. Signed-in only, because an open endpoint that reports which
+// billing config is missing is a map for someone probing the service.
+app.get('/api/stripe/health', accounts.requireUser, async (req, res) => {
+  const out = {
+    secretKey: Boolean(process.env.STRIPE_SECRET_KEY),
+    priceId: stripe.priceId() || null,
+    webhookSecret: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
+    enabled: stripe.enabled(),
+  };
+  if (!out.enabled) return res.json({ ...out, price: null, error: 'Billing is not configured.' });
+  try {
+    const price = await stripe.call(`/prices/${encodeURIComponent(stripe.priceId())}`, null, 'GET');
+    out.price = {
+      id: price.id,
+      active: price.active,
+      // livemode false means this is the test key and test price, which is
+      // what a test-mode key should report. A mismatch here is the failure
+      // worth catching before a real customer meets it.
+      livemode: price.livemode,
+      currency: price.currency,
+      unitAmount: price.unit_amount,
+      interval: price.recurring ? price.recurring.interval : null,
+    };
+    out.ok = true;
+  } catch (err) {
+    out.ok = false;
+    out.error = err.message;
+  }
+  res.json(out);
+});
+
 app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
   try {
     if (!req.user.stripeCustomerId) return res.status(400).json({ error: 'No subscription to manage yet.' });
