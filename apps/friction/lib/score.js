@@ -12,7 +12,14 @@ const MODEL = process.env.SCAN_MODEL || 'claude-opus-5';
 const BATCH_SIZE = 24;
 // A hard ceiling on one run, so a burst of matching posts can never turn into
 // an unbounded Anthropic bill overnight while nobody is watching.
-const MAX_ITEMS_PER_RUN = Number(process.env.MAX_ITEMS_PER_RUN || 240);
+//
+// 96 is four batches, which at six runs a day is ~24 model calls. The first
+// value here was 240, and ten verification runs at that size were enough to
+// exhaust the API credit shared across every app on this account. A monitor
+// that takes the whole budget is not a monitor. Read less, more often: the
+// seen-set means nothing is read twice anyway, so a lower cap costs coverage
+// only on the day a topic suddenly floods.
+const MAX_ITEMS_PER_RUN = Number(process.env.MAX_ITEMS_PER_RUN || 96);
 
 const WEIGHTS = { intensity: 0.3, budget: 0.3, frequency: 0.15, whitespace: 0.15, feasibility: 0.1 };
 
@@ -114,6 +121,19 @@ const TOOL = {
   },
 };
 
+/** A 400 with a JSON blob in it tells you nothing at a glance, and the one
+ *  failure that matters most - no credit left - looks like every other 400. */
+function explain(err) {
+  const raw = String((err && err.message) || err);
+  if (/credit balance is too low/i.test(raw)) {
+    return 'Anthropic credit exhausted. Scans cannot score anything until the account is topped up '
+      + '(this key is shared with every other app on the account).';
+  }
+  if (/rate_limit|429/i.test(raw)) return 'Anthropic rate limit hit. The next scheduled run will pick these items up.';
+  if (/overloaded|529/i.test(raw)) return 'Anthropic overloaded. The next scheduled run will pick these items up.';
+  return raw.slice(0, 200);
+}
+
 function composite(scores) {
   let total = 0;
   for (const [k, w] of Object.entries(WEIGHTS)) {
@@ -169,7 +189,7 @@ async function scoreItems(items, lensLabel) {
     try {
       out.push(...await scoreBatch(batch, lensLabel));
     } catch (err) {
-      errors.push({ lens: lensLabel, message: err.message });
+      errors.push({ lens: lensLabel, message: explain(err) });
     }
   }
   return { problems: out, errors, examined: capped.length, skipped: items.length - capped.length };
