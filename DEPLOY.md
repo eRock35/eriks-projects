@@ -95,6 +95,28 @@ A revision reaching Ready is real evidence: Cloud Run fails the revision if a
 referenced secret can't be read, so Ready means secrets mounted and the
 container bound its port.
 
+## Creating a service (first deploy only)
+
+`gcpdeploy ship` updates an existing service; it cannot create one. For a new
+app, build first, then POST the service once:
+
+```
+POST run.googleapis.com/v2/projects/$P/locations/us-central1/services?serviceId=<name>
+```
+
+with `template.containers[0].image` pinned to the digest, then grant
+`roles/run.invoker` to `allUsers` via `:setIamPolicy` if it's public. After
+that, `gcpdeploy ship` handles every later deploy.
+
+Two things Cloud Run will reject or overcharge for:
+
+- **Memory under 512Mi requires `resources.cpuIdle: true`.** Without it the
+  service defaults to CPU always-allocated, which both rejects 256Mi and bills
+  for idle time. `cpuIdle: true` bills CPU only while a request is in flight.
+- **Leave `minInstanceCount` at 0.** Any other value is a standing charge. For
+  the landing page that is the entire reason it is on Cloud Run rather than
+  behind a load balancer.
+
 ## Verifying without HTTP access
 
 The strongest available end-to-end check is to force-run the app's Cloud

@@ -204,6 +204,15 @@ EOF
   # not create a new revision, so always pin the digest.
   say "patching service (image only)"
   api GET "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" > "$STATE/live.json"
+  # A service that doesn't exist yet can't be patched into being. Say so
+  # plainly rather than failing on a missing 'template' key.
+  if grep -q '"code": 404' "$STATE/live.json" 2>/dev/null; then
+    die "Cloud Run service '$svc' does not exist yet.
+The image built fine and is in Artifact Registry, so nothing is wasted — but
+this tool only updates services that already exist. Create it once (see
+DEPLOY.md, 'Creating a service'), then 'gcpdeploy ship $app' handles it from
+then on. Remember roles/run.invoker for allUsers if it should be public."
+  fi
   python3 - "$STATE/live.json" "$img@$digest" "$STATE/patch.json" <<'PY'
 import json,sys
 live=json.load(open(sys.argv[1]))
