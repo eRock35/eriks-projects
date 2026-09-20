@@ -274,9 +274,12 @@
       if (subs) pills.push('<span class="pill"><b>' + subs.confirmed + '</b> subscribers</span>');
       if (subs && subs.pending) pills.push('<span class="pill"><b>' + subs.pending + '</b> pending</span>');
       if (!info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
+      pills.push('<button class="pill" id="emailCheck" style="border:none;cursor:pointer">Check email setup</button>');
       if (!info.ai.enabled) pills.push('<span class="pill warn">Claude not configured</span>');
       if (info.store === 'memory') pills.push('<span class="pill warn">Local memory store, nothing is saved</span>');
       $('stats').innerHTML = pills.join('');
+      var checkBtn = $('emailCheck');
+      if (checkBtn) checkBtn.addEventListener('click', showEmailCheck);
 
       var posts = await api('/api/posts');
       if (!posts.length) {
@@ -299,6 +302,58 @@
       });
     } catch (err) {
       list.innerHTML = '<div class="empty"><h3>Could not load</h3><p>' + esc(err.message) + '</p></div>';
+    }
+  }
+
+  // Asks Resend directly, because nothing here can read Cloud Run logs and a
+  // failed send would otherwise be a dead end.
+  async function showEmailCheck() {
+    closeSheet();
+    var back = document.createElement('div');
+    back.className = 'sheet-backdrop';
+    back.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' +
+      '<div class="grabber"></div><h2>Email setup</h2>' +
+      '<div id="ecBody"><p>Asking Resend…</p></div>' +
+      '<div class="btn-row"><button class="btn2 wide" data-a="close">Close</button></div></div>';
+    back.addEventListener('click', function (e) {
+      if (e.target === back || (e.target.closest && e.target.closest('[data-a="close"]'))) closeSheet();
+    });
+    document.body.appendChild(back);
+    document.body.style.overflow = 'hidden';
+    openSheetEl = back;
+
+    var body = $('ecBody');
+    try {
+      var d = await api('/api/admin/email-check');
+      var html = '<p><b>Sending as</b><br>' + esc(d.from || '(not set)') + '</p>';
+      if (d.error) {
+        html += '<p style="color:var(--red)"><b>Resend said:</b><br>' + esc(d.error) + '</p>';
+      }
+      if (d.domains && d.domains.length) {
+        html += '<div class="list" style="margin-bottom:12px">' + d.domains.map(function (dom) {
+          var ok = String(dom.status).toLowerCase() === 'verified';
+          var recs = (dom.records || []).map(function (r) {
+            return esc(r.type) + ' ' + esc(r.name || '') + ' — ' + esc(r.status || '');
+          }).join('<br>');
+          return '<div class="row" style="align-items:flex-start"><span class="row-main">' +
+            '<span class="row-title">' + esc(dom.name) + '</span>' +
+            '<span class="row-sub" style="white-space:normal">' + (recs || 'no record detail') + '</span></span>' +
+            '<span class="badge ' + (ok ? 'published' : 'draft') + '">' + esc(dom.status) + '</span></div>';
+        }).join('') + '</div>';
+      } else if (!d.error) {
+        html += '<p style="color:var(--red)">No domains are registered in this Resend account. Add ' +
+          'strongtechnicalconsulting.com there first.</p>';
+      }
+      if (d.lastFailure) {
+        html += '<p><b>Last send failure</b><br><span style="color:var(--red)">' +
+          esc(d.lastFailure.status + ': ' + d.lastFailure.message) + '</span><br>' +
+          '<span class="hint">' + esc(d.lastFailure.at) + '</span></p>';
+      } else {
+        html += '<p class="hint">No send failure recorded since this instance started.</p>';
+      }
+      body.innerHTML = html;
+    } catch (err) {
+      body.innerHTML = '<p style="color:var(--red)">' + esc(err.message) + '</p>';
     }
   }
 

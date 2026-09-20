@@ -83,6 +83,20 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// Nothing on this project can read Cloud Run logs, and the container this was
+// built from cannot reach Resend or a DNS resolver. So the app asks Resend
+// itself and reports the answer: whether the domain is verified, and what the
+// last send failure actually said.
+app.get('/api/admin/email-check', requireAdmin, async (req, res) => {
+  const result = await email.listDomains();
+  res.json({
+    from: email.from(),
+    configured: email.enabled(),
+    lastFailure: email.lastFailure(),
+    ...result,
+  });
+});
+
 app.get('/api/admin/me', (req, res) => {
   res.json({
     signedIn: isAdmin(req),
