@@ -308,6 +308,30 @@
     });
   }
 
+  // A preview never sends and never advances the watermark, so checking what
+  // is outstanding costs nothing and cannot swallow a real notification.
+  function wireNotify() {
+    var state = document.getElementById('notifyState');
+    var btn = document.getElementById('notifySend');
+    var out = document.getElementById('notifyResult');
+    if (!state) return;
+
+    fetch('/api/admin/notify/preview').then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.mailConfigured) { state.innerHTML = '<span class="fail">Email is not configured on this deployment.</span>'; btn.disabled = true; return; }
+      state.textContent = d.count
+        ? d.count + ' item' + (d.count === 1 ? '' : 's') + ' outstanding \u2014 "' + d.preview.subject + '" would go to ' + d.to
+        : 'Nothing outstanding. Mail goes to ' + d.to + ' automatically when something needs you.';
+    }).catch(function () { state.textContent = 'Could not check.'; });
+
+    btn.addEventListener('click', function () {
+      btn.disabled = true; out.textContent = 'Sending\u2026';
+      fetch('/api/cron/notify', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+        out.textContent = d.sent ? 'Sent: ' + d.subject : ('Nothing to send (' + (d.reason || '') + ')');
+        btn.disabled = false;
+      }).catch(function (e) { out.textContent = e.message; btn.disabled = false; });
+    });
+  }
+
   var STATE_WORD = {
     good: 'Healthy', warning: 'Late', critical: 'Stalled',
     unreachable: 'Unreachable', unknown: 'No data', none: 'Nothing scheduled'
@@ -334,6 +358,12 @@
       '<div class="card tile"><div class="label">Apps needing a look</div><div class="value">' + worst + '</div>' +
         '<div class="foot">of ' + d.health.length + ' tracked</div></div>' +
       '</div>';
+
+    // --- what is waiting on Erik ------------------------------------------
+    html += '<h2>Notifications</h2><div class="card" id="notifyCard">' +
+      '<p class="chart-note" id="notifyState">Checking what is outstanding\u2026</p>' +
+      '<button class="chip" id="notifySend" type="button">Send me the summary now</button> ' +
+      '<span id="notifyResult" style="font-size:13px;color:var(--text-muted)"></span></div>';
 
     // --- health ----------------------------------------------------------
     html += '<h2>App health</h2><div class="card">';
@@ -393,6 +423,7 @@
 
     root.innerHTML = html;
     wireGrants(root);
+    wireNotify();
 
     // --- mount the charts -------------------------------------------------
     mountChart(document.getElementById('c-activity'),

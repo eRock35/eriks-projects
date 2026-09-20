@@ -24,12 +24,16 @@ const passkeys = require('./lib/passkeys');
 const sitepass = require('./shared/sitepass');
 const identityLib = require('./shared/identity');
 const insights = require('./lib/insights');
+const notify = require('./lib/notify');
 const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
 const SESSION_COOKIE = 'esadmin';
+// Shared with the other apps' cron routes: a scheduler job config is readable
+// by anyone with project access, so it is deliberately NOT the admin password.
+const CRON_SECRET = process.env.CRON_SECRET || '';
 const SESSION_DAYS = 30;
 const CONFIRM_TTL_SECONDS = 14 * 24 * 60 * 60;
 // One send call will not try to mail more than this. A big list is finished by
@@ -722,6 +726,45 @@ app.post('/api/admin/access', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GRANTABLE }));
+
+// The notifier tick. Cloud Scheduler calls this; it sends only when there is
+// something to say, so a quiet day produces no mail at all.
+//
+// Either a cron key or an admin session, so it can also be fired by hand from
+// the dashboard to see what is currently outstanding.
+app.post('/api/cron/notify', async (req, res) => {
+  const key = req.get('X-Cron-Key');
+  const viaCron = CRON_SECRET && key && key === CRON_SECRET;
+  if (!viaCron && !isAdmin(req) && !isIdentityAdmin(req)) {
+    return res.status(404).json({ error: 'Not found.' });
+  }
+  try {
+    const origin = `${req.protocol}://${req.get('host')}`;
+    res.json(await notify.run({ origin }));
+  } catch (err) {
+    console.error('POST /api/cron/notify', err);
+    res.status(500).json({ error: 'Could not run the notifier.' });
+  }
+});
+
+// What the notifier WOULD say right now, without sending or advancing the
+// watermark. The dashboard uses it; it is also the way to check the thing
+// works without waiting for a tick or spending a send.
+app.get('/api/admin/notify/preview', requireAdmin, async (req, res) => {
+  try {
+    const found = await notify.gather();
+    const origin = `${req.protocol}://${req.get('host')}`;
+    res.json({
+      count: found.count,
+      since: found.since,
+      mailConfigured: require('./lib/email').enabled(),
+      to: process.env.ADMIN_EMAIL || null,
+      preview: found.count ? notify.compose(found, origin) : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not build a preview.' });
+  }
+});
 
 app.get('/api/admin/insights', requireAdmin, async (req, res) => {
   try {
