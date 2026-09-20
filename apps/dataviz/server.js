@@ -86,24 +86,27 @@ const identity = identityLib.create({
 async function attachProfile(req, _res, next) {
   if (req.user) {
     const own = await db.get('users', req.user.id).catch(() => null);
-    if (own) Object.assign(req.user, own, { id: req.user.id, email: req.user.email });
+    // This app's record carries billing, never identity. Pin the fields that
+    // say WHO they are so a stale local row cannot demote the owner.
+    if (own) Object.assign(req.user, own, {
+      id: req.user.id, email: req.user.email, admin: req.user.admin, access: req.user.access,
+    });
   }
   next();
 }
 
-// Registered BEFORE identity.mount so it wins the /api/auth/me route: the page
-// needs `plan`, which is this app's business and not identity's. The two
-// middlewares are explicit because identity's own attachUser has not been
-// registered yet at this point in the chain.
-app.get('/api/auth/me', identity.attachUser, attachProfile, (req, res) => {
+app.get('/api/auth/me', identity.attachUser, attachProfile, async (req, res) => {
   res.json({
     signedIn: Boolean(req.user),
     email: req.user ? req.user.email : null,
     via: req.user ? req.user.via : null,
     plan: planOf(req.user),
-    // So the sheet can say "your request is in" instead of offering the
+    pro: isPro(req.user),
+    billing: stripe.enabled(),
+    // So the sheet can say "your request is in" rather than offering the
     // button again to someone who already pressed it.
     askedPro: Boolean(identityLib.pendingRequest(req.user, 'dataviz')),
+    remaining: await quota.remaining(req).catch(() => null),
   });
 });
 
@@ -112,11 +115,11 @@ app.use(attachProfile);
 // Price and record every model call this app makes.
 shape.useMeter(identity.meter);
 
-/** Pro either because Stripe says so, or because the admin granted it. */
+/** One source of truth for the plan. isPro is the real test; this is its name
+ *  for the wire. Keeping two independent definitions is what let an admin be
+ *  Pro by one and free by the other. */
 function planOf(user) {
-  if (!user) return 'free';
-  if (user.plan === 'pro') return 'pro';
-  return identityLib.hasAccess(user, 'dataviz', 'pro') ? 'pro' : 'free';
+  return isPro(user) ? 'pro' : 'free';
 }
 
 const fail = (res, err, fallback = 'Something went wrong.') =>
@@ -127,6 +130,10 @@ const fail = (res, err, fallback = 'Something went wrong.') =>
 function isPro(user) {
   if (!stripe.enabled()) return true;
   if (!user) return false;
+  // Two ways to be Pro without paying: you own the place, or the admin comped
+  // you. Checked before the subscription so neither depends on Stripe state.
+  if (user.admin === true) return true;
+  if (identityLib.hasAccess(user, 'dataviz', 'pro')) return true;
   if (user.plan !== 'pro') return false;
   // A cancelled subscription keeps access to the end of the paid period.
   if (user.currentPeriodEnd && Date.parse(user.currentPeriodEnd) < Date.now()) return false;
@@ -232,16 +239,7 @@ app.post('/api/auth/reset/complete', async (req, res) => {
 
 app.get('/reset', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'reset.html')));
 
-app.get('/api/auth/me', async (req, res) => {
-  res.json({
-    signedIn: Boolean(req.user),
-    email: req.user ? req.user.email : null,
-    plan: req.user ? (req.user.plan || 'free') : 'free',
-    pro: isPro(req.user),
-    billing: stripe.enabled(),
-    remaining: await quota.remaining(req).catch(() => null),
-  });
-});
+
 
 /* ---------- billing ---------- */
 
