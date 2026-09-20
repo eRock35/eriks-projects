@@ -84,32 +84,32 @@ const DEFAULT_LENSES = [
   { id: 'lending-ops', label: 'Lending & servicing ops', enabled: true,
     subs: ['fintech', 'Banking', 'creditunions', 'Mortgages'],
     hn: ['loan servicing', 'mortgage', 'collections', 'underwriting'],
-    se: [['money', 'loan servicing'], ['money', 'mortgage payment']],
+    se: [{ site: 'money', q: 'loan servicing' }, { site: 'money', q: 'mortgage payment' }],
     gh: ['loan origination', 'payment reconciliation'] },
   { id: 'risk-fraud', label: 'Risk, fraud & compliance', enabled: true,
     subs: ['cybersecurity', 'GRC', 'AskNetsec', 'compliance'],
     hn: ['fraud detection', 'KYC', 'compliance', 'audit'],
-    se: [['security', 'fraud detection'], ['security', 'compliance evidence']],
+    se: [{ site: 'security', q: 'fraud detection' }, { site: 'security', q: 'compliance evidence' }],
     gh: ['KYC verification', 'audit log compliance'] },
   { id: 'it-ops', label: 'IT & MSP operations', enabled: true,
     subs: ['sysadmin', 'msp', 'ITManagers', 'devops'],
     hn: ['saas sprawl', 'offboarding', 'shadow IT', 'sysadmin'],
-    se: [['serverfault', 'user offboarding'], ['serverfault', 'license audit']],
+    se: [{ site: 'serverfault', q: 'user offboarding' }, { site: 'serverfault', q: 'license audit' }],
     gh: ['offboarding automation', 'SaaS license tracking'] },
   { id: 'back-office', label: 'Accounting & back office', enabled: true,
     subs: ['accounting', 'Bookkeeping', 'smallbusiness', 'taxpros'],
     hn: ['bookkeeping', 'reconciliation', 'invoicing', 'payroll'],
-    se: [['money', 'bookkeeping'], ['money', 'invoice tracking']],
+    se: [{ site: 'money', q: 'bookkeeping' }, { site: 'money', q: 'invoice tracking' }],
     gh: ['bank reconciliation', 'invoice parsing'] },
   { id: 'data-eng', label: 'Data & analytics', enabled: true,
     subs: ['dataengineering', 'analytics', 'BusinessIntelligence'],
     hn: ['data pipeline', 'data quality', 'reverse ETL', 'dashboards'],
-    se: [['dba', 'data quality'], ['stackoverflow', 'pipeline failure silent']],
+    se: [{ site: 'dba', q: 'data quality' }, { site: 'stackoverflow', q: 'pipeline failure silent' }],
     gh: ['data quality check', 'pipeline silent failure'] },
   { id: 'builders', label: 'Founders & builders', enabled: true,
     subs: ['SaaS', 'startups', 'Entrepreneur', 'indiehackers'],
     hn: ['ask hn tool', 'is there a tool', 'i wish there was'],
-    se: [['softwareengineering', 'is there a tool']],
+    se: [{ site: 'softwareengineering', q: 'is there a tool' }],
     gh: ['feature request workflow'] },
 ];
 
@@ -293,7 +293,9 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
     }
   }
 
-  for (const [site, q] of (lens.se || [])) {
+  // Shape note: these are maps, not two-element arrays. Firestore rejects an
+  // array whose elements are arrays, and a lens is written to Firestore.
+  for (const { site, q } of (lens.se || [])) {
     try {
       const hits = await fromStackExchange(q, site, sinceUnix);
       probes.push({ source: 'stackex', q: `${site}: ${q}`, hits: hits.length });
