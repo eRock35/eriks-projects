@@ -37,17 +37,32 @@ silently look mediocre because a later batch of weaker evidence scored it 6.
 ## Sources, and the licensing trap
 
 **Hacker News** via the Algolia API: free, keyless, public, no platform risk.
+It is the workhorse and the only source that needs nothing.
 
-**Reddit** via the public `.json` endpoints. Read this before building on it:
-GummySearch - the leader in exactly this category - shut down on 2025-11-30
-because it could not obtain a Reddit **commercial** API licence. One person
-reading public JSON for their own research is a different thing from selling
-access to it. So Reddit is isolated behind `ENABLE_REDDIT`, every item records
-its `source`, and **if this app is ever sold to anyone, Reddit must be
-licensed or dropped.** Do not quietly widen its use.
+Two things about it, both learned the hard way on the first live run:
+Algolia **ANDs every word and has no `OR` operator**, so a lens's `hn` field
+is a LIST of short queries run separately. A single string of alternatives
+matches nothing and reports no error, which is the worst possible failure
+shape. And it is developer-heavy, so it covers `data-eng` and `it-ops` far
+better than `back-office` or `lending-ops`.
 
-Be a good citizen: `lib/sources.js` sleeps 1.1s between Reddit requests. Do
-not remove that to make scans faster.
+**Reddit** via the **official OAuth API**, not the public `.json` endpoints.
+The anonymous endpoints work from a laptop and return **403 from Cloud Run** -
+Reddit blocks datacenter ranges - so the anonymous path was never going to
+work for a scheduled job. `redditAuth()` does a client-credentials grant
+against a free read-only app registration and talks to `oauth.reddit.com`.
+
+Without `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` the source is skipped and
+the run records *why*, rather than silently finding nothing.
+
+The licensing point still stands and matters more now: GummySearch, the
+leader in exactly this category, shut down on 2025-11-30 for want of a Reddit
+**commercial** licence. A free registration covers personal research. **If
+this app is ever sold to anyone, Reddit must be licensed properly or
+dropped.** Do not quietly widen its use.
+
+Be a good citizen: `lib/sources.js` sleeps 1.1s between Reddit requests, well
+inside the free tier's 100/minute. Do not remove that to make scans faster.
 
 ## One lens per run, round robin
 
