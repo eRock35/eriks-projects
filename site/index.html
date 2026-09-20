@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Erik Strong</title>
-<meta name="description" content="Erik Strong: data and business-intelligence engineer in Atlanta, founder of Strong Technical Consulting, and the person behind a few small apps that live here." />
+<meta name="description" content="Erik Strong: Sr. Director of Sales Intelligence and Customer Insights at Equifax Workforce Solutions, founder of Strong Technical Consulting, and the person behind a few small apps that live here." />
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
 <meta property="og:title" content="Erik Strong" />
-<meta property="og:description" content="Data and BI engineer, founder of Strong Technical Consulting, and builder of small useful apps." />
+<meta property="og:description" content="Sales intelligence and applied AI at Equifax Workforce Solutions. Founder of Strong Technical Consulting, and builder of small useful apps." />
 <meta property="og:image" content="https://www.strongtechnicalconsulting.com/assets/erik.jpg" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
@@ -70,7 +70,9 @@
   .avatar { width: 148px; height: 148px; border-radius: 50%; object-fit: cover; box-shadow: var(--shadow), 0 0 0 4px var(--card); background: var(--fill); }
   .eyebrow { font-size: 13px; font-weight: 600; color: var(--tint); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
   h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; margin: 0; text-wrap: balance; }
-  .lede { font-size: 19px; color: var(--label-2); margin: 10px auto 0; max-width: 34ch; text-wrap: balance; }
+  .role { font-size: 16px; font-weight: 600; margin: 10px auto 0; max-width: 32ch; line-height: 1.35; text-wrap: balance; }
+  .role span { display: block; font-weight: 500; color: var(--label-2); font-size: 15px; margin-top: 2px; }
+  .lede { font-size: 18px; color: var(--label-2); margin: 12px auto 0; max-width: 36ch; text-wrap: balance; }
   .cta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 20px; border-radius: 14px; font-weight: 600; font-size: 16px; border: none; transition: transform 0.12s ease; }
   .btn:active { transform: scale(0.97); }
@@ -131,6 +133,11 @@
   .row-title { display: block; font-size: 17px; font-weight: 500; }
   .row-sub { display: block; font-size: 13.5px; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row-chev { width: 8px; height: 14px; color: var(--label-3); flex: 0 0 auto; }
+  /* Facts, not links: the second line is a sentence and should wrap, unlike
+     the contact rows where it is a URL that must stay on one line. */
+  .list-facts .row { align-items: flex-start; padding: 13px 16px; }
+  .list-facts .row-icon { margin-top: 1px; }
+  .list-facts .row-sub { white-space: normal; overflow: visible; line-height: 1.35; margin-top: 1px; }
 
   footer { text-align: center; color: var(--label-3); font-size: 13px; padding: 36px 20px 0; line-height: 1.6; }
   footer a { color: var(--label-2); }
@@ -150,6 +157,10 @@
     <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></symbol>
     <symbol id="i-app" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></symbol>
     <symbol id="i-briefcase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.5"/><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5M3 12.5h18"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM18.5 16l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"/></symbol>
+    <symbol id="i-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.8L7 21l5-2.5L17 21l-1.5-7.2"/></symbol>
+    <symbol id="i-patent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 13h6M9 16.5h4"/></symbol>
+    <symbol id="i-growth" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5l5-5 3.5 3.5L20 7.5"/><path d="M15 7.5h5v5"/></symbol>
     <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.7.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"/></symbol>
     <symbol id="i-linkedin" viewBox="0 0 24 24" fill="currentColor"><path d="M6.3 8.5H3V21h3.3V8.5zM4.7 3a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8zM21 13.3c0-3.6-1.9-5.1-4.4-5.1-2 0-2.9 1.1-3.4 1.9V8.5H9.9V21h3.3v-6.6c0-1.7.3-3.4 2.5-3.4 2.1 0 2.1 2 2.1 3.5V21H21v-7.7z"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="currentColor"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.3-8.3L2 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></symbol>
@@ -175,12 +186,13 @@
     <div>
       <p class="eyebrow">Atlanta, Georgia</p>
       <h1>Hi, I'm Erik.</h1>
-      <p class="lede">I turn raw data into dashboards people actually use, and I build small apps for the things I care about.</p>
+      <p class="role">Sr. Director, Sales Intelligence &amp; Customer Insights<span>Equifax Workforce Solutions</span></p>
+      <p class="lede">I turn customer and market data into things a business can act on, and I still write the code myself.</p>
     </div>
     <div class="facts">
-      <span class="fact"><svg><use href="#i-chart"/></svg>Business intelligence</span>
-      <span class="fact"><svg><use href="#i-db"/></svg>Data engineering</span>
-      <span class="fact"><svg><use href="#i-briefcase"/></svg>Fintech</span>
+      <span class="fact"><svg><use href="#i-chart"/></svg>Sales intelligence</span>
+      <span class="fact"><svg><use href="#i-spark"/></svg>Applied AI</span>
+      <span class="fact"><svg><use href="#i-db"/></svg>Data &amp; engineering</span>
     </div>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg><use href="#i-linkedin"/></svg>LinkedIn</a>
@@ -229,25 +241,47 @@
   <section id="about">
     <div class="section-head"><h2>About</h2></div>
     <div class="card">
-      <p>I've spent my career in fintech, most of it inside one of the largest financial-data companies in the country, working on the plumbing that moves data and the dashboards that explain it. Give me a pile of raw data and I'll come back with the story it's telling and a view your team can act on.</p>
-      <p>On the side I run <strong>Strong Technical Consulting</strong> (Strong &amp; Strong Consulting, L.L.C.), helping small and medium businesses get the kind of insight, automation and tooling that usually only big companies can afford.</p>
-      <p>Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
+      <p>I run sales intelligence for all of <strong>Equifax Workforce Solutions</strong>, supporting over <strong>$2.7 billion</strong> in revenue across Commercial, Government, Risk and Public Safety. The job is connecting real data insight to business action: applied AI that drives and monitors the business and pulls the signal out of the noise, and custom apps and products that generate revenue on their own.</p>
+      <p>I lead the teams that build it, and I'm a coach player about it. I work directly with sales to influence live deals and where the business goes next, and I'm in front of the C-suite regularly.</p>
+      <p>I started at Equifax in 2013 writing code, and I never stopped. Along the way I built the insights and the algorithm that detect synthetic fraud in the credit marketplace, which became two patents, and I've won the company's biggest awards more than once, which is unheard of for someone who isn't a salesperson by trade.</p>
+      <p>On the side I run <strong>Strong Technical Consulting</strong> (Strong &amp; Strong Consulting, L.L.C.), bringing the same thing to small and medium businesses. Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
     </div>
+
+    <div class="section-head" style="margin-top:22px"><h2 style="font-size:20px">Highlights</h2></div>
+    <div class="list list-facts">
+      <div class="row">
+        <span class="row-icon" style="background: var(--green)"><svg><use href="#i-growth"/></svg></span>
+        <span class="row-main"><span class="row-title">$2.7B+ in revenue supported</span><span class="row-sub">Commercial, Government, Risk and Public Safety</span></span>
+      </div>
+      <div class="row">
+        <span class="row-icon" style="background: var(--tint)"><svg><use href="#i-patent"/></svg></span>
+        <span class="row-main"><span class="row-title">Two patents</span><span class="row-sub">Detecting synthetic fraud in the credit marketplace</span></span>
+      </div>
+      <div class="row">
+        <span class="row-icon" style="background: var(--amber)"><svg><use href="#i-award"/></svg></span>
+        <span class="row-main"><span class="row-title">Top Equifax awards, more than once</span><span class="row-sub">Rare for a role that isn't sales</span></span>
+      </div>
+      <div class="row">
+        <span class="row-icon" style="background: #5856D6"><svg><use href="#i-briefcase"/></svg></span>
+        <span class="row-main"><span class="row-title">At Equifax since 2013</span><span class="row-sub">Programmer to Sr. Director, still hands on</span></span>
+      </div>
+    </div>
+
     <div class="skills">
       <div class="skill">
         <div class="skill-icon" style="background: var(--tint)"><svg><use href="#i-chart"/></svg></div>
-        <div><h3>Business insights</h3><p>Collect, integrate and present your data so decisions get made quickly and with confidence.</p></div>
+        <div><h3>Sales intelligence</h3><p>Customer and market data turned into the view that moves a deal, not another dashboard nobody opens.</p></div>
       </div>
       <div class="skill">
-        <div class="skill-icon" style="background: var(--amber)"><svg><use href="#i-db"/></svg></div>
-        <div><h3>Data &amp; databases</h3><p>Storage, movement and modeling, so data flows cleanly through apps, websites and dashboards.</p></div>
+        <div class="skill-icon" style="background: var(--amber)"><svg><use href="#i-spark"/></svg></div>
+        <div><h3>Applied AI</h3><p>AI that actually runs inside the business: monitoring it, surfacing signals, and flagging what matters.</p></div>
       </div>
       <div class="skill">
         <div class="skill-icon" style="background: var(--green)"><svg><use href="#i-app"/></svg></div>
-        <div><h3>Apps &amp; automation</h3><p>Tools that run your business from a phone or a desk, and automation for the work that repeats.</p></div>
+        <div><h3>Products that ship</h3><p>Custom apps and tools built to generate revenue, and the teams to keep building them.</p></div>
       </div>
     </div>
-    <blockquote>"Give us a challenge and we'll solve it."<b>Erik Strong, founder</b></blockquote>
+    <blockquote>"I'm a coach player. I love to teach, but I don't like standing on the sidelines."<b>Erik Strong</b></blockquote>
   </section>
 
   <section id="contact">
