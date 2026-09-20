@@ -101,7 +101,18 @@ function requireUser(req, res, next) {
   return res.status(401).json({ error: 'Sign in to save work.' });
 }
 
+/** Replace an account's password. Used by both the signed-in change flow and
+ *  the emailed reset link, so there is one place that writes a hash. */
+async function setPassword(uid, password) {
+  if (String(password || '').length < MIN_PASSWORD) {
+    throw Object.assign(new Error(`Use at least ${MIN_PASSWORD} characters.`), { status: 400 });
+  }
+  const pw = newHash(password);
+  await db.merge('users', uid, { salt: pw.salt, hash: pw.hash, passwordChangedAt: new Date().toISOString() });
+  return pw.hash;
+}
+
 module.exports = {
   COOKIE, MIN_PASSWORD, uidFor, issue, clear, uidFromRequest,
-  register, signIn, attachUser, requireUser,
+  register, signIn, attachUser, requireUser, verify, setPassword,
 };

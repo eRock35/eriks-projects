@@ -5,6 +5,8 @@ const db = require('./lib/db');
 const auth = require('./lib/auth');
 const scan = require('./lib/scan');
 const score = require('./lib/score');
+const webauthn = require('./lib/webauthn');
+const sitepass = require('./lib/sitepass');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -29,14 +31,50 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 app.get('/login', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 
-app.post('/api/auth/login', (req, res) => {
+// The login page needs these, and static files are served below the gate. A
+// script the sign-in page cannot load is a sign-in page with no Face ID
+// button, silently, with nothing in the log to say why.
+app.get('/passkey.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'passkey.js')));
+app.get('/icon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'icon.svg')));
+
+/* ---------- password, changeable without a deploy ---------- */
+
+const password = sitepass.create({
+  store: db,
+  envPassword: () => process.env.APP_PASSWORD || '',
+  // The current password, OR a session that was itself proved by Face ID.
+  // A password-proved session is deliberately NOT enough: a stolen cookie
+  // could otherwise change the password and take the account for good.
+  canChange: async (req) => {
+    const supplied = (req.body || {}).current;
+    if (supplied && await password.verify(supplied)) return true;
+    return auth.sessionVia(req) === 'passkey';
+  },
+});
+password.mount(app);
+
+/* ---------- Face ID ---------- */
+
+webauthn.create({
+  store: db,
+  secret: () => process.env.SESSION_SECRET || '',
+  rpName: 'Friction',
+  displayName: 'Friction',
+  baseDomain: process.env.PASSKEY_RP_ID || '',
+  issueSession: (res) => auth.issue(res, 'passkey'),
+  currentOwner: (req) => (auth.hasSession(req) ? 'site' : null),
+  // Enrolling needs the password, not just a session.
+  canEnrol: async (req) => (await password.verify((req.body || {}).password) ? 'site' : null),
+}).mount(app);
+
+app.post('/api/auth/login', async (req, res) => {
   if (!process.env.APP_PASSWORD || !process.env.SESSION_SECRET) {
     return res.status(500).json({ error: 'Sign-in is not configured on this deployment.' });
   }
-  if (!auth.passwordOk((req.body || {}).password)) {
+  if (!(await password.verify((req.body || {}).password))) {
     return res.status(401).json({ error: 'That password is not right.' });
   }
-  auth.issue(res);
+  auth.issue(res, 'password');
   res.json({ ok: true });
 });
 
@@ -61,7 +99,11 @@ app.use(auth.requireLogin);
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/auth/logout', (_req, res) => { auth.clear(res); res.json({ ok: true }); });
-app.get('/api/auth/me', (_req, res) => res.json({ signedIn: true }));
+app.get('/api/auth/me', async (req, res) => res.json({
+  signedIn: true,
+  via: auth.sessionVia(req),
+  customPassword: await password.isCustom().catch(() => false),
+}));
 
 app.get('/api/signals', async (req, res) => {
   try {

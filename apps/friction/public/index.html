@@ -169,7 +169,7 @@
 <body>
 
 <div class="nav">
-  <button type="button" id="navLeft" hidden></button>
+  <button type="button" id="navLeft">Account</button>
   <h2 id="navTitle">Board</h2>
   <button type="button" class="right" id="scanBtn">Scan</button>
 </div>
@@ -225,6 +225,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/passkey.js"></script>
 <script>
 (function () {
   "use strict";
@@ -504,6 +505,104 @@
     if (name === "lenses") loadLenses().catch(function (e) { toast(e.message, "error"); });
     if (name === "runs") loadRuns().catch(function (e) { toast(e.message, "error"); });
   }
+
+  /* ---------- account: Face ID and the password ---------- */
+
+  async function openAccount() {
+    closeSheet();
+    var bd = document.createElement("div"); bd.className = "backdrop";
+    var sh = document.createElement("div"); sh.className = "sheet";
+    sh.innerHTML = '<div class="grabber"></div><h3>Account</h3><div id="acctBody">Loading\u2026</div>' +
+      '<div style="display:flex;gap:8px;margin-top:14px">' +
+      '<button type="button" class="btn sec" id="acctClose" style="flex:1">Close</button>' +
+      '<button type="button" class="btn sec" id="acctOut" style="flex:1">Sign out</button></div>';
+    document.body.appendChild(bd); document.body.appendChild(sh);
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(function () { bd.classList.add("in"); sh.classList.add("in"); });
+    bd.addEventListener("click", closeSheet);
+    sh.querySelector("#acctClose").addEventListener("click", closeSheet);
+    sh.querySelector("#acctOut").addEventListener("click", async function () {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.href = "/login";
+    });
+
+    var body = sh.querySelector("#acctBody");
+    var me = await api("/api/auth/me").catch(function () { return {}; });
+    var supported = window.Passkey && Passkey.supported();
+
+    async function render() {
+      var keys = supported ? await api("/api/auth/passkeys").catch(function () { return { passkeys: [] }; }) : { passkeys: [] };
+      body.innerHTML =
+        "<h4>Face ID</h4>" +
+        (!supported
+          ? "<p style='color:var(--label-2);font-size:14px'>This browser cannot do passkeys. Open the site in Safari or Chrome on a device with Face ID or Touch ID.</p>"
+          : ((keys.passkeys || []).length
+              ? (keys.passkeys.map(function (k) {
+                  return '<p style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">' +
+                    "<span>" + esc(k.label) + '<br><span style="color:var(--label-3);font-size:12.5px">' + esc(k.rpID) +
+                    (k.lastUsedAt ? " \u00b7 last used " + esc(String(k.lastUsedAt).slice(0, 10)) : "") + "</span></span>" +
+                    '<button type="button" class="btn sec" data-del="' + esc(k.id) + '">Remove</button></p>';
+                }).join("") )
+              : "<p style='color:var(--label-2);font-size:14px'>Not set up on this device yet.</p>") +
+            '<label style="display:block;font-size:12px;color:var(--label-3);margin:12px 0 4px">Password</label>' +
+            '<input id="pkPw" type="password" autocomplete="current-password" style="width:100%;min-height:44px;font:inherit;font-size:16px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">' +
+            '<button type="button" class="btn" id="pkAdd" style="width:100%;margin-top:10px">Add Face ID on this device</button>') +
+        '<div id="pkStatus" style="min-height:1.3em;font-size:14px;margin-top:8px"></div>' +
+        "<h4 style='margin-top:20px'>Password</h4>" +
+        "<p style='color:var(--label-2);font-size:14px'>" +
+        (me.via === "passkey"
+          ? "You signed in with Face ID, so you can set a new one without the old one."
+          : "Changing it needs the current one, or a session signed in with Face ID.") +
+        "</p>" +
+        (me.via === "passkey" ? "" :
+          '<label style="display:block;font-size:12px;color:var(--label-3);margin:10px 0 4px">Current password</label>' +
+          '<input id="cpCur" type="password" autocomplete="current-password" style="width:100%;min-height:44px;font:inherit;font-size:16px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">') +
+        '<label style="display:block;font-size:12px;color:var(--label-3);margin:10px 0 4px">New password</label>' +
+        '<input id="cpNew" type="password" autocomplete="new-password" style="width:100%;min-height:44px;font:inherit;font-size:16px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">' +
+        '<button type="button" class="btn" id="cpGo" style="width:100%;margin-top:10px">Change password</button>' +
+        '<div id="cpStatus" style="min-height:1.3em;font-size:14px;margin-top:8px"></div>';
+
+      body.querySelectorAll("[data-del]").forEach(function (b) {
+        b.addEventListener("click", async function () {
+          await api("/api/auth/passkeys/" + encodeURIComponent(b.getAttribute("data-del")), { method: "DELETE" });
+          toast("Removed"); render();
+        });
+      });
+      var add = body.querySelector("#pkAdd");
+      if (add) add.addEventListener("click", async function () {
+        var st = body.querySelector("#pkStatus");
+        var pw = body.querySelector("#pkPw").value;
+        if (!pw) { st.style.color = "var(--red)"; st.textContent = "Enter the password first."; return; }
+        add.disabled = true; st.style.color = ""; st.textContent = "Waiting for Face ID\u2026";
+        try { await Passkey.enrol({ password: pw }); toast("Face ID is on"); render(); }
+        catch (e) {
+          st.style.color = "var(--red)";
+          st.textContent = Passkey.cancelled(e) ? "Cancelled." : (e.message || "That did not work.");
+          add.disabled = false;
+        }
+      });
+      body.querySelector("#cpGo").addEventListener("click", async function () {
+        var st = body.querySelector("#cpStatus");
+        var cur = body.querySelector("#cpCur");
+        var next = body.querySelector("#cpNew").value;
+        this.disabled = true; st.style.color = ""; st.textContent = "Saving\u2026";
+        try {
+          await api("/api/auth/password/change", {
+            method: "POST",
+            body: JSON.stringify({ current: cur ? cur.value : undefined, next: next })
+          });
+          st.style.color = "var(--green)"; st.textContent = "Changed. The old one no longer works.";
+          toast("Password changed");
+        } catch (e) {
+          st.style.color = "var(--red)"; st.textContent = e.message;
+        }
+        this.disabled = false;
+      });
+    }
+    render();
+  }
+
+  $("navLeft").addEventListener("click", openAccount);
 
   /* ---------- events ---------- */
   document.addEventListener("click", function (e) {

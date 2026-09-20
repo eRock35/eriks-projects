@@ -15,9 +15,9 @@ function sign(value) {
   return crypto.createHmac('sha256', secret()).update(value).digest('base64url');
 }
 
-function issue(res) {
+function issue(res, via = 'password') {
   const exp = Date.now() + MAX_AGE_DAYS * 86400000;
-  const body = String(exp);
+  const body = `${exp}|${via === 'passkey' ? 'passkey' : 'password'}`;
   const token = `${body}.${sign(body)}`;
   res.cookie(COOKIE, token, {
     httpOnly: true,
@@ -32,17 +32,28 @@ function clear(res) {
   res.clearCookie(COOKIE, { path: '/' });
 }
 
-function hasSession(req) {
-  if (!secret()) return false;
+/** Returns the session's proof method, or null. Older cookies carry only an
+ *  expiry and are read as password-proved, so nobody is signed out by this
+ *  change. */
+function sessionVia(req) {
+  if (!secret()) return null;
   const raw = (req.cookies || {})[COOKIE];
-  if (!raw) return false;
-  const [body, mac] = String(raw).split('.');
-  if (!body || !mac) return false;
+  if (!raw) return null;
+  const i = String(raw).lastIndexOf('.');
+  if (i < 1) return null;
+  const body = String(raw).slice(0, i);
+  const mac = String(raw).slice(i + 1);
   const expected = sign(body);
   // Length-check first: timingSafeEqual throws on a length mismatch.
-  if (mac.length !== expected.length) return false;
-  if (!crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return false;
-  return Number(body) > Date.now();
+  if (mac.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+  const [expPart, via] = body.split('|');
+  if (!(Number(expPart) > Date.now())) return null;
+  return via === 'passkey' ? 'passkey' : 'password';
+}
+
+function hasSession(req) {
+  return sessionVia(req) !== null;
 }
 
 function passwordOk(candidate) {
@@ -71,4 +82,4 @@ function requireLogin(req, res, next) {
   return res.status(401).json({ error: 'not signed in' });
 }
 
-module.exports = { COOKIE, issue, clear, hasSession, passwordOk, cronOk, requireLogin, requireLoginOrCron };
+module.exports = { COOKIE, issue, clear, hasSession, sessionVia, passwordOk, cronOk, requireLogin, requireLoginOrCron };

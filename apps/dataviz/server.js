@@ -10,6 +10,9 @@ const builder = require('./lib/build');
 const quota = require('./lib/quota');
 const stripe = require('./lib/stripe');
 const datasets = require('./lib/datasets');
+const webauthn = require('./lib/webauthn');
+const mail = require('./lib/mail');
+const reset = require('./lib/reset');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -131,6 +134,79 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (_req, res) => { accounts.clear(res); res.json({ ok: true }); });
+
+/* ---------- Face ID ---------- */
+
+webauthn.create({
+  store: db,
+  secret: () => process.env.SESSION_SECRET || '',
+  rpName: 'DataViz',
+  displayName: 'DataViz',
+  baseDomain: process.env.PASSKEY_RP_ID || '',
+  issueSession: (res, uid) => accounts.issue(res, uid),
+  currentOwner: (req) => (req.user ? req.user.id : null),
+  // Enrolling needs the account's own password, not just its session: a
+  // borrowed session could otherwise leave itself permanent access.
+  canEnrol: async (req) => {
+    if (!req.user) return null;
+    return accounts.verify(String((req.body || {}).password || ''), req.user) ? req.user.id : null;
+  },
+}).mount(app);
+
+/* ---------- forgotten passwords ---------- */
+
+app.post('/api/auth/reset/request', async (req, res) => {
+  const address = String((req.body || {}).email || '').trim().toLowerCase();
+  // One answer for every input. Anything else turns this into a way of
+  // asking which addresses have accounts here.
+  const same = { ok: true, message: 'If that address has an account, a reset link is on its way.' };
+  try {
+    const uid = accounts.uidFor(address);
+    const user = await db.get('users', uid);
+    if (user && mail.enabled()) {
+      const origin = `${req.protocol}://${req.get('host')}`;
+      const link = `${origin}/reset?t=${encodeURIComponent(reset.makeToken(uid, user.hash))}`;
+      const body = reset.emailBody({ link, origin });
+      await mail.send({ to: user.email, subject: body.subject, html: body.html, text: body.text });
+    }
+  } catch (err) {
+    // A send failure must not change the answer either, or the timing and
+    // the wording become the oracle the identical answer was protecting.
+    console.error('reset/request', err.message);
+  }
+  res.json(same);
+});
+
+app.post('/api/auth/reset/complete', async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+    const raw = String(token || '');
+    const uid = raw.includes('.') ? Buffer.from(raw.slice(0, raw.indexOf('.')), 'base64url').toString().split('.')[0] : '';
+    const user = uid ? await db.get('users', uid) : null;
+    if (!user || reset.readToken(raw, user.hash) !== uid) {
+      return res.status(400).json({ error: 'That link has expired or has already been used.' });
+    }
+    await accounts.setPassword(uid, String(password || ''));
+    accounts.issue(res, uid);
+    res.json({ ok: true });
+  } catch (err) {
+    fail(res, err, 'Could not set that password.');
+  }
+});
+
+app.post('/api/auth/password/change', accounts.requireUser, async (req, res) => {
+  try {
+    const { current, next } = req.body || {};
+    if (!accounts.verify(String(current || ''), req.user)) {
+      await new Promise((r) => setTimeout(r, 350));
+      return res.status(401).json({ error: 'That current password is not right.' });
+    }
+    await accounts.setPassword(req.user.id, String(next || ''));
+    res.json({ ok: true });
+  } catch (err) { fail(res, err, 'Could not change the password.'); }
+});
+
+app.get('/reset', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'reset.html')));
 
 app.get('/api/auth/me', async (req, res) => {
   res.json({

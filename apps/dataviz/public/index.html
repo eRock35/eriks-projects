@@ -202,6 +202,7 @@
 
 <div class="toast" id="toast"></div>
 <script src="/render.js"></script>
+<script src="/passkey.js"></script>
 <script>
 (function () {
   "use strict";
@@ -434,7 +435,37 @@
       '<input type="password" id="aPw" autocomplete="current-password">' +
       '<button class="btn" id="aGo">Sign in</button>' +
       '<button class="btn sec" id="aSwap" style="margin-top:8px">Create an account instead</button>' +
+      '<button class="btn sec" id="aFace" style="margin-top:8px" hidden>Sign in with Face ID</button>' +
+      '<button class="btn sec" id="aForgot" style="margin-top:8px;background:none;color:var(--ink-2)">Forgot your password?</button>' +
       '<div class="status" id="aStatus"></div>');
+
+    // Only offer Face ID when one exists for this hostname.
+    if (window.Passkey && Passkey.supported()) {
+      Passkey.status().then(function (st2) {
+        if (st2 && st2.registered) el.querySelector('#aFace').hidden = false;
+      });
+    }
+    el.querySelector('#aFace').addEventListener('click', async function () {
+      var st2 = el.querySelector('#aStatus');
+      this.disabled = true; st2.className = 'status'; st2.textContent = 'Waiting for Face ID\u2026';
+      try { await Passkey.signIn(); closeSheet(); await refreshMe(); toast('Signed in'); }
+      catch (e2) {
+        st2.className = 'status err';
+        st2.textContent = Passkey.cancelled(e2) ? '' : (e2.message || 'Face ID did not work.');
+        this.disabled = false;
+      }
+    });
+    el.querySelector('#aForgot').addEventListener('click', async function () {
+      var st2 = el.querySelector('#aStatus');
+      var address = el.querySelector('#aEmail').value.trim();
+      if (!address) { st2.className = 'status err'; st2.textContent = 'Put your email in first.'; return; }
+      this.disabled = true;
+      try {
+        var d = await api('/api/auth/reset/request', { method: 'POST', body: JSON.stringify({ email: address }) });
+        st2.className = 'status'; st2.textContent = d.message;
+      } catch (e2) { st2.className = 'status err'; st2.textContent = e2.message; }
+      this.disabled = false;
+    });
     var creating = false;
     el.querySelector('#aSwap').addEventListener('click', function () {
       creating = !creating;
@@ -501,7 +532,62 @@
                                    : 'Free plan &mdash; samples only.') + '</p>' +
       (me.billing && !me.pro ? '<button class="btn" id="upBtn2">Upgrade</button>' : '') +
       (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
+      '<div id="secBody" style="margin-top:18px"></div>' +
       '<button class="btn sec" id="outBtn" style="margin-top:8px">Sign out</button>');
+
+    (async function security() {
+      var body = el.querySelector('#secBody');
+      var supported = window.Passkey && Passkey.supported();
+      var keys = supported ? await api('/api/auth/passkeys').catch(function () { return { passkeys: [] }; }) : { passkeys: [] };
+      body.innerHTML =
+        '<label class="lbl">Face ID</label>' +
+        (!supported
+          ? '<p class="hint">This browser cannot do passkeys.</p>'
+          : ((keys.passkeys || []).length
+              ? keys.passkeys.map(function (k) {
+                  return '<p class="hint" style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">' +
+                    '<span>' + esc(k.label) + ' &middot; ' + esc(k.rpID) + '</span>' +
+                    '<button class="ghost" data-pkdel="' + esc(k.id) + '">Remove</button></p>';
+                }).join('')
+              : '<p class="hint">Not set up on this device yet.</p>') +
+            '<input type="password" id="sPw" placeholder="Your password" autocomplete="current-password">' +
+            '<button class="btn sec" id="sAdd" style="margin-top:8px">Add Face ID on this device</button>') +
+        '<label class="lbl" style="margin-top:18px">Change password</label>' +
+        '<input type="password" id="cCur" placeholder="Current password" autocomplete="current-password">' +
+        '<input type="password" id="cNew" placeholder="New password" autocomplete="new-password" style="margin-top:8px">' +
+        '<button class="btn sec" id="cGo" style="margin-top:8px">Change it</button>' +
+        '<div class="status" id="secStatus"></div>';
+
+      body.querySelectorAll('[data-pkdel]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          await api('/api/auth/passkeys/' + encodeURIComponent(btn.getAttribute('data-pkdel')), { method: 'DELETE' });
+          toast('Removed'); security();
+        });
+      });
+      var add = body.querySelector('#sAdd');
+      if (add) add.addEventListener('click', async function () {
+        var st2 = body.querySelector('#secStatus');
+        var pwv = body.querySelector('#sPw').value;
+        if (!pwv) { st2.className = 'status err'; st2.textContent = 'Enter your password first.'; return; }
+        add.disabled = true; st2.className = 'status'; st2.textContent = 'Waiting for Face ID\u2026';
+        try { await Passkey.enrol({ password: pwv }); toast('Face ID is on'); security(); }
+        catch (e2) {
+          st2.className = 'status err';
+          st2.textContent = Passkey.cancelled(e2) ? 'Cancelled.' : (e2.message || 'That did not work.');
+          add.disabled = false;
+        }
+      });
+      body.querySelector('#cGo').addEventListener('click', async function () {
+        var st2 = body.querySelector('#secStatus');
+        this.disabled = true; st2.className = 'status'; st2.textContent = 'Saving\u2026';
+        try {
+          await api('/api/auth/password/change', { method: 'POST', body: JSON.stringify({
+            current: body.querySelector('#cCur').value, next: body.querySelector('#cNew').value }) });
+          st2.className = 'status'; st2.textContent = 'Changed.'; toast('Password changed');
+        } catch (e2) { st2.className = 'status err'; st2.textContent = e2.message; }
+        this.disabled = false;
+      });
+    })();
     var up = el.querySelector('#upBtn2');
     if (up) up.addEventListener('click', startCheckout);
     var man = el.querySelector('#manageBtn');
