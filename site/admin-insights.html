@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dashboard</title>
+<style>
+  /* Chart roles as tokens so light/dark swap in one place and the charts are
+     written against roles rather than raw hex. Values are the validated
+     reference palette; the dark column is the same hues re-stepped for the
+     dark surface, not an automatic flip. */
+  :root {
+    color-scheme: light;
+    --bg: #f5f5f7;
+    --surface-1: #fcfcfb;
+    --surface-2: #ffffff;
+    --border: rgba(60,60,67,.14);
+    --grid: rgba(60,60,67,.10);
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #8a8a8f;
+    --series-1: #2a78d6;
+    --series-1-soft: #cde2fb;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --radius: 16px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #000000;
+      --surface-1: #1a1a19;
+      --surface-2: #1c1c1e;
+      --border: rgba(84,84,88,.5);
+      --grid: rgba(84,84,88,.35);
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8a8a8f;
+      --series-1: #3987e5;
+      --series-1-soft: #184f95;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #000000;
+    --surface-1: #1a1a19;
+    --surface-2: #1c1c1e;
+    --border: rgba(84,84,88,.5);
+    --grid: rgba(84,84,88,.35);
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8a8a8f;
+    --series-1: #3987e5;
+    --series-1-soft: #184f95;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text-primary);
+    font-family: var(--font); font-size: 16px; line-height: 1.45;
+    padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 48px);
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 26px; letter-spacing: -.02em; margin: 0; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 20px; }
+  a.back { color: var(--series-1); text-decoration: none; font-size: 15px; }
+  a.back:hover { text-decoration: underline; }
+
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin: 28px 0 10px; font-weight: 650; }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .grid { display: grid; gap: 12px; }
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .cols { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+  .tile .label { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile .value { font-size: 30px; font-weight: 640; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .tile .foot { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; }
+
+  .chart-title { font-size: 15px; font-weight: 620; margin: 0 0 2px; }
+  .chart-note { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 12px; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .axis-text { fill: var(--text-muted); font-size: 11px; font-family: var(--font); }
+  .bar { fill: var(--series-1); }
+  .bar-track { fill: var(--series-1-soft); opacity: .45; }
+  .bar:hover, .hitbox:hover + .bar { opacity: .82; }
+  .hitbox { fill: transparent; cursor: default; }
+
+  /* A wide table scrolls itself. Letting it push the page wide instead gives
+     every section a horizontal scrollbar on a phone. */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 380px; }
+  th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; padding: 6px 8px; }
+  td { padding: 8px; border-top: 1px solid var(--border); vertical-align: top; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; }
+
+  /* Status always ships as a dot AND a word - hue never carries it alone. */
+  .status { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 560; }
+  .status .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .s-good .dot { background: var(--good); }
+  .s-warning .dot { background: var(--warning); }
+  .s-critical .dot { background: var(--critical); }
+  .s-unreachable .dot, .s-unknown .dot { background: var(--text-muted); }
+  .s-none .dot { background: transparent; border: 1.5px solid var(--text-muted); }
+
+  .health-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border); }
+  .health-row:first-child { border-top: 0; }
+  .health-row .meta { font-size: 12.5px; color: var(--text-muted); text-align: right; }
+  .empty { color: var(--text-muted); font-size: 14px; padding: 14px 2px; }
+  .err { color: var(--critical); font-size: 14px; }
+  .fail { color: var(--critical); }
+  .tt { position: fixed; pointer-events: none; background: var(--surface-2); color: var(--text-primary);
+        border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; font-size: 12.5px;
+        box-shadow: 0 6px 22px rgba(0,0,0,.18); opacity: 0; transition: opacity .09s; z-index: 9; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Dashboard</h1>
+    <a class="back" href="/admin">&larr; Writing</a>
+  </header>
+  <p class="sub" id="generated">Loading&hellip;</p>
+  <div id="root"></div>
+</div>
+<div class="tt" id="tt" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var tt = document.getElementById('tt');
+  function showTip(evt, html) {
+    tt.innerHTML = html;
+    tt.style.opacity = '1';
+    var pad = 12;
+    var x = evt.clientX + pad, y = evt.clientY + pad;
+    var r = tt.getBoundingClientRect();
+    if (x + r.width > window.innerWidth - 6) x = evt.clientX - r.width - pad;
+    if (y + r.height > window.innerHeight - 6) y = evt.clientY - r.height - pad;
+    tt.style.left = x + 'px'; tt.style.top = y + 'px';
+  }
+  function hideTip() { tt.style.opacity = '0'; }
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function money(n) {
+    if (typeof n !== 'number') return '—';
+    if (n === 0) return '$0.00';
+    return n < 0.01 ? '<$0.01' : '$' + n.toFixed(2);
+  }
+  function shortDay(iso) { return String(iso).slice(5).replace('-', '/'); }
+  /** Compact and sortable: "09/20 14:32". The full locale string is wide
+   *  enough on its own to push a four-column table past a phone screen. */
+  function stamp(iso) {
+    var d = new Date(iso);
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function ago(iso) {
+    if (!iso) return 'never';
+    var h = (Date.now() - Date.parse(iso)) / 3600000;
+    if (h < 1) return Math.max(1, Math.round(h * 60)) + 'm ago';
+    if (h < 48) return Math.round(h) + 'h ago';
+    return Math.round(h / 24) + 'd ago';
+  }
+
+  /* ---------- charts ----------
+     Inline SVG, one measure per chart, one axis. A single series needs no
+     legend - the title names it. Labels are selective, never one per bar. */
+
+  function barChart(data, opts) {
+    var w = 680, h = opts.height || 180;
+    var padL = 34, padR = 8, padT = 10, padB = 22;
+    var innerW = w - padL - padR, innerH = h - padT - padB;
+    var max = Math.max.apply(null, data.map(function (d) { return d.value; }).concat([opts.minMax || 1]));
+    var n = data.length;
+    var slot = innerW / n;
+    var barW = Math.max(3, Math.min(opts.maxBarWidth || 28, slot - 3));
+    var ticks = [0, max / 2, max];
+
+    var parts = ['<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(opts.aria || opts.title) + '">'];
+
+    ticks.forEach(function (t) {
+      var y = padT + innerH - (t / max) * innerH;
+      parts.push('<line class="grid-line" x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (w - padR) + '" y2="' + y.toFixed(1) + '"/>');
+      parts.push('<text class="axis-text" x="' + (padL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + esc(opts.fmtTick ? opts.fmtTick(t) : Math.round(t)) + '</text>');
+    });
+
+    data.forEach(function (d, i) {
+      var bh = max > 0 ? (d.value / max) * innerH : 0;
+      var x = padL + i * slot + (slot - barW) / 2;
+      var y = padT + innerH - bh;
+      // A zero-height bar still needs a hit target, so the hitbox spans the
+      // full column rather than the drawn bar.
+      parts.push('<rect class="hitbox" x="' + (padL + i * slot).toFixed(1) + '" y="' + padT + '" width="' + slot.toFixed(1) + '" height="' + innerH + '" data-i="' + i + '"/>');
+      if (bh > 0.5) {
+        parts.push('<rect class="bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="3"/>');
+      }
+    });
+
+    // Selective axis labels: first, middle and last only.
+    [0, Math.floor(n / 2), n - 1].forEach(function (i, k, arr) {
+      if (arr.indexOf(i) !== k) return;
+      var x = padL + i * slot + slot / 2;
+      parts.push('<text class="axis-text" x="' + x.toFixed(1) + '" y="' + (h - 6) + '" text-anchor="middle">' + esc(data[i].label) + '</text>');
+    });
+
+    parts.push('</svg>');
+    return { html: parts.join(''), data: data };
+  }
+
+  function hbarChart(rows, opts) {
+    if (!rows.length) return { html: '<p class="empty">Nothing recorded yet.</p>', data: [] };
+    var rowH = 30, w = 680, labelW = 130;
+    var h = rows.length * rowH + 6;
+    var max = Math.max.apply(null, rows.map(function (r) { return r.value; }).concat([opts.minMax || 0.0001]));
+    var trackX = labelW + 8, trackW = w - trackX - 86;
+    var parts = ['<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(opts.aria || opts.title) + '">'];
+    rows.forEach(function (r, i) {
+      var y = i * rowH + 4;
+      var bw = Math.max(2, (r.value / max) * trackW);
+      parts.push('<text class="axis-text" x="' + labelW + '" y="' + (y + 15) + '" text-anchor="end" style="font-size:12.5px;fill:var(--text-primary)">' + esc(r.label) + '</text>');
+      parts.push('<rect class="bar-track" x="' + trackX + '" y="' + (y + 5) + '" width="' + trackW + '" height="14" rx="4"/>');
+      parts.push('<rect class="bar" x="' + trackX + '" y="' + (y + 5) + '" width="' + bw.toFixed(1) + '" height="14" rx="4"/>');
+      // Direct-labelled: few enough rows that every value can carry its number.
+      parts.push('<text class="axis-text" x="' + (trackX + trackW + 8) + '" y="' + (y + 16) + '" style="font-size:12.5px;fill:var(--text-primary)">' + esc(r.display) + '</text>');
+      parts.push('<rect class="hitbox" x="0" y="' + y + '" width="' + w + '" height="' + rowH + '" data-i="' + i + '"/>');
+    });
+    parts.push('</svg>');
+    return { html: parts.join(''), data: rows };
+  }
+
+  function mountChart(el, chart, tipFor) {
+    el.innerHTML = chart.html;
+    if (!tipFor) return;
+    el.querySelectorAll('.hitbox').forEach(function (box) {
+      var d = chart.data[Number(box.getAttribute('data-i'))];
+      box.addEventListener('mousemove', function (e) { showTip(e, tipFor(d)); });
+      box.addEventListener('mouseleave', hideTip);
+    });
+  }
+
+  /* ---------- render ---------- */
+
+  function card(title, note, bodyHtml, id) {
+    return '<div class="card">' +
+      '<p class="chart-title">' + esc(title) + '</p>' +
+      (note ? '<p class="chart-note">' + esc(note) + '</p>' : '') +
+      (id ? '<div id="' + id + '"></div>' : bodyHtml) +
+      '</div>';
+  }
+
+  var STATE_WORD = {
+    good: 'Healthy', warning: 'Late', critical: 'Stalled',
+    unreachable: 'Unreachable', unknown: 'No data', none: 'Nothing scheduled'
+  };
+
+  function render(d) {
+    var root = document.getElementById('root');
+    document.getElementById('generated').textContent =
+      'Across every app on this domain · generated ' + new Date(d.generatedAt).toLocaleString();
+
+    var worst = d.health.filter(function (h) { return h.state === 'critical' || h.state === 'warning'; }).length;
+
+    var html = '';
+
+    // --- the four numbers worth knowing at a glance ---------------------
+    html += '<div class="grid tiles">' +
+      '<div class="card tile"><div class="label">Accounts</div><div class="value">' + d.users.total + '</div>' +
+        '<div class="foot">' + d.users.active7 + ' active in 7 days</div></div>' +
+      '<div class="card tile"><div class="label">Events, 14 days</div><div class="value">' + d.activity.total + '</div>' +
+        '<div class="foot' + (d.activity.failures ? ' fail' : '') + '">' + d.activity.failures + ' failed sign-in' + (d.activity.failures === 1 ? '' : 's') + '</div></div>' +
+      '<div class="card tile"><div class="label">Claude spend, 30 days</div><div class="value">' + money(d.cost.total) + '</div>' +
+        '<div class="foot">' + d.cost.calls + ' call' + (d.cost.calls === 1 ? '' : 's') +
+        (d.cost.unpriced ? ' · ' + d.cost.unpriced + ' unpriced' : '') + '</div></div>' +
+      '<div class="card tile"><div class="label">Apps needing a look</div><div class="value">' + worst + '</div>' +
+        '<div class="foot">of ' + d.health.length + ' tracked</div></div>' +
+      '</div>';
+
+    // --- health ----------------------------------------------------------
+    html += '<h2>App health</h2><div class="card">';
+    d.health.forEach(function (h) {
+      html += '<div class="health-row">' +
+        '<span class="status s-' + h.state + '"><span class="dot" aria-hidden="true"></span>' +
+          esc(h.label) + ' — ' + esc(STATE_WORD[h.state] || h.state) + '</span>' +
+        '<span class="meta">' + esc(h.note) +
+          (h.lastRunAt ? '<br>last ran ' + esc(ago(h.lastRunAt)) : '') + '</span>' +
+        '</div>';
+    });
+    html += '</div>';
+
+    // --- charts -----------------------------------------------------------
+    html += '<h2>Activity &amp; cost</h2><div class="grid cols">' +
+      card('Events per day', 'Sign-ins, registrations and password changes across all apps, last 14 days.', '', 'c-activity') +
+      card('Claude spend per day', 'Priced from each call’s token usage, last 30 days.', '', 'c-cost') +
+      '</div>';
+
+    html += '<div class="grid cols" style="margin-top:12px">' +
+      card('Spend by app', 'Last 30 days.', '', 'c-byapp') +
+      card('Spend by model', 'Last 30 days.', '', 'c-bymodel') +
+      '</div>';
+
+    // --- people -----------------------------------------------------------
+    html += '<h2>Accounts</h2><div class="card">';
+    if (!d.users.list.length) {
+      html += '<p class="empty">No shared accounts yet. Register once at any app on this domain and it works on all of them.</p>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Email</th><th>Joined</th><th>Last seen</th><th>First signed up on</th></tr></thead><tbody>';
+      d.users.list.forEach(function (u) {
+        html += '<tr><td>' + esc(u.email) + (u.disabled ? ' <span class="fail">(disabled)</span>' : '') + '</td>' +
+          '<td>' + esc(u.createdAt ? String(u.createdAt).slice(0, 10) : '—') + '</td>' +
+          '<td>' + esc(ago(u.lastSeenAt)) + '</td>' +
+          '<td>' + esc(u.createdBy || '—') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    // --- the log ----------------------------------------------------------
+    html += '<h2>Recent activity</h2><div class="card">';
+    if (!d.activity.recent.length) {
+      html += '<p class="empty">Nothing logged yet.</p>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>When</th><th>App</th><th>Event</th><th>Who</th></tr></thead><tbody>';
+      d.activity.recent.forEach(function (e) {
+        html += '<tr><td class="mono">' + esc(stamp(e.at)) + '</td>' +
+          '<td>' + esc(e.app) + '</td>' +
+          '<td class="' + (e.ok ? '' : 'fail') + '">' + esc(e.kind) + (e.ok ? '' : ' ✕') + '</td>' +
+          '<td>' + esc(e.email || '—') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    root.innerHTML = html;
+
+    // --- mount the charts -------------------------------------------------
+    mountChart(document.getElementById('c-activity'),
+      barChart(d.activity.byDay.map(function (r) { return { label: shortDay(r.day), value: r.count, day: r.day }; }), { title: 'Events per day' }),
+      function (p) { return '<b>' + esc(p.value) + '</b> event' + (p.value === 1 ? '' : 's') + '<br>' + esc(p.day); });
+
+    mountChart(document.getElementById('c-cost'),
+      barChart(d.cost.byDay.map(function (r) { return { label: shortDay(r.day), value: r.usd, day: r.day }; }),
+        { title: 'Spend per day', maxBarWidth: 14, minMax: 0.01, fmtTick: function (t) { return '$' + (t < 1 ? t.toFixed(2) : t.toFixed(0)); } }),
+      function (p) { return '<b>' + esc(money(p.value)) + '</b><br>' + esc(p.day); });
+
+    mountChart(document.getElementById('c-byapp'),
+      hbarChart(d.cost.byApp.map(function (r) { return { label: r.app, value: r.usd, display: money(r.usd) }; }), { title: 'Spend by app' }),
+      function (p) { return esc(p.label) + ': <b>' + esc(p.display) + '</b>'; });
+
+    mountChart(document.getElementById('c-bymodel'),
+      hbarChart(d.cost.byModel.map(function (r) { return { label: r.model, value: r.usd, display: money(r.usd) }; }), { title: 'Spend by model' }),
+      function (p) { return esc(p.label) + ': <b>' + esc(p.display) + '</b>'; });
+  }
+
+  fetch('/api/admin/insights', { headers: { accept: 'application/json' } })
+    .then(function (r) {
+      if (r.status === 404 || r.status === 401) { window.location.href = '/admin/login'; throw new Error('redirecting'); }
+      return r.json();
+    })
+    .then(render)
+    .catch(function (err) {
+      if (err && err.message === 'redirecting') return;
+      document.getElementById('generated').innerHTML = '<span class="err">Could not load the dashboard: ' + esc(err.message) + '</span>';
+    });
+})();
+</script>
+</body>
+</html>

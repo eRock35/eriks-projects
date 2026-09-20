@@ -22,6 +22,9 @@ const ai = require('./lib/ai');
 const view = require('./lib/render');
 const passkeys = require('./lib/passkeys');
 const sitepass = require('./shared/sitepass');
+const identityLib = require('./shared/identity');
+const insights = require('./lib/insights');
+const identityStore = require('./lib/identity-store');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -80,8 +83,12 @@ function isAdmin(req) {
 
 // 404 rather than 401 for the admin surface, so its existence is not
 // advertised to anyone poking at the site. The login route is the one door.
+// Two doors, deliberately. The shared identity account is the new one; the
+// original ADMIN_PASSWORD session stays working so a fault in the identity
+// service cannot lock Erik out of the surface he would use to diagnose it.
+// Retire the old door only once the new one has been used in anger.
 function requireAdmin(req, res, next) {
-  if (isAdmin(req)) return next();
+  if (isAdmin(req) || isIdentityAdmin(req)) return next();
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
   return res.status(404).send(view.notice({
     title: 'Not found', heading: 'Not found', message: 'There is nothing at this address.',
@@ -139,6 +146,27 @@ const sitePassword = sitepass.create({
   },
 });
 sitePassword.mount(app, '/api/admin/password');
+
+// The shared account: one email + password + passkey for every app on this
+// domain. See shared/identity.js for why santa-rosa-beach-trip is not on it
+// and cannot be added by accident.
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const identity = identityLib.create({
+  // The shared identity database, NOT this app's own store - every app has to
+  // read the same user records for the account to actually be shared.
+  store: identityStore.store,
+  secret: () => process.env.IDENTITY_SESSION_SECRET || '',
+  app: 'landing',
+  baseDomain: process.env.PASSKEY_RP_ID || '',
+  rpName: 'Erik Strong',
+});
+identity.mount(app);
+
+/** The shared account that owns the admin surface. One address, named by
+ *  ADMIN_EMAIL - an ordinary signed-in user is not an admin. */
+function isIdentityAdmin(req) {
+  return Boolean(ADMIN_EMAIL && req.user && req.user.email === ADMIN_EMAIL);
+}
 
 app.post('/api/admin/logout', (req, res) => {
   tokens.clearSessionCookie(res, SESSION_COOKIE);
@@ -641,8 +669,25 @@ app.get('/robots.txt', (req, res) => {
 // The login page is public by necessity; everything behind it is not.
 app.get('/admin/login', (req, res) => res.sendFile(path.join(SITE_DIR, 'admin-login.html')));
 app.get('/admin', (req, res) => {
-  if (!isAdmin(req)) return res.redirect('/admin/login');
+  if (!isAdmin(req) && !isIdentityAdmin(req)) return res.redirect('/admin/login');
   res.sendFile(path.join(SITE_DIR, 'admin.html'));
+});
+
+// The dashboard: who is using the apps, what happened, what it cost, what is
+// broken. Its own page rather than another tab inside admin.html, which is
+// already carrying the whole writing flow.
+app.get('/admin/insights', (req, res) => {
+  if (!isAdmin(req) && !isIdentityAdmin(req)) return res.redirect('/admin/login');
+  res.sendFile(path.join(SITE_DIR, 'admin-insights.html'));
+});
+
+app.get('/api/admin/insights', requireAdmin, async (req, res) => {
+  try {
+    res.json(await insights.all());
+  } catch (err) {
+    console.error('GET /api/admin/insights', err);
+    res.status(500).json({ error: 'Could not gather the dashboard data.' });
+  }
 });
 
 /* ------------------------------------------------------------------ *
