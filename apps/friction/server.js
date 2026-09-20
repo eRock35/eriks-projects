@@ -3,6 +3,7 @@ const express = require('express');
 
 const db = require('./lib/db');
 const auth = require('./lib/auth');
+const analytics = require('./lib/analytics');
 const scan = require('./lib/scan');
 const score = require('./lib/score');
 const webauthn = require('./lib/webauthn');
@@ -94,6 +95,12 @@ app.post('/api/cron/scan', auth.requireLoginOrCron, async (req, res) => {
 });
 
 /* ---------- everything below needs a session ---------- */
+
+// Analytics. Mounted BEFORE the gate below: a gated /analytics.js is a 401,
+// so the sign-in page - the page every visitor actually sees - would be the
+// one page that never measures. Serves an inert file unless
+// GA_MEASUREMENT_ID is set on the service.
+analytics.mount(app, 'friction');
 
 app.use(auth.requireLogin);
 app.use(express.static(path.join(__dirname, 'public')));

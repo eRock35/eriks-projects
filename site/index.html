@@ -262,6 +262,9 @@
     h1 .w { opacity: 1 !important; transform: none !important; }
   }
 </style>
+  <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
+       the service, so local runs and browser tests send nothing. -->
+  <script src="/analytics.js" async></script>
 </head>
 <body>
 

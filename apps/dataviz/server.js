@@ -10,6 +10,7 @@ const builder = require('./lib/build');
 const quota = require('./lib/quota');
 const stripe = require('./lib/stripe');
 const datasets = require('./lib/datasets');
+const analytics = require('./lib/analytics');
 const webauthn = require('./lib/webauthn');
 const mail = require('./lib/mail');
 const reset = require('./lib/reset');
@@ -432,6 +433,9 @@ app.get('/api/shared/:shareId', async (req, res) => {
   const p = rows[0];
   res.json({ title: p.title, subtitle: p.subtitle, note: p.note, viz: p.viz, sourceUrl: p.sourceUrl });
 });
+
+// Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set.
+analytics.mount(app, 'dataviz');
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

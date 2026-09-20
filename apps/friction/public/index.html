@@ -165,6 +165,9 @@
   .toast.error { background: rgba(255,59,48,0.95); }
   [hidden] { display: none !important; }
 </style>
+  <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
+       the service, so local runs and browser tests send nothing. -->
+  <script src="/analytics.js" async></script>
 </head>
 <body>
 

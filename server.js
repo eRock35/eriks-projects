@@ -25,6 +25,7 @@ const sitepass = require('./shared/sitepass');
 const identityLib = require('./shared/identity');
 const insights = require('./lib/insights');
 const identityStore = require('./lib/identity-store');
+const analytics = require('./shared/analytics');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -39,6 +40,11 @@ const app = express();
 app.set('trust proxy', true);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
+
+// Analytics. The public site only - the admin pages are one person, and
+// their paths describe this site's own private structure. Serves an inert
+// file unless GA_MEASUREMENT_ID is set on the service.
+analytics.mount(app, 'landing');
 
 app.get('/healthz', (req, res) => res.status(200).send('ok'));
 

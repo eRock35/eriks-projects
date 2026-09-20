@@ -33,6 +33,9 @@
   .status.ok { color:var(--green); }
   a { color:var(--accent); }
 </style>
+  <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
+       the service, so local runs and browser tests send nothing. -->
+  <script src="/analytics.js" async></script>
 </head>
 <body>
 <div class="box">
