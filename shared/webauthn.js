@@ -80,7 +80,9 @@ function rpInfo(req, baseDomain) {
  * @param opts.secret         () => string, for signing challenge cookies
  * @param opts.rpName         name shown in the OS prompt
  * @param opts.baseDomain     registrable domain, or '' to use the hostname
- * @param opts.issueSession   (res, ownerId) => void
+ * @param opts.issueSession   (res, ownerId, req) => void   -- req is passed so a
+ *                            host that scopes its cookie to a parent domain can
+ *                            read the hostname; hosts that don't need it ignore it
  * @param opts.currentOwner   (req) => ownerId | null
  * @param opts.canEnrol       async (req) => ownerId | null   -- proves identity
  * @param opts.mountPath      route prefix, default '/api/auth/passkey'
@@ -226,7 +228,7 @@ function create(opts) {
         await store.set(COLLECTION, id, Object.assign({}, stored, patch));
 
         setCookie(res, 'pk_auth', '', 0);
-        issueSession(res, stored.ownerId);
+        issueSession(res, stored.ownerId, req);
         res.json({ ok: true, ownerId: stored.ownerId });
       } catch (err) {
         console.error('passkey login/verify', err);
