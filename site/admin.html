@@ -38,8 +38,8 @@
   .row + .row::before { content: ""; position: absolute; left: 16px; right: 0; top: 0; height: 1px; background: var(--sep); }
   .row:active { background: var(--fill); }
   .row-main { flex: 1 1 auto; min-width: 0; }
-  .row-title { font-size: 17px; font-weight: 600; line-height: 1.3; }
-  .row-sub { font-size: 13.5px; color: var(--label-2); margin-top: 2px; }
+  .row-title { display: block; font-size: 17px; font-weight: 600; line-height: 1.3; }
+  .row-sub { display: block; font-size: 13.5px; color: var(--label-2); margin-top: 2px; }
   .badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 999px; padding: 3px 8px; flex: 0 0 auto; }
   .badge.draft { background: var(--fill); color: var(--label-2); }
   .badge.published { background: #34C759; color: #04280f; }
@@ -330,16 +330,33 @@
         html += '<p style="color:var(--red)"><b>Resend said:</b><br>' + esc(d.error) + '</p>';
       }
       if (d.domains && d.domains.length) {
-        html += '<div class="list" style="margin-bottom:12px">' + d.domains.map(function (dom) {
-          var ok = String(dom.status).toLowerCase() === 'verified';
+        html += d.domains.map(function (dom) {
+          var status = String(dom.status || '').toLowerCase();
+          var ok = status === 'verified';
           var recs = (dom.records || []).map(function (r) {
-            return esc(r.type) + ' ' + esc(r.name || '') + ' — ' + esc(r.status || '');
-          }).join('<br>');
-          return '<div class="row" style="align-items:flex-start"><span class="row-main">' +
-            '<span class="row-title">' + esc(dom.name) + '</span>' +
-            '<span class="row-sub" style="white-space:normal">' + (recs || 'no record detail') + '</span></span>' +
-            '<span class="badge ' + (ok ? 'published' : 'draft') + '">' + esc(dom.status) + '</span></div>';
-        }).join('') + '</div>';
+            var rs = String(r.status || '').toLowerCase();
+            var colour = rs === 'verified' ? 'var(--green,#34C759)' : rs === 'not_started' ? 'var(--label-2)' : 'var(--red)';
+            return '<div style="margin-top:6px"><b>' + esc(r.type) + '</b> ' + esc(r.name || '(root)') +
+              '<br><span style="color:' + colour + '">' + esc(r.status || '?') + '</span></div>';
+          }).join('');
+          var note = '';
+          if (status === 'not_started') {
+            note = '<p style="margin:10px 0 0;color:var(--red)">Verification has never been run. ' +
+              'Open this domain in Resend and press <b>Verify DNS Records</b>.</p>';
+          } else if (status === 'pending') {
+            note = '<p style="margin:10px 0 0" class="hint">Resend is still checking. This can take a few minutes.</p>';
+          } else if (status === 'failure') {
+            note = '<p style="margin:10px 0 0;color:var(--red)">Verification failed. The records below that are not ' +
+              'verified are the ones to fix at the registrar.</p>';
+          }
+          return '<div class="field" style="padding:14px 16px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+            '<b>' + esc(dom.name) + '</b>' +
+            '<span class="badge ' + (ok ? 'published' : 'draft') + '">' + esc(dom.status) + '</span></div>' +
+            (recs || '<div class="hint" style="margin-top:6px">' +
+              esc(dom.recordsError || 'Resend returned no record detail.') + '</div>') +
+            note + '</div>';
+        }).join('');
       } else if (!d.error) {
         html += '<p style="color:var(--red)">No domains are registered in this Resend account. Add ' +
           'strongtechnicalconsulting.com there first.</p>';
