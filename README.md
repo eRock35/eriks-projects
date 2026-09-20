@@ -4,7 +4,9 @@ Landing/hub page for `strongtechnicalconsulting.com`. Static HTML, no backend â€
 deployed to a GCS bucket configured for static website hosting (replacing the
 old 2019 Bootstrap consulting template that used to live at the root domain).
 
-Add a card to `index.html` whenever something new ships. Currently linked:
+The page is `site/index.html`: a short intro about Erik (photo and bio
+brought over from the 2019 consulting site archived in the bucket), the
+project cards, and contact links. Add a card whenever something new ships. Currently linked:
 the College Football app, Hopscotch (craft beer passport), and Trip Planner.
 
 The Santa Rosa Beach trip app is intentionally **not** linked here â€” it holds

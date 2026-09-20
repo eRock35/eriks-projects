@@ -2,109 +2,290 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Erik's Projects</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Erik Strong</title>
+<meta name="description" content="Erik Strong: data and business-intelligence engineer in Atlanta, founder of Strong Technical Consulting, and the person behind a few small apps that live here." />
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+<meta property="og:title" content="Erik Strong" />
+<meta property="og:description" content="Data and BI engineer, founder of Strong Technical Consulting, and builder of small useful apps." />
+<meta property="og:image" content="https://www.strongtechnicalconsulting.com/assets/erik.jpg" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/erik-320.jpg" />
 <style>
   :root {
-    --bg: #0b0f14;
-    --bg2: #10161d;
-    --card: #131a22;
-    --border: #1f2833;
-    --text: #e8edf2;
-    --muted: #8a97a5;
-    --accent: #22d3ee;
-    --accent2: #a78bfa;
+    color-scheme: light dark;
+    --bg: #F2F2F7; --card: #FFFFFF; --fill: rgba(120,120,128,0.12); --fill-2: rgba(120,120,128,0.18);
+    --label: #000000; --label-2: rgba(60,60,67,0.6); --label-3: rgba(60,60,67,0.4); --sep: rgba(60,60,67,0.2);
+    --tint: #007AFF; --green: #34C759; --amber: #b3730a;
+    --bar: rgba(249,249,249,0.82); --bar-border: rgba(0,0,0,0.1);
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 24px rgba(0,0,0,0.06);
+    --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
   }
-  * { box-sizing: border-box; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #000000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
+      --label: #FFFFFF; --label-2: rgba(235,235,245,0.6); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
+      --tint: #0A84FF; --green: #32D74B; --amber: #e8a93c;
+      --bar: rgba(22,22,24,0.78); --bar-border: rgba(255,255,255,0.12);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #000000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
+    --label: #FFFFFF; --label-2: rgba(235,235,245,0.6); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
+    --tint: #0A84FF; --green: #32D74B; --amber: #e8a93c;
+    --bar: rgba(22,22,24,0.78); --bar-border: rgba(255,255,255,0.12);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
   body {
-    margin: 0;
-    min-height: 100vh;
-    background:
-      radial-gradient(1200px 600px at 20% -10%, rgba(34,211,238,0.12), transparent 60%),
-      radial-gradient(1000px 600px at 100% 0%, rgba(167,139,250,0.10), transparent 60%),
-      var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 64px 20px 40px;
+    margin: 0; min-height: 100dvh; background: var(--bg); color: var(--label);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.45; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    padding: calc(var(--sat) + 52px) 0 calc(var(--sab) + 40px);
   }
-  header { text-align: center; max-width: 560px; margin-bottom: 48px; }
-  .eyebrow {
-    font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--accent); margin: 0 0 10px;
-  }
-  h1 {
-    font-size: 40px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px;
-    background: linear-gradient(90deg, var(--text), var(--accent2));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  p.sub { color: var(--muted); font-size: 16px; line-height: 1.5; margin: 0; }
+  a { color: var(--tint); text-decoration: none; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; }
 
-  .grid {
-    width: 100%; max-width: 720px;
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
+  /* Nav */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20; padding-top: var(--sat);
+    background: var(--bar); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--bar-border);
   }
-  a.card {
-    display: block; background: var(--card); border: 1px solid var(--border); border-radius: 16px;
-    padding: 22px; text-decoration: none; color: inherit; transition: border-color 0.15s, transform 0.15s;
-  }
-  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
-  a.card.placeholder { opacity: 0.55; cursor: default; }
-  a.card.placeholder:hover { border-color: var(--border); transform: none; }
-  .card-icon { font-size: 26px; margin-bottom: 10px; display: block; }
-  .card h2 { font-size: 17px; margin: 0 0 6px; }
-  .card p { font-size: 13.5px; color: var(--muted); margin: 0; line-height: 1.4; }
-  .card .tag {
-    display: inline-block; margin-top: 12px; font-size: 11px; font-weight: 700;
-    letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
-    background: rgba(34,211,238,0.12); color: var(--accent);
-  }
+  .nav-inner { max-width: 720px; margin: 0 auto; height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+  .brand { font-weight: 700; font-size: 17px; color: var(--label); display: flex; align-items: center; gap: 10px; }
+  .brand img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+  .nav-links { display: flex; gap: 4px; }
+  .nav-links a { font-size: 15px; font-weight: 500; color: var(--label-2); padding: 8px 10px; border-radius: 10px; min-height: 40px; display: inline-flex; align-items: center; }
+  .nav-links a:active, .nav-links a:hover { background: var(--fill); color: var(--label); }
+  @media (max-width: 420px) { .nav-links a { padding: 8px 8px; font-size: 14px; } }
 
-  footer { margin-top: 56px; color: var(--muted); font-size: 12.5px; text-align: center; }
-  footer a { color: var(--muted); }
+  /* Hero */
+  .hero { padding: 36px 0 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; }
+  .avatar { width: 148px; height: 148px; border-radius: 50%; object-fit: cover; box-shadow: var(--shadow), 0 0 0 4px var(--card); background: var(--fill); }
+  .eyebrow { font-size: 13px; font-weight: 600; color: var(--tint); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; margin: 0; text-wrap: balance; }
+  .lede { font-size: 19px; color: var(--label-2); margin: 10px auto 0; max-width: 34ch; text-wrap: balance; }
+  .cta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 20px; border-radius: 14px; font-weight: 600; font-size: 16px; border: none; transition: transform 0.12s ease; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--tint); color: #fff; }
+  .btn-secondary { background: var(--card); color: var(--tint); box-shadow: var(--shadow); }
+  .btn svg { width: 20px; height: 20px; }
+  .facts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .fact { font-size: 13.5px; font-weight: 500; color: var(--label-2); background: var(--fill); border-radius: 999px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .fact svg { width: 14px; height: 14px; }
+
+  /* Sections */
+  section { padding: 22px 0 8px; scroll-margin-top: calc(var(--sat) + 60px); }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+  .section-head .sub { color: var(--label-2); font-size: 15px; }
+
+  /* Projects */
+  .projects { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 620px) { .projects { grid-template-columns: 1fr 1fr; } }
+  .project {
+    display: flex; gap: 14px; align-items: flex-start; background: var(--card); border-radius: 20px; box-shadow: var(--shadow);
+    padding: 16px; color: inherit; transition: transform 0.15s ease, box-shadow 0.15s ease; min-height: 108px;
+  }
+  .project:hover { transform: translateY(-2px); }
+  .project:active { transform: scale(0.985); }
+  .project img { width: 56px; height: 56px; border-radius: 14px; flex: 0 0 auto; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+  .project-body { flex: 1 1 auto; min-width: 0; }
+  .project h3 { margin: 0 0 3px; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .project p { margin: 0; font-size: 14.5px; color: var(--label-2); line-height: 1.4; }
+  .project .open { display: inline-flex; align-items: center; gap: 3px; font-size: 13.5px; font-weight: 600; color: var(--tint); margin-top: 8px; }
+  .project .open svg { width: 12px; height: 12px; }
+  .live { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #04280f; background: var(--green); border-radius: 999px; padding: 2px 7px; }
+  .project.soon { opacity: 0.7; }
+  .project.soon .placeholder { width: 56px; height: 56px; border-radius: 14px; background: var(--fill-2); display: grid; place-items: center; color: var(--label-3); font-size: 26px; flex: 0 0 auto; }
+
+  /* About */
+  .card { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
+  .card p { margin: 0 0 12px; font-size: 16.5px; line-height: 1.5; }
+  .card p:last-child { margin-bottom: 0; }
+  .skills { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
+  @media (min-width: 620px) { .skills { grid-template-columns: 1fr 1fr 1fr; } }
+  .skill { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .skill-icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: #fff; flex: 0 0 auto; }
+  .skill-icon svg { width: 20px; height: 20px; }
+  .skill h3 { margin: 0 0 2px; font-size: 16px; font-weight: 600; }
+  .skill p { margin: 0; font-size: 14px; color: var(--label-2); line-height: 1.4; }
+  blockquote { margin: 14px 0 0; padding: 14px 16px; border-left: 3px solid var(--tint); background: var(--fill); border-radius: 0 14px 14px 0; font-size: 16px; color: var(--label-2); font-style: italic; }
+  blockquote b { display: block; font-style: normal; color: var(--label); font-size: 14px; margin-top: 6px; }
+
+  /* Contact list */
+  .list { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 10px 16px; color: inherit; position: relative; }
+  .row + .row::before { content: ""; position: absolute; left: 62px; right: 0; top: 0; height: 1px; background: var(--sep); }
+  .row:active { background: var(--fill); }
+  .row-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex: 0 0 auto; }
+  .row-icon svg { width: 18px; height: 18px; }
+  .row-main { flex: 1 1 auto; min-width: 0; }
+  .row-title { display: block; font-size: 17px; font-weight: 500; }
+  .row-sub { display: block; font-size: 13.5px; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-chev { width: 8px; height: 14px; color: var(--label-3); flex: 0 0 auto; }
+
+  footer { text-align: center; color: var(--label-3); font-size: 13px; padding: 36px 20px 0; line-height: 1.6; }
+  footer a { color: var(--label-2); }
+
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition-duration: 0.01ms !important; } }
 </style>
 </head>
 <body>
-  <header>
-    <p class="eyebrow">strongtechnicalconsulting.com</p>
-    <h1>Erik's Projects</h1>
-    <p class="sub">A home base for the things I'm building — live apps, experiments, whatever's next.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6.5 7l-5 5.5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M3.5 7l8.5 6 8.5-6"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s6.5-5.7 6.5-11A6.5 6.5 0 0 0 5.5 10c0 5.3 6.5 11 6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M7 16V10M12 16V5M17 16v-4"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></symbol>
+    <symbol id="i-app" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.5"/><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5M3 12.5h18"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.7.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"/></symbol>
+    <symbol id="i-linkedin" viewBox="0 0 24 24" fill="currentColor"><path d="M6.3 8.5H3V21h3.3V8.5zM4.7 3a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8zM21 13.3c0-3.6-1.9-5.1-4.4-5.1-2 0-2.9 1.1-3.4 1.9V8.5H9.9V21h3.3v-6.6c0-1.7.3-3.4 2.5-3.4 2.1 0 2.1 2 2.1 3.5V21H21v-7.7z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="currentColor"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.3-8.3L2 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></symbol>
+    <symbol id="i-instagram" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.2 6.8v.01"/></symbol>
+  </defs>
+</svg>
+
+<nav class="nav" aria-label="Page">
+  <div class="nav-inner">
+    <a class="brand" href="#top"><img src="/assets/erik-320.jpg" alt="" width="28" height="28">Erik Strong</a>
+    <div class="nav-links">
+      <a href="#projects">Projects</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap" id="top">
+
+  <header class="hero">
+    <img class="avatar" src="/assets/erik.jpg" alt="Erik Strong" width="148" height="148" fetchpriority="high">
+    <div>
+      <p class="eyebrow">Atlanta, Georgia</p>
+      <h1>Hi, I'm Erik.</h1>
+      <p class="lede">I turn raw data into dashboards people actually use, and I build small apps for the things I care about.</p>
+    </div>
+    <div class="facts">
+      <span class="fact"><svg><use href="#i-chart"/></svg>Business intelligence</span>
+      <span class="fact"><svg><use href="#i-db"/></svg>Data engineering</span>
+      <span class="fact"><svg><use href="#i-briefcase"/></svg>Fintech</span>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg><use href="#i-linkedin"/></svg>LinkedIn</a>
+      <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg><use href="#i-github"/></svg>GitHub</a>
+      <a class="btn btn-secondary" href="mailto:erik.strong@strongtechnicalconsulting.com"><svg><use href="#i-mail"/></svg>Email</a>
+    </div>
   </header>
 
-  <div class="grid">
-    <a class="card" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-      <span class="card-icon">🏈</span>
-      <h2>College Football App</h2>
-      <p>College football betting research — live odds, picks, and AI-backed research on demand.</p>
-      <span class="tag">Live</span>
-    </a>
+  <section id="projects">
+    <div class="section-head"><h2>Projects</h2><span class="sub">Live apps, built for a phone</span></div>
+    <div class="projects">
+      <a class="project" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/football.svg" alt="" width="56" height="56">
+        <div class="project-body">
+          <h3>College Football <span class="live">Live</span></h3>
+          <p>Saturday's card, the whole board, and AI-backed research on any game. Build a slip and it syncs across your devices.</p>
+          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+        </div>
+      </a>
+      <a class="project" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/hopscotch.svg" alt="" width="56" height="56">
+        <div class="project-body">
+          <h3>Hopscotch <span class="live">Live</span></h3>
+          <p>A craft beer passport. Find breweries anywhere, scan a can or a pour, score it like a judge, and plan the crawl before you land.</p>
+          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+        </div>
+      </a>
+      <a class="project" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/trips.svg" alt="" width="56" height="56">
+        <div class="project-body">
+          <h3>Trip Planner <span class="live">Live</span></h3>
+          <p>Research a trip with Claude, draft the itinerary, and have flight and hotel prices watched in the background until you book.</p>
+          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+        </div>
+      </a>
+      <div class="project soon" aria-hidden="true">
+        <div class="placeholder">+</div>
+        <div class="project-body">
+          <h3>Next up</h3>
+          <p>Something new lands here whenever it's ready. Everything above started as a weekend idea.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <a class="card" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-      <span class="card-icon">🍺</span>
-      <h2>Hopscotch</h2>
-      <p>A craft beer passport — find breweries anywhere, scan a can or a glass, and remember what you drank.</p>
-      <span class="tag">Live</span>
-    </a>
+  <section id="about">
+    <div class="section-head"><h2>About</h2></div>
+    <div class="card">
+      <p>I've spent my career in fintech, most of it inside one of the largest financial-data companies in the country, working on the plumbing that moves data and the dashboards that explain it. Give me a pile of raw data and I'll come back with the story it's telling and a view your team can act on.</p>
+      <p>On the side I run <strong>Strong Technical Consulting</strong> (Strong &amp; Strong Consulting, L.L.C.), helping small and medium businesses get the kind of insight, automation and tooling that usually only big companies can afford.</p>
+      <p>Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
+    </div>
+    <div class="skills">
+      <div class="skill">
+        <div class="skill-icon" style="background: var(--tint)"><svg><use href="#i-chart"/></svg></div>
+        <div><h3>Business insights</h3><p>Collect, integrate and present your data so decisions get made quickly and with confidence.</p></div>
+      </div>
+      <div class="skill">
+        <div class="skill-icon" style="background: var(--amber)"><svg><use href="#i-db"/></svg></div>
+        <div><h3>Data &amp; databases</h3><p>Storage, movement and modeling, so data flows cleanly through apps, websites and dashboards.</p></div>
+      </div>
+      <div class="skill">
+        <div class="skill-icon" style="background: var(--green)"><svg><use href="#i-app"/></svg></div>
+        <div><h3>Apps &amp; automation</h3><p>Tools that run your business from a phone or a desk, and automation for the work that repeats.</p></div>
+      </div>
+    </div>
+    <blockquote>"Give us a challenge and we'll solve it."<b>Erik Strong, founder</b></blockquote>
+  </section>
 
-    <a class="card" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-      <span class="card-icon">✈️</span>
-      <h2>Trip Planner</h2>
-      <p>Research and monitor upcoming trips — flights, hotels, Airbnbs — with Claude watching prices in the background.</p>
-      <span class="tag">Live</span>
-    </a>
-
-    <a class="card placeholder">
-      <span class="card-icon">✨</span>
-      <h2>More on the way</h2>
-      <p>Next project lands here.</p>
-    </a>
-  </div>
+  <section id="contact">
+    <div class="section-head"><h2>Get in touch</h2></div>
+    <div class="list">
+      <a class="row" href="mailto:erik.strong@strongtechnicalconsulting.com">
+        <span class="row-icon" style="background: var(--tint)"><svg><use href="#i-mail"/></svg></span>
+        <span class="row-main"><span class="row-title">Email</span><span class="row-sub">erik.strong@strongtechnicalconsulting.com</span></span>
+        <svg class="row-chev"><use href="#i-chev"/></svg>
+      </a>
+      <a class="row" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener">
+        <span class="row-icon" style="background: #0A66C2"><svg><use href="#i-linkedin"/></svg></span>
+        <span class="row-main"><span class="row-title">LinkedIn</span><span class="row-sub">linkedin.com/in/eriksstrong</span></span>
+        <svg class="row-chev"><use href="#i-chev"/></svg>
+      </a>
+      <a class="row" href="https://github.com/eRock35" target="_blank" rel="noopener">
+        <span class="row-icon" style="background: #24292F"><svg><use href="#i-github"/></svg></span>
+        <span class="row-main"><span class="row-title">GitHub</span><span class="row-sub">github.com/eRock35</span></span>
+        <svg class="row-chev"><use href="#i-chev"/></svg>
+      </a>
+      <a class="row" href="https://twitter.com/sTechConsulting" target="_blank" rel="noopener">
+        <span class="row-icon" style="background: #000"><svg><use href="#i-x"/></svg></span>
+        <span class="row-main"><span class="row-title">X</span><span class="row-sub">@sTechConsulting</span></span>
+        <svg class="row-chev"><use href="#i-chev"/></svg>
+      </a>
+      <a class="row" href="https://www.instagram.com/strongtechnicalconsulting/" target="_blank" rel="noopener">
+        <span class="row-icon" style="background: linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)"><svg><use href="#i-instagram"/></svg></span>
+        <span class="row-main"><span class="row-title">Instagram</span><span class="row-sub">@strongtechnicalconsulting</span></span>
+        <svg class="row-chev"><use href="#i-chev"/></svg>
+      </a>
+    </div>
+  </section>
 
   <footer>
-    Built and run by Erik &middot; <a href="https://github.com/eRock35" target="_blank" rel="noopener">github.com/eRock35</a>
+    Strong Technical Consulting &middot; strongtechnicalconsulting.com<br>
+    Built and run by Erik Strong in Atlanta.
   </footer>
+</main>
+
 </body>
 </html>
