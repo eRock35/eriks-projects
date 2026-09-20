@@ -302,10 +302,11 @@ Plain env vars on the Cloud Run service:
 - `SITE_ORIGIN=https://www.strongtechnicalconsulting.com` — used to build the
   confirm and unsubscribe links, so it must match the real hostname or people
   get links to the wrong place
-- `NEWSLETTER_FROM` — currently `Erik Strong <erik-noreply@strongtechnicalconsulting.com>`.
-  A no-reply address so no mailbox has to exist on the domain; verifying a
-  domain for sending does not create one. Any address on the verified domain
-  works here, with no extra DNS.
+- `NEWSLETTER_FROM` — currently `Erik Strong <Erik.Strong@strongtechnicalconsulting.com>`.
+  Any address on the verified domain works here with no extra DNS, since
+  Resend verifies the domain and not the local part. Note that verifying a
+  domain for sending does not create a mailbox: if nothing receives at this
+  address, replies from readers bounce.
 - `NEWSLETTER_REPLY_TO` — optional, and currently unset. Point it at a mailbox
   Erik actually reads if readers should be able to reply; pointing it at an
   address that does not exist is worse than leaving it off, because the reply
@@ -360,9 +361,9 @@ Still Erik's, and sending will not work until it is done:
 - Add `strongtechnicalconsulting.com` as a domain in Resend and put the SPF
   and DKIM records it prints at the registrar. Until those resolve, Resend
   only sends from its own sandbox address to Erik's own account address.
-- Nothing else. The From is a no-reply address on the same domain, so no
-  mailbox is needed. If Erik later wants replies to reach him, set
-  `NEWSLETTER_REPLY_TO` to an address he reads.
+- Make sure something receives at `Erik.Strong@strongtechnicalconsulting.com`,
+  a mailbox or a forwarding alias. Otherwise replies bounce. Alternatively set
+  `NEWSLETTER_REPLY_TO` to an address he does read, which can be off-domain.
 
 Because `gcpdeploy ship` swaps only the image digest, a normal deploy will
 never disturb any of the above. If the service ever loses these env vars, it
