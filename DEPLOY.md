@@ -209,6 +209,57 @@ only once `/api/stripe/health` reports `ok: true` again.
 A key that has been pasted into a chat, a terminal transcript, a ticket or a
 screenshot should be rolled on principle, even a test one.
 
+## Analytics
+
+One GA4 property covers every app. They are all subdomains of one registrable
+domain, so GA's cookie already spans them - a visitor moving from the landing
+page to dataviz stays one session, with no cross-domain configuration. Each
+app sends `app_name` on every event, so the single property can still be split
+per app.
+
+`shared/analytics.js` serves the loader at `/analytics.js` from each app's own
+origin; every public page carries one `<script src="/analytics.js" async>`
+tag. Copies live in the sibling repos (`college-football-app/analytics.js`,
+`trip-planner/analytics.js`, `santa-rosa-beach-trip/analytics.js`,
+`apps/*/lib/analytics.js`) - fix the shared one first, then re-copy.
+
+**It is off unless `GA_MEASUREMENT_ID` is set on the service.** With no ID the
+route serves an inert file and nothing reaches Google. That is deliberate:
+local runs, browser tests and screenshots would otherwise fire real hits and
+pollute the numbers before a single visitor arrived.
+
+A measurement ID is **not a secret** - it ships in the page source of every
+site that uses it. Plain env var; do not put it in Secret Manager.
+
+### Two rules that are easy to break
+
+- **Mount it before the login gate.** On `santa-rosa` and `friction` the whole
+  app is gated. A gated `/analytics.js` is a 401 or a redirect to `/login`,
+  which makes the sign-in page - the page every visitor actually sees - the
+  one page that never measures. The same mistake was made once with the shared
+  passkey client.
+- **The admin pages stay untagged.** They are one person, and their paths
+  describe this site's own private structure.
+
+### Turning it on
+
+Set `GA_MEASUREMENT_ID=G-XXXXXXXXXX` on each service. It is an ordinary env
+var, so it can be patched onto a service without shipping a new image - but it
+does create a new revision. To turn analytics off everywhere, remove the var;
+the route starts serving the inert file again within the hour (the configured
+response is cached for 3600s, the inert one is `no-store`).
+
+### Not yet wired
+
+- **Hopscotch (`beer-app`)** builds through its own `cloudbuild.yaml` and is
+  not deployable from here (see the note in `apps.json`), so it was left
+  alone. Its page is `web/index.html`.
+- **Tab views.** These are tab-based single-page apps: GA counts one
+  `page_view` on load and never hears about the tabs a visitor actually used.
+  `window.track('<name>')` is exposed for exactly this and is not called
+  anywhere yet - wiring it into each app's tab switch is what turns "how many
+  visits" into "what did they do".
+
 ## Domain mappings
 
 The deployer service account **can** create these, since it was added as an
