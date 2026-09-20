@@ -143,6 +143,7 @@ initial state*, not a failure.
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
 | Landing page + writing | `landing-page` | `eriks-projects` | `strongtechnicalconsulting.com` and `www.` |
 | Friction (signal board) | `friction` | `friction` | `friction.strongtechnicalconsulting.com` |
+| DataViz (animated charts) | `dataviz` | `dataviz` | `dataviz.strongtechnicalconsulting.com` |
 
 Per-app secrets are deliberately **not** shared. The football app's login is the
 kind of thing Erik might hand to a friend so they can run research; that password
@@ -153,6 +154,7 @@ must not also open the trip apps.
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
 - Landing page: `landing-session-secret`, `landing-admin-password`, `resend-api-key`
 - Friction: `friction-app-password`, `friction-session-secret`, `friction-cron-secret`
+- DataViz: `dataviz-session-secret`, `dataviz-stripe-webhook-secret` (the Stripe SECRET KEY is added by hand; Stripe has no API to issue one)
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.

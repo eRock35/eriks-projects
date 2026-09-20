@@ -70,3 +70,26 @@ GCP `metal-celerity-236019`, `us-central1`, same REST pipeline as the siblings.
 - Env: `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_DATABASE_ID=dataviz`, `SHAPE_MODEL`,
   `QUOTA_PER_VISITOR`, `QUOTA_PER_USER`, `QUOTA_GLOBAL`.
 - No scheduler job. Nothing here runs on its own.
+
+## Billing
+
+Stripe sandbox account `acct_1UHo8xF32OknjgD1`.
+
+- Product `prod_VIPZP6pNaEXud4`, price `price_1UHok3F32OknjgD1IsTILEk4` ($9/mo).
+- Webhook endpoint `we_1UHokCF32OknjgD1S3h8ZZZN` -> the service's
+  `*.run.app` URL, not the custom domain. Deliberate: the run.app hostname
+  works regardless of what DNS is doing, and Stripe does not care how pretty
+  the URL is.
+- Secrets: `dataviz-stripe-webhook-secret`. The SECRET KEY is not here -
+  Stripe has no API for issuing one, so it has to be copied from the
+  Dashboard by hand and mounted as `STRIPE_SECRET_KEY`.
+
+**With no secret key mounted the whole app is free and fully working**, because
+`stripe.enabled()` is false and `isPro()` then returns true for everyone. That
+is the state it is in now, and it is the state to leave it in if the key is
+ever removed. Do not "fix" that by defaulting to locked - an app that locks
+itself when its billing config goes missing is worse than one that gives
+itself away.
+
+Going live means a live-mode price, a live webhook endpoint (different signing
+secret), and a live secret key. None of the code changes.
