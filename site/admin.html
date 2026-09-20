@@ -275,11 +275,14 @@
       if (subs && subs.pending) pills.push('<span class="pill"><b>' + subs.pending + '</b> pending</span>');
       if (!info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
       pills.push('<button class="pill" id="emailCheck" style="border:none;cursor:pointer">Check email setup</button>');
+      pills.push('<button class="pill" id="faceSetup" style="border:none;cursor:pointer">Face ID</button>');
       if (!info.ai.enabled) pills.push('<span class="pill warn">Claude not configured</span>');
       if (info.store === 'memory') pills.push('<span class="pill warn">Local memory store, nothing is saved</span>');
       $('stats').innerHTML = pills.join('');
       var checkBtn = $('emailCheck');
       if (checkBtn) checkBtn.addEventListener('click', showEmailCheck);
+      var faceBtn = $('faceSetup');
+      if (faceBtn) faceBtn.addEventListener('click', showFaceSetup);
 
       var posts = await api('/api/posts');
       if (!posts.length) {
@@ -307,6 +310,112 @@
 
   // Asks Resend directly, because nothing here can read Cloud Run logs and a
   // failed send would otherwise be a dead end.
+  function b64urlToBuf(str) {
+    var pad = str.length % 4 ? new Array(5 - (str.length % 4)).join('=') : '';
+    var bin = atob(String(str).replace(/-/g, '+').replace(/_/g, '/') + pad);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+  function bufToB64url(buf) {
+    var bytes = new Uint8Array(buf), out = '';
+    for (var i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+    return btoa(out).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function showFaceSetup() {
+    closeSheet();
+    var back = document.createElement('div');
+    back.className = 'sheet-backdrop';
+    back.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' +
+      '<div class="grabber"></div><h2>Face ID</h2>' +
+      '<div id="fsBody"><p>Loading\u2026</p></div>' +
+      '<div class="btn-row"><button class="btn2 wide" data-a="close">Close</button></div></div>';
+    back.addEventListener('click', function (e) {
+      if (e.target === back || (e.target.closest && e.target.closest('[data-a="close"]'))) closeSheet();
+    });
+    document.body.appendChild(back);
+    document.body.style.overflow = 'hidden';
+    openSheetEl = back;
+
+    var body = $('fsBody');
+    var supported = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+    if (!supported) {
+      body.innerHTML = '<p>This browser cannot do passkeys. Open the site in Safari or Chrome on a device with Face ID or Touch ID.</p>';
+      return;
+    }
+
+    async function render() {
+      var d = await api('/api/admin/passkeys').catch(function () { return { passkeys: [] }; });
+      var list = (d.passkeys || []).length
+        ? '<p><b>Set up on</b></p>' + d.passkeys.map(function (k) {
+            return '<p style="display:flex;gap:8px;align-items:baseline;justify-content:space-between">' +
+              '<span>' + esc(k.label) + '<br><span style="color:var(--label-3);font-size:13px">' +
+              esc(k.rpID) + (k.lastUsedAt ? ' \u00b7 last used ' + esc(String(k.lastUsedAt).slice(0, 10)) : '') + '</span></span>' +
+              '<button class="btn2" data-del="' + esc(k.id) + '">Remove</button></p>';
+          }).join('')
+        : '<p>No Face ID set up yet.</p>';
+      body.innerHTML = list +
+        '<p style="color:var(--label-2);font-size:14px">Adding one needs the password. A session on its own is not enough \u2014 otherwise a borrowed session could quietly leave itself a permanent way back in.</p>' +
+        '<label style="display:block;font-size:13px;color:var(--label-2);margin:12px 0 4px">Password</label>' +
+        '<input id="fsPw" type="password" autocomplete="current-password" style="width:100%;min-height:44px;font:inherit;font-size:17px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">' +
+        '<div class="btn-row"><button class="btn wide" id="fsAdd">Add Face ID on this device</button></div>' +
+        '<div id="fsStatus" style="min-height:1.3em;font-size:14px;margin-top:10px"></div>';
+
+      body.querySelectorAll('[data-del]').forEach(function (b) {
+        b.addEventListener('click', async function () {
+          await api('/api/admin/passkeys/' + encodeURIComponent(b.getAttribute('data-del')), { method: 'DELETE' });
+          toast('Removed');
+          render();
+        });
+      });
+      $('fsAdd').addEventListener('click', enrol);
+    }
+
+    async function enrol() {
+      var st = $('fsStatus');
+      var pw = $('fsPw').value;
+      if (!pw) { st.style.color = 'var(--red)'; st.textContent = 'Enter the password first.'; return; }
+      $('fsAdd').disabled = true;
+      st.style.color = '';
+      st.textContent = 'Waiting for Face ID\u2026';
+      try {
+        var options = await api('/api/admin/passkey/register/options', {
+          method: 'POST', body: JSON.stringify({ password: pw })
+        });
+        options.challenge = b64urlToBuf(options.challenge);
+        options.user.id = b64urlToBuf(options.user.id);
+        (options.excludeCredentials || []).forEach(function (c) { c.id = b64urlToBuf(c.id); });
+        var cred = await navigator.credentials.create({ publicKey: options });
+        await api('/api/admin/passkey/register/verify', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: cred.id,
+            rawId: bufToB64url(cred.rawId),
+            type: cred.type,
+            clientExtensionResults: cred.getClientExtensionResults(),
+            label: 'Face ID',
+            response: {
+              clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+              attestationObject: bufToB64url(cred.response.attestationObject),
+              transports: cred.response.getTransports ? cred.response.getTransports() : []
+            }
+          })
+        });
+        toast('Face ID is on');
+        render();
+      } catch (err) {
+        var cancelled = err && (err.name === 'NotAllowedError' || err.name === 'AbortError');
+        st.style.color = 'var(--red)';
+        st.textContent = cancelled ? 'Cancelled.' : (err.message || 'That did not work.');
+        var addBtn = $('fsAdd');
+        if (addBtn) addBtn.disabled = false;
+      }
+    }
+
+    render();
+  }
+
   async function showEmailCheck() {
     closeSheet();
     var back = document.createElement('div');

@@ -20,6 +20,7 @@ const markdown = require('./lib/markdown');
 const email = require('./lib/email');
 const ai = require('./lib/ai');
 const view = require('./lib/render');
+const passkeys = require('./lib/passkeys');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -43,6 +44,16 @@ app.get('/healthz', (req, res) => res.status(200).send('ok'));
 
 function adminPassword() {
   return process.env.ADMIN_PASSWORD || '';
+}
+
+function issueAdminSession(res) {
+  tokens.setSessionCookie(res, SESSION_COOKIE, `admin|${Date.now()}`, SESSION_DAYS * 24 * 60 * 60);
+}
+
+function adminPasswordOk(supplied) {
+  const expected = adminPassword();
+  if (!expected || !supplied) return false;
+  return tokens.safeEqual(String(supplied).padEnd(64).slice(0, 64), expected.padEnd(64).slice(0, 64));
 }
 
 function isAdmin(req) {
@@ -74,9 +85,21 @@ app.post('/api/admin/login', async (req, res) => {
     await new Promise((r) => setTimeout(r, 400));
     return res.status(401).json({ error: 'That password did not work.' });
   }
-  tokens.setSessionCookie(res, SESSION_COOKIE, `admin|${Date.now()}`, SESSION_DAYS * 24 * 60 * 60);
+  issueAdminSession(res);
   res.json({ ok: true });
 });
+
+// Face ID / Touch ID for the admin. Mounted before the logout route only so
+// it sits with the rest of the session handling; order does not matter here.
+passkeys.create({
+  store,
+  tokens,
+  rpName: 'Erik Strong',
+  userName: 'admin',
+  issueSession: issueAdminSession,
+  requireAdmin,
+  adminPasswordOk,
+}).mount(app);
 
 app.post('/api/admin/logout', (req, res) => {
   tokens.clearSessionCookie(res, SESSION_COOKIE);

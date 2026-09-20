@@ -27,6 +27,22 @@
   input:focus { border-bottom-color: var(--tint); }
   .btn { width: 100%; margin-top: 18px; }
   .status { min-height: 1.3em; text-align: center; font-size: 14px; color: var(--red); margin-top: 14px; }
+  .faceid {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px;
+    font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: var(--tint);
+    border: 0; border-radius: 14px; padding: 13px; cursor: pointer; margin-bottom: 14px;
+  }
+  .faceid:disabled { opacity: 0.55; }
+  .faceid svg { width: 22px; height: 22px; }
+  .or { display: flex; align-items: center; gap: 10px; color: var(--label-3); font-size: 12.5px;
+        text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 14px; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--sep); }
+  .linkish { display: block; width: 100%; background: none; border: 0; font: inherit; font-size: 15px;
+             color: var(--tint); text-align: center; padding: 10px; cursor: pointer; }
+  /* [hidden] only sets display:none at the default level, so ANY explicit
+     display in a rule above beats it. .faceid and .or both set one, which
+     made the Face ID button show even with no passkey registered. */
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -36,6 +52,15 @@
       <h1>Writing</h1>
       <p>Sign in to draft and send.</p>
     </div>
+    <button type="button" class="faceid" id="faceBtn" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/>
+        <path d="M9 10v1.5M15 10v1.5M12 10v3l-1 .8M9.5 16c1.6 1 3.4 1 5 0"/>
+      </svg>
+      Sign in with Face ID
+    </button>
+    <div class="or" id="or" hidden>or</div>
+    <button type="button" class="linkish" id="showPw" hidden>Use the password instead</button>
     <form id="form">
       <label for="pw">Password</label>
       <input id="pw" type="password" autocomplete="current-password" enterkeyhint="go" autofocus>
@@ -50,6 +75,84 @@
   var pw = document.getElementById('pw');
   var go = document.getElementById('go');
   var status = document.getElementById('status');
+  var faceBtn = document.getElementById('faceBtn');
+  var orEl = document.getElementById('or');
+  var showPw = document.getElementById('showPw');
+
+  function b64urlToBuf(str) {
+    var pad = str.length % 4 ? new Array(5 - (str.length % 4)).join('=') : '';
+    var bin = atob(String(str).replace(/-/g, '+').replace(/_/g, '/') + pad);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+  function bufToB64url(buf) {
+    var bytes = new Uint8Array(buf), out = '';
+    for (var i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+    return btoa(out).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  var supported = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.get);
+
+  // Only offer Face ID once a passkey exists for this hostname - a button
+  // that always fails is worse than no button.
+  if (supported) {
+    fetch('/api/admin/passkey/status')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.registered) return;
+        faceBtn.hidden = false;
+        orEl.hidden = false;
+        showPw.hidden = false;
+        form.hidden = true;
+      })
+      .catch(function () { /* leave the password form as it is */ });
+  }
+
+  showPw.addEventListener('click', function () {
+    form.hidden = false;
+    showPw.hidden = true;
+    pw.focus();
+  });
+
+  faceBtn.addEventListener('click', async function () {
+    faceBtn.disabled = true;
+    status.style.color = '';
+    status.textContent = 'Waiting for Face ID\u2026';
+    try {
+      var optRes = await fetch('/api/admin/passkey/login/options', { method: 'POST' });
+      var options = await optRes.json();
+      if (!optRes.ok) throw new Error(options.error || 'Could not start Face ID.');
+      options.challenge = b64urlToBuf(options.challenge);
+      (options.allowCredentials || []).forEach(function (c) { c.id = b64urlToBuf(c.id); });
+      var cred = await navigator.credentials.get({ publicKey: options });
+      var verifyRes = await fetch('/api/admin/passkey/login/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: cred.id,
+          rawId: bufToB64url(cred.rawId),
+          type: cred.type,
+          clientExtensionResults: cred.getClientExtensionResults(),
+          response: {
+            clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+            authenticatorData: bufToB64url(cred.response.authenticatorData),
+            signature: bufToB64url(cred.response.signature),
+            userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : undefined
+          }
+        })
+      });
+      var out = await verifyRes.json().catch(function () { return {}; });
+      if (!verifyRes.ok) throw new Error(out.error || 'Face ID did not work.');
+      location.href = '/admin';
+    } catch (err) {
+      // A cancelled prompt is not an error worth shouting about.
+      var cancelled = err && (err.name === 'NotAllowedError' || err.name === 'AbortError');
+      status.textContent = cancelled ? '' : (err.message || 'Face ID did not work.');
+      faceBtn.disabled = false;
+      form.hidden = false;
+      showPw.hidden = true;
+    }
+  });
 
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
