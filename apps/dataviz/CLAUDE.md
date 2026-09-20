@@ -1,11 +1,11 @@
-# For Claude: Kinetic
+# For Claude: DataViz
 
 Point at a link or paste a table, get a visual that plays. Open to anyone with
 no account; an account exists only so work can be saved.
 
 ## Same subdirectory arrangement as Friction
 
-Lives in `eriks-projects/apps/kinetic` because the installed GitHub App cannot
+Lives in `eriks-projects/apps/dataviz` because the installed GitHub App cannot
 create repositories (`POST /user/repos` returns 403). `apps.json` sets `repo`
 to the path and `gcpdeploy` packages the subdirectory alone. Moving it to its
 own repo is a `git mv` and one line.
@@ -65,8 +65,8 @@ the hard way and should not be undone:
 
 GCP `metal-celerity-236019`, `us-central1`, same REST pipeline as the siblings.
 
-- Cloud Run service `kinetic`; Firestore database `kinetic` (Native, us-central1).
-- Secret: `kinetic-session-secret`. `anthropic-api-key` is the shared one.
-- Env: `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_DATABASE_ID=kinetic`, `SHAPE_MODEL`,
+- Cloud Run service `dataviz`; Firestore database `dataviz` (Native, us-central1).
+- Secret: `dataviz-session-secret`. `anthropic-api-key` is the shared one.
+- Env: `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_DATABASE_ID=dataviz`, `SHAPE_MODEL`,
   `QUOTA_PER_VISITOR`, `QUOTA_PER_USER`, `QUOTA_GLOBAL`.
 - No scheduler job. Nothing here runs on its own.

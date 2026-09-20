@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kinetic</title>
-<meta name="description" content="Point at data or a link and get a visual that moves.">
+<title>DataViz</title>
+<meta name="description" content="Point at data or a link. Claude picks the visual and it moves.">
 <meta name="theme-color" content="#0B0D12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -137,7 +137,7 @@
       <rect x="14" y="3" width="4" height="18" rx="1.3" fill="#3DD68C"/>
       <circle cx="21" cy="5" r="2" fill="#FFB84D"/>
     </svg>
-    Kinetic
+    DataViz
   </span>
   <span class="spacer"></span>
   <button class="ghost" id="libBtn" hidden>Saved</button>
@@ -337,7 +337,7 @@
     $('vizMeta').innerHTML = chips.join('');
 
     if (player) player.destroy();
-    player = new window.Kinetic.Player($('stage'), {
+    player = new window.DataViz.Player($('stage'), {
       onTick: function (t, playing, caption) {
         $('scrub').value = String(Math.round(t * 1000));
         $('cap').textContent = caption || '';

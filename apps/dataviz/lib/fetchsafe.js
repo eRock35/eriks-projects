@@ -97,7 +97,7 @@ async function fetchText(rawUrl) {
         redirect: 'manual', // followed by hand so each hop is re-checked
         signal: ctl.signal,
         headers: {
-          'User-Agent': 'kinetic/1.0 (+https://strongtechnicalconsulting.com)',
+          'User-Agent': 'dataviz/1.0 (+https://strongtechnicalconsulting.com)',
           Accept: 'text/html,application/json,text/csv,text/plain;q=0.9,*/*;q=0.8',
         },
       });

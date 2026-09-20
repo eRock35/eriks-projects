@@ -50,10 +50,10 @@
    "verify_doc": "control/last-run",
    "_note": "Lives in a subdirectory of eriks-projects because the GitHub App cannot create repos. gcpdeploy resolves repo as $REPO_ROOT/<repo>, so this packages the subdirectory alone."
   },
-  "kinetic": {
-   "repo": "eriks-projects/apps/kinetic",
-   "service": "kinetic",
-   "db": "kinetic",
+  "dataviz": {
+   "repo": "eriks-projects/apps/dataviz",
+   "service": "dataviz",
+   "db": "dataviz",
    "verify_job": null,
    "verify_doc": null,
    "_note": "Subdirectory app, same as friction. Nothing scheduled; verify by opening it."

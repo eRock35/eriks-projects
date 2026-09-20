@@ -301,4 +301,4 @@ app.get('/api/shared/:shareId', async (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => console.log(`Kinetic listening on :${PORT}`));
+app.listen(PORT, () => console.log(`DataViz listening on :${PORT}`));

@@ -1,4 +1,4 @@
-/* Kinetic renderer: four animations on one canvas, no dependencies.
+/* DataViz renderer: four animations on one canvas, no dependencies.
  *
  * Everything draws into a single 2D context at device pixel ratio. The
  * animations share one clock so playback, scrubbing and speed work the same
@@ -517,5 +517,5 @@
     ctx.closePath();
   }
 
-  global.Kinetic = { Player: Player, fmt: fmt, PALETTE: PALETTE, colorFor: colorFor };
+  global.DataViz = { Player: Player, fmt: fmt, PALETTE: PALETTE, colorFor: colorFor };
 })(window);
