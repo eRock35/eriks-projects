@@ -209,6 +209,68 @@ only once `/api/stripe/health` reports `ok: true` again.
 A key that has been pasted into a chat, a terminal transcript, a ticket or a
 screenshot should be rolled on principle, even a test one.
 
+## The shared account
+
+One email + password + passkey opens landing, football, friction, trip-planner
+and dataviz. `shared/identity.js` owns the user record, the session cookie and
+the passkey; copies live in each sibling repo - fix the shared one first, then
+re-copy.
+
+- Firestore database **`identity`** (Native mode, us-central1), separate from
+  every app's own data so no app's database is a dependency of everyone's
+  sign-in. Collections: `users`, `webauthn-credentials`, `events`, `usage`.
+- Secret **`identity-session-secret`**, mounted as `IDENTITY_SESSION_SECRET`.
+  **Every app must mount the same one** - that shared secret is what makes a
+  session portable. A service missing it refuses to recognise any session at
+  all and logs loudly, because an empty HMAC key would otherwise let anyone
+  mint a session for any account.
+- `IDENTITY_DATABASE_ID=identity` and `PASSKEY_RP_ID=strongtechnicalconsulting.com`
+  on each service. The rpID is what makes ONE Face ID enrolment work on every
+  subdomain.
+
+### Identity is not authorization
+
+The account says who you are. It never says what you may do - one account now
+opens five apps, so "is signed in" cannot mean "may use this". Each app reads
+its own key off the user's `access` map, and **absent means no**, so
+registering on the public dataviz page does not open the private research
+tool. Grant and revoke from the dashboard's account rows; that API is the only
+writer.
+
+| App | key | level | what it buys |
+|---|---|---|---|
+| Friction | `friction` | `member` | the whole app (it is gated end to end) |
+| Football | `football` | `research` | the routes that spend Anthropic tokens |
+| DataViz | `dataviz` | `pro` | Pro, without a Stripe subscription |
+| Trip Planner | `trip-planner` | `member` | reserved; AI access is still its own `aiAccess` field |
+
+### Two doors everywhere, on purpose
+
+Every app kept its original way in - Friction's `APP_PASSWORD`, football's site
+password and its own registration, the landing page's `ADMIN_PASSWORD`. A fault
+in the shared service must not lock Erik out of the surfaces he would use to
+diagnose it. Retire a second door only once the first has been used in anger.
+
+### What did NOT change
+
+- **The uid.** trip-planner and dataviz already derived `base64url(lowercased
+  email)`, which is exactly what identity uses, so every trip and project
+  stayed owned by the same person with no migration. Football keyed its slips
+  by the raw address instead, so a slip read falls back to the old key once
+  and the next save settles on the new one.
+- **Each app's own records.** dataviz keeps billing (`plan`,
+  `stripeCustomerId`), trip-planner keeps `aiAccess`/`isAdmin`, football keeps
+  its allowlist. Identity holds none of it.
+- **Santa Rosa.** Not on this system and cannot be added by accident - see
+  the note in `shared/identity.js`.
+
+### Football has no sign-in button for it, deliberately
+
+The cookie is scoped to the parent domain, so signing in on any sibling app
+means football already sees you on the next request. Its own two-tap WebAuthn
+registration was the riskiest thing to rewrite for the least gain, so it was
+left alone as the second door.
+
 ## Analytics
 
 One GA4 property covers every app. They are all subdomains of one registrable
