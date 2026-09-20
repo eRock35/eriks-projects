@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kinetic</title>
+<meta name="description" content="Point at data or a link and get a visual that moves.">
+<meta name="theme-color" content="#0B0D12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<style>
+  :root {
+    --bg: #0B0D12; --panel: #141821; --panel-2: #1C212C; --line: rgba(255,255,255,0.09);
+    --ink: #EEF1F7; --ink-2: #9AA3B2; --ink-3: #626B7A;
+    --accent: #5B8DEF; --green: #3DD68C; --red: #FF6B6B;
+    --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom);
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  .top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
+    padding: calc(var(--sat) + 12px) 16px 12px; background: rgba(11,13,18,0.86);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.02em; font-size: 18px; }
+  .brand svg { width: 24px; height: 24px; }
+  .spacer { flex: 1; }
+  .ghost { font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-2); background: none;
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .ghost:hover { color: var(--ink); border-color: rgba(255,255,255,0.22); }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 18px 16px calc(40px + var(--sab)); }
+  h1.hero { font-size: clamp(28px, 7vw, 44px); line-height: 1.08; letter-spacing: -0.03em; margin: 12px 0 8px; font-weight: 800; }
+  h1.hero em { font-style: normal; background: linear-gradient(90deg, #5B8DEF, #B57BFF 45%, #3DD68C);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  p.sub { color: var(--ink-2); font-size: 16px; margin: 0 0 20px; max-width: 46ch; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab { flex: 1; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-2); background: var(--panel-2);
+    border: 0; border-radius: 11px; padding: 9px; cursor: pointer; }
+  .tab[aria-selected="true"] { background: var(--accent); color: #fff; }
+  textarea, input[type=text], input[type=url], input[type=email], input[type=password] {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; resize: vertical; }
+  textarea { min-height: 128px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.5; }
+  textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  label.lbl { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--ink-3); margin: 12px 0 6px; }
+  .btn { font: inherit; font-size: 16px; font-weight: 650; color: #fff; background: var(--accent);
+    border: 0; border-radius: 13px; padding: 13px 18px; cursor: pointer; width: 100%; margin-top: 12px; }
+  .btn:disabled { opacity: 0.5; }
+  .btn.sec { background: var(--panel-2); color: var(--ink); }
+  .btn.row { width: auto; flex: 1; margin-top: 0; font-size: 14px; padding: 11px 14px; }
+  .btnrow { display: flex; gap: 8px; margin-top: 12px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+  .ex { font: inherit; font-size: 13px; color: var(--ink-2); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+  .ex:hover { color: var(--ink); }
+
+  .stage { background: #0B0D12; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .stage-head { padding: 14px 16px 8px; }
+  .stage-head h2 { font-size: 19px; line-height: 1.25; letter-spacing: -0.02em; margin: 0; font-weight: 700; }
+  .stage-head p { color: var(--ink-2); font-size: 13.5px; margin: 5px 0 0; }
+  canvas { display: block; width: 100%; height: min(58vh, 460px); }
+  .controls { display: flex; align-items: center; gap: 10px; padding: 10px 14px calc(12px + var(--sab));
+    border-top: 1px solid var(--line); }
+  .play { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 0; background: var(--accent);
+    color: #fff; cursor: pointer; display: grid; place-items: center; }
+  .play svg { width: 17px; height: 17px; }
+  input[type=range] { flex: 1; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.16); outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--ink); cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: 0; border-radius: 50%; background: var(--ink); }
+  .cap { font: 600 13px ui-monospace, Menlo, monospace; color: var(--ink-2); min-width: 62px; text-align: right; }
+  .speed { font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--panel-2);
+    border: 0; border-radius: 8px; padding: 6px 8px; cursor: pointer; }
+
+  .note { color: var(--ink-2); font-size: 13.5px; margin: 12px 2px 0; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chip { font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--panel-2);
+    border-radius: 7px; padding: 4px 9px; }
+
+  .status { min-height: 1.4em; font-size: 14px; color: var(--ink-2); margin-top: 10px; text-align: center; }
+  .status.err { color: var(--red); }
+  .thinking { display: inline-flex; gap: 5px; align-items: center; }
+  .thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: bob 1.1s ease-in-out infinite; }
+  .thinking i:nth-child(2) { animation-delay: .14s; } .thinking i:nth-child(3) { animation-delay: .28s; }
+  @keyframes bob { 0%,60%,100% { transform: translateY(0); opacity: .45 } 30% { transform: translateY(-5px); opacity: 1 } }
+
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 60; opacity: 0; transition: opacity .28s var(--ease); }
+  .backdrop.in { opacity: 1; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; background: var(--panel);
+    border-radius: 18px 18px 0 0; max-height: 90dvh; overflow-y: auto; padding: 10px 16px calc(24px + var(--sab));
+    transform: translateY(100%); transition: transform .32s var(--ease); }
+  .sheet.in { transform: none; }
+  .grab { width: 36px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.2); margin: 6px auto 14px; }
+  .sheet h3 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sheet p.hint { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
+  .proj { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .proj:last-child { border-bottom: 0; }
+  .proj-main { flex: 1; min-width: 0; }
+  .proj b { display: block; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj span { font-size: 12.5px; color: var(--ink-3); }
+  .toast { position: fixed; left: 50%; bottom: calc(22px + var(--sab)); transform: translate(-50%, 12px);
+    background: rgba(240,244,250,0.96); color: #10131a; font-size: 14px; font-weight: 600; padding: 10px 16px;
+    border-radius: 999px; opacity: 0; transition: all .26s var(--ease); z-index: 70; pointer-events: none; }
+  .toast.in { opacity: 1; transform: translate(-50%, 0); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <span class="brand">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2" y="13" width="4" height="8" rx="1.3" fill="#5B8DEF"/>
+      <rect x="8" y="8" width="4" height="13" rx="1.3" fill="#B57BFF"/>
+      <rect x="14" y="3" width="4" height="18" rx="1.3" fill="#3DD68C"/>
+      <circle cx="21" cy="5" r="2" fill="#FFB84D"/>
+    </svg>
+    Kinetic
+  </span>
+  <span class="spacer"></span>
+  <button class="ghost" id="libBtn" hidden>Saved</button>
+  <button class="ghost" id="authBtn">Sign in</button>
+</div>
+
+<div class="wrap">
+  <div id="intro">
+    <h1 class="hero">Make your data <em>move</em>.</h1>
+    <p class="sub">Point at a link or paste a table. Get a visual that plays &mdash; bars overtaking each other, lines drawing themselves, traffic flowing. No account needed.</p>
+  </div>
+
+  <div class="card" id="inputCard">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabLink" aria-selected="true">From a link</button>
+      <button class="tab" role="tab" id="tabPaste" aria-selected="false">Paste data</button>
+    </div>
+    <div id="paneLink">
+      <input type="url" id="urlInput" placeholder="https://en.wikipedia.org/wiki/..." inputmode="url"
+             autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Link to a page with data">
+      <div class="examples" id="examples"></div>
+    </div>
+    <div id="panePaste" hidden>
+      <textarea id="textInput" placeholder="year,city,visits&#10;2020,Atlanta,120&#10;2021,Atlanta,340&#10;2021,Denver,90" spellcheck="false" aria-label="Paste CSV, JSON or a table"></textarea>
+    </div>
+    <label class="lbl" for="hintInput">What do you want to see? (optional)</label>
+    <input type="text" id="hintInput" placeholder="race the cities over time" aria-label="What to show">
+    <button class="btn" id="goBtn">Make it move</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="result" hidden>
+    <div class="stage">
+      <div class="stage-head">
+        <h2 id="vizTitle"></h2>
+        <p id="vizSub"></p>
+      </div>
+      <canvas id="stage"></canvas>
+      <div class="controls">
+        <button class="play" id="playBtn" aria-label="Play or pause">
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Scrub">
+        <button class="speed" id="speedBtn">1&times;</button>
+        <span class="cap" id="cap"></span>
+      </div>
+    </div>
+    <div class="meta" id="vizMeta"></div>
+    <p class="note" id="vizNote"></p>
+    <div class="btnrow">
+      <button class="btn sec row" id="saveBtn">Save</button>
+      <button class="btn sec row" id="shareBtn" hidden>Copy link</button>
+      <button class="btn sec row" id="againBtn">New one</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/render.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var player = null, current = null, me = { signedIn: false }, mode = 'link';
+
+  var EXAMPLES = [
+    { label: 'US state populations', url: 'https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States_by_population', hint: 'rank the states' },
+    { label: 'Tallest buildings', url: 'https://en.wikipedia.org/wiki/List_of_tallest_buildings', hint: 'rank them by height' },
+    { label: 'Try sample data', sample: true }
+  ];
+  var SAMPLE = 'year,city,visits\n2019,Atlanta,120\n2019,Denver,180\n2019,Austin,90\n2020,Atlanta,260\n2020,Denver,190\n2020,Austin,150\n2021,Atlanta,410\n2021,Denver,210\n2021,Austin,320\n2022,Atlanta,520\n2022,Denver,250\n2022,Austin,480\n2023,Atlanta,610\n2023,Denver,300\n2023,Austin,700';
+
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.className = 'toast in';
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.className = 'toast'; }, 2400);
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  async function api(path, opts) {
+    var res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || 'That did not work.');
+    return data;
+  }
+  function say(msg, isError) {
+    var s = $('status');
+    s.className = 'status' + (isError ? ' err' : '');
+    s.innerHTML = msg;
+  }
+
+  /* ---------- input ---------- */
+  function setMode(next) {
+    mode = next;
+    $('tabLink').setAttribute('aria-selected', String(next === 'link'));
+    $('tabPaste').setAttribute('aria-selected', String(next === 'paste'));
+    $('paneLink').hidden = next !== 'link';
+    $('panePaste').hidden = next !== 'paste';
+  }
+  $('tabLink').addEventListener('click', function () { setMode('link'); });
+  $('tabPaste').addEventListener('click', function () { setMode('paste'); });
+
+  $('examples').innerHTML = EXAMPLES.map(function (e, i) {
+    return '<button class="ex" data-ex="' + i + '">' + esc(e.label) + '</button>';
+  }).join('');
+  $('examples').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-ex]');
+    if (!btn) return;
+    var ex = EXAMPLES[Number(btn.getAttribute('data-ex'))];
+    if (ex.sample) { setMode('paste'); $('textInput').value = SAMPLE; $('hintInput').value = 'race the cities over time'; }
+    else { setMode('link'); $('urlInput').value = ex.url; $('hintInput').value = ex.hint || ''; }
+    go();
+  });
+
+  async function go() {
+    var body = { hint: $('hintInput').value.trim() };
+    if (mode === 'link') {
+      if (!$('urlInput').value.trim()) { say('Paste a link first.', true); return; }
+      body.url = $('urlInput').value.trim();
+    } else {
+      if (!$('textInput').value.trim()) { say('Paste some data first.', true); return; }
+      body.text = $('textInput').value;
+    }
+    $('goBtn').disabled = true;
+    say('<span class="thinking"><i></i><i></i><i></i></span> Reading it…');
+    try {
+      var out = await api('/api/viz', { method: 'POST', body: JSON.stringify(body) });
+      show(out);
+      say('');
+      if (typeof out.remaining === 'number' && out.remaining <= 3) {
+        toast(out.remaining + ' more today' + (me.signedIn ? '' : ' — sign in for more'));
+      }
+    } catch (err) {
+      say(esc(err.message), true);
+    } finally {
+      $('goBtn').disabled = false;
+    }
+  }
+  $('goBtn').addEventListener('click', go);
+
+  /* ---------- stage ---------- */
+  function show(out, readOnly) {
+    current = out;
+    $('intro').hidden = true;
+    $('result').hidden = false;
+    if (readOnly) $('inputCard').hidden = true;
+    $('vizTitle').textContent = out.title || 'Your data';
+    $('vizSub').textContent = out.subtitle || '';
+    $('vizNote').textContent = out.note || '';
+    $('shareBtn').hidden = true;
+
+    var chips = [];
+    chips.push('<span class="chip">' + esc(out.viz.type) + '</span>');
+    if (out.rowCount) chips.push('<span class="chip">' + out.rowCount + ' rows</span>');
+    if (out.fromProse) chips.push('<span class="chip">read from text</span>');
+    if (out.sourceUrl) chips.push('<span class="chip">' + esc((out.sourceUrl.split('/')[2] || '')) + '</span>');
+    $('vizMeta').innerHTML = chips.join('');
+
+    if (player) player.destroy();
+    player = new window.Kinetic.Player($('stage'), {
+      onTick: function (t, playing, caption) {
+        $('scrub').value = String(Math.round(t * 1000));
+        $('cap').textContent = caption || '';
+        $('playIcon').innerHTML = playing
+          ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+          : '<path d="M8 5v14l11-7z"/>';
+      }
+    });
+    player.load(out.viz);
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  $('playBtn').addEventListener('click', function () { if (player) player.toggle(); });
+  $('scrub').addEventListener('input', function () {
+    if (!player) return;
+    player.pause();
+    player.seek(Number(this.value) / 1000);
+  });
+  var SPEEDS = [0.5, 1, 1.5, 2];
+  $('speedBtn').addEventListener('click', function () {
+    if (!player) return;
+    var i = (SPEEDS.indexOf(player.speed) + 1) % SPEEDS.length;
+    player.speed = SPEEDS[i];
+    this.textContent = SPEEDS[i] + '×';
+  });
+  $('againBtn').addEventListener('click', function () {
+    $('result').hidden = true;
+    $('intro').hidden = false;
+    $('inputCard').hidden = false;
+    if (player) { player.destroy(); player = null; }
+    history.replaceState(null, '', '/');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ---------- saving ---------- */
+  $('saveBtn').addEventListener('click', async function () {
+    if (!current) return;
+    if (!me.signedIn) { openAuth('Make an account to keep this one.'); return; }
+    this.disabled = true;
+    try {
+      var saved = await api('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: current.title, subtitle: current.subtitle, note: current.note,
+          viz: current.viz, sourceUrl: current.sourceUrl
+        })
+      });
+      current.shareId = saved.shareId;
+      $('shareBtn').hidden = false;
+      toast('Saved');
+    } catch (err) { toast(err.message); }
+    finally { this.disabled = false; }
+  });
+
+  $('shareBtn').addEventListener('click', function () {
+    if (!current || !current.shareId) return;
+    var url = location.origin + '/v/' + current.shareId;
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link copied'); },
+      function () { prompt('Copy this link', url); });
+    else prompt('Copy this link', url);
+  });
+
+  /* ---------- sheets ---------- */
+  var openEl = null;
+  function closeSheet() {
+    if (!openEl) return;
+    var el = openEl; openEl = null;
+    el.classList.remove('in');
+    var sh = el.querySelector('.sheet'); if (sh) sh.classList.remove('in');
+    document.body.style.overflow = '';
+    setTimeout(function () { if (el.parentNode) el.remove(); }, 320);
+  }
+  function sheet(html) {
+    closeSheet();
+    var back = document.createElement('div');
+    back.className = 'backdrop';
+    back.innerHTML = '<div class="sheet"><div class="grab"></div>' + html + '</div>';
+    back.addEventListener('click', function (e) { if (e.target === back) closeSheet(); });
+    document.body.appendChild(back);
+    document.body.style.overflow = 'hidden';
+    openEl = back;
+    requestAnimationFrame(function () { back.classList.add('in'); back.querySelector('.sheet').classList.add('in'); });
+    return back;
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+  function openAuth(reason) {
+    var el = sheet(
+      '<h3>Save your work</h3>' +
+      '<p class="hint">' + esc(reason || 'An account only exists so your visuals are still here tomorrow.') + '</p>' +
+      '<label class="lbl" for="aEmail">Email</label>' +
+      '<input type="email" id="aEmail" autocomplete="email" autocapitalize="none" spellcheck="false">' +
+      '<label class="lbl" for="aPw">Password</label>' +
+      '<input type="password" id="aPw" autocomplete="current-password">' +
+      '<button class="btn" id="aGo">Sign in</button>' +
+      '<button class="btn sec" id="aSwap" style="margin-top:8px">Create an account instead</button>' +
+      '<div class="status" id="aStatus"></div>');
+    var creating = false;
+    el.querySelector('#aSwap').addEventListener('click', function () {
+      creating = !creating;
+      el.querySelector('#aGo').textContent = creating ? 'Create account' : 'Sign in';
+      this.textContent = creating ? 'I already have one' : 'Create an account instead';
+      el.querySelector('#aPw').setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
+      el.querySelector('#aStatus').textContent = creating ? 'At least 10 characters.' : '';
+      el.querySelector('#aStatus').className = 'status';
+    });
+    el.querySelector('#aGo').addEventListener('click', async function () {
+      var st = el.querySelector('#aStatus');
+      this.disabled = true;
+      st.className = 'status'; st.textContent = 'One moment…';
+      try {
+        await api(creating ? '/api/auth/register' : '/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email: el.querySelector('#aEmail').value, password: el.querySelector('#aPw').value })
+        });
+        closeSheet();
+        await refreshMe();
+        toast(creating ? 'Account created' : 'Signed in');
+      } catch (err) {
+        st.className = 'status err'; st.textContent = err.message;
+        this.disabled = false;
+      }
+    });
+  }
+
+  async function openLibrary() {
+    var el = sheet('<h3>Saved</h3><p class="hint">Your visuals, kept.</p><div id="libBody">Loading…</div>');
+    try {
+      var d = await api('/api/projects');
+      var body = el.querySelector('#libBody');
+      if (!d.projects.length) { body.innerHTML = '<p class="hint">Nothing saved yet. Make one and press Save.</p>'; return; }
+      body.innerHTML = d.projects.map(function (p) {
+        return '<div class="proj"><span class="proj-main"><b>' + esc(p.title) + '</b>' +
+          '<span>' + esc(p.type) + ' · ' + esc(String(p.updatedAt || '').slice(0, 10)) + '</span></span>' +
+          '<button class="ghost" data-open="' + esc(p.id) + '">Open</button>' +
+          '<button class="ghost" data-del="' + esc(p.id) + '">Delete</button></div>';
+      }).join('');
+      body.addEventListener('click', async function (e) {
+        var open = e.target.closest('[data-open]'), del = e.target.closest('[data-del]');
+        if (open) {
+          var p = await api('/api/projects/' + encodeURIComponent(open.getAttribute('data-open')));
+          closeSheet();
+          show({ title: p.title, subtitle: p.subtitle, note: p.note, viz: p.viz, sourceUrl: p.sourceUrl });
+          current.shareId = p.shareId;
+          $('shareBtn').hidden = false;
+        } else if (del) {
+          await api('/api/projects/' + encodeURIComponent(del.getAttribute('data-del')), { method: 'DELETE' });
+          toast('Deleted');
+          closeSheet();
+        }
+      });
+    } catch (err) {
+      el.querySelector('#libBody').innerHTML = '<p class="hint">' + esc(err.message) + '</p>';
+    }
+  }
+
+  $('authBtn').addEventListener('click', function () {
+    if (!me.signedIn) return openAuth();
+    sheet('<h3>' + esc(me.email) + '</h3><p class="hint">Signed in.</p>' +
+      '<button class="btn sec" id="outBtn">Sign out</button>')
+      .querySelector('#outBtn').addEventListener('click', async function () {
+        await api('/api/auth/logout', { method: 'POST' });
+        closeSheet(); await refreshMe(); toast('Signed out');
+      });
+  });
+  $('libBtn').addEventListener('click', openLibrary);
+
+  async function refreshMe() {
+    try { me = await api('/api/auth/me'); } catch (e) { me = { signedIn: false }; }
+    $('authBtn').textContent = me.signedIn ? 'Account' : 'Sign in';
+    $('libBtn').hidden = !me.signedIn;
+  }
+
+  /* ---------- shared view ---------- */
+  async function boot() {
+    await refreshMe();
+    var m = location.pathname.match(/^\/v\/([A-Za-z0-9_-]+)$/);
+    if (m) {
+      try {
+        var p = await api('/api/shared/' + encodeURIComponent(m[1]));
+        show({ title: p.title, subtitle: p.subtitle, note: p.note, viz: p.viz, sourceUrl: p.sourceUrl }, true);
+        $('againBtn').textContent = 'Make your own';
+        $('saveBtn').hidden = true;
+      } catch (err) {
+        say(esc(err.message), true);
+      }
+    }
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
