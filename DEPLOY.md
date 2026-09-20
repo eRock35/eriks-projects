@@ -241,6 +241,17 @@ site that uses it. Plain env var; do not put it in Secret Manager.
 - **The admin pages stay untagged.** They are one person, and their paths
   describe this site's own private structure.
 
+### Live configuration (2026-09-20)
+
+Property `G-TTVSSER479`, set as `GA_MEASUREMENT_ID` on `landing-page`,
+`college-football-app`, `trip-planner`, `friction` and `dataviz`.
+
+**`santa-rosa-beach-trip` is deliberately NOT set** — Erik's explicit call; see
+that repo's CLAUDE.md. `hopscotch` is not wired at all (its build is separate).
+
+The ID appears here and in every page's source because a GA measurement ID is
+public by design. It is not a credential and does not belong in Secret Manager.
+
 ### Turning it on
 
 Set `GA_MEASUREMENT_ID=G-XXXXXXXXXX` on each service. It is an ordinary env
