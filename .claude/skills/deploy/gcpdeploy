@@ -1,0 +1,312 @@
+#!/usr/bin/env bash
+#
+# gcpdeploy — deploy Erik's apps to Cloud Run without gcloud or local Docker.
+#
+# The environment blocks sdk.cloud.google.com and has no Docker daemon, so
+# everything here is a direct REST call to *.googleapis.com, authenticated with
+# a token minted from a service account key.
+#
+# Safety property worth preserving: `ship` reads the LIVE Cloud Run service and
+# replaces only the image digest, then writes it back. Env vars, secrets,
+# scaling and the service account are never reconstructed from a config file,
+# so a stale config can't silently drop a secret from production.
+#
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CFG="$HERE/apps.json"
+
+j() { python3 -c "import json,sys;d=json.load(open('$CFG'));print(d$1)"; }
+
+PROJECT="$(j "['project']")"
+REGION="$(j "['region']")"
+REGISTRY="$(j "['registry']")"
+BUILD_BUCKET="$(j "['build_bucket']")"
+PAGE_BUCKET="$(j "['page_bucket']")"
+
+STATE="${GCPDEPLOY_STATE:-${TMPDIR:-/tmp}/gcpdeploy}"
+mkdir -p "$STATE"
+
+die() { echo "error: $*" >&2; exit 1; }
+say() { echo "==> $*"; }
+
+# --- credentials -----------------------------------------------------------
+find_key() {
+  if [[ -n "${GCP_SA_KEY:-}" && -f "${GCP_SA_KEY}" ]]; then echo "$GCP_SA_KEY"; return; fi
+  local hit
+  hit="$(grep -rl private_key_id /root/.claude/uploads /tmp/claude-* 2>/dev/null \
+         --include='*.json' | head -1 || true)"
+  [[ -n "$hit" ]] && { echo "$hit"; return; }
+  return 1
+}
+
+# The system python3 in this image has a broken `cryptography` build, so a
+# candidate is only usable if it can actually import google.auth. Test, don't
+# trust the first match.
+usable_python() { "$1" -c "import google.oauth2.service_account" >/dev/null 2>&1; }
+
+find_venv() {
+  local c
+  if [[ -n "${GCP_VENV:-}" ]]; then
+    c="$GCP_VENV/bin/python"
+    usable_python "$c" && { echo "$c"; return; }
+    die "GCP_VENV=$GCP_VENV cannot import google.auth"
+  fi
+  while read -r c; do
+    usable_python "$c" && { echo "$c"; return; }
+  done < <(find /tmp/claude-* /home/user -maxdepth 8 -path '*venv/bin/python' 2>/dev/null)
+  usable_python python3 && { command -v python3; return; }
+  die "no python with google-auth found.
+Create one:  python3 -m venv <dir> && <dir>/bin/pip install google-auth
+then re-run, or set GCP_VENV=<dir>."
+}
+
+cmd_auth() {
+  local key py
+  key="$(find_key)" || die "no service account key found.
+Ask Erik to re-upload it — the key does NOT survive a new container.
+Do not improvise credentials, and do not put the key in the environment's
+plain 'Environment variables' box: that field is unencrypted."
+  py="$(find_venv)"
+  "$py" - "$key" "$STATE/token" <<'PY'
+import sys
+from google.oauth2 import service_account
+import google.auth.transport.requests
+key, out = sys.argv[1], sys.argv[2]
+c = service_account.Credentials.from_service_account_file(
+    key, scopes=['https://www.googleapis.com/auth/cloud-platform'])
+c.refresh(google.auth.transport.requests.Request())
+open(out, 'w').write(c.token)
+print("token minted (valid ~1h)")
+PY
+}
+
+tok() {
+  # Tokens last an hour. Re-mint rather than debugging a stale-token 401.
+  if [[ ! -f "$STATE/token" ]] || [[ -n "$(find "$STATE/token" -mmin +50 2>/dev/null)" ]]; then
+    cmd_auth >/dev/null
+  fi
+  cat "$STATE/token"
+}
+
+api() { # api <METHOD> <URL> [body-file]
+  local m="$1" url="$2" body="${3:-}"
+  if [[ -n "$body" ]]; then
+    curl -sS -X "$m" -H "Authorization: Bearer $(tok)" \
+      -H "Content-Type: application/json" --data-binary @"$body" "$url"
+  else
+    curl -sS -X "$m" -H "Authorization: Bearer $(tok)" "$url"
+  fi
+}
+
+app_field() { # app_field <app> <field>
+  python3 - "$CFG" "$1" "$2" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))['apps']
+a=d.get(sys.argv[2])
+if a is None:
+    sys.exit("unknown app '%s'. known: %s" % (sys.argv[2], ", ".join(d)))
+v=a.get(sys.argv[3])
+print("" if v is None else v)
+PY
+}
+
+# --- status ----------------------------------------------------------------
+cmd_status() {
+  say "Cloud Run services"
+  api GET "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services" \
+  | python3 -c "
+import sys,json
+for s in json.load(sys.stdin).get('services',[]):
+    c=s['template']['containers'][0]
+    img=c['image'].split('/')[-1]
+    cond=s.get('terminalCondition',{})
+    print('  %-24s %-14s %s' % (s['name'].split('/')[-1], cond.get('state','?'), img[:60]))
+"
+  say "Scheduler jobs"
+  api GET "https://cloudscheduler.googleapis.com/v1/projects/$PROJECT/locations/$REGION/jobs" \
+  | python3 -c "
+import sys,json
+for j in json.load(sys.stdin).get('jobs',[]):
+    print('  %-30s %-16s %-10s last=%s' % (
+        j['name'].split('/')[-1], j.get('schedule'), j.get('state'),
+        j.get('lastAttemptTime','never')))
+"
+  say "Firestore databases"
+  api GET "https://firestore.googleapis.com/v1/projects/$PROJECT/databases" \
+  | python3 -c "
+import sys,json
+for b in json.load(sys.stdin).get('databases',[]):
+    print('  %-26s %-18s %s' % (b['name'].split('/')[-1], b.get('type'), b.get('locationId')))
+"
+}
+
+# --- build + deploy --------------------------------------------------------
+cmd_ship() {
+  local app="${1:-}"; [[ -n "$app" ]] || die "usage: gcpdeploy ship <app>"
+  local un; un="$(app_field "$app" unsupported)"
+  [[ -z "$un" ]] || die "$app is not supported by this tool.
+$un"
+
+  local repo svc dir
+  repo="$(app_field "$app" repo)"
+  svc="$(app_field "$app" service)"
+  dir="${REPO_ROOT:-/home/user}/$repo"
+  [[ -d "$dir" ]] || die "repo not checked out at $dir"
+
+  # Refuse to ship uncommitted work: the image would not match any commit.
+  if [[ -n "$(git -C "$dir" status --porcelain)" ]]; then
+    die "$repo has uncommitted changes. Commit and push first — a deployed
+image that matches no commit is not reproducible."
+  fi
+  local sha; sha="$(git -C "$dir" rev-parse --short HEAD)"
+  say "$app @ $sha  ->  service $svc"
+
+  local obj="$app-$(date +%s).tar.gz"
+  say "packaging"
+  tar --exclude=.git --exclude=node_modules -czf "$STATE/$obj" -C "$dir" .
+
+  say "uploading source"
+  curl -sS -o /dev/null -f -X POST \
+    -H "Authorization: Bearer $(tok)" -H "Content-Type: application/gzip" \
+    --data-binary @"$STATE/$obj" \
+    "https://storage.googleapis.com/upload/storage/v1/b/$BUILD_BUCKET/o?uploadType=media&name=$obj" \
+    || die "source upload failed"
+
+  local img="$REGION-docker.pkg.dev/$PROJECT/$REGISTRY/$svc"
+  cat > "$STATE/build.json" <<EOF
+{"source":{"storageSource":{"bucket":"$BUILD_BUCKET","object":"$obj"}},
+ "steps":[{"name":"gcr.io/cloud-builders/docker","args":["build","-t","$img:$sha","."]}],
+ "images":["$img:$sha"],
+ "options":{"logging":"CLOUD_LOGGING_ONLY"}}
+EOF
+  say "submitting build"
+  local bid
+  bid="$(api POST "https://cloudbuild.googleapis.com/v1/projects/$PROJECT/locations/$REGION/builds" "$STATE/build.json" \
+        | python3 -c "import sys,json;print(json.load(sys.stdin)['metadata']['build']['id'])")"
+  echo "    build $bid"
+
+  local st
+  while :; do
+    st="$(api GET "https://cloudbuild.googleapis.com/v1/projects/$PROJECT/locations/$REGION/builds/$bid" \
+         | python3 -c "import sys,json;print(json.load(sys.stdin).get('status'))")"
+    [[ "$st" == "QUEUED" || "$st" == "WORKING" ]] || break
+    sleep 15
+  done
+  [[ "$st" == "SUCCESS" ]] || die "build $st — logs: cloud console, build $bid"
+  say "build SUCCESS"
+
+  local digest
+  digest="$(api GET "https://cloudbuild.googleapis.com/v1/projects/$PROJECT/locations/$REGION/builds/$bid" \
+           | python3 -c "import sys,json;print(json.load(sys.stdin)['results']['images'][0]['digest'])")"
+
+  # Read the live service and swap ONLY the image. A floating :latest tag does
+  # not create a new revision, so always pin the digest.
+  say "patching service (image only)"
+  api GET "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" > "$STATE/live.json"
+  python3 - "$STATE/live.json" "$img@$digest" "$STATE/patch.json" <<'PY'
+import json,sys
+live=json.load(open(sys.argv[1]))
+body={"template":live["template"]}
+body["template"]["containers"][0]["image"]=sys.argv[2]
+body["template"].pop("revision",None)   # let Cloud Run name the new revision
+json.dump(body,open(sys.argv[3],"w"))
+PY
+  api PATCH "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" "$STATE/patch.json" >/dev/null
+
+  local cond
+  for _ in $(seq 1 40); do
+    cond="$(api GET "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" \
+           | python3 -c "
+import sys,json
+d=json.load(sys.stdin); c=d.get('terminalCondition',{})
+print(c.get('state','?'), '|', c.get('message',''), '|', d.get('uri',''))")"
+    echo "    $cond"
+    case "$cond" in *CONDITION_SUCCEEDED*|*CONDITION_FAILED*) break;; esac
+    sleep 10
+  done
+  case "$cond" in
+    *CONDITION_SUCCEEDED*) say "live: ${cond##*| }";;
+    *) die "revision did not become ready: $cond";;
+  esac
+  echo
+  echo "The proxy blocks *.run.app from this container, so you cannot curl it."
+  echo "Run:  gcpdeploy verify $app     and ask Erik to open it in a browser."
+}
+
+# --- verification ----------------------------------------------------------
+cmd_verify() {
+  local app="${1:-}"; [[ -n "$app" ]] || die "usage: gcpdeploy verify <app>"
+  local job doc db
+  job="$(app_field "$app" verify_job)"
+  doc="$(app_field "$app" verify_doc)"
+  db="$(app_field "$app" db)"
+  [[ -n "$job" ]] || die "$app has no scheduler job to verify through.
+Ask Erik to open it in a browser instead."
+
+  say "forcing $job"
+  api POST "https://cloudscheduler.googleapis.com/v1/projects/$PROJECT/locations/$REGION/jobs/$job:run" /dev/null >/dev/null \
+    2>/dev/null || curl -sS -o /dev/null -X POST -H "Authorization: Bearer $(tok)" \
+      -H "Content-Type: application/json" -d '{}' \
+      "https://cloudscheduler.googleapis.com/v1/projects/$PROJECT/locations/$REGION/jobs/$job:run"
+  sleep 20
+
+  api GET "https://cloudscheduler.googleapis.com/v1/projects/$PROJECT/locations/$REGION/jobs/$job" \
+  | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+s=d.get('status',{})
+print('  lastAttempt:', d.get('lastAttemptTime','never'))
+print('  status     :', json.dumps(s) if s else '{} (empty == the app returned 2xx)')
+if s.get('code')==-1: print('  note: code -1 is the NEVER-RUN initial state, not a failure.')
+"
+  if [[ -n "$doc" ]]; then
+    say "reading $db/$doc"
+    api GET "https://firestore.googleapis.com/v1/projects/$PROJECT/databases/$db/documents/$doc" \
+    | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+for k,v in d.get('fields',{}).items():
+    print('  %-14s %s' % (k, list(v.values())[0]))
+print('  updateTime    ', d.get('updateTime'))
+"
+  fi
+}
+
+# --- landing page ----------------------------------------------------------
+cmd_page() {
+  local src="${REPO_ROOT:-/home/user}/eriks-projects/index.html"
+  [[ -f "$src" ]] || die "no index.html at $src"
+  say "uploading landing page"
+  curl -sS -o /dev/null -f -X POST -H "Authorization: Bearer $(tok)" \
+    -H "Content-Type: text/html" --data-binary @"$src" \
+    "https://storage.googleapis.com/upload/storage/v1/b/$PAGE_BUCKET/o?uploadType=media&name=index.html" \
+    || die "upload failed"
+  api PATCH "https://storage.googleapis.com/storage/v1/b/$PAGE_BUCKET/o/index.html" \
+    <(echo '{"cacheControl":"public, max-age=300","contentType":"text/html"}') \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print('  live, %s bytes, updated %s'%(d.get('size'),d.get('updated')))"
+}
+
+usage() {
+  cat <<EOF
+gcpdeploy — deploy Erik's apps to Cloud Run (no gcloud, no local Docker)
+
+  gcpdeploy auth              mint a fresh access token
+  gcpdeploy status            services, scheduler jobs, Firestore databases
+  gcpdeploy ship <app>        build from the checked-out repo and deploy
+  gcpdeploy verify <app>      force the cron job, read what it wrote
+  gcpdeploy page              upload the landing page to its bucket
+
+apps: $(python3 -c "import json;print(', '.join(json.load(open('$CFG'))['apps']))")
+EOF
+}
+
+case "${1:-}" in
+  auth)   cmd_auth;;
+  status) cmd_status;;
+  ship)   shift; cmd_ship "$@";;
+  verify) shift; cmd_verify "$@";;
+  page)   cmd_page;;
+  ""|-h|--help|help) usage;;
+  *) die "unknown command '$1' (try: gcpdeploy help)";;
+esac

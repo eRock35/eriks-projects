@@ -7,6 +7,21 @@ ephemeral, so nothing here should live only in a conversation.
 **This file is in a public repo.** It names infrastructure (project, services,
 secret *names*, buckets) but never secret *values*. Keep it that way.
 
+## Use the tool
+
+`.claude/skills/deploy/` holds a `deploy` skill and a `gcpdeploy` script that
+automate everything below. Prefer them:
+
+```
+./.claude/skills/deploy/gcpdeploy status
+./.claude/skills/deploy/gcpdeploy ship <football|trip|vacation>
+./.claude/skills/deploy/gcpdeploy verify <app>
+./.claude/skills/deploy/gcpdeploy page
+```
+
+The rest of this file is the reference behind the tool — read it when the
+script can't do what you need, or when you need the raw REST shapes.
+
 ## The constraint that shapes everything
 
 There is **no `gcloud` CLI** — `sdk.cloud.google.com` is blocked by the

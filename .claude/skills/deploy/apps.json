@@ -1,0 +1,39 @@
+{
+  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here — gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
+  "project": "metal-celerity-236019",
+  "region": "us-central1",
+  "registry": "erik-projects",
+  "build_bucket": "metal-celerity-236019-cb-source",
+  "page_bucket": "www.strongtechnicalconsulting.com",
+  "apps": {
+    "football": {
+      "repo": "college-football-app",
+      "service": "college-football-app",
+      "db": "college-football-app",
+      "verify_job": "cfb-batch-collect",
+      "verify_doc": "control/status"
+    },
+    "trip": {
+      "repo": "trip-planner",
+      "service": "trip-planner",
+      "db": "trip-planner",
+      "verify_job": "trip-planner-check-watches",
+      "verify_doc": "control/watch-cron"
+    },
+    "vacation": {
+      "repo": "santa-rosa-beach-trip",
+      "service": "santa-rosa-beach-trip",
+      "db": "santa-rosa-beach-trip",
+      "verify_job": null,
+      "verify_doc": null
+    },
+    "beer": {
+      "repo": "beer-app",
+      "service": "hopscotch",
+      "db": "hopscotch",
+      "verify_job": "hopscotch-dispatch",
+      "verify_doc": null,
+      "unsupported": "Hopscotch builds through its own cloudbuild.yaml with a git-sha image tag, an APP_VERSION build arg, and a separate 'hopscotch' Artifact Registry repo. Its committed deploy tooling also assumes gcloud, which does not exist here, and names two secrets that do not exist in this project (hopscotch-anthropic-key, hopscotch-cron-secret) — the live service uses the shared anthropic-api-key and cron-secret. Deploy it by hand until that is reconciled."
+    }
+  }
+}
