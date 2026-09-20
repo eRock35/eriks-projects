@@ -154,7 +154,8 @@ must not also open the trip apps.
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
 - Landing page: `landing-session-secret`, `landing-admin-password`, `resend-api-key`
 - Friction: `friction-app-password`, `friction-session-secret`, `friction-cron-secret`
-- DataViz: `dataviz-session-secret`, `dataviz-stripe-webhook-secret` (the Stripe SECRET KEY is added by hand; Stripe has no API to issue one)
+- DataViz: `dataviz-session-secret`, `dataviz-stripe-webhook-secret`,
+  `dataviz-stripe-secret-key` — see "DataViz billing" below
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.
@@ -170,6 +171,43 @@ never appears there.
 rental confirmation numbers. The quieter URL beat the nicer one. That trade has
 since been revisited — see **Settled decisions**. The app keeps its `*.run.app`
 URL; don't add a domain mapping for it.
+
+## DataViz billing (Stripe)
+
+Stripe sandbox account `acct_1UHo8xF32OknjgD1`, **test mode**. Product
+`prod_VIPZP6pNaEXud4`, price `price_1UHok3F32OknjgD1IsTILEk4` — DataViz Pro,
+$9.00/month, recurring. Webhook `we_1UHokCF32OknjgD1S3h8ZZZN`.
+
+The service carries `STRIPE_PRICE_ID` as a plain env var and mounts
+`STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` from Secret Manager.
+
+**Stripe has no API that issues a secret key** — it only exists in the
+Dashboard, so getting one into Secret Manager is a manual step and always will
+be. Nothing in this repo, and nothing in a commit, should ever contain one.
+
+### Verifying it, given you cannot reach either side
+
+This container cannot reach `api.stripe.com` (egress policy) and cannot reach
+`*.run.app` (same), so neither the Stripe API nor the deployed app answers
+from here. `GET /api/stripe/health` on the running service closes that gap:
+signed in, it makes one read-only call to Stripe and reports whether each
+setting is present (never its value) plus the price's amount, interval and
+`livemode`.
+
+`livemode` is the field to read. A test key with a live price — or the
+reverse — is the failure a paying customer finds first, and it is invisible
+from any config file.
+
+### Rotating the key
+
+Roll it in the Dashboard (Developers → API keys), then add the new value as a
+**new version** of `dataviz-stripe-secret-key`. The service mounts `latest`,
+so it picks the new version up on the next revision — which means a deploy, or
+any other patch to the service, not automatically. Disable the old version
+only once `/api/stripe/health` reports `ok: true` again.
+
+A key that has been pasted into a chat, a terminal transcript, a ticket or a
+screenshot should be rolled on principle, even a test one.
 
 ## Domain mappings
 
