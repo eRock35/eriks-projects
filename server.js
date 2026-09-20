@@ -167,6 +167,8 @@ const identity = identityLib.create({
   rpName: 'Erik Strong',
 });
 identity.mount(app);
+// Price and record every model call this app makes.
+ai.useMeter(identity.meter);
 
 /** The shared account that owns the admin surface. One address, named by
  *  ADMIN_EMAIL - an ordinary signed-in user is not an admin. */

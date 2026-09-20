@@ -24,8 +24,11 @@ const MAX_ITEMS_PER_RUN = Number(process.env.MAX_ITEMS_PER_RUN || 96);
 const WEIGHTS = { intensity: 0.3, budget: 0.3, frequency: 0.15, whitespace: 0.15, feasibility: 0.1 };
 
 let client = null;
+// Set by the server once identity exists - see the note in dataviz/lib/shape.js.
+let metering = (c) => c;
+function useMeter(fn) { metering = fn || ((c) => c); client = null; }
 function anthropic() {
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!client) client = metering(new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
   return client;
 }
 
@@ -195,4 +198,4 @@ async function scoreItems(items, lensLabel) {
   return { problems: out, errors, examined: capped.length, skipped: items.length - capped.length };
 }
 
-module.exports = { scoreItems, scoreBatch, composite, MODEL, BATCH_SIZE, MAX_ITEMS_PER_RUN, WEIGHTS };
+module.exports = { useMeter, scoreItems, scoreBatch, composite, MODEL, BATCH_SIZE, MAX_ITEMS_PER_RUN, WEIGHTS };

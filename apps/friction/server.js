@@ -114,6 +114,8 @@ const identity = identityLib.create({
   rpName: 'Erik Strong',
 });
 identity.mount(app);
+// Price and record every model call this app makes.
+score.useMeter(identity.meter);
 
 // Two doors, and they answer different questions.
 //

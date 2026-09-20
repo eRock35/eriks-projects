@@ -15,8 +15,13 @@ const MODEL = process.env.SHAPE_MODEL || 'claude-opus-5';
 const SAMPLE_ROWS = 12;
 
 let client = null;
+// Set by the server once identity exists, so every call made through this
+// module is priced and recorded. Applied when the client is built rather than
+// at each call site - a new call site is then metered by existing.
+let metering = (c) => c;
+function useMeter(fn) { metering = fn || ((c) => c); client = null; }
 function anthropic() {
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!client) client = metering(new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
   return client;
 }
 
@@ -142,4 +147,4 @@ async function tableFromProse(prose, hint = '') {
   return [input.columns.map(String), ...input.rows.map((r) => r.map((c) => String(c == null ? '' : c)))];
 }
 
-module.exports = { design, tableFromProse, VIZ_TYPES, MODEL };
+module.exports = { useMeter, design, tableFromProse, VIZ_TYPES, MODEL };

@@ -106,6 +106,8 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, (req, res) => {
 
 identity.mount(app);
 app.use(attachProfile);
+// Price and record every model call this app makes.
+shape.useMeter(identity.meter);
 
 /** Pro either because Stripe says so, or because the admin granted it. */
 function planOf(user) {
