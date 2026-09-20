@@ -18,7 +18,7 @@
   body { padding: calc(var(--sat) + 52px) 0 calc(var(--sab) + 40px); }
   .wrap { max-width: 720px; }
   .nav-inner { max-width: 720px; }
-  .nav-btn { background: none; border: none; color: var(--tint); font: inherit; font-size: 17px; font-weight: 500; min-height: 44px; padding: 0 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; }
+  .nav-btn { background: none; border: none; color: var(--tint); font: inherit; font-size: 17px; font-weight: 500; min-height: 44px; padding: 0 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; text-decoration: none; }
   .nav-btn:active { opacity: 0.5; }
   .nav-btn[disabled] { opacity: 0.4; }
   .nav-btn svg { width: 22px; height: 22px; }
@@ -49,7 +49,11 @@
   .seg button { flex: 1; font: inherit; font-size: 14px; font-weight: 600; border: none; background: transparent; color: var(--label-2); border-radius: 9px; min-height: 38px; cursor: pointer; }
   .seg button[aria-selected="true"] { background: var(--card); color: var(--label); box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
 
-  .panel[hidden] { display: none; }
+  /* A class that sets `display` outbids the browser's own [hidden] rule, so
+     an element marked hidden stays on screen. That put a Back and a Save
+     button on the posts list, where there is nothing to go back to or save.
+     One blanket guard instead of remembering it per class. */
+  [hidden] { display: none !important; }
   .field { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 16px; margin-bottom: 12px; }
   .field label { display: block; font-size: 13px; color: var(--label-2); margin-bottom: 4px; }
   .field:focus-within label { color: var(--tint); }
@@ -104,6 +108,9 @@
       <svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg>Posts
     </button>
     <span class="nav-title" id="navTitle">Blog</span>
+    <a class="nav-btn" id="dashLink" href="/admin/insights" aria-label="Dashboard" title="Dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg>
+    </a>
     <button class="nav-btn" id="newBtn" aria-label="New post">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -275,6 +282,7 @@
       if (subs && subs.pending) pills.push('<span class="pill"><b>' + subs.pending + '</b> pending</span>');
       if (!info.email.enabled) pills.push('<span class="pill warn">Email not configured</span>');
       pills.push('<button class="pill" id="emailCheck" style="border:none;cursor:pointer">Check email setup</button>');
+      pills.push('<a class="pill" href="/admin/insights" style="text-decoration:none">Dashboard &rarr;</a>');
       pills.push('<button class="pill" id="faceSetup" style="border:none;cursor:pointer">Face ID &amp; password</button>');
       if (!info.ai.enabled) pills.push('<span class="pill warn">Claude not configured</span>');
       if (info.store === 'memory') pills.push('<span class="pill warn">Local memory store, nothing is saved</span>');
