@@ -109,7 +109,7 @@ async function runScan({ trigger = 'manual', sinceDays = 14, scope = 'next' } = 
   const summary = { runId, trigger, scope, startedAt, lenses: [], created: 0, updated: 0, examined: 0, errors: [] };
 
   for (const lens of lenses) {
-    const { items, errors } = await sources.harvest(lens, { sinceDays, redditEnabled });
+    const { items, errors, probes } = await sources.harvest(lens, { sinceDays, redditEnabled });
     summary.errors.push(...errors);
 
     // Anything read on an earlier run is not news. This is what keeps a daily
@@ -133,6 +133,7 @@ async function runScan({ trigger = 'manual', sinceDays = 14, scope = 'next' } = 
       id: lens.id, label: lens.label,
       found: items.length, fresh: fresh.length, examined: scored.examined,
       skipped: scored.skipped, problems: scored.problems.length, created, updated,
+      probes: probes || [],
     });
     summary.created += created;
     summary.updated += updated;

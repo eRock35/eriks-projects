@@ -45,19 +45,19 @@ const INTENT_PHRASES = [
 const DEFAULT_LENSES = [
   { id: 'lending-ops', label: 'Lending & servicing ops', enabled: true,
     subs: ['fintech', 'Banking', 'creditunions', 'Mortgages'],
-    hn: ['loan servicing', 'mortgage software', 'debt collections software', 'underwriting workflow'] },
+    hn: ['loan servicing', 'mortgage', 'collections', 'underwriting'] },
   { id: 'risk-fraud', label: 'Risk, fraud & compliance', enabled: true,
     subs: ['cybersecurity', 'GRC', 'AskNetsec', 'compliance'],
-    hn: ['fraud detection', 'KYC onboarding', 'compliance workflow', 'audit evidence'] },
+    hn: ['fraud detection', 'KYC', 'compliance', 'audit'] },
   { id: 'it-ops', label: 'IT & MSP operations', enabled: true,
     subs: ['sysadmin', 'msp', 'ITManagers', 'devops'],
-    hn: ['saas sprawl', 'employee offboarding', 'shadow IT', 'license management'] },
+    hn: ['saas sprawl', 'offboarding', 'shadow IT', 'sysadmin'] },
   { id: 'back-office', label: 'Accounting & back office', enabled: true,
     subs: ['accounting', 'Bookkeeping', 'smallbusiness', 'taxpros'],
-    hn: ['bookkeeping', 'bank reconciliation', 'invoicing', 'payroll software'] },
+    hn: ['bookkeeping', 'reconciliation', 'invoicing', 'payroll'] },
   { id: 'data-eng', label: 'Data & analytics', enabled: true,
     subs: ['dataengineering', 'analytics', 'BusinessIntelligence'],
-    hn: ['data pipeline broke', 'data quality', 'reverse ETL', 'dashboard nobody uses'] },
+    hn: ['data pipeline', 'data quality', 'reverse ETL', 'dashboards'] },
   { id: 'builders', label: 'Founders & builders', enabled: true,
     subs: ['SaaS', 'startups', 'Entrepreneur', 'indiehackers'],
     hn: ['ask hn tool', 'is there a tool', 'i wish there was'] },
@@ -181,10 +181,14 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
   const errors = [];
 
   const queries = Array.isArray(lens.hn) ? lens.hn : (lens.hn ? [lens.hn] : []);
+  const probes = [];
   for (const q of queries) {
     try {
-      for (const item of await fromHN(q, sinceUnix)) byId.set(item.id, item);
+      const hits = await fromHN(q, sinceUnix);
+      probes.push({ source: 'hn', q, hits: hits.length });
+      for (const item of hits) byId.set(item.id, item);
     } catch (err) {
+      probes.push({ source: 'hn', q, hits: -1, error: err.message });
       errors.push({ source: 'hackernews', lens: lens.id, channel: q, message: err.message });
     }
   }
@@ -195,19 +199,24 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
       message: 'skipped: no REDDIT_CLIENT_ID/SECRET set. Reddit returns 403 to datacenter IPs without OAuth.',
     });
   } else if (redditEnabled) {
+    let redditHits = 0;
     for (const sub of lens.subs || []) {
       for (const phrase of phrases) {
         try {
-          for (const item of await fromReddit(sub, phrase)) byId.set(item.id, item);
+          const hits = await fromReddit(sub, phrase);
+          redditHits += hits.length;
+          for (const item of hits) byId.set(item.id, item);
         } catch (err) {
+          redditHits = -1;
           errors.push({ source: 'reddit', lens: lens.id, channel: `r/${sub}`, message: err.message });
         }
         await sleep(1100); // Free tier is 100 requests/minute. Stay well inside it.
       }
     }
+    probes.push({ source: 'reddit', q: `${(lens.subs || []).length} subs x ${phrases.length} phrases`, hits: redditHits });
   }
 
-  return { items: [...byId.values()], errors: collapse(errors) };
+  return { items: [...byId.values()], errors: collapse(errors), probes };
 }
 
 module.exports = { DEFAULT_LENSES, INTENT_PHRASES, harvest, fromHN, fromReddit, redditConfigured, collapse };

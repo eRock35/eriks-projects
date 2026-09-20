@@ -436,7 +436,11 @@
     }
     $("runList").innerHTML = state.runs.map(function (r) {
       var lens = (r.lenses || []).map(function (l) {
-        return esc(l.label) + ": " + l.fresh + " new of " + l.found + ", " + l.problems + " kept";
+        var probes = (l.probes || []).map(function (pr) {
+          return esc(pr.q) + " " + (pr.hits < 0 ? "err" : pr.hits);
+        }).join(" &middot; ");
+        return "<strong>" + esc(l.label) + "</strong>: " + l.fresh + " new of " + l.found + ", " + l.problems + " kept" +
+          (probes ? '<br><span style="color:var(--label-3)">' + probes + "</span>" : "");
       }).join("<br>") || "nothing read";
       var errs = (r.errors || []).length;
       return '<div class="card" style="cursor:default">' +
