@@ -18,7 +18,7 @@ function nowIso() { return new Date().toISOString(); }
 
 // An item id carries its origin, so a signal can be traced back to the
 // licences its evidence came under without storing the items themselves.
-const ID_PREFIX = { hn: 'hackernews', rd: 'reddit', se: 'stackex', gh: 'github' };
+const ID_PREFIX = { hn: 'hackernews', rd: 'reddit', se: 'stackex', gh: 'github', as: 'appstore' };
 
 function sourcesOf(evidence) {
   const set = new Set();
@@ -59,7 +59,7 @@ async function loadLenses() {
     // fixed in code has to reach the rows that were seeded with the broken
     // one; a lens he switched off has to stay off.
     if (Number(existing.seedVersion || 1) < sources.SEED_VERSION) {
-      const patch = { hn: def.hn, se: def.se || [], gh: def.gh || [], label: def.label, seedVersion: sources.SEED_VERSION };
+      const patch = { hn: def.hn, se: def.se || [], gh: def.gh || [], apps: def.apps || [], label: def.label, seedVersion: sources.SEED_VERSION };
       await db.merge('lenses', def.id, patch);
       byId.set(def.id, Object.assign({}, existing, patch));
     }

@@ -20,6 +20,8 @@ const HN_API = 'https://hn.algolia.com/api/v1/search_by_date';
 const REDDIT = 'https://www.reddit.com';
 const SE_API = 'https://api.stackexchange.com/2.3/search/excerpts';
 const GH_API = 'https://api.github.com/search/issues';
+const ITUNES_SEARCH = 'https://itunes.apple.com/search';
+const ITUNES_REVIEWS = 'https://itunes.apple.com';
 
 // Which sources may appear in anything shown to someone other than the
 // account owner. This is not a style preference, it is the difference between
@@ -44,6 +46,7 @@ const SOURCE_META = {
   hackernews: { commercialSafe: true, attribution: null },
   stackex: { commercialSafe: true, attribution: 'CC BY-SA, Stack Exchange' },
   github: { commercialSafe: true, attribution: null },
+  appstore: { commercialSafe: true, attribution: 'App Store customer reviews' },
   reddit: { commercialSafe: false, attribution: null },
 };
 
@@ -75,7 +78,7 @@ const INTENT_PHRASES = [
 // written to Firestore on first sight, and from then on the saved copy wins -
 // which is right for what Erik edits, and wrong for a bug shipped in a query.
 // Without this, fixing a query in code changes nothing that already ran.
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 
 // `hn` is a LIST because Algolia ANDs every word in a query and has no OR
 // operator - one string of alternatives matches nothing, which is exactly how
@@ -85,32 +88,38 @@ const DEFAULT_LENSES = [
     subs: ['fintech', 'Banking', 'creditunions', 'Mortgages'],
     hn: ['loan servicing', 'mortgage', 'collections', 'underwriting'],
     se: [{ site: 'money', q: 'loan servicing' }, { site: 'money', q: 'mortgage payment' }],
-    gh: ['loan origination', 'payment reconciliation'] },
+    gh: ['loan origination', 'payment reconciliation'],
+    apps: ['loan servicing', 'mortgage payment', 'auto loan', 'debt payoff'] },
   { id: 'risk-fraud', label: 'Risk, fraud & compliance', enabled: true,
     subs: ['cybersecurity', 'GRC', 'AskNetsec', 'compliance'],
     hn: ['fraud detection', 'KYC', 'compliance', 'audit'],
     se: [{ site: 'security', q: 'fraud detection' }, { site: 'security', q: 'compliance evidence' }],
-    gh: ['KYC verification', 'audit log compliance'] },
+    gh: ['KYC verification', 'audit log compliance'],
+    apps: ['identity verification', 'fraud alert', 'compliance training'] },
   { id: 'it-ops', label: 'IT & MSP operations', enabled: true,
     subs: ['sysadmin', 'msp', 'ITManagers', 'devops'],
     hn: ['saas sprawl', 'offboarding', 'shadow IT', 'sysadmin'],
     se: [{ site: 'serverfault', q: 'user offboarding' }, { site: 'serverfault', q: 'license audit' }],
-    gh: ['offboarding automation', 'SaaS license tracking'] },
+    gh: ['offboarding automation', 'SaaS license tracking'],
+    apps: ['mobile device management', 'remote desktop', 'password manager business'] },
   { id: 'back-office', label: 'Accounting & back office', enabled: true,
     subs: ['accounting', 'Bookkeeping', 'smallbusiness', 'taxpros'],
     hn: ['bookkeeping', 'reconciliation', 'invoicing', 'payroll'],
     se: [{ site: 'money', q: 'bookkeeping' }, { site: 'money', q: 'invoice tracking' }],
-    gh: ['bank reconciliation', 'invoice parsing'] },
+    gh: ['bank reconciliation', 'invoice parsing'],
+    apps: ['accounting', 'invoicing', 'expense report', 'payroll'] },
   { id: 'data-eng', label: 'Data & analytics', enabled: true,
     subs: ['dataengineering', 'analytics', 'BusinessIntelligence'],
     hn: ['data pipeline', 'data quality', 'reverse ETL', 'dashboards'],
     se: [{ site: 'dba', q: 'data quality' }, { site: 'stackoverflow', q: 'pipeline failure silent' }],
-    gh: ['data quality check', 'pipeline silent failure'] },
+    gh: ['data quality check', 'pipeline silent failure'],
+    apps: ['business intelligence', 'dashboard analytics'] },
   { id: 'builders', label: 'Founders & builders', enabled: true,
     subs: ['SaaS', 'startups', 'Entrepreneur', 'indiehackers'],
     hn: ['ask hn tool', 'is there a tool', 'i wish there was'],
     se: [{ site: 'softwareengineering', q: 'is there a tool' }],
-    gh: ['feature request workflow'] },
+    gh: ['feature request workflow'],
+    apps: ['crm small business', 'project management'] },
 ];
 
 function clean(s, max = 4000) {
@@ -256,6 +265,51 @@ async function fromGitHub(query, sinceIso, perPage = 25) {
   })).filter((i) => (i.title + i.text).length > 40);
 }
 
+/** App Store customer reviews - the best friction source available without
+ *  anyone's permission, and arguably better than a forum for this purpose:
+ *  a one-star review of accounting software is a paying customer describing
+ *  exactly what the product failed to do for them. Apple's RSS feed is public
+ *  and needs no key.
+ *
+ *  Apps are looked up by search term at scan time rather than by hardcoded
+ *  numeric id, because an id that quietly stops matching anything is the
+ *  failure mode that has cost the most time on this project already. */
+async function appsForTerm(term, country = 'us', limit = 6) {
+  const url = `${ITUNES_SEARCH}?term=${encodeURIComponent(term)}&entity=software&country=${country}&limit=${limit}`;
+  const body = await getJson(url);
+  return (body.results || []).map((r) => ({
+    id: r.trackId,
+    name: r.trackName,
+    seller: r.sellerName,
+  })).filter((a) => a.id && a.name);
+}
+
+/** Recent reviews for one app, keeping only the unhappy ones. A five-star
+ *  review is not friction, and paying to have the model read it is waste. */
+async function fromAppStore(app, country = 'us', maxStars = 3) {
+  const url = `${ITUNES_REVIEWS}/${country}/rss/customerreviews/page=1/id=${app.id}/sortby=mostrecent/json`;
+  const body = await getJson(url);
+  const entries = (body && body.feed && body.feed.entry) || [];
+  // Apple's first entry is the app itself, not a review, when it is present.
+  return entries.filter((e) => e && e['im:rating']).map((e) => {
+    const stars = Number((e['im:rating'] || {}).label || 0);
+    return {
+      id: `as:${(e.id || {}).label || Math.random()}`,
+      source: 'appstore',
+      channel: app.name,
+      title: ((e.title || {}).label || '').trim(),
+      text: clean(`[${stars} stars] ` + ((e.content || {}).label || '')),
+      url: ((e.link || {}).attributes || {}).href || `https://apps.apple.com/${country}/app/id${app.id}`,
+      permalink: `https://apps.apple.com/${country}/app/id${app.id}`,
+      votes: Number(((e['im:voteSum'] || {}).label) || 0),
+      comments: 0,
+      author: (((e.author || {}).name || {}).label) || '',
+      createdAt: (e.updated || {}).label || null,
+      stars,
+    };
+  }).filter((i) => i.stars > 0 && i.stars <= maxStars && (i.title + i.text).length > 60);
+}
+
 /** 24 copies of "HTTP 403" is not 24 pieces of information. */
 function collapse(errors) {
   const byKey = new Map();
@@ -275,7 +329,7 @@ function collapse(errors) {
 /** Everything one lens can see right now, deduped by item id.
  *  A failing source degrades the run instead of ending it: partial evidence
  *  still beats a scan that produced nothing because one host was slow. */
-async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = INTENT_PHRASES } = {}) {
+async function harvest(lens, { sinceDays = 14, redditEnabled = false, phrases = INTENT_PHRASES } = {}) {
   const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
   const byId = new Map();
   const errors = [];
@@ -320,6 +374,27 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
     await sleep(6500); // unauthenticated search is 10/minute
   }
 
+  for (const term of (lens.apps || [])) {
+    try {
+      const apps = await appsForTerm(term);
+      let n = 0;
+      for (const app of apps) {
+        try {
+          const hits = await fromAppStore(app);
+          n += hits.length;
+          for (const item of hits) byId.set(item.id, item);
+        } catch (err) {
+          errors.push({ source: 'appstore', lens: lens.id, channel: app.name, message: err.message });
+        }
+        await sleep(350);
+      }
+      probes.push({ source: 'appstore', q: `${term} (${apps.length} apps)`, hits: n });
+    } catch (err) {
+      probes.push({ source: 'appstore', q: term, hits: -1, error: err.message });
+      errors.push({ source: 'appstore', lens: lens.id, channel: term, message: err.message });
+    }
+  }
+
   if (redditEnabled && !redditConfigured()) {
     errors.push({
       source: 'reddit', lens: lens.id,
@@ -348,5 +423,6 @@ async function harvest(lens, { sinceDays = 14, redditEnabled = true, phrases = I
 
 module.exports = {
   SEED_VERSION, DEFAULT_LENSES, INTENT_PHRASES, SOURCE_META, commercialSafe,
-  harvest, fromHN, fromReddit, fromStackExchange, fromGitHub, redditConfigured, collapse,
+  harvest, fromHN, fromReddit, fromStackExchange, fromGitHub, fromAppStore, appsForTerm,
+  redditConfigured, collapse,
 };
