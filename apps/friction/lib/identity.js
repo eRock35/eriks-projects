@@ -224,6 +224,14 @@ function pendingRequest(user, appKey) {
 
 /** True when the user holds ANY access to the app, or a specific level. */
 function hasAccess(user, appKey, level = null) {
+  if (!user) return false;
+  // The owner does not ask himself for permission. `absent means no` is the
+  // right default for a stranger who just registered; applying it to the
+  // person who runs the whole domain just invents a chore. The flag lives on
+  // the account rather than in each service's environment, so it travels with
+  // the identity and is visible on the dashboard instead of being config
+  // five services have to agree about.
+  if (user.admin === true) return true;
   const got = accessLevel(user, appKey);
   if (!got) return false;
   return level ? got === level : true;
@@ -434,13 +442,19 @@ function create(opts) {
         await log('register.duplicate', req, { uid, email, ok: false });
         return res.status(409).json({ error: 'That address already has an account. Sign in instead.' });
       }
-      await store.set(USERS, uid, {
+      const record = {
         email,
         password: makeHash(password),
         createdAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
         createdBy: appName,
-      });
+      };
+      // Whoever registers with the configured owner address is the owner. Set
+      // here so a fresh deployment produces a working admin without anyone
+      // hand-editing the database.
+      const owner = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+      if (owner && email === owner) record.admin = true;
+      await store.set(USERS, uid, record);
       issueSession(res, req, uid, 'password');
       await log('register', req, { uid, email });
       res.json({ ok: true, email });
@@ -479,6 +493,7 @@ function create(opts) {
         via: req.user.via,
         access: req.user.access || {},
         requests: req.user.requests || {},
+        admin: req.user.admin === true,
         createdAt: req.user.createdAt || null,
       });
     });

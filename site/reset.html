@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Reset your password</title>
+<script src="/analytics.js" async></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f5f7; --card: #fcfcfb; --text: #0b0b0b; --dim: #52514e;
+    --muted: #8a8a8f; --line: rgba(60,60,67,.16); --tint: #2a78d6;
+    --good: #0ca30c; --bad: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #000; --card: #1a1a19; --text: #fff; --dim: #c3c2b7;
+      --muted: #8a8a8f; --line: rgba(84,84,88,.5); --tint: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px 16px;
+  }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 26px 22px; width: 100%; max-width: 27em; }
+  h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: -.01em; }
+  p.sub { color: var(--dim); font-size: 14.5px; margin: 0 0 18px; }
+  label { display: block; font-size: 12.5px; color: var(--muted); margin: 14px 0 5px; }
+  input { width: 100%; min-height: 46px; font: inherit; font-size: 16px; padding: 10px 12px;
+          border: 1px solid var(--line); border-radius: 11px; background: var(--bg); color: var(--text); }
+  button { width: 100%; min-height: 46px; margin-top: 16px; font: inherit; font-weight: 600;
+           border: 0; border-radius: 11px; background: var(--tint); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .55; cursor: default; }
+  .status { min-height: 1.4em; font-size: 14px; margin-top: 12px; }
+  .status.ok { color: var(--good); }
+  .status.err { color: var(--bad); }
+  .foot { margin-top: 18px; font-size: 13.5px; color: var(--muted); }
+  a { color: var(--tint); }
+</style>
+</head>
+<body>
+<div class="card">
+  <!-- Two states in one page: ask for a link, or set a new password when
+       arriving from one. Which one shows depends on ?t= in the URL. -->
+  <div id="ask" hidden>
+    <h1>Reset your password</h1>
+    <p class="sub">One account covers every app on this domain, so this resets all of them.</p>
+    <label for="email">Your email</label>
+    <input type="email" id="email" autocomplete="username" inputmode="email"
+           autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send">
+    <button id="send" type="button">Email me a link</button>
+    <div class="status" id="askStatus"></div>
+  </div>
+
+  <div id="set" hidden>
+    <h1>Choose a new password</h1>
+    <p class="sub">At least 10 characters. This signs you in everywhere once saved.</p>
+    <label for="pw">New password</label>
+    <input type="password" id="pw" autocomplete="new-password" enterkeyhint="done">
+    <button id="save" type="button">Save and sign in</button>
+    <div class="status" id="setStatus"></div>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var ask = document.getElementById('ask');
+  var set = document.getElementById('set');
+  var foot = document.getElementById('foot');
+
+  if (token) { set.hidden = false; } else { ask.hidden = false; }
+
+  // An app's sign-in page can hand the address across so nobody types it twice.
+  var prefill = new URLSearchParams(location.search).get('email');
+  if (prefill && !token) document.getElementById('email').value = prefill;
+  foot.innerHTML = 'Prefer Face ID? If you have it on this device you can sign in with it instead — ' +
+    'that works without the password, and lets you change it from inside any app.';
+
+  function say(el, msg, kind) {
+    el.textContent = msg || '';
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || 'That did not work.');
+        return j;
+      });
+    });
+  }
+
+  var sendBtn = document.getElementById('send');
+  if (sendBtn) {
+    var go = function () {
+      var st = document.getElementById('askStatus');
+      var addr = document.getElementById('email').value.trim();
+      if (!addr) { say(st, 'Enter your email address.', 'err'); return; }
+      sendBtn.disabled = true;
+      say(st, 'Sending…');
+      post('/api/id/reset/request', { email: addr })
+        // The answer is identical whether or not the address has an account,
+        // so the page must not imply otherwise.
+        .then(function (d) { say(st, d.message || 'If that address has an account, a link is on its way.', 'ok'); })
+        .catch(function (e) { say(st, e.message, 'err'); })
+        .then(function () { sendBtn.disabled = false; });
+    };
+    sendBtn.addEventListener('click', go);
+    document.getElementById('email').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); go(); }
+    });
+  }
+
+  var saveBtn = document.getElementById('save');
+  if (saveBtn) {
+    var save = function () {
+      var st = document.getElementById('setStatus');
+      var pw = document.getElementById('pw').value;
+      if (pw.length < 10) { say(st, 'Use at least 10 characters.', 'err'); return; }
+      saveBtn.disabled = true;
+      say(st, 'Saving…');
+      post('/api/id/reset/complete', { token: token, password: pw })
+        .then(function (d) {
+          say(st, 'Done — you are signed in as ' + (d.email || 'yourself') + '.', 'ok');
+          foot.innerHTML = 'You can close this, or <a href="/">go to the site</a>. ' +
+            'Every app on this domain will recognise you now.';
+        })
+        .catch(function (e) { say(st, e.message, 'err'); saveBtn.disabled = false; });
+    };
+    saveBtn.addEventListener('click', save);
+    document.getElementById('pw').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+    });
+  }
+})();
+</script>
+</body>
+</html>

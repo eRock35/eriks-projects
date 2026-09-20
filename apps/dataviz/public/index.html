@@ -458,16 +458,11 @@
         this.disabled = false;
       }
     });
-    el.querySelector('#aForgot').addEventListener('click', async function () {
-      var st2 = el.querySelector('#aStatus');
-      var address = el.querySelector('#aEmail').value.trim();
-      if (!address) { st2.className = 'status err'; st2.textContent = 'Put your email in first.'; return; }
-      this.disabled = true;
-      try {
-        var d = await api('/api/auth/reset/request', { method: 'POST', body: JSON.stringify({ email: address }) });
-        st2.className = 'status'; st2.textContent = d.message;
-      } catch (e2) { st2.className = 'status err'; st2.textContent = e2.message; }
-      this.disabled = false;
+    el.querySelector('#aForgot').addEventListener('click', function () {
+      // One reset page for the whole domain - see the note in the landing
+      // app's server.js. It is the only service holding the mail key.
+      var addr = (el.querySelector('#aEmail') || {}).value || '';
+      window.location.href = 'https://www.strongtechnicalconsulting.com/reset' + (addr ? '?email=' + encodeURIComponent(addr.trim()) : '');
     });
     var creating = false;
     el.querySelector('#aSwap').addEventListener('click', function () {

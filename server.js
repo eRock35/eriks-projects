@@ -25,6 +25,7 @@ const sitepass = require('./shared/sitepass');
 const identityLib = require('./shared/identity');
 const insights = require('./lib/insights');
 const notify = require('./lib/notify');
+const reset = require('./shared/reset');
 const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
 
@@ -744,6 +745,72 @@ app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GR
 //
 // Either a cron key or an admin session, so it can also be fired by hand from
 // the dashboard to see what is currently outstanding.
+/* ------------------------------------------------------------------ *
+ * Forgotten passwords, self-service
+ * ------------------------------------------------------------------ */
+
+// Hosted here for every app on the domain. This is the only service with the
+// Resend key, and one account means one place to reset it. The apps' sign-in
+// pages link straight to /reset rather than each running their own flow.
+//
+// This replaces the admin-issues-a-temporary-password arrangement, which was
+// written when there was no mail sender on the project. There is one now, and
+// nobody should have to ask a person to get back into their own account.
+const RESET_ORIGIN = process.env.SITE_ORIGIN || 'https://www.strongtechnicalconsulting.com';
+
+app.post('/api/id/reset/request', async (req, res) => {
+  const address = String((req.body || {}).email || '').trim().toLowerCase();
+  // One answer for every input. Anything else turns this into a way of asking
+  // which addresses have accounts.
+  const same = { ok: true, message: 'If that address has an account, a reset link is on its way.' };
+  try {
+    const uid = identityLib.uidFor(address);
+    const user = await identityStore.store.get('users', uid);
+    if (user && user.password && user.password.hash && email.enabled()) {
+      const link = `${RESET_ORIGIN}/reset?t=${encodeURIComponent(reset.makeToken(uid, user.password.hash))}`;
+      const body = reset.emailBody({ link, origin: RESET_ORIGIN });
+      await email.sendOne({ to: user.email, subject: body.subject, html: body.html, text: body.text });
+      await identity.log('password.reset.requested', req, { uid, email: user.email });
+    }
+  } catch (err) {
+    // A send failure must not change the answer either, or the timing and the
+    // wording become the oracle the identical answer was protecting.
+    console.error('reset/request', err.message);
+  }
+  res.json(same);
+});
+
+app.post('/api/id/reset/complete', async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+    const raw = String(token || '');
+    const uid = raw.includes('.')
+      ? Buffer.from(raw.slice(0, raw.indexOf('.')), 'base64url').toString().split('.')[0]
+      : '';
+    const user = uid ? await identityStore.store.get('users', uid) : null;
+    if (!user || !user.password || reset.readToken(raw, user.password.hash) !== uid) {
+      return res.status(400).json({ error: 'That link has expired or has already been used.' });
+    }
+    const next = String(password || '');
+    if (next.length < identityLib.MIN_PASSWORD) {
+      return res.status(400).json({ error: `Use at least ${identityLib.MIN_PASSWORD} characters.` });
+    }
+    await identityStore.store.set('users', uid, {
+      ...user,
+      password: identityLib.makeHash(next),
+      passwordChangedAt: new Date().toISOString(),
+    });
+    identity.issueSession(res, req, uid, 'password');
+    await identity.log('password.reset', req, { uid, email: user.email });
+    res.json({ ok: true, email: user.email });
+  } catch (err) {
+    console.error('reset/complete', err);
+    res.status(500).json({ error: 'Could not set that password.' });
+  }
+});
+
+app.get('/reset', (_req, res) => res.sendFile(path.join(SITE_DIR, 'reset.html')));
+
 app.post('/api/cron/notify', async (req, res) => {
   const key = req.get('X-Cron-Key');
   const viaCron = CRON_SECRET && key && key === CRON_SECRET;
