@@ -141,7 +141,7 @@ initial state*, not a failure.
 | Hopscotch (beer) | `hopscotch` | `hopscotch` | `beer.strongtechnicalconsulting.com` |
 | Trip Planner | `trip-planner` | `trip-planner` | `trip-planner-…-uc.a.run.app` |
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
-| Landing page | — (GCS bucket) | — | `www.strongtechnicalconsulting.com` |
+| Landing page + writing | `landing-page` | `eriks-projects` | `strongtechnicalconsulting.com` and `www.` |
 
 Per-app secrets are deliberately **not** shared. The football app's login is the
 kind of thing Erik might hand to a friend so they can run research; that password
@@ -150,6 +150,7 @@ must not also open the trip apps.
 - Football: `site-login-username`, `site-login-password`, `cfb-session-secret`, `cron-secret`
 - Trip Planner: `trip-planner-login-username`, `-login-password`, `-cron-secret`, `-session-secret`
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
+- Landing page: `landing-session-secret`, `landing-admin-password`, `resend-api-key`
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.
@@ -288,6 +289,12 @@ Secret Manager (names only; values are not in this repo):
 - `landing-admin-password` — the one password that opens `/admin`
 - `resend-api-key` — the mail provider key
 
+**All three exist as of 2026-09-20**, along with the database and index. The
+session secret and the admin password were generated at setup; the admin
+password was shown to Erik once and is not recorded anywhere in the clear.
+Rotating `landing-session-secret` invalidates every admin session and every
+outstanding confirm and unsubscribe link, so do it only deliberately.
+
 Plain env vars on the Cloud Run service:
 
 - `FIRESTORE_DATABASE_ID=eriks-projects`
@@ -328,3 +335,28 @@ those records resolve, mail either does not send or lands in spam.
 
 This is the same class of step as the Cloud Run domain mappings: the records go
 in at the registrar by hand.
+
+
+### Live state of the writing section (2026-09-20)
+
+Done:
+
+- Firestore database `eriks-projects` (Native mode, us-central1)
+- Composite index on `posts`: `status ASC, publishedAt DESC`
+- Secrets `landing-session-secret`, `landing-admin-password`, `resend-api-key`
+- The `landing-page` service carries `GOOGLE_CLOUD_PROJECT`,
+  `FIRESTORE_DATABASE_ID`, `SITE_ORIGIN`, `NEWSLETTER_FROM`,
+  `NEWSLETTER_REPLY_TO`, `NODE_ENV`, and secret refs for `SESSION_SECRET`,
+  `ADMIN_PASSWORD`, `RESEND_API_KEY` and the shared `ANTHROPIC_API_KEY`.
+
+Still Erik's, and sending will not work until it is done:
+
+- Add `strongtechnicalconsulting.com` as a domain in Resend and put the SPF
+  and DKIM records it prints at the registrar. Until those resolve, Resend
+  only sends from its own sandbox address to Erik's own account address.
+- Make sure `erik@strongtechnicalconsulting.com` receives mail, since it is
+  both the From and the Reply-To.
+
+Because `gcpdeploy ship` swaps only the image digest, a normal deploy will
+never disturb any of the above. If the service ever loses these env vars, it
+was not `ship` that did it.
