@@ -247,6 +247,8 @@ function create(opts) {
     mountPath = '/api/id',
   } = opts;
 
+  let warnedAboutSecret = false;
+
   /* ---------- users ---------- */
 
   async function getUser(uid) {
@@ -261,13 +263,28 @@ function create(opts) {
   /* ---------- sessions ---------- */
 
   function issueSession(res, req, uid, via = 'password') {
+    const key = secret();
+    if (!key) throw Object.assign(new Error('Sign-in is not configured on this deployment.'), { status: 503 });
     const exp = Math.floor(Date.now() / 1000) + SESSION_TTL;
-    const token = makeToken({ sub: uid, exp, via }, secret());
+    const token = makeToken({ sub: uid, exp, via }, key);
     setSessionCookie(res, req, token, baseDomain, SESSION_TTL);
   }
 
   function session(req) {
-    const payload = readToken(parseCookies(req)[COOKIE], secret());
+    const key = secret();
+    // Without a secret, every HMAC is computed over an empty key - which means
+    // anyone could mint a session for any account. Refuse to recognise ANY
+    // session rather than accept forged ones. A deployment missing the
+    // variable then looks signed-out, which is loud and safe, instead of
+    // looking fine and being wide open.
+    if (!key) {
+      if (!warnedAboutSecret) {
+        warnedAboutSecret = true;
+        console.error('[identity] IDENTITY_SESSION_SECRET is not set - all shared sessions are being rejected.');
+      }
+      return null;
+    }
+    const payload = readToken(parseCookies(req)[COOKIE], key);
     if (!payload) return null;
     return { uid: payload.sub, via: payload.via === 'passkey' ? 'passkey' : 'password' };
   }

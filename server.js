@@ -687,6 +687,40 @@ app.get('/admin/insights', (req, res) => {
   res.sendFile(path.join(SITE_DIR, 'admin-insights.html'));
 });
 
+// Granting per-app access. This is the other half of the `access` map: apps
+// read it, and this is the only place it is written. Without it the map is
+// unreachable and every app would be permanently closed to new accounts.
+const GRANTABLE = {
+  friction: ['member'],
+  football: ['research'],
+  dataviz: ['pro'],
+  'trip-planner': ['member'],
+};
+
+app.post('/api/admin/access', requireAdmin, async (req, res) => {
+  try {
+    const { uid, app: appKey, level } = req.body || {};
+    if (!uid || !appKey) return res.status(400).json({ error: 'uid and app are required.' });
+    if (!Object.prototype.hasOwnProperty.call(GRANTABLE, appKey)) {
+      return res.status(400).json({ error: 'Unknown app.' });
+    }
+    // null revokes. Anything else must be a level that app actually defines,
+    // or the grant would sit in the record looking effective and do nothing.
+    if (level !== null && level !== undefined && !GRANTABLE[appKey].includes(level)) {
+      return res.status(400).json({ error: `${appKey} does not define the level "${level}".` });
+    }
+    const access = await identity.setAccess(uid, appKey, level ?? null);
+    await identity.log('access.changed', req, {
+      uid, detail: `${appKey}=${level || 'revoked'}`,
+    });
+    res.json({ ok: true, access });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Could not change that.' });
+  }
+});
+
+app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GRANTABLE }));
+
 app.get('/api/admin/insights', requireAdmin, async (req, res) => {
   try {
     res.json(await insights.all());
