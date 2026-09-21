@@ -848,9 +848,23 @@ app.get('/reset', (_req, res) => res.sendFile(path.join(SITE_DIR, 'reset.html'))
 // One place to manage the shared account: profile, password, passkeys, your
 // own API key, and leaving. It lives on the landing service rather than in a
 // service of its own because identity is already mounted here - a new Cloud
-// Run service would have needed a new domain mapping, new secrets and a new
-// runtime account to say exactly what this page says.
-app.get('/account', (_req, res) => res.sendFile(path.join(SITE_DIR, 'account.html')));
+// Run service would have needed new secrets and a new runtime account to say
+// exactly what this page says. The subdomain is a domain mapping onto this
+// same service, which costs nothing and needs no second deployment.
+const ACCOUNT_HOST = String(process.env.ACCOUNT_HOST || 'acct.strongtechnicalconsulting.com').toLowerCase();
+const accountPage = (_req, res) => res.sendFile(path.join(SITE_DIR, 'account.html'));
+
+app.get('/account', accountPage);
+
+// On acct.<domain> the account page IS the site. Registered before the static
+// middleware so it wins the root path, and scoped by hostname so the landing
+// page at the apex is untouched. Everything else - /api/id/*, /reset,
+// /passkey-client.js - keeps working on this host too, which matters: the
+// page fetches them relative to wherever it was served from.
+app.get('/', (req, res, next) => {
+  if (String(req.hostname || '').toLowerCase() === ACCOUNT_HOST) return accountPage(req, res);
+  return next();
+});
 
 app.post('/api/cron/notify', async (req, res) => {
   const key = req.get('X-Cron-Key');

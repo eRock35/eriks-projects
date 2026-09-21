@@ -26,14 +26,37 @@ const post = (p, b, c) => send('POST', p, b, c);
 const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
 const uidOf = (e) => Buffer.from(e.toLowerCase()).toString('base64url');
 
+/** GET a path with an arbitrary Host header. */
+function rawGet(path, host) {
+  return new Promise((resolve, reject) => {
+    const req = require('http').request(
+      { host: '127.0.0.1', port: 9206, path, method: 'GET', headers: { Host: host, Accept: 'text/html' } },
+      (res) => { let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve(b)); },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 (async () => {
   await new Promise((r) => setTimeout(r, 900));
 
   /* ---------- the page ---------- */
   let r = await fetch(B + '/account', { headers: { Accept: 'text/html' } });
   ok('the account page is served', r.status === 200, String(r.status));
-  const html = await r.text();
+  let html = await r.text();
   ok('...and it is the account page', /Your account/i.test(html), html.slice(0, 80));
+
+  // On the account subdomain the page IS the site, so acct.<domain>/ is not
+  // the landing page. Host-scoped, so the apex is untouched - which is the
+  // half worth asserting, since getting it wrong replaces the marketing site
+  // with an account form.
+  // Raw http, because fetch refuses to let a caller set Host - and Host is
+  // the entire thing under test.
+  html = await rawGet('/', 'acct.strongtechnicalconsulting.com');
+  ok('acct.<domain>/ serves the account page', /Your account/i.test(html), html.slice(0, 80));
+  html = await (await fetch(B + '/', { headers: { Accept: 'text/html' } })).text();
+  ok('...and the apex still serves the landing page', !/Your account/i.test(html), html.slice(0, 80));
 
   /* ---------- profile ---------- */
   r = await post('/api/id/register', { email: 'leaver@example.com', password: 'a-long-password-1' });
