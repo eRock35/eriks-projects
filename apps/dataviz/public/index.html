@@ -253,12 +253,12 @@
 
   // Own data is the paid part. Say so before they type, not after.
   function renderLocks() {
-    var locked = me.billing && !me.pro;
-    var copy = '<b>Your own data is the paid plan</b>' +
-      (me.signedIn ? 'Samples stay free. Unlock links and pasting for everything you make.'
-                   : 'Samples are free without an account. Sign in and upgrade to use your own.') +
+    var locked = me.billing && !me.paid;
+    var copy = '<b>Your own data is part of the membership</b>' +
+      (me.signedIn ? 'Samples stay free. $5 a month unlocks links and pasting here, and the other four apps with it.'
+                   : 'Samples are free without an account. Sign in to use your own data.') +
       '<div class="btnrow"><button class="btn row" id="upBtn">' +
-      (me.signedIn ? 'Upgrade' : 'Sign in to upgrade') + '</button></div>';
+      (me.signedIn ? 'Join \u2014 $5/month' : 'Sign in to join') + '</button></div>';
     ['lockedLink', 'lockedPaste'].forEach(function (id) {
       var el = $(id);
       if (!el) return;
@@ -267,7 +267,7 @@
     });
     if (locked) {
       document.querySelectorAll('#upBtn').forEach(function (b) {
-        b.addEventListener('click', function () { me.signedIn ? startCheckout() : openAuth('Upgrading needs an account.'); });
+        b.addEventListener('click', function () { me.signedIn ? startCheckout() : openAuth('Joining needs an account.'); });
       });
     }
   }
@@ -286,9 +286,11 @@
     if (btn) go({ datasetId: btn.getAttribute('data-sample') });
   });
 
+  // The upsell on a locked dataset. Points at the membership - there is one
+  // paid tier now, and this used to send people to the retired $9 Pro plan.
   async function startCheckout() {
     try {
-      var d = await api('/api/checkout', { method: 'POST' });
+      var d = await api('/api/membership/checkout', { method: 'POST' });
       location.href = d.url;
     } catch (err) { toast(err.message); }
   }
@@ -314,8 +316,8 @@
       }
     } catch (err) {
       say(esc(err.message), true);
-      if (/paid plan|upgrade/i.test(err.message)) {
-        me.signedIn ? startCheckout() : openAuth('Upgrading needs an account.');
+      if (/membership|paid plan|upgrade/i.test(err.message)) {
+        me.signedIn ? startCheckout() : openAuth('Joining needs an account.');
       }
     } finally {
       $('goBtn').disabled = false;
@@ -586,13 +588,13 @@
   $('authBtn').addEventListener('click', function () {
     if (!me.signedIn) return openAuth();
     var el = sheet('<h3>' + esc(me.email) + '</h3>' +
-      '<p class="hint">' + (me.pro ? '<span class="plan">Pro</span> &nbsp;Your own data is unlocked.'
+      '<p class="hint">' + (me.paid ? '<span class="plan">Member</span> &nbsp;Your own data is unlocked.'
                                    : 'Free plan &mdash; samples only.') + '</p>' +
-      // The membership leads. It is the offer for everyone - one price, no
-      // decisions to make - so it comes before Pro and before any mention of
-      // keys, credit or tokens. What it sells is the apps; the mechanics
-      // underneath are our problem, not the buyer's.
-      (me.membership && me.membership.available && !me.pro && !me.membership.active
+      // The membership leads, and since the $9 Pro plan was retired it is the
+      // only thing to buy - one price, no decisions to make - so it comes
+      // before any mention of keys, credit or tokens. What it sells is the
+      // apps; the mechanics underneath are our problem, not the buyer's.
+      (me.membership && me.membership.available && !me.paid && !me.membership.active
         ? '<div style="margin-top:14px">' +
           '<p class="hint" style="margin:0 0 8px"><b>$' + me.membership.monthlyUsd + ' a month</b> for all five apps, ' +
           'synced across your devices, with AI built in and tracked so you always know what you have used.</p>' +
@@ -602,16 +604,11 @@
         ? '<p class="hint" style="margin-top:14px">Member &mdash; $' + me.membership.monthlyUsd + '/month. ' +
           'Credit below is sold at what a call actually costs, with no markup.</p>'
         : '') +
-      // Pro (unlimited, no balance to think about) stays available, but it is
-      // not what anyone is being sold. Secondary, and below the membership.
-      (me.billing && !me.pro
-        ? '<button class="btn' + (me.membership && me.membership.available && !me.membership.active ? ' sec' : '') +
-          '" id="upBtn2" style="margin-top:8px">Unlimited plan</button>'
-        : '') +
-      (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
-      // The credit meter. Shown to anyone on an allowance - Pro and the owner
-      // are not metered, so a balance would be meaningless to them.
-      (!me.pro && me.budget && !me.budget.unlimited
+      (me.paid ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
+      // The credit meter. Shown to anyone on an allowance - the owner and a
+      // bring-your-own-key user are not metered, so a balance would be
+      // meaningless to them.
+      (!me.paid && me.budget && !me.budget.unlimited
         ? '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
           '<p class="hint" style="margin:0 0 8px"><b>$' + me.budget.remainingUsd.toFixed(2) + '</b> of $' +
           me.budget.allowanceUsd.toFixed(2) + ' credit left &mdash; it works across every app on this domain.</p>' +
@@ -644,14 +641,16 @@
               '<button class="btn sec" id="byokSave" style="margin-top:8px">Save key</button>') +
           '<p class="status" id="byokStatus" style="min-height:1.2em"></p></div></details>'
         : '') +
-      // Not everyone who wants Pro wants to pay for it today - a teacher, a
+      // Not everyone who wants this wants to pay for it today - a teacher, a
       // friend, someone trying it for a project. Asking is a second door to
       // the same place, and it reaches Erik by email rather than going into a
-      // void.
-      (!me.pro
+      // void. (The id says Pro for the same reason the API field does: the
+      // request predates the plan's retirement and renaming the wire would
+      // buy nothing.)
+      (!me.paid
         ? (me.askedPro
-            ? '<p class="hint" style="margin-top:10px">Your request for Pro is in \u2014 Erik has been emailed.</p>'
-            : '<button class="btn sec" id="askProBtn" style="margin-top:8px">Ask for Pro instead</button>')
+            ? '<p class="hint" style="margin-top:10px">Your request is in \u2014 Erik has been emailed.</p>'
+            : '<button class="btn sec" id="askProBtn" style="margin-top:8px">Ask for free access</button>')
         : '') +
       '<div id="secBody" style="margin-top:18px"></div>' +
       '<button class="btn sec" id="outBtn" style="margin-top:8px">Sign out</button>');
@@ -709,8 +708,6 @@
         this.disabled = false;
       });
     })();
-    var up = el.querySelector('#upBtn2');
-    if (up) up.addEventListener('click', startCheckout);
     var mem = el.querySelector('#memberBtn');
     if (mem) mem.addEventListener('click', async function () {
       mem.disabled = true;
@@ -779,7 +776,7 @@
       askPro.disabled = true;
       try {
         await api('/api/auth/access/request', { method: 'POST', body: JSON.stringify({ note: note }) });
-        askPro.outerHTML = '<p class="hint" style="margin-top:10px">Your request for Pro is in \u2014 Erik has been emailed.</p>';
+        askPro.outerHTML = '<p class="hint" style="margin-top:10px">Your request is in \u2014 Erik has been emailed.</p>';
         toast('Request sent');
       } catch (e) { toast(e.message, 'error'); askPro.disabled = false; }
     });
@@ -807,9 +804,11 @@
     await refreshMe();
     await loadSamples();
     setMode('sample');
-    if (/[?&]upgraded=1/.test(location.search)) {
+    // ?member=1 is what the membership checkout returns to; ?upgraded=1 was
+    // the retired Pro plan's and is kept so an old bookmark still lands right.
+    if (/[?&](member|upgraded)=1/.test(location.search)) {
       // The webhook may land a moment after the redirect, so re-read once.
-      setTimeout(async function () { await refreshMe(); toast(me.pro ? 'You are on Pro' : 'Payment received, unlocking…'); }, 1500);
+      setTimeout(async function () { await refreshMe(); toast(me.paid ? 'You are a member' : 'Payment received, unlocking…'); }, 1500);
       history.replaceState(null, '', '/');
     }
     // Every other app's "you are out of credit" points here, because checkout

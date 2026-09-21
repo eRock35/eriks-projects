@@ -291,14 +291,31 @@ A user can run every app on their own Anthropic key instead of the shared $2.
   adapter layer and silently worse results for exactly the users who brought
   one.
 
-## DataViz billing (Stripe)
+## Billing (Stripe)
 
-Stripe sandbox account `acct_1UHo8xF32OknjgD1`, **test mode**. Product
-`prod_VIPZP6pNaEXud4`, price `price_1UHok3F32OknjgD1IsTILEk4` — DataViz Pro,
-$9.00/month, recurring. Webhook `we_1UHokCF32OknjgD1S3h8ZZZN`.
+Live account `acct_1UHo8nFbShmvZtSf` ("Erik - Consulting"), **live mode**.
+There is exactly one thing to subscribe to:
 
-The service carries `STRIPE_PRICE_ID` as a plain env var and mounts
-`STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` from Secret Manager.
+- Product `prod_VIn0vs6b1CRsxS`, price `price_1UIBQdFbShmvZtSffjKYqbOV` —
+  **the all-apps membership, $5.00/month**, recurring, `metadata.kind =
+  membership`.
+- Webhook `we_1UIBRBFbShmvZtSfLdov6BsT`.
+- Top-ups are one-off `mode: payment` sessions built at call time from
+  `stripe.TOP_UPS`, so they have no stored Price.
+
+**There is no Pro plan.** The $9/month "DataViz Pro" subscription is retired:
+its two live prices (`price_1UICFIFbShmvZtSfI70tk5FS`,
+`price_1UIARYFbShmvZtSf3cjYq6t6`) and both products (`prod_VInrZHvUI8X54n`,
+`prod_VIPZP6pNaEXud4`) are archived in Stripe, and it never sold a single
+subscription. Two products where one is a strict subset of the other only
+asked people to make a decision that does not matter; the membership buys all
+five apps, DataViz's own-data feature included. If you are tempted to bring a
+second tier back, price it against what the calls actually cost rather than
+against the first one.
+
+The service mounts `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
+`STRIPE_MEMBER_PRICE_ID` from Secret Manager. `STRIPE_PRICE_ID` — the old Pro
+price — is read by nothing and should not be set on any service.
 
 **Stripe has no API that issues a secret key** — it only exists in the
 Dashboard, so getting one into Secret Manager is a manual step and always will

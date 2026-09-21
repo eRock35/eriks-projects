@@ -10,7 +10,10 @@ process.env.GOOGLE_CLOUD_PROJECT = 'test';
 // so the app is usable on a deployment with no billing. Production HAS
 // billing, so set them and test what production actually does.
 process.env.STRIPE_SECRET_KEY = 'sk_test_dummy_not_called';
-process.env.STRIPE_PRICE_ID = 'price_dummy_not_called';
+// Billing is "configured" when there is a key and a membership price to
+// sell. Without the member price the app is entirely free, which is a real
+// mode but not the one production runs.
+process.env.STRIPE_MEMBER_PRICE_ID = 'price_member_dummy_not_called';
 process.env.PORT = '9202';
 require(require('path').join(__dirname, '..', 'apps', 'dataviz', 'server.js'));
 
@@ -33,6 +36,7 @@ const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).
   r = await fetch(B + '/api/auth/me', { headers: { cookie } });
   let me = await r.json();
   ok('/api/auth/me still reports plan (this app\'s business)', me.plan === 'free', JSON.stringify(me));
+  ok('...and whether they have paid', me.paid === false, JSON.stringify(me.paid));
   ok('and reports the signed-in address', me.email === 'viz@example.com');
 
   // Saving a project - the thing an account exists for
@@ -53,19 +57,23 @@ const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).
   r = await fetch(B + '/api/projects', { headers: { cookie: fromFriction } });
   ok('a session from a SIBLING app is accepted here', r.status === 200, String(r.status));
 
-  // Pro can be granted by the admin, not only bought
+  // Access can be granted by the admin, not only bought
   const users = h.bag('identity');
   const rec = users.get('users/' + uid);
   r = await fetch(B + '/api/auth/me', { headers: { cookie } });
   ok('plan is free before any grant', (await r.json()).plan === 'free');
   users.set('users/' + uid, { ...rec, access: { dataviz: 'pro' } });
   r = await fetch(B + '/api/auth/me', { headers: { cookie } });
-  ok('an admin grant makes them pro without Stripe', (await r.json()).plan === 'pro');
-  // and Stripe's own flag still works independently
+  ok('an admin grant unlocks own-data without Stripe', (await r.json()).plan === 'member');
   users.set('users/' + uid, rec);
-  h.bag('dataviz').set('users/' + uid, { plan: 'pro', stripeCustomerId: 'cus_x' });
+  // The membership lives on the SHARED record - that is the whole point of
+  // it covering five apps - so a local row alone must NOT unlock anything.
+  h.bag('dataviz').set('users/' + uid, { plan: 'member', stripeCustomerId: 'cus_x' });
   r = await fetch(B + '/api/auth/me', { headers: { cookie } });
-  ok('a Stripe subscription still makes them pro', (await r.json()).plan === 'pro');
+  ok('a local-only plan row does not unlock it', (await r.json()).plan === 'free');
+  users.set('users/' + uid, { ...rec, plan: 'member' });
+  r = await fetch(B + '/api/auth/me', { headers: { cookie } });
+  ok('...but a membership on the shared record does', (await r.json()).plan === 'member');
   h.bag('dataviz').delete('users/' + uid);
 
   // password change at the UI's URL

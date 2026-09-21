@@ -15,15 +15,18 @@ const API = 'https://api.stripe.com/v1';
 const TOLERANCE_SECONDS = 300;
 
 function secretKey() { return process.env.STRIPE_SECRET_KEY || ''; }
-function priceId() { return process.env.STRIPE_PRICE_ID || ''; }
 // The flat monthly fee: hosting and metering, not tokens. A separate Price
 // from the old Pro one, because they grant different things and the webhook
 // has to be able to tell which was bought.
 function memberPriceId() { return process.env.STRIPE_MEMBER_PRICE_ID || ''; }
 function webhookSecret() { return process.env.STRIPE_WEBHOOK_SECRET || ''; }
 
-function enabled() { return Boolean(secretKey() && priceId()); }
-function membershipEnabled() { return Boolean(secretKey() && memberPriceId()); }
+// Billing is on when there is a key and something to sell. That "something"
+// is the membership now; the old Pro price used to be what this checked, so a
+// deployment that still has STRIPE_PRICE_ID set but no membership price is
+// correctly reported as having nothing to sell.
+function enabled() { return Boolean(secretKey() && memberPriceId()); }
+function membershipEnabled() { return enabled(); }
 
 /** Stripe wants nested params as a[b][c]=v, not JSON. */
 function form(obj, prefix = '', out = []) {
@@ -58,28 +61,9 @@ async function call(path, body, method = 'POST') {
   return data;
 }
 
-/** A hosted checkout page for one subscription. */
-async function createCheckout({ uid, email, successUrl, cancelUrl, customerId }) {
-  const payload = {
-    mode: 'subscription',
-    line_items: [{ price: priceId(), quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    // The uid is what the webhook uses to find the account again. Stripe
-    // echoes it back on every event for this subscription.
-    client_reference_id: uid,
-    metadata: { uid, kind: 'pro' },
-    // `kind` must ride on the SUBSCRIPTION as well as the session. A
-    // subscription.updated event months later carries no session, so without
-    // this a renewal could not tell a $5 membership from a Pro plan and would
-    // have to guess - and guessing wrong grants unlimited spend.
-    subscription_data: { metadata: { uid, kind: 'pro' } },
-    allow_promotion_codes: true,
-  };
-  if (customerId) payload.customer = customerId;
-  else if (email) payload.customer_email = email;
-  return call('/checkout/sessions', payload);
-}
+// createCheckout() - the $9 Pro subscription - was removed with the plan it
+// sold. Keeping a function that mints a subscription nobody is offered is how
+// a retired product comes back by accident.
 
 // What a top-up can be bought in. Fixed amounts rather than a free-text box:
 // an arbitrary-amount field invites typos and card-testing, and three choices
@@ -215,5 +199,5 @@ function verifyWebhook(rawBody, signatureHeader) {
   return JSON.parse(rawBody.toString('utf8'));
 }
 
-module.exports = { enabled, membershipEnabled, createCheckout, createMembership, createTopUp, createPortal,
-  verifyWebhook, call, form, priceId, memberPriceId, TOP_UPS, MEMBERSHIP_USD };
+module.exports = { enabled, membershipEnabled, createMembership, createTopUp, createPortal,
+  verifyWebhook, call, form, memberPriceId, TOP_UPS, MEMBERSHIP_USD };

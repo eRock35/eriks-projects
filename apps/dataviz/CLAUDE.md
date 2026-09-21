@@ -89,10 +89,16 @@ GCP `metal-celerity-236019`, `us-central1`, same REST pipeline as the siblings.
 
 ## Billing
 
-Stripe sandbox account `acct_1UHo8xF32OknjgD1`.
+Stripe live account `acct_1UHo8nFbShmvZtSf`.
 
-- Product `prod_VIPZP6pNaEXud4`, price `price_1UHok3F32OknjgD1IsTILEk4` ($9/mo).
-- Webhook endpoint `we_1UHokCF32OknjgD1S3h8ZZZN` -> the service's
+- **One subscription, and it is not DataViz's**: the $5/month all-apps
+  membership, product `prod_VIn0vs6b1CRsxS`, price
+  `price_1UIBQdFbShmvZtSffjKYqbOV`. The $9 "DataViz Pro" plan is retired and
+  its prices and products are archived in Stripe. Do not reintroduce a
+  DataViz-only tier: the membership already buys this app's own-data feature,
+  and a second product that is a strict subset of the first only makes people
+  choose between two things they cannot tell apart.
+- Webhook endpoint `we_1UIBRBFbShmvZtSfLdov6BsT` -> the service's
   `*.run.app` URL, not the custom domain. Deliberate: the run.app hostname
   works regardless of what DNS is doing, and Stripe does not care how pretty
   the URL is.
@@ -106,11 +112,20 @@ Stripe sandbox account `acct_1UHo8xF32OknjgD1`.
   through the API, and were.
 
 **With no secret key mounted the whole app is free and fully working**, because
-`stripe.enabled()` is false and `isPro()` then returns true for everyone. That
+`stripe.enabled()` is false and `isPaid()` then returns true for everyone. That
 is the state it is in now, and it is the state to leave it in if the key is
 ever removed. Do not "fix" that by defaulting to locked - an app that locks
 itself when its billing config goes missing is worse than one that gives
 itself away.
 
-Going live means a live-mode price, a live webhook endpoint (different signing
-secret), and a live secret key. None of the code changes.
+It went live on 2026-09-21: live price, live webhook endpoint with its own
+signing secret, live secret key. None of the code changed, which was the
+point.
+
+Who has paid is decided by the **shared identity record**, never by this
+app's own `users` row. `attachProfile` strips `plan` and the rest of the
+entitlement fields off the local row before merging it, because the local row
+exists only so the `customer.subscription.updated` webhook can find an account
+by `stripeCustomerId` - the shared store has no query-by-field. Letting the
+local copy speak is how this app once agreed with itself that someone was a
+member while the other four served them the free tier.

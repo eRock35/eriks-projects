@@ -15,6 +15,8 @@ Object.assign(process.env, {
   IDENTITY_DATABASE_ID: 'identity',
   GOOGLE_CLOUD_PROJECT: 'test',
   STRIPE_SECRET_KEY: 'sk_test_dummy_not_called',
+  // Deliberately set, and deliberately garbage: the retired Pro price is
+  // still mounted on at least one deployment, and nothing may read it.
   STRIPE_PRICE_ID: 'price_dummy_not_called',
   STRIPE_MEMBER_PRICE_ID: 'price_member_dummy',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_signing_secret',
@@ -70,8 +72,13 @@ async function webhook(event) {
   ok('...but runs to the end of a period already paid for',
      identity.isMember({ plan: 'member', currentPeriodEnd: '2099-01-01T00:00:00Z' }) === true);
 
-  // Pro is still unlimited, and BYOK still costs us nothing.
-  ok('Pro is still unlimited', identity.budgetFor({ plan: 'pro' }).unlimited === true);
+  // Pro is gone. A stale `plan: 'pro'` row must fall back to the free
+  // allowance rather than unlimited spend on the owner's key - the retired
+  // plan is not a back door.
+  const stale = identity.budgetFor({ plan: 'pro' });
+  ok('a retired Pro plan is not unlimited', stale.unlimited === false, String(stale.reason));
+  ok('...it just gets the free allowance', stale.reason === 'allowance', String(stale.reason));
+  // BYOK still costs us nothing.
   ok('BYOK is unlimited and billed to nobody here',
      identity.budgetFor({ byok: { blob: 'x' } }).reason === 'byok');
 
@@ -137,14 +144,22 @@ async function webhook(event) {
   ok('...with the bigger search budget', identity.planFor(shared, TIERS).maxUses >= 10);
   ok('...while still being metered, not unlimited', identity.budgetFor(shared).unlimited === false);
 
-  // A Pro subscription must not be confused for a membership on the way in.
+  // The $9 Pro plan is retired. A subscription that still carries its
+  // metadata - sold before the plan went away, or a replayed old event - must
+  // land as a MEMBERSHIP, which is metered. Reading an ambiguous subscription
+  // generously is how someone ends up with unlimited spend for $5.
   const proUid = Buffer.from('pro@example.com').toString('base64url');
   await webhook({ id: 'evt_2', type: 'checkout.session.completed',
     data: { object: { mode: 'subscription', customer: 'cus_test_2', subscription: 'sub_test_2',
                       metadata: { uid: proUid, kind: 'pro' } } } });
   const proShared = h.bag('identity').get('users/' + proUid);
-  ok('a Pro subscription writes pro, not member', proShared && proShared.plan === 'pro', JSON.stringify(proShared && proShared.plan));
-  ok('...and Pro IS unlimited', identity.budgetFor(proShared).unlimited === true);
+  ok('a retired-Pro subscription lands as a member, not as unlimited',
+     proShared && proShared.plan === 'member', JSON.stringify(proShared && proShared.plan));
+  ok('...and is therefore metered', identity.budgetFor(proShared).unlimited === false);
+
+  // Nothing offers the old plan any more.
+  const gone = await post('/api/checkout', {}, cookie);
+  ok('the retired Pro checkout is gone, not quietly selling', gone.status === 410, String(gone.status));
 
   // Cancellation has to reach identity too, or a lapsed member keeps the tier.
   await webhook({ id: 'evt_3', type: 'customer.subscription.deleted',

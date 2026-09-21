@@ -92,14 +92,33 @@ const identity = identityLib.create({
 
 /** Merge this app's own record onto the identity it belongs to, so routes can
  *  keep reading req.user.plan and req.user.stripeCustomerId as before. */
+/** What the shared identity record alone may say. A copy of any of these on
+ *  DataViz's own row is a stale echo of a Stripe webhook, never the truth. */
+const ENTITLEMENT_FIELDS = [
+  'plan', 'currentPeriodEnd', 'subscriptionStatus', 'memberSince',
+  'toppedUpUsd', 'spentUsd', 'byok',
+];
+
 async function attachProfile(req, _res, next) {
   if (req.user) {
     const own = await db.get('users', req.user.id).catch(() => null);
     // This app's record carries billing, never identity. Pin the fields that
-    // say WHO they are so a stale local row cannot demote the owner.
-    if (own) Object.assign(req.user, own, {
-      id: req.user.id, email: req.user.email, admin: req.user.admin, access: req.user.access,
-    });
+    // say WHO they are so a stale local row cannot demote the owner...
+    //
+    // ...and drop the ones that say what they PAID for. The membership buys
+    // all five apps, so it lives on the shared identity record; the local row
+    // is a stripeCustomerId index the subscription webhook looks accounts up
+    // by, nothing more. Letting its `plan` back in is precisely how this app
+    // came to agree with itself while the other four served a paying member
+    // the free tier: the disagreement was invisible from the only place that
+    // merged both. Identity decides who has paid, here as everywhere.
+    if (own) {
+      const local = { ...own };
+      for (const key of ENTITLEMENT_FIELDS) delete local[key];
+      Object.assign(req.user, local, {
+        id: req.user.id, email: req.user.email, admin: req.user.admin, access: req.user.access,
+      });
+    }
   }
   next();
 }
@@ -110,7 +129,7 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, async (req, res) => 
     email: req.user ? req.user.email : null,
     via: req.user ? req.user.via : null,
     plan: planOf(req.user),
-    pro: isPro(req.user),
+    paid: isPaid(req.user),
     billing: stripe.enabled(),
     // So the sheet can say "your request is in" rather than offering the
     // button again to someone who already pressed it.
@@ -141,29 +160,41 @@ app.use(attachProfile);
 // Price and record every model call this app makes.
 shape.useMeter(identity.meter);
 
-/** One source of truth for the plan. isPro is the real test; this is its name
- *  for the wire. Keeping two independent definitions is what let an admin be
- *  Pro by one and free by the other. */
+/** One source of truth for the plan, for the wire. Keeping two independent
+ *  definitions is what let an admin be paid by one and free by the other. */
 function planOf(user) {
-  return isPro(user) ? 'pro' : 'free';
+  return isPaid(user) ? 'member' : 'free';
 }
 
 const fail = (res, err, fallback = 'Something went wrong.') =>
   res.status(err.status || 500).json({ error: err.status ? err.message : fallback });
 
-/** With no Stripe keys configured the app is entirely free, so it keeps
+/** Who may use their own data rather than only the samples.
+ *
+ *  There is one paid tier now - the $5 membership - and this is part of it.
+ *  The separate $9 "DataViz Pro" subscription is gone: two products for one
+ *  person to choose between, where one is a strict subset of the other, is a
+ *  decision nobody wanted to make. A membership buys all five apps, and using
+ *  your own data here is one of the things it buys.
+ *
+ *  With no Stripe keys configured the app is entirely free, so it keeps
  *  working before billing exists and if the keys are ever removed. */
-function isPro(user) {
+function isPaid(user) {
   if (!stripe.enabled()) return true;
   if (!user) return false;
-  // Two ways to be Pro without paying: you own the place, or the admin comped
-  // you. Checked before the subscription so neither depends on Stripe state.
+  // Free without paying: you own the place, or the admin comped you. Checked
+  // first so neither depends on Stripe being reachable.
   if (user.admin === true) return true;
-  if (identityLib.hasAccess(user, 'dataviz', 'pro')) return true;
-  if (user.plan !== 'pro') return false;
-  // A cancelled subscription keeps access to the end of the paid period.
-  if (user.currentPeriodEnd && Date.parse(user.currentPeriodEnd) < Date.now()) return false;
-  return true;
+  // Any grant at all, not the exact level 'pro'. The levels in `access` are
+  // per-app strings and this app now defines exactly one thing to grant, so
+  // demanding a particular word only means a comp written as 'member' - the
+  // natural thing for the admin to type now - would quietly do nothing.
+  if (identityLib.hasAccess(user, 'dataviz')) return true;
+  // Running on their own Anthropic key: they are already paying for the
+  // expensive part themselves.
+  if (user.byok && user.byok.blob) return true;
+  // The membership. isMember already honours the end of a cancelled period.
+  return identityLib.isMember(user);
 }
 
 /** Fold one Stripe event into the account it belongs to. Only the events that
@@ -188,15 +219,14 @@ async function applyBillingEvent(event) {
       return;
     }
 
-    // Which subscription was bought. A $5 membership and a Pro plan are both
-    // `mode: subscription`, and only the metadata separates them - reading it
-    // wrong in this direction hands someone unlimited spend for $5, so the
-    // default is the metered one, not the generous one.
-    const membership = (obj.metadata && obj.metadata.kind) === 'membership';
-    const plan = { plan: membership ? 'member' : 'pro',
-                   [membership ? 'memberSince' : 'proSince']: new Date().toISOString() };
-    await writePlan(uid, plan, obj.customer || null, obj.subscription || null);
-    await identity.log(membership ? 'membership.started' : 'pro.started', null, { uid });
+    // There is one subscription to sell now, so there is nothing to tell
+    // apart. A `kind` other than membership can only be a Pro subscription
+    // sold before that plan was retired; it still gets a membership, which is
+    // the metered tier - the generous reading of an ambiguous event is how
+    // someone ends up with unlimited spend for $5.
+    await writePlan(uid, { plan: 'member', memberSince: new Date().toISOString() },
+                    obj.customer || null, obj.subscription || null);
+    await identity.log('membership.started', null, { uid });
     return;
   }
 
@@ -210,17 +240,8 @@ async function applyBillingEvent(event) {
     if (!target) return;
     const active = event.type !== 'customer.subscription.deleted'
       && ['active', 'trialing', 'past_due'].includes(obj.status);
-    // The kind rides on the subscription's own metadata, set at checkout, so a
-    // renewal a year later still knows which plan it is renewing. If it is
-    // missing - a subscription created before this existed - fall back to what
-    // the account already says rather than promoting a member to Pro.
-    let kind = (obj.metadata && obj.metadata.kind) || null;
-    if (!kind) {
-      const existing = await db.get('users', target).catch(() => null);
-      kind = existing && existing.plan === 'member' ? 'membership' : 'pro';
-    }
     await writePlan(target, {
-      plan: active ? (kind === 'membership' ? 'member' : 'pro') : 'free',
+      plan: active ? 'member' : 'free',
       currentPeriodEnd: obj.current_period_end
         ? new Date(obj.current_period_end * 1000).toISOString() : null,
       subscriptionStatus: obj.status || null,
@@ -342,20 +363,12 @@ app.get('/api/datasets', (_req, res) => res.json({
   datasets: datasets.list().map((d) => Object.assign({}, d, { free: datasets.isFree(datasets.get(d.id)) })),
 }));
 
-app.post('/api/checkout', accounts.requireUser, async (req, res) => {
-  try {
-    if (!stripe.enabled()) return res.status(503).json({ error: 'Billing is not set up on this deployment.' });
-    const origin = `${req.protocol}://${req.get('host')}`;
-    const session = await stripe.createCheckout({
-      uid: req.user.id,
-      email: req.user.email,
-      customerId: req.user.stripeCustomerId || null,
-      successUrl: `${origin}/?upgraded=1`,
-      cancelUrl: `${origin}/`,
-    });
-    res.json({ url: session.url });
-  } catch (err) { fail(res, err, 'Could not start checkout.'); }
-});
+// The old $9 Pro checkout stood here. It is gone rather than hidden: a route
+// that still mints a subscription nobody is offered is how a stale button in
+// a cached page sells something that no longer exists. Anyone who somehow
+// reaches it gets the membership instead.
+app.post('/api/checkout', accounts.requireUser, (req, res) =>
+  res.status(410).json({ error: 'That plan is gone - the membership replaced it.', membership: true }));
 
 // Nothing in the build container can reach api.stripe.com, and nothing can
 // reach this app over HTTP either, so "the key is mounted" and "the key works"
@@ -369,13 +382,13 @@ app.post('/api/checkout', accounts.requireUser, async (req, res) => {
 app.get('/api/stripe/health', accounts.requireUser, async (req, res) => {
   const out = {
     secretKey: Boolean(process.env.STRIPE_SECRET_KEY),
-    priceId: stripe.priceId() || null,
+    priceId: stripe.memberPriceId() || null,
     webhookSecret: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     enabled: stripe.enabled(),
   };
   if (!out.enabled) return res.json({ ...out, price: null, error: 'Billing is not configured.' });
   try {
-    const price = await stripe.call(`/prices/${encodeURIComponent(stripe.priceId())}`, null, 'GET');
+    const price = await stripe.call(`/prices/${encodeURIComponent(stripe.memberPriceId())}`, null, 'GET');
     out.price = {
       id: price.id,
       active: price.active,
@@ -522,11 +535,11 @@ app.post('/api/viz', identity.requireBudget, async (req, res) => {
       source = Object.assign({ sourceUrl: null, sample: ds.title }, extract.fromText(ds.csv));
       if (!usedHint) usedHint = ds.hint;
     } else if ((url && String(url).trim()) || (text && String(text).trim())) {
-      if (!isPro(req.user)) {
+      if (!isPaid(req.user)) {
         return res.status(402).json({
           error: req.user
-            ? 'Your own data is part of the paid plan. The samples are free and always will be.'
-            : 'Make an account and upgrade to use your own data. The samples are free without one.',
+            ? 'Your own data is part of the membership. The samples are free and always will be.'
+            : 'Make an account and join to use your own data. The samples are free without one.',
           upgrade: true,
         });
       }
