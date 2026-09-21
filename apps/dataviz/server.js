@@ -563,6 +563,22 @@ app.post('/api/viz', identity.requireBudget, async (req, res) => {
       return res.status(400).json({ error: 'Pick a sample, paste some data, or give me a link.' });
     }
 
+    // Nothing reaches a model for someone we cannot charge. Both branches
+    // above already refuse an anonymous visitor - own data with a 402, and a
+    // sample by being answered from its baked spec without a model call at
+    // all - so this is the backstop for the path between them: a sample with
+    // NO baked spec falls through to the model, and would spend on the shared
+    // key for a visitor with no account and no ledger. Every sample has a
+    // spec today, which is exactly why this is worth having: the day someone
+    // adds one without, the failure should be a sign-in prompt and not a
+    // silent, untracked bill.
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Make an account to build this one. The samples are free without one.',
+        signUp: true,
+      });
+    }
+
     let table = source.tables && source.tables[0];
     let fromProse = false;
     if (!table) {

@@ -76,6 +76,19 @@ const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).
   ok('...but a membership on the shared record does', (await r.json()).plan === 'member');
   h.bag('dataviz').delete('users/' + uid);
 
+  // Samples are the whole free surface, and they are free because each one
+  // carries a baked column mapping - fixed data, fixed answer, nothing to
+  // ask. A sample added WITHOUT one falls through to the model and starts
+  // costing money on a public page, which is the leak this project already
+  // fixed once. Nothing tested it until now.
+  const datasets = require('/home/user/eriks-projects/apps/dataviz/lib/datasets.js');
+  const specless = datasets.list().map((d) => datasets.get(d.id)).filter((d) => !datasets.isFree(d));
+  ok('every sample carries a baked spec, so no sample costs anything',
+     specless.length === 0, JSON.stringify(specless.map((d) => d.id)));
+
+  r = await post('/api/viz', { text: 'a,b\n1,2' });
+  ok('an anonymous visitor cannot reach the model', r.status === 401 || r.status === 402, String(r.status));
+
   // password change at the UI's URL
   r = await post('/api/auth/password', { current: 'wrong-one-here', next: 'brand-new-password' }, cookie);
   ok('a wrong current password is refused', r.status === 401, String(r.status));
