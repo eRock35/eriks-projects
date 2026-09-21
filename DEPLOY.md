@@ -821,3 +821,16 @@ Still Erik's, and sending will not work until it is done:
 Because `gcpdeploy ship` swaps only the image digest, a normal deploy will
 never disturb any of the above. If the service ever loses these env vars, it
 was not `ship` that did it.
+
+## Health checks: /api/health, never /healthz
+
+Cloud Run's edge swallows `/healthz`. In production it returns 404 with no
+`Server` header — on the `run.app` URL and the custom domain alike — while
+every other path, including ones the app does not define, reaches the app.
+It works fine locally, which is how it went unnoticed: the boot checks and CI
+were testing a route no external monitor could reach, and the first live run
+of the uptime probe reported all seven apps down while every one was serving.
+
+Every app now answers `/api/health` with the same handler. Point monitors
+there. Keep `/healthz` for local and CI use — it works there and the boot
+scripts already use it.
