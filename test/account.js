@@ -103,6 +103,14 @@ function rawHead(path, host) {
   r = await post('/api/id/profile', { displayName: 'x' });
   ok('a stranger cannot rename someone', r.status === 401, String(r.status));
 
+  // The page has to know whether the fee is paid before it offers a key box.
+  ok('/me says whether the platform fee is paid', me.member === false, JSON.stringify(me.member));
+  const mk = 'users/' + uid;
+  h.bag('identity').set(mk, { ...h.bag('identity').get(mk), plan: 'member' });
+  me = await (await fetch(B + '/api/id/me', { headers: { cookie } })).json();
+  ok('...and says so once it is', me.member === true, JSON.stringify(me.member));
+  h.bag('identity').set(mk, { ...h.bag('identity').get(mk), plan: null });
+
   /* ---------- deleting ---------- */
   r = await send('DELETE', '/api/id/account', {}, cookie);
   ok('deleting without the password is refused', r.status === 403, String(r.status));

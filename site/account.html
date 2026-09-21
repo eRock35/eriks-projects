@@ -304,7 +304,10 @@
     }
     $('planSub').textContent = line;
     $('planActions').innerHTML = b.unlimited ? '' :
-      '<a href="https://dataviz.strongtechnicalconsulting.com/?topup=1"><button class="sec">Membership and credit</button></a>';
+      '<a href="https://dataviz.strongtechnicalconsulting.com/?topup=1"><button class="sec">Membership and credit</button></a>' +
+      '<p class="foot">Free use is capped at $' + Number(b.allowanceUsd || 0).toFixed(2) +
+      '. Past that, membership covers the apps and credit is sold at what the calls cost \u2014 ' +
+      'or bring your own key. Stopping there is free: everything that is not an AI call keeps working.</p>';
   }
 
   function renderApps() {
@@ -333,9 +336,17 @@
     if (!byok.supported) return;
     $('byokAdd').hidden = !!byok.present;
     $('removeByok').hidden = !byok.present;
+    // A key is a membership feature: the fee buys the apps, the account and
+    // the hosting, and the key buys the tokens. Saying that here beats a 402
+    // after someone has pasted a secret into the box.
+    var member = me.member === true;
     $('byokSub').textContent = byok.present
-      ? 'Using your key ending ' + (byok.last4 || '????') + '. Your calls are billed to you, not to us.'
-      : 'Optional. Supply an Anthropic key and every app runs your work on it instead of the shared allowance.';
+      ? (member
+          ? 'Using your key ending ' + (byok.last4 || '????') + '. Your calls are billed to you, not to us.'
+          : 'Your key ending ' + (byok.last4 || '????') + ' is on file but not in use \u2014 it works while the membership does.')
+      : (member
+          ? 'Supply an Anthropic key and every app runs your work on it instead of the shared allowance.'
+          : 'Part of the membership. The monthly fee covers the apps, the account and the hosting; your key covers the tokens.');
   }
 
   /** A Face ID session already proved who you are, so it does not have to

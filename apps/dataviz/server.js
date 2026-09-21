@@ -191,8 +191,10 @@ function isPaid(user) {
   // natural thing for the admin to type now - would quietly do nothing.
   if (identityLib.hasAccess(user, 'dataviz')) return true;
   // Running on their own Anthropic key: they are already paying for the
-  // expensive part themselves.
-  if (user.byok && user.byok.blob) return true;
+  // expensive part themselves - and for the platform, since a key only counts
+  // while the membership does. identityLib.paysPlatformFee is the one place
+  // that decides it, so this cannot drift from what actually routes the call.
+  if (user.byok && user.byok.blob && identityLib.paysPlatformFee(user)) return true;
   // The membership. isMember already honours the end of a cancelled period.
   return identityLib.isMember(user);
 }
@@ -422,6 +424,16 @@ app.get('/api/credit', accounts.requireUser, (req, res) => {
 app.post('/api/credit/checkout', accounts.requireUser, async (req, res) => {
   try {
     if (!stripe.enabled()) return res.status(503).json({ error: 'Billing is not set up on this deployment.' });
+    // Credit is sold at cost, so the membership is what pays for the apps
+    // around it. Buying tokens without one would mean running the whole
+    // platform at exactly break-even on the tokens and nothing on the rest.
+    if (!identityLib.paysPlatformFee(req.user)) {
+      return res.status(402).json({
+        error: 'Credit is part of the membership.',
+        detail: `Membership is $${stripe.MEMBERSHIP_USD} a month and covers every app; credit on top is sold at what the calls actually cost.`,
+        membership: true,
+      });
+    }
     const origin = `${req.protocol}://${req.get('host')}`;
     const session = await stripe.createTopUp({
       uid: req.user.id,

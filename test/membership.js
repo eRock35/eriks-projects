@@ -78,9 +78,18 @@ async function webhook(event) {
   const stale = identity.budgetFor({ plan: 'pro' });
   ok('a retired Pro plan is not unlimited', stale.unlimited === false, String(stale.reason));
   ok('...it just gets the free allowance', stale.reason === 'allowance', String(stale.reason));
-  // BYOK still costs us nothing.
-  ok('BYOK is unlimited and billed to nobody here',
-     identity.budgetFor({ byok: { blob: 'x' } }).reason === 'byok');
+  // BYOK costs us nothing in tokens - but it is not free of the platform.
+  // The fee buys the apps, the account and the hosting; the key buys the
+  // tokens. A key on its own is not a membership.
+  ok('a key without a membership is NOT unlimited',
+     identity.budgetFor({ byok: { blob: 'x' } }).unlimited === false,
+     JSON.stringify(identity.budgetFor({ byok: { blob: 'x' } })));
+  ok('...and with one, it is billed to nobody here',
+     identity.budgetFor({ plan: 'member', byok: { blob: 'x' } }).reason === 'byok');
+  ok('...as it is for the owner, whose platform it is',
+     identity.budgetFor({ admin: true, byok: { blob: 'x' } }).unlimited === true);
+  ok('a lapsed membership takes the key with it',
+     identity.budgetFor({ plan: 'member', currentPeriodEnd: '2020-01-01T00:00:00Z', byok: { blob: 'x' } }).unlimited === false);
 
   // --- the checkout session that gets built --------------------------------
   const seen = [];
@@ -102,8 +111,25 @@ async function webhook(event) {
   ok('...and on the SUBSCRIPTION, so a renewal still knows what it is',
      /subscription_data\[metadata\]\[kind\]=membership/.test(body));
 
+  // Credit is sold at cost, so the membership is what pays for everything
+  // around it. Buying tokens without one would run the platform at exactly
+  // break-even on the tokens and nothing on the rest.
   seen.length = 0;
-  await post('/api/credit/checkout', { usd: 25 }, cookie);
+  let topUp = await post('/api/credit/checkout', { usd: 25 }, cookie);
+  ok('credit cannot be bought without a membership', topUp.status === 402, String(topUp.status));
+  ok('...and says why', /membership/i.test(JSON.stringify(await topUp.json())));
+  ok('...and no checkout was built', seen.length === 0, String(seen.length));
+
+  // A SECOND account becomes a member and may buy. Second on purpose: the
+  // first one is asserted further down to be a non-member, and quietly
+  // upgrading it here would make that assertion pass for the wrong reason.
+  const buyer = jar(await post('/api/auth/register', { email: 'buyer@example.com', password: 'a-long-password-2' }));
+  const buyerUid = Buffer.from('buyer@example.com').toString('base64url');
+  const before = h.bag('identity').get('users/' + buyerUid) || {};
+  h.bag('identity').set('users/' + buyerUid, { ...before, plan: 'member' });
+
+  seen.length = 0;
+  await post('/api/credit/checkout', { usd: 25 }, buyer);
   const credit = seen.join('\n');
   ok('a top-up is a one-off payment, never a subscription', /mode=payment/.test(credit) && !/mode=subscription/.test(credit));
   ok('...and is tagged as credit so it cannot grant a plan', /metadata\[kind\]=credit/.test(credit));
