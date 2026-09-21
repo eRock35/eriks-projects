@@ -25,6 +25,7 @@ const sitepass = require('./shared/sitepass');
 const identityLib = require('./shared/identity');
 const insights = require('./lib/insights');
 const notify = require('./lib/notify');
+const uptime = require('./lib/uptime');
 const reset = require('./shared/reset');
 const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
@@ -844,12 +845,41 @@ app.post('/api/cron/notify', async (req, res) => {
   }
   try {
     const origin = `${req.protocol}://${req.get('host')}`;
-    res.json(await notify.run({ origin }));
+    // Two independent jobs on one tick. An app being down and a new signup
+    // are different emails with different urgency, so they are not merged -
+    // but they share the cron, the mailer and the admin address.
+    const [digest, uptime] = await Promise.allSettled([
+      notify.run({ origin }),
+      runUptime(),
+    ]);
+    res.json({
+      digest: digest.status === 'fulfilled' ? digest.value : { error: String(digest.reason).slice(0, 200) },
+      uptime: uptime.status === 'fulfilled' ? uptime.value : { error: String(uptime.reason).slice(0, 200) },
+    });
   } catch (err) {
     console.error('POST /api/cron/notify', err);
     res.status(500).json({ error: 'Could not run the notifier.' });
   }
 });
+
+/** Probe every app and email only when something changed state. */
+async function runUptime() {
+  const checked = await uptime.check();
+  const mail = uptime.compose(checked);
+  const summary = {
+    probed: checked.results.length,
+    down: checked.results.filter((r) => !r.ok).map((r) => r.key),
+    nowDown: checked.nowDown.map((r) => r.key),
+    recovered: checked.recovered.map((r) => r.key),
+  };
+  if (!mail) return { ...summary, sent: false, reason: 'no change' };
+  const to = process.env.ADMIN_EMAIL || '';
+  if (!email.enabled() || !to) {
+    return { ...summary, sent: false, reason: email.enabled() ? 'no ADMIN_EMAIL set' : 'Resend is not configured' };
+  }
+  await email.sendOne({ to, subject: mail.subject, html: mail.html, text: mail.text });
+  return { ...summary, sent: true, subject: mail.subject };
+}
 
 // What the notifier WOULD say right now, without sending or advancing the
 // watermark. The dashboard uses it; it is also the way to check the thing
