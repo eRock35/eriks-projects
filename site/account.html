@@ -184,10 +184,10 @@
     { key: 'football', name: 'College Football', url: 'https://footballapp.strongtechnicalconsulting.com' },
     { key: 'friction', name: 'Friction', url: 'https://friction.strongtechnicalconsulting.com' },
     { key: 'dataviz', name: 'DataViz', url: 'https://dataviz.strongtechnicalconsulting.com' },
-    // Hopscotch still keeps its own accounts, so this record says nothing
-    // about it either way. Saying "no access" would be a lie in the other
-    // direction - you may well have an account over there.
-    { key: 'hopscotch', name: 'Hopscotch', url: 'https://beer.strongtechnicalconsulting.com', separate: true }
+    // Hopscotch honours this account but gates nothing on `access` - anyone
+    // signed in can keep a beer journal - so there is no level to show and
+    // "no access" would be a lie.
+    { key: 'hopscotch', name: 'Hopscotch', url: 'https://beer.strongtechnicalconsulting.com', open: true }
   ];
 
   function esc(s) {
@@ -253,15 +253,15 @@
     $('appsList').innerHTML = APPS.map(function (app) {
       var level = access[app.key];
       var asked = requests[app.key] && requests[app.key].state !== 'denied';
-      var pill = app.separate
-        ? '<span class="pill">own sign-in</span>'
+      var pill = app.open
+        ? '<span class="pill on">open to you</span>'
         : (me.admin || level
             ? '<span class="pill on">' + esc(me.admin && !level ? 'owner' : level === true ? 'yes' : level) + '</span>'
             : '<span class="pill">' + (asked ? 'asked' : 'no access') + '</span>');
       return '<div class="row"><div class="row-main">' +
         '<div class="row-title">' + esc(app.name) + '</div>' +
         '<div class="row-sub"><a href="' + esc(app.url) + '">Open</a>' +
-          (app.separate ? ' · signs in separately for now' : '') + '</div>' +
+          (app.open ? ' · no grant needed' : '') + '</div>' +
         '</div>' + pill + '</div>';
     }).join('');
   }

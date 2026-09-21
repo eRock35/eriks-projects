@@ -415,24 +415,39 @@ signing in somewhere else and navigating back. Both now post to their own
 passkey store first and its own second. The legacy doors stay: an app password
 that cannot be broken by a fault in the identity service is worth keeping.
 
-### Hopscotch is wired but switched OFF
+### Hopscotch asks rather than reads
 
-`beer-app` accepts the shared cookie as a second door (`server/src/
-shared-identity.js`), mapping it to a Hopscotch user by email. Its own `u_...`
-ids stay the thing everything is keyed by - identity says who, the local row
-stays what the data points at.
+Hopscotch keeps its own users - pours, cellars and trips are keyed by its own
+`u_...` ids - so the shared account is a second DOOR there, not a migration.
+Identity says who; the local row, matched on email, stays what the data points
+at.
 
-It is inert until BOTH are set on the `hopscotch` service, and neither can be
-done by the deployer:
+`beer-app/server/src/shared-identity.js` forwards the `stc_session` cookie to
+**`/api/id/me` on the landing service** and takes the answer. It does not
+verify the cookie itself and does not read the `identity` database, and that
+is the design rather than a shortcut:
 
-1. `IDENTITY_SESSION_SECRET` from the `identity-session-secret` secret, which
-   needs `secretAccessor` for `hopscotch-run@`.
-2. `IDENTITY_DATABASE_ID=identity`, which needs `roles/datastore.user`
-   conditioned to the `identity` database for `hopscotch-run@`.
+- **Less privilege.** Hopscotch holds no signing secret, so it cannot mint a
+  session for anyone, and no identity-database credentials, so it cannot read
+  any record except the one whose cookie was handed to it.
+- **Revocation is real.** The answer comes from the live record, so an account
+  deleted on `/account` stops opening Hopscotch within the cache window rather
+  than lasting until the cookie expires.
+- **It needed no IAM.** The first version verified the cookie locally and read
+  the identity database, which wanted `secretAccessor` plus `datastore.user`
+  scoped to that database. The deployer can set secret-level IAM but has no
+  `resourcemanager.projects.setIamPolicy`, and Firestore has no per-database
+  IAM policy to set instead - so that version could not be switched on without
+  a console step. This one shipped working.
 
-Both are Erik's to grant. **Do not add the env vars before the bindings
-exist** - Cloud Run resolves secret env vars before it reports a revision
-ready, so the next deploy would simply fail to start.
+The cost is one HTTPS round trip per check, cached for 60s against a hash of
+the cookie (never the cookie itself - a session token in a long-lived map is a
+credential in memory for no reason). An unreachable identity service fails
+closed: shared sign-in stops, Hopscotch's own accounts carry on.
+
+`IDENTITY_VERIFY_URL` overrides the endpoint and, set empty, turns shared
+sign-in off entirely. Unset means the production landing service, so no env
+var is required on the service.
 
 ### Migrate an app's users BEFORE switching its login over
 
@@ -719,8 +734,6 @@ path; nothing else knows or cares.
 
 ## Known open items
 
-- **Hopscotch's shared sign-in is waiting on two IAM grants.** See "Hopscotch
-  is wired but switched OFF" above. The code is deployed and inert.
 - ~~Runtime service account is over-privileged.~~ Done 2026-09-21: every
   service runs as its own scoped account. The record is in
   `docs/phase4-runtime-service-accounts.md`. The deployer still holds no
