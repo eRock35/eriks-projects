@@ -199,6 +199,7 @@
     <div class="btnrow">
       <button class="btn sec row" id="saveBtn">Save</button>
       <button class="btn sec row" id="shareBtn" hidden>Copy link</button>
+      <button class="btn sec row" id="saveVideoBtn">Save video</button>
       <button class="btn sec row" id="againBtn">New one</button>
     </div>
   </div>
@@ -368,6 +369,64 @@
     player.speed = SPEEDS[i];
     this.textContent = SPEEDS[i] + '×';
   });
+  /* Record the animation off the canvas it is already drawing to.
+   *
+   * These visuals exist to be shared and until now could not leave the page -
+   * a screenshot of a race chart is the one frame carrying the least
+   * information. MediaRecorder over canvas.captureStream needs no server, no
+   * library and no upload: the file is made on the viewer's own machine.
+   *
+   * Format is whatever the browser will actually encode. Chrome and Firefox
+   * give WebM; Safari only does MP4, and only from 14.1 - where neither is
+   * supported the button says so rather than writing a zero-byte file. */
+  var VIDEO_TYPES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+  function pickVideoType() {
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return null;
+    for (var i = 0; i < VIDEO_TYPES.length; i++) if (MediaRecorder.isTypeSupported(VIDEO_TYPES[i])) return VIDEO_TYPES[i];
+    return null;
+  }
+
+  function exportVideo(btn) {
+    var canvas = $('stage');
+    var type = pickVideoType();
+    if (!player || !canvas.captureStream || !type) {
+      toast('This browser cannot record the canvas. Chrome or Firefox can.', 'error');
+      return;
+    }
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Recording\u2026';
+
+    var chunks = [];
+    var rec = new MediaRecorder(canvas.captureStream(60), { mimeType: type, videoBitsPerSecond: 8000000 });
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onerror = function () { toast('Recording failed.', 'error'); btn.disabled = false; btn.textContent = label; };
+    rec.onstop = function () {
+      var ext = type.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+      var blob = new Blob(chunks, { type: type });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = ((current && current.title) || 'dataviz').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) + '.' + ext;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      btn.disabled = false;
+      btn.textContent = label;
+      toast('Saved ' + (blob.size / 1048576).toFixed(1) + ' MB');
+    };
+
+    // From the top, at normal speed, so the file matches what was on screen.
+    player.speed = 1;
+    player.seek(0);
+    player.play();
+    rec.start();
+    // A little past the end: the last frame should be in the file, and
+    // MediaRecorder drops whatever it has not encoded when it stops.
+    setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, player.duration + 500);
+  }
+
+  $('saveVideoBtn').addEventListener('click', function () { exportVideo(this); });
+
   $('againBtn').addEventListener('click', function () {
     $('result').hidden = true;
     $('intro').hidden = false;
