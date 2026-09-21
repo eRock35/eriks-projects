@@ -66,6 +66,9 @@ app.get('/login', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'lo
 // script the sign-in page cannot load is a sign-in page with no Face ID
 // button, silently, with nothing in the log to say why.
 app.get('/passkey.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'passkey.js')));
+// The self-running demo helper. The public preview page needs it and static
+// files are served below the gate.
+app.get('/tour.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'tour.js')));
 app.get('/icon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'icon.svg')));
 
 /* ---------- the public preview: read-only, outside the gate ---------- */

@@ -274,7 +274,7 @@
     try {
       var d = await api('/api/datasets');
       $('samples').innerHTML = (d.datasets || []).map(function (s2) {
-        return '<button type="button" class="sample" data-sample="' + esc(s2.id) + '">' +
+        return '<button type="button" class="sample" data-sample="' + esc(s2.id) + '"' + (s2.free ? ' data-free="1"' : '') + '>' +
           '<b>' + esc(s2.title) + '</b><span>' + esc(s2.blurb) + '</span><i>' + esc(s2.best) + '</i></button>';
       }).join('');
     } catch (e) { $('samples').innerHTML = '<p style="color:var(--ink-2);font-size:14px">Could not load the samples.</p>'; }
@@ -733,6 +733,31 @@
     }
   }
   boot();
+})();
+</script>
+<script src="/tour.js"></script>
+<script>
+// The self-running demo the landing page frames: play one free sample, then
+// the next, forever. ONLY samples marked free - those render from a baked
+// spec with no model call, so this never spends anything.
+(function () {
+  "use strict";
+  if (!window.Tour || !Tour.active()) return;
+  var T = window.Tour;
+  var i = 0;
+  T.run([
+    async function () {
+      var free = await T.until(function () { var f = document.querySelectorAll('#samples [data-free="1"]'); return f.length ? f : null; }, 20000);
+      var btn = free[i++ % free.length];
+      await T.scrollTo(window, Math.max(0, btn.getBoundingClientRect().top + window.scrollY - 160), 600);
+      await T.tap(btn);
+      // #stage IS the canvas; it gets a size once a viz is showing.
+      await T.until(function () { var st = document.getElementById('stage'); return st && st.getBoundingClientRect().height > 0; }, 15000);
+      await T.wait(400);
+      await T.scrollTo(window, 0, 500);
+      await T.wait(9000);
+    },
+  ], { pause: 300 });
 })();
 </script>
 </body>

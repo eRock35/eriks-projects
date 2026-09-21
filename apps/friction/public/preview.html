@@ -89,5 +89,37 @@
   });
 })();
 </script>
+<script src="/tour.js"></script>
+<script>
+// The self-running demo the landing page frames: read down the board, look
+// at a couple of problems, back to the top, again. Nothing is tapped for
+// real - the preview has nothing to tap.
+(function () {
+  "use strict";
+  if (!window.Tour || !Tour.active()) return;
+  var T = window.Tour;
+  T.run([
+    async function () {
+      await T.until(function () { return document.querySelector(".card"); }, 20000);
+      await T.scrollTo(window, 0, 400);
+      await T.wait(1400);
+    },
+    async function () {
+      var cards = document.querySelectorAll(".card");
+      for (var i = 0; i < Math.min(cards.length, 4); i++) {
+        var c = cards[i];
+        await T.scrollTo(window, Math.max(0, c.getBoundingClientRect().top + window.scrollY - 90), 900);
+        await T.wait(300);
+        await T.tap(c, { silent: true });
+        await T.wait(1500);
+      }
+    },
+    async function () {
+      await T.scrollThrough(window, 5000);
+      await T.wait(1800);
+    },
+  ]);
+})();
+</script>
 </body>
 </html>

@@ -223,6 +223,18 @@ scrolls near (five cold starts on page load would be silly), the app inside
 renders at 390px and is scaled to fit, and a transparent layer over each
 keeps swipes on the strip and turns a tap into "open the app".
 
+**Tour mode.** Every framed URL carries `?tour=1`, and the app then runs
+a scripted loop on itself so the frame looks used: trip-planner reads the
+example chat, types a question and shows a canned answer arrive, opens a
+day, glances at the watches; football scrolls the card, opens a "why",
+visits the board; DataViz plays one free sample after another; Friction reads
+down the preview. `shared/tour.js` is the helper (copied into each app's
+`public/`; Friction serves it before the gate). Three rules it keeps:
+nothing it does costs money - chat answers are canned and drawn into the
+DOM, DataViz taps only samples marked `free` by `/api/datasets`; it runs
+only with `?tour=1` and never under reduced motion; a failing step restarts
+the loop rather than leaving the page half-animated.
+
 **`Content-Security-Policy: frame-ancestors`** on football, trip-planner,
 dataviz and friction allows `'self'` plus `strongtechnicalconsulting.com`
 and `www.`. Nothing set X-Frame-Options before, so anyone could frame these

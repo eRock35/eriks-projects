@@ -276,7 +276,12 @@ app.get('/reset', (_req, res) => res.sendFile(path.join(__dirname, 'public', 're
 
 /* ---------- billing ---------- */
 
-app.get('/api/datasets', (_req, res) => res.json({ datasets: datasets.list() }));
+// `free` says whether a sample has a baked spec - the ones that render with
+// no model call. The tour only ever taps those, so a landing-page visit
+// costs nothing; the page can use it too.
+app.get('/api/datasets', (_req, res) => res.json({
+  datasets: datasets.list().map((d) => Object.assign({}, d, { free: datasets.isFree(datasets.get(d.id)) })),
+}));
 
 app.post('/api/checkout', accounts.requireUser, async (req, res) => {
   try {
