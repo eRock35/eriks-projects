@@ -204,6 +204,47 @@ why downgrading a model without it would 400 every free-tier chat.
 returns — `identityLib.planFor(...)`, not `identity.planFor(...)`. The test
 suite caught that one.
 
+## Bring your own key
+
+A user can run every app on their own Anthropic key instead of the shared $2.
+`shared/byok.js` stores it; `identity` exposes it.
+
+- **Saving** goes through `POST /api/auth/byok`, which **validates the key
+  against Anthropic before storing it** (a listing call, no tokens) — a typo
+  is caught there rather than as a failed answer an hour later.
+- **It is never readable again.** `/me` returns `{supported, present, last4,
+  addedAt}` and nothing else, and the save response does not echo the key
+  back either.
+- **Encryption:** AES-256-GCM under `BYOK_ENCRYPTION_KEY` (Secret Manager
+  secret `byok-encryption-key`, 32 bytes base64), mounted on every service.
+  The uid is the GCM additional-authenticated-data, so a ciphertext copied
+  into another account's record fails to decrypt rather than quietly working.
+  Ciphertexts are tagged `v1.` so a future scheme can be written alongside.
+- **Cloud KMS is the better answer and is not done yet.** The deployer service
+  account has `cloudkms.keyRings.create` denied — the same permission gap as
+  `cloudscheduler.jobs.create` and the domain mapping. The KMS **API is now
+  enabled** on the project, so the upgrade is: Erik creates a keyring + key in
+  the console, grants the runtime account
+  `roles/cloudkms.cryptoKeyEncrypterDecrypter`, and a `v2.` branch goes into
+  `byok.js`. Existing `v1.` rows keep working — no migration.
+- **Billing:** `budgetFor()` returns `reason: 'byok'` and unlimited, so they
+  skip the allowance and get the **paid** model tier. Usage rows are still
+  written with `byok: true` so the dashboard shows what ran; the `spentUsd`
+  bump is skipped, because nobody is being charged.
+- **Using it:** apps build one client at startup with the service key.
+  `identity.clientFor(user, fallback, make)` returns that client, or a metered
+  per-key one when the user has a key on file. It caches by key (cleared on
+  removal, so a removed key stops working immediately) and identity never
+  imports the SDK — the app passes `make`.
+- **The UI** lives in DataViz's account sheet next to the top-ups, reachable
+  from anywhere by `?key=1` (`?topup=1` opens the same sheet). One place to
+  spend money or supply a key, same reasoning as checkout. A shared
+  `/account` page on the landing site is the better eventual home.
+- **Anthropic keys only.** These apps lean on the server-side `web_search`
+  tool and `pause_turn`; accepting an OpenAI or Gemini key would mean an
+  adapter layer and silently worse results for exactly the users who brought
+  one.
+
 ## DataViz billing (Stripe)
 
 Stripe sandbox account `acct_1UHo8xF32OknjgD1`, **test mode**. Product

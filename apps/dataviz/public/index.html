@@ -538,6 +538,23 @@
           me.budget.allowanceUsd.toFixed(2) + ' credit left &mdash; it works across every app on this domain.</p>' +
           '<div class="btn-row" id="topUps"></div></div>'
         : '') +
+      // Bring your own key. Offered to everyone who is not already on their
+      // own key: it is the other way to stop being metered, and unlike Pro it
+      // costs Erik nothing and the user nothing extra if they already have an
+      // Anthropic account.
+      (me.byok && me.byok.supported
+        ? '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
+          (me.byok.present
+            ? '<p class="hint" style="margin:0 0 8px">Running on <b>your own Anthropic key</b> (\u2026' + esc(me.byok.last4 || '') + '). ' +
+              'Nothing here is billed to you by us.</p>' +
+              '<button class="btn sec" id="byokRemove">Remove my key</button>'
+            : '<p class="hint" style="margin:0 0 8px"><b>Use your own Anthropic key</b> instead of the shared credit. ' +
+              'It is stored encrypted, never shown again, and you can remove it any time.</p>' +
+              '<input id="byokKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-\u2026" ' +
+              'style="width:100%;font:inherit;padding:9px;border-radius:10px;border:1px solid var(--sep);background:transparent;color:inherit">' +
+              '<button class="btn sec" id="byokSave" style="margin-top:8px">Save key</button>') +
+          '<p class="status" id="byokStatus" style="min-height:1.2em"></p></div>'
+        : '') +
       // Not everyone who wants Pro wants to pay for it today - a teacher, a
       // friend, someone trying it for a project. Asking is a second door to
       // the same place, and it reaches Erik by email rather than going into a
@@ -624,6 +641,38 @@
       }).catch(function () { ups.textContent = ''; });
     }
 
+    var byokSave = el.querySelector('#byokSave');
+    if (byokSave) byokSave.addEventListener('click', async function () {
+      var st = el.querySelector('#byokStatus');
+      var field = el.querySelector('#byokKey');
+      byokSave.disabled = true; st.className = 'status'; st.textContent = 'Checking the key\u2026';
+      try {
+        // The server proves the key works against Anthropic before storing it,
+        // so this either succeeds or says exactly what is wrong with it.
+        await api('/api/auth/byok', { method: 'POST', body: JSON.stringify({ key: field.value.trim() }) });
+        field.value = '';
+        await refreshMe();
+        closeSheet();
+        toast('Now running on your own key');
+      } catch (e) {
+        st.className = 'status err'; st.textContent = e.message; byokSave.disabled = false;
+      }
+    });
+
+    var byokRemove = el.querySelector('#byokRemove');
+    if (byokRemove) byokRemove.addEventListener('click', async function () {
+      var st = el.querySelector('#byokStatus');
+      byokRemove.disabled = true; st.className = 'status'; st.textContent = 'Removing\u2026';
+      try {
+        await api('/api/auth/byok', { method: 'DELETE' });
+        await refreshMe();
+        closeSheet();
+        toast('Key removed - back on the shared credit');
+      } catch (e) {
+        st.className = 'status err'; st.textContent = e.message; byokRemove.disabled = false;
+      }
+    });
+
     var askPro = el.querySelector('#askProBtn');
     if (askPro) askPro.addEventListener('click', async function () {
       var note = window.prompt('Anything you want to tell Erik? (optional)') || '';
@@ -666,7 +715,7 @@
     // Every other app's "you are out of credit" points here, because checkout
     // is built once and the balance it buys is shared. Land them on the panel
     // that sells it rather than on the home page to hunt for it.
-    if (/[?&]topup=1/.test(location.search)) {
+    if (/[?&](topup|key)=1/.test(location.search)) {
       history.replaceState(null, '', '/');
       if (me.signedIn) $('authBtn').click();
       else { openAuth(); toast('Sign in first, then top up'); }

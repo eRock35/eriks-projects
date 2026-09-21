@@ -12,6 +12,7 @@ const stripe = require('./lib/stripe');
 const datasets = require('./lib/datasets');
 const analytics = require('./lib/analytics');
 const webauthn = require('./lib/webauthn');
+const Anthropic = require('@anthropic-ai/sdk');
 const identityLib = require('./lib/identity');
 const identityStore = require('./lib/identity-store');
 const mail = require('./lib/mail');
@@ -108,6 +109,14 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, async (req, res) => 
     askedPro: Boolean(identityLib.pendingRequest(req.user, 'dataviz')),
     // The shared credit balance, so the sheet can show the meter.
     budget: identityLib.budgetFor(req.user),
+    // Their own key: whether the deployment supports it, and if they have one,
+    // the last four characters. Never the key.
+    byok: {
+      supported: identity.byokEnabled(),
+      present: Boolean(req.user && req.user.byok && req.user.byok.blob),
+      last4: (req.user && req.user.byok && req.user.byok.last4) || null,
+      addedAt: (req.user && req.user.byok && req.user.byok.addedAt) || null,
+    },
     remaining: await quota.remaining(req).catch(() => null),
   });
 });
@@ -363,6 +372,8 @@ app.post('/api/viz', identity.requireBudget, async (req, res) => {
     const { url, text, hint, datasetId } = req.body || {};
     let source, usedHint = hint;
     const plan = identityLib.planFor(req.user, MODEL_TIERS);
+    // Their own key if they have one on file; null means the app's own.
+    const client = await identity.clientFor(req.user, null, (apiKey) => new Anthropic({ apiKey }));
 
     // A sample with a baked spec costs nothing to serve: fixed data, fixed
     // mapping, no model call. So it is answered before the quota is touched
@@ -416,11 +427,11 @@ app.post('/api/viz', identity.requireBudget, async (req, res) => {
       if (!source.prose || source.prose.length < 40) {
         return res.status(422).json({ error: "I couldn't find any data in that. Try a page with a table, or paste CSV." });
       }
-      table = await shape.tableFromProse(source.prose, hint, plan.model);
+      table = await shape.tableFromProse(source.prose, hint, plan.model, client);
       fromProse = true;
     }
 
-    const spec = await shape.design(table, usedHint, plan.model);
+    const spec = await shape.design(table, usedHint, plan.model, client);
     const viz = builder.build(table, spec);
 
     await quota.record(req);
