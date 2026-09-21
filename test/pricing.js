@@ -63,5 +63,45 @@ ok('...and the modern one goes with Sonnet', owner.webSearch.type === 'web_searc
 ok('an app can still override the budget',
    identity.planFor({ admin: true }, { ...TIERS, maxUses: 2 }).maxUses === 2);
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+/* ---------- metering must not stand between a caller and the SDK ---------- */
+//
+// The meter wraps client.messages.create. It used to be an `async` wrapper,
+// which awaited the SDK's APIPromise and handed back an ordinary one - and
+// `messages.stream()` is built on `this.create(...).withResponse()`, so
+// metering a client silently broke streaming for every caller. The error named
+// a method nobody here had written, on a line nobody here had touched.
+(async () => {
+  const meterOf = identity.create({
+    store: { get: async () => null, set: async () => {}, add: async () => {}, list: async () => [] },
+    secret: () => 'x'.repeat(20),
+    app: 'test',
+  }).meter;
+
+  let charged = null;
+  const usage = { input_tokens: 10, output_tokens: 5 };
+  const apiPromise = () => {
+    const p = Promise.resolve({ usage, content: [] });
+    p.withResponse = () => Promise.resolve({ data: { usage }, response: {} });
+    return p;
+  };
+  const client = {
+    messages: {
+      create: () => apiPromise(),
+      stream: () => ({ finalMessage: async () => { charged = 'stream'; return { usage, content: [] }; } }),
+    },
+  };
+
+  meterOf(client, { route: 'test' });
+  const out = client.messages.create({ model: 'claude-sonnet-5' });
+  ok('a metered create still returns what the SDK returned',
+     typeof out.withResponse === 'function', typeof out.withResponse);
+  ok('...and it still resolves to the message', Boolean((await out).usage));
+
+  const s = client.messages.stream({ model: 'claude-sonnet-5' });
+  ok('a metered client can still stream', typeof s.finalMessage === 'function');
+  await s.finalMessage();
+  ok('...and the streamed call is the one that got measured', charged === 'stream');
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+})();
