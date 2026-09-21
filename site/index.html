@@ -186,6 +186,20 @@
 
   .projects { display: grid; grid-template-columns: 1fr; gap: 12px; }
   @media (min-width: 620px) { .projects { grid-template-columns: 1fr 1fr; } }
+
+  /* Desktop: this page is a 720px column, which is right for the hero and
+     wrong for the two things that are rows. The preview strip is five phone
+     frames scroll-snapped side by side - on a phone you swipe it, and on a
+     desktop you cannot, so two of the five were simply unreachable behind a
+     clipped edge. Both rows break out of the column to their own width and
+     centre; nothing else moves. */
+  @media (min-width: 1180px) {
+    .previews { margin-inline: calc((680px - var(--wide-row)) / 2); }
+    .preview-strip { justify-content: center; overflow-x: visible; scroll-snap-type: none; padding-inline: 0; }
+    .projects { margin-inline: calc((680px - var(--wide-row)) / 2); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+    .preview-dots { display: none; }  /* nothing left to page through */
+  }
+  :root { --wide-row: 1120px; }
   .project {
     position: relative; overflow: hidden; display: flex; gap: 14px; align-items: flex-start;
     background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; color: inherit;
