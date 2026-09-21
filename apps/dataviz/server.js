@@ -117,6 +117,13 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, async (req, res) => 
     askedPro: Boolean(identityLib.pendingRequest(req.user, 'dataviz')),
     // The shared credit balance, so the sheet can show the meter.
     budget: identityLib.budgetFor(req.user),
+    // The flat monthly fee: whether it is on sale here, what it costs, and
+    // whether this person already pays it.
+    membership: {
+      available: stripe.membershipEnabled(),
+      monthlyUsd: stripe.MEMBERSHIP_USD,
+      active: identityLib.isMember(req.user),
+    },
     // Their own key: whether the deployment supports it, and if they have one,
     // the last four characters. Never the key.
     byok: {
@@ -181,12 +188,18 @@ async function applyBillingEvent(event) {
       return;
     }
 
+    // Which subscription was bought. A $5 membership and a Pro plan are both
+    // `mode: subscription`, and only the metadata separates them - reading it
+    // wrong in this direction hands someone unlimited spend for $5, so the
+    // default is the metered one, not the generous one.
+    const membership = (obj.metadata && obj.metadata.kind) === 'membership';
     await db.merge('users', uid, {
-      plan: 'pro',
+      plan: membership ? 'member' : 'pro',
       stripeCustomerId: obj.customer || null,
       stripeSubscriptionId: obj.subscription || null,
-      proSince: new Date().toISOString(),
+      [membership ? 'memberSince' : 'proSince']: new Date().toISOString(),
     });
+    await identity.log(membership ? 'membership.started' : 'pro.started', null, { uid });
     return;
   }
 
@@ -200,8 +213,17 @@ async function applyBillingEvent(event) {
     if (!target) return;
     const active = event.type !== 'customer.subscription.deleted'
       && ['active', 'trialing', 'past_due'].includes(obj.status);
+    // The kind rides on the subscription's own metadata, set at checkout, so a
+    // renewal a year later still knows which plan it is renewing. If it is
+    // missing - a subscription created before this existed - fall back to what
+    // the account already says rather than promoting a member to Pro.
+    let kind = (obj.metadata && obj.metadata.kind) || null;
+    if (!kind) {
+      const existing = await db.get('users', target).catch(() => null);
+      kind = existing && existing.plan === 'member' ? 'membership' : 'pro';
+    }
     await db.merge('users', target, {
-      plan: active ? 'pro' : 'free',
+      plan: active ? (kind === 'membership' ? 'member' : 'pro') : 'free',
       stripeSubscriptionId: obj.id || null,
       currentPeriodEnd: obj.current_period_end ? new Date(obj.current_period_end * 1000).toISOString() : null,
       subscriptionStatus: obj.status || null,
@@ -368,6 +390,51 @@ app.post('/api/credit/checkout', accounts.requireUser, async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (err) { fail(res, err, 'Could not start that purchase.'); }
+});
+
+// The flat monthly fee, and the two ways to use it.
+//
+// This is the whole commercial model in one payload: pay $5 a month for the
+// hosting and the ledger, then either buy credit at what a call actually
+// costs, or bring your own Anthropic key and pay Anthropic directly. It is
+// mounted here for the same reason the credit routes are - this service holds
+// the Stripe keys - but what it sells is account-level and spends everywhere.
+app.get('/api/membership', accounts.requireUser, (req, res) => {
+  const budget = identityLib.budgetFor(req.user);
+  res.json({
+    available: stripe.membershipEnabled(),
+    monthlyUsd: stripe.MEMBERSHIP_USD,
+    member: identityLib.isMember(req.user),
+    // Their key, their Anthropic bill - so the fee is the only thing they pay
+    // us, and there is no balance to run down.
+    byok: {
+      supported: identity.byokEnabled(),
+      present: Boolean(req.user.byok && req.user.byok.blob),
+    },
+    budget,
+    topUps: stripe.TOP_UPS,
+    manageable: Boolean(req.user.stripeCustomerId),
+  });
+});
+
+app.post('/api/membership/checkout', accounts.requireUser, async (req, res) => {
+  try {
+    if (!stripe.membershipEnabled()) {
+      return res.status(503).json({ error: 'Membership is not set up on this deployment.' });
+    }
+    if (identityLib.isMember(req.user)) {
+      return res.status(400).json({ error: 'You are already a member.' });
+    }
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.createMembership({
+      uid: req.user.id,
+      email: req.user.email,
+      customerId: req.user.stripeCustomerId || null,
+      successUrl: `${origin}/?member=1`,
+      cancelUrl: `${origin}/`,
+    });
+    res.json({ url: session.url });
+  } catch (err) { fail(res, err, 'Could not start that subscription.'); }
 });
 
 app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {

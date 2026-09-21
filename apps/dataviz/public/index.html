@@ -588,8 +588,31 @@
     var el = sheet('<h3>' + esc(me.email) + '</h3>' +
       '<p class="hint">' + (me.pro ? '<span class="plan">Pro</span> &nbsp;Your own data is unlocked.'
                                    : 'Free plan &mdash; samples only.') + '</p>' +
-      (me.billing && !me.pro ? '<button class="btn" id="upBtn2">Upgrade</button>' : '') +
+      // Pro (unlimited, no balance to think about) stays on offer, but once
+      // membership exists it is the wrong thing to lead with: most people
+      // want the $5 and their own credit. Two primary buttons is no hierarchy
+      // at all, so this one steps back to secondary when membership is live.
+      (me.billing && !me.pro
+        ? '<button class="btn' + (me.membership && me.membership.available && !me.membership.active ? ' sec' : '') +
+          '" id="upBtn2">Unlimited plan</button>'
+        : '') +
       (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
+      // The flat monthly fee. Offered to anyone still on the free allowance:
+      // it is what turns "you get $3 to try this" into an account that can
+      // keep going. Deliberately worded as hosting and metering rather than
+      // as tokens, because that is what it actually pays for - the credit
+      // underneath is sold at what a call costs.
+      (me.membership && me.membership.available && !me.pro && !me.membership.active
+        ? '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
+          '<p class="hint" style="margin:0 0 8px"><b>$' + me.membership.monthlyUsd + '/month</b> covers hosting and ' +
+          'usage tracking across every app here. On top of it you either buy credit at what a call actually costs, ' +
+          'or bring your own Anthropic key and pay Anthropic directly.</p>' +
+          '<button class="btn" id="memberBtn">Become a member</button></div>'
+        : '') +
+      (me.membership && me.membership.active
+        ? '<p class="hint" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
+          'Member — $' + me.membership.monthlyUsd + '/month. Credit below is sold at cost.</p>'
+        : '') +
       // The credit meter. Shown to anyone on an allowance - Pro and the owner
       // are not metered, so a balance would be meaningless to them.
       (!me.pro && me.budget && !me.budget.unlimited
@@ -682,6 +705,17 @@
     })();
     var up = el.querySelector('#upBtn2');
     if (up) up.addEventListener('click', startCheckout);
+    var mem = el.querySelector('#memberBtn');
+    if (mem) mem.addEventListener('click', async function () {
+      mem.disabled = true;
+      try {
+        var out = await api('/api/membership/checkout', { method: 'POST' });
+        location.href = out.url;
+      } catch (err) {
+        toast(err.message || 'Could not start that.');
+        mem.disabled = false;
+      }
+    });
     var ups = el.querySelector('#topUps');
     if (ups) {
       fetch('/api/credit').then(function (r) { return r.json(); }).then(function (d) {

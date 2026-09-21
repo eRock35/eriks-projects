@@ -1,0 +1,107 @@
+// The commercial model: a flat monthly fee, credit sold at cost, and a
+// bring-your-own-key path that costs us nothing to serve.
+//
+// The expensive mistake this suite exists to prevent is one substitution: a
+// $5/month membership read as an unlimited Pro plan. Both arrive from Stripe
+// as `mode: subscription` and only the metadata tells them apart, so it is
+// worth a test in both directions and on the renewal a year later.
+const h = require('./harness.js');
+h.install();
+const SECRET = 'identity-secret-abcdefghijklmn';
+Object.assign(process.env, {
+  IDENTITY_SESSION_SECRET: SECRET,
+  SESSION_SECRET: 'dataviz-secret-abcdefghijklmn',
+  FIRESTORE_DATABASE_ID: 'dataviz',
+  IDENTITY_DATABASE_ID: 'identity',
+  GOOGLE_CLOUD_PROJECT: 'test',
+  STRIPE_SECRET_KEY: 'sk_test_dummy_not_called',
+  STRIPE_PRICE_ID: 'price_dummy_not_called',
+  STRIPE_MEMBER_PRICE_ID: 'price_member_dummy',
+  PORT: '9212',
+});
+require(require('path').join(__dirname, '..', 'apps', 'dataviz', 'server.js'));
+const identity = require(require('path').join(__dirname, '..', 'shared', 'identity.js'));
+const stripe = require(require('path').join(__dirname, '..', 'apps', 'dataviz', 'lib', 'stripe.js'));
+
+const B = 'http://127.0.0.1:9212';
+let pass = 0, fail = 0;
+const ok = (n, c, x) => { if (c) { pass++; console.log('  PASS  ' + n); } else { fail++; console.log('  FAIL  ' + n + (x ? '  <- ' + x : '')); } };
+const J = { 'content-type': 'application/json' };
+const post = (p, b, c) => fetch(B + p, { method: 'POST', headers: c ? { ...J, cookie: c } : J, body: JSON.stringify(b) });
+const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
+const TIERS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+(async () => {
+  await new Promise((r) => setTimeout(r, 900));
+
+  let r = await post('/api/auth/register', { email: 'member@example.com', password: 'a-long-password-1' });
+  const cookie = jar(r);
+  ok('an account registers', r.status === 200, String(r.status));
+
+  // --- what membership is, and is not -------------------------------------
+  const member = { plan: 'member', email: 'm@x.co', toppedUpUsd: 20, spentUsd: 1 };
+  const budget = identity.budgetFor(member);
+  ok('a member is NOT unlimited - that is the whole model', budget.unlimited === false, JSON.stringify(budget));
+  ok('...they spend their own credit, 1:1', budget.remainingUsd === 21, String(budget.remainingUsd));
+  ok('...and they are on the paid tier anyway', identity.planFor(member, TIERS).model === 'claude-sonnet-5');
+  ok('...with the bigger search budget', identity.planFor(member, TIERS).maxUses >= 10);
+
+  const broke = identity.budgetFor({ plan: 'member', toppedUpUsd: 0, spentUsd: 99 });
+  ok('a member who spends their balance is stopped like anyone else', broke.remainingUsd === 0, String(broke.remainingUsd));
+
+  ok('a lapsed membership stops at the end of the paid period',
+     identity.isMember({ plan: 'member', currentPeriodEnd: '2020-01-01T00:00:00Z' }) === false);
+  ok('...but runs to the end of a period already paid for',
+     identity.isMember({ plan: 'member', currentPeriodEnd: '2099-01-01T00:00:00Z' }) === true);
+
+  // Pro is still unlimited, and BYOK still costs us nothing.
+  ok('Pro is still unlimited', identity.budgetFor({ plan: 'pro' }).unlimited === true);
+  ok('BYOK is unlimited and billed to nobody here',
+     identity.budgetFor({ byok: { blob: 'x' } }).reason === 'byok');
+
+  // --- the checkout session that gets built --------------------------------
+  const seen = [];
+  const realCall = global.fetch;
+  global.fetch = async (url, init) => {
+    if (String(url).includes('api.stripe.com')) {
+      seen.push(decodeURIComponent(String(init.body)));
+      return { ok: true, status: 200, json: async () => ({ url: 'https://stripe.test/session' }) };
+    }
+    return realCall(url, init);
+  };
+
+  r = await post('/api/membership/checkout', {}, cookie);
+  ok('a member checkout starts', r.status === 200, String(r.status));
+  const body = seen.join('\n');
+  ok('...as a subscription', /mode=subscription/.test(body));
+  ok('...on the membership price, not the Pro one', /price_member_dummy/.test(body), body.slice(0, 200));
+  ok('...carrying kind=membership on the SESSION', /metadata\[kind\]=membership/.test(body));
+  ok('...and on the SUBSCRIPTION, so a renewal still knows what it is',
+     /subscription_data\[metadata\]\[kind\]=membership/.test(body));
+
+  seen.length = 0;
+  await post('/api/credit/checkout', { usd: 25 }, cookie);
+  const credit = seen.join('\n');
+  ok('a top-up is a one-off payment, never a subscription', /mode=payment/.test(credit) && !/mode=subscription/.test(credit));
+  ok('...and is tagged as credit so it cannot grant a plan', /metadata\[kind\]=credit/.test(credit));
+  global.fetch = realCall;
+
+  // --- top-up amounts ------------------------------------------------------
+  ok('the $5 top-up is gone - Stripe took 8.9% of it',
+     !stripe.TOP_UPS.some((t) => t.usd === 5), JSON.stringify(stripe.TOP_UPS.map((t) => t.usd)));
+  ok('...and $50 is offered, where the fee is 3.5%', stripe.TOP_UPS.some((t) => t.usd === 50));
+  ok('every top-up is at least $10', stripe.TOP_UPS.every((t) => t.usd >= 10));
+
+  // --- what the account page is told ---------------------------------------
+  r = await fetch(B + '/api/membership', { headers: { cookie } });
+  const view = await r.json();
+  ok('the membership view reports the fee', view.monthlyUsd === 5, String(view.monthlyUsd));
+  ok('...that this account is not yet a member', view.member === false);
+  ok('...and offers the bring-your-own-key path', view.byok !== undefined);
+
+  // --- an unauthenticated stranger cannot start either ----------------------
+  ok('membership checkout needs an account', (await post('/api/membership/checkout', {})).status === 401);
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+})();

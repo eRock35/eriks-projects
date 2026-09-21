@@ -16,9 +16,14 @@ const TOLERANCE_SECONDS = 300;
 
 function secretKey() { return process.env.STRIPE_SECRET_KEY || ''; }
 function priceId() { return process.env.STRIPE_PRICE_ID || ''; }
+// The flat monthly fee: hosting and metering, not tokens. A separate Price
+// from the old Pro one, because they grant different things and the webhook
+// has to be able to tell which was bought.
+function memberPriceId() { return process.env.STRIPE_MEMBER_PRICE_ID || ''; }
 function webhookSecret() { return process.env.STRIPE_WEBHOOK_SECRET || ''; }
 
 function enabled() { return Boolean(secretKey() && priceId()); }
+function membershipEnabled() { return Boolean(secretKey() && memberPriceId()); }
 
 /** Stripe wants nested params as a[b][c]=v, not JSON. */
 function form(obj, prefix = '', out = []) {
@@ -63,8 +68,12 @@ async function createCheckout({ uid, email, successUrl, cancelUrl, customerId })
     // The uid is what the webhook uses to find the account again. Stripe
     // echoes it back on every event for this subscription.
     client_reference_id: uid,
-    metadata: { uid },
-    subscription_data: { metadata: { uid } },
+    metadata: { uid, kind: 'pro' },
+    // `kind` must ride on the SUBSCRIPTION as well as the session. A
+    // subscription.updated event months later carries no session, so without
+    // this a renewal could not tell a $5 membership from a Pro plan and would
+    // have to guess - and guessing wrong grants unlimited spend.
+    subscription_data: { metadata: { uid, kind: 'pro' } },
     allow_promotion_codes: true,
   };
   if (customerId) payload.customer = customerId;
@@ -75,11 +84,20 @@ async function createCheckout({ uid, email, successUrl, cancelUrl, customerId })
 // What a top-up can be bought in. Fixed amounts rather than a free-text box:
 // an arbitrary-amount field invites typos and card-testing, and three choices
 // cover the range anyone needs.
+// Stripe takes 2.9% + $0.30 of every one of these, which is 8.9% of a $5
+// top-up and 3.5% of a $50 one. The monthly fee is what absorbs that, so the
+// floor is $10: below it the fee is paying Stripe rather than paying for
+// hosting. Credit is sold 1:1 with what a call actually costs - the markup
+// people normally take on tokens is the monthly fee instead.
 const TOP_UPS = [
-  { key: '5', usd: 5, label: '$5 of credit' },
   { key: '10', usd: 10, label: '$10 of credit' },
   { key: '25', usd: 25, label: '$25 of credit' },
+  { key: '50', usd: 50, label: '$50 of credit' },
 ];
+
+// What the flat fee is, in one place, so the checkout page and the UI cannot
+// disagree about it.
+const MEMBERSHIP_USD = Number(process.env.MEMBERSHIP_USD || 5);
 
 /**
  * A one-off purchase of API credit, spendable across every app.
@@ -113,6 +131,33 @@ async function createTopUp({ uid, email, usd, successUrl, cancelUrl, customerId 
     client_reference_id: uid,
     // `kind` is load-bearing: it is how the webhook knows not to grant Pro.
     metadata: { uid, kind: 'credit', creditUsd: String(option.usd) },
+  };
+  if (customerId) payload.customer = customerId;
+  else if (email) payload.customer_email = email;
+  return call('/checkout/sessions', payload);
+}
+
+/**
+ * The flat monthly fee.
+ *
+ * This is what someone buys to use the apps on their own credit, or to bring
+ * their own Anthropic key. It does not grant unlimited use and must not be
+ * confused with the Pro subscription - see `kind` in the metadata, which is
+ * what the webhook reads to decide which plan to write.
+ */
+async function createMembership({ uid, email, successUrl, cancelUrl, customerId }) {
+  if (!memberPriceId()) {
+    throw Object.assign(new Error('Membership is not configured.'), { status: 503 });
+  }
+  const payload = {
+    mode: 'subscription',
+    line_items: [{ price: memberPriceId(), quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    client_reference_id: uid,
+    metadata: { uid, kind: 'membership' },
+    subscription_data: { metadata: { uid, kind: 'membership' } },
+    allow_promotion_codes: true,
   };
   if (customerId) payload.customer = customerId;
   else if (email) payload.customer_email = email;
@@ -170,4 +215,5 @@ function verifyWebhook(rawBody, signatureHeader) {
   return JSON.parse(rawBody.toString('utf8'));
 }
 
-module.exports = { enabled, createCheckout, createTopUp, createPortal, verifyWebhook, call, form, priceId, TOP_UPS };
+module.exports = { enabled, membershipEnabled, createCheckout, createMembership, createTopUp, createPortal,
+  verifyWebhook, call, form, priceId, memberPriceId, TOP_UPS, MEMBERSHIP_USD };
