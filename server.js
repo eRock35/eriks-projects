@@ -26,6 +26,7 @@ const identityLib = require('./shared/identity');
 const insights = require('./lib/insights');
 const notify = require('./lib/notify');
 const uptime = require('./lib/uptime');
+const digest = require('./lib/digest');
 const reset = require('./shared/reset');
 const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
@@ -855,19 +856,37 @@ app.post('/api/cron/notify', async (req, res) => {
     // Two independent jobs on one tick. An app being down and a new signup
     // are different emails with different urgency, so they are not merged -
     // but they share the cron, the mailer and the admin address.
-    const [digest, uptime] = await Promise.allSettled([
+    const [summary, health, weekly] = await Promise.allSettled([
       notify.run({ origin }),
       runUptime(),
+      runWeekly(origin, req.query.force === '1'),
     ]);
-    res.json({
-      digest: digest.status === 'fulfilled' ? digest.value : { error: String(digest.reason).slice(0, 200) },
-      uptime: uptime.status === 'fulfilled' ? uptime.value : { error: String(uptime.reason).slice(0, 200) },
-    });
+    const val = (r) => (r.status === 'fulfilled' ? r.value : { error: String(r.reason).slice(0, 200) });
+    res.json({ digest: val(summary), uptime: val(health), weekly: val(weekly) });
   } catch (err) {
     console.error('POST /api/cron/notify', err);
     res.status(500).json({ error: 'Could not run the notifier.' });
   }
 });
+
+/** The weekly roundup, if a week has passed and anything moved. */
+async function runWeekly(origin, force) {
+  const due = await digest.runIfDue({ origin, force });
+  if (!due.due) return due;
+  const to = process.env.ADMIN_EMAIL || '';
+  if (!email.enabled() || !to) {
+    return { sent: false, reason: email.enabled() ? 'no ADMIN_EMAIL set' : 'Resend is not configured' };
+  }
+  const mail = digest.compose(due.found, origin);
+  await email.sendOne({ to, subject: mail.subject, html: mail.html, text: mail.text });
+  // Only after a successful send, so a mail outage retries next tick instead
+  // of silently skipping a week.
+  const { Firestore } = require('@google-cloud/firestore');
+  await new Firestore({ projectId: process.env.GOOGLE_CLOUD_PROJECT || 'metal-celerity-236019', databaseId: process.env.IDENTITY_DATABASE_ID || 'identity' })
+    .collection('control').doc('weekly-digest')
+    .set({ lastSentAt: new Date().toISOString(), lastSubject: mail.subject }, { merge: true });
+  return { sent: true, to, subject: mail.subject, items: due.found.count };
+}
 
 /** Probe every app and email only when something changed state. */
 async function runUptime() {
