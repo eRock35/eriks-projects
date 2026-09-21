@@ -58,6 +58,14 @@ score.useMeter(identity.meter);
 
 /* ---------- open routes: health, login, cron ---------- */
 
+// Which key in a user's `access` map this app reads. Declared up here rather
+// than beside the page gate because the scan route above needs it too, and a
+// `const` used by a route registered earlier is a temporal-dead-zone throw at
+// startup - a container that never boots.
+const APP_KEY = 'friction';
+
+
+
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 // Cloud Run's edge swallows /healthz: in production it returns a 404 with no
 // Server header, on the run.app URL and the custom domain alike, while every
@@ -172,12 +180,35 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ ok: true });
 });
 
-// The one route Cloud Scheduler calls. Session OR cron key - never neither,
-// because everything past here spends Anthropic tokens.
-app.post('/api/cron/scan', auth.requireLoginOrCron, identity.requireBudget, async (req, res) => {
+/** Who may run a scan by hand.
+ *
+ *  Three doors, and the third one had been left out. `auth.requireLoginOrCron`
+ *  knows only this app's own password cookie and the cron key, so someone
+ *  signed in on the SHARED account - the owner included - could read every
+ *  page of Friction (the gate below honours identity) and then get a bare 401
+ *  from the one button that spends tokens. "Signed in everywhere except the
+ *  thing you came to do" is the shape of that bug, and it is why this cannot
+ *  just be `auth.requireLoginOrCron` again.
+ *
+ *  Identity still does not grant itself access: `hasAccess` is the same
+ *  per-app check the page gate makes, and the owner passes it because he owns
+ *  the place, not because he is signed in. */
+function mayScan(req) {
+  return auth.hasSession(req) || identityLib.hasAccess(req.user, APP_KEY);
+}
+
+function requireScan(req, res, next) {
+  if (mayScan(req) || auth.cronOk(req)) return next();
+  if (req.user) return res.status(403).json({ error: 'Your account does not have access to Friction.' });
+  return res.status(401).json({ error: 'not signed in' });
+}
+
+// The one route Cloud Scheduler calls. A person OR the cron key - never
+// neither, because everything past here spends Anthropic tokens.
+app.post('/api/cron/scan', requireScan, identity.requireBudget, async (req, res) => {
   try {
     const summary = await scan.runScan({
-      trigger: auth.hasSession(req) ? 'manual' : 'cron',
+      trigger: mayScan(req) ? 'manual' : 'cron',
       scope: String(req.query.scope || 'next'),
     });
     res.json(summary);
@@ -204,7 +235,6 @@ analytics.mount(app, 'friction');
 //
 // The original APP_PASSWORD session stays working as the second door, so a
 // fault in the shared identity service cannot lock Erik out of his own tool.
-const APP_KEY = 'friction';
 function gate(req, res, next) {
   if (auth.hasSession(req)) return next();               // the app's own password
   if (identityLib.hasAccess(req.user, APP_KEY)) return next();
