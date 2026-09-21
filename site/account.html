@@ -47,8 +47,8 @@
   .row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
   .row:first-of-type { border-top: 0; }
   .row-main { flex: 1; min-width: 0; }
-  .row-title { font-size: 14.5px; font-weight: 600; }
-  .row-sub { font-size: 12.5px; color: var(--muted); }
+  .row-title { font-size: 14.5px; font-weight: 600; display: block; }
+  .row-sub { font-size: 12.5px; color: var(--muted); display: block; }
   .pill { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
           padding: 3px 8px; border-radius: 7px; background: var(--fill); color: var(--dim); }
   .pill.on { background: #0ca30c22; color: var(--good); }
@@ -57,6 +57,51 @@
   .foot { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
   .danger-zone { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
   [hidden] { display: none !important; }
+
+  /* ---- desktop ----------------------------------------------------------
+     The phone layout is one column of full-width cards with full-width
+     buttons, which is right on a phone and reads as a phone app someone
+     opened in a browser at 1512px: a 544px strip down the middle with 480px
+     of nothing on either side, and 2400px of scrolling to reach the bottom.
+
+     Two columns halve the scroll and use the width for something. The split
+     is by meaning: on the left is who you are, how the work gets paid for and
+     what the account opens; on the right is how you get in and how you leave.
+     Bringing your own key sits with Plan and credit rather than with the
+     passkeys because it is the same question - who pays for the calls - and
+     it happens to balance the two columns, which the semantic split alone did
+     not. */
+  @media (min-width: 900px) {
+    body { padding: 40px 24px 80px; }
+    .wrap { max-width: 61em; }
+    .page-head { margin-bottom: 22px; }
+    h1 { font-size: 30px; }
+
+    #signedIn {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 20px;
+      align-items: start;   /* columns end where their content does */
+    }
+    .col { display: flex; flex-direction: column; }
+
+    /* A full-bleed primary button is a phone idiom; at this width it is a
+       500px rectangle around the word "Save". */
+    button.wide { width: auto; align-self: flex-start; min-width: 140px; }
+    /* Same for the fields: an email box does not get more usable at 500px. */
+    .card input { max-width: 26em; }
+
+    /* The apps list has room to put the name and the link on one line
+       instead of stacking them. */
+    .app-row .row-main { display: flex; align-items: baseline; gap: 10px; }
+    .app-row .row-title, .app-row .row-sub { display: inline; }
+  }
+
+  /* Below 900px the wrappers must not exist as far as layout is concerned,
+     or each would become a block and the cards would inherit its margins. */
+  @media (max-width: 899.98px) {
+    .col { display: contents; }
+  }
 </style>
 </head>
 <body>
@@ -85,8 +130,15 @@
     </p>
   </div>
 
-  <!-- ================= signed in ================= -->
+  <!-- ================= signed in =================
+       The two .col wrappers are `display: contents` below 900px, so on a
+       phone the cards are still direct children of #signedIn in source order
+       and nothing about that layout changes. Past 900px they become the two
+       columns of a grid. Wrappers rather than CSS columns because column
+       balancing decides for itself what lands where, and "Delete this
+       account" is not a card to let a layout algorithm place. -->
   <div id="signedIn" hidden>
+   <div class="col">
 
     <div class="card">
       <h2>Profile</h2>
@@ -107,11 +159,26 @@
       <div id="planActions"></div>
     </div>
 
+    <div class="card" id="byokCard" hidden>
+      <h2>Your own API key</h2>
+      <p class="sub" id="byokSub"></p>
+      <div id="byokAdd">
+        <label for="byokKey">Anthropic API key</label>
+        <input type="password" id="byokKey" autocomplete="off" placeholder="sk-ant-…">
+        <button class="sec wide" id="saveByok">Save key</button>
+      </div>
+      <button class="sec wide" id="removeByok" hidden>Remove my key</button>
+      <div class="status" id="byokStatus"></div>
+    </div>
+
     <div class="card">
       <h2>Apps</h2>
       <p class="sub">What this account opens. Ask for access from inside the app you want.</p>
       <div id="appsList"></div>
     </div>
+
+   </div>
+   <div class="col">
 
     <div class="card">
       <h2>Face ID and passkeys</h2>
@@ -136,18 +203,6 @@
       <div class="status" id="pwStatus"></div>
     </div>
 
-    <div class="card" id="byokCard" hidden>
-      <h2>Your own API key</h2>
-      <p class="sub" id="byokSub"></p>
-      <div id="byokAdd">
-        <label for="byokKey">Anthropic API key</label>
-        <input type="password" id="byokKey" autocomplete="off" placeholder="sk-ant-…">
-        <button class="sec wide" id="saveByok">Save key</button>
-      </div>
-      <button class="sec wide" id="removeByok" hidden>Remove my key</button>
-      <div class="status" id="byokStatus"></div>
-    </div>
-
     <div class="card danger-zone">
       <h2>Delete this account</h2>
       <p class="sub">
@@ -164,6 +219,7 @@
       <div class="status" id="deleteStatus"></div>
     </div>
 
+   </div>
   </div>
 </div>
 
@@ -258,11 +314,13 @@
         : (me.admin || level
             ? '<span class="pill on">' + esc(me.admin && !level ? 'owner' : level === true ? 'yes' : level) + '</span>'
             : '<span class="pill">' + (asked ? 'asked' : 'no access') + '</span>');
-      return '<div class="row"><div class="row-main">' +
-        '<div class="row-title">' + esc(app.name) + '</div>' +
-        '<div class="row-sub"><a href="' + esc(app.url) + '">Open</a>' +
-          (app.open ? ' · no grant needed' : '') + '</div>' +
-        '</div>' + pill + '</div>';
+      var note = app.open ? ' \u00b7 no grant needed' : '';
+      return '<div class="row app-row">' +
+        '<span class="row-main">' +
+          '<span class="row-title">' + esc(app.name) + '</span>' +
+          '<span class="row-sub"><a href="' + esc(app.url) + '">Open</a>' + note + '</span>' +
+        '</span>' + pill +
+      '</div>';
     }).join('');
   }
 
