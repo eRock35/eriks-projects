@@ -352,10 +352,17 @@ app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
 
 /* ---------- the one route that costs money ---------- */
 
+// This route is reachable WITHOUT an account - a sample with no baked spec
+// falls through to the model - so its default model is the one that matters
+// most for the bill. Free and anonymous use runs on Haiku; Pro, the owner and
+// anyone on their own key still get Opus, which is what they are paying for.
+const MODEL_TIERS = { free: 'claude-haiku-4-5', paid: shape.MODEL };
+
 app.post('/api/viz', identity.requireBudget, async (req, res) => {
   try {
     const { url, text, hint, datasetId } = req.body || {};
     let source, usedHint = hint;
+    const plan = identityLib.planFor(req.user, MODEL_TIERS);
 
     // A sample with a baked spec costs nothing to serve: fixed data, fixed
     // mapping, no model call. So it is answered before the quota is touched
@@ -409,11 +416,11 @@ app.post('/api/viz', identity.requireBudget, async (req, res) => {
       if (!source.prose || source.prose.length < 40) {
         return res.status(422).json({ error: "I couldn't find any data in that. Try a page with a table, or paste CSV." });
       }
-      table = await shape.tableFromProse(source.prose, hint);
+      table = await shape.tableFromProse(source.prose, hint, plan.model);
       fromProse = true;
     }
 
-    const spec = await shape.design(table, usedHint);
+    const spec = await shape.design(table, usedHint, plan.model);
     const viz = builder.build(table, spec);
 
     await quota.record(req);

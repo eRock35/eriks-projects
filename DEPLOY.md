@@ -172,6 +172,38 @@ rental confirmation numbers. The quieter URL beat the nicer one. That trade has
 since been revisited — see **Settled decisions**. The app keeps its `*.run.app`
 URL; don't add a domain mapping for it.
 
+## Which model each tier runs on
+
+`identity.planFor(user, { free, paid })` decides, in one place, and hands back
+**both** the model and the web-search tool that model accepts. Paid means the
+owner, a Pro subscription, or a user on their own API key — anyone
+`budgetFor()` calls unlimited. Everyone else, including anonymous visitors,
+gets the free model.
+
+| App | free | paid | why |
+|---|---|---|---|
+| trip-planner chat + watch checks | Haiku 4.5 | Sonnet 5 | chat holds up fine on Haiku |
+| football research | Haiku 4.5 | Sonnet 5 | same |
+| dataviz `/api/viz` | Haiku 4.5 | Opus 5 | **reachable with no account** — a sample with no baked spec falls through to the model |
+| friction scan | — | Opus 5 | not tiered: scoring *is* the product, and its own CLAUDE.md says not to economise here |
+| santa-rosa chat | — | Sonnet 5 | one family, no tiers, no identity module |
+| football overnight batch | — | Sonnet 5 | Erik's own cost, and already 50% off through the Batch API |
+
+Prices per million tokens: Haiku 4.5 **$1/$5**, Sonnet 5 **$2/$10**, Opus 5
+**$5/$25**. A searching answer measured 11,094 in / 457 out — about 1.3¢ on
+Haiku against 2.7¢ on Sonnet, so the $2 allowance buys roughly twice as much.
+
+**Never write a `web_search` tool type at a call site.** Measured against the
+live API: Haiku 4.5 returns **400** on `web_search_20260209` ("does not
+support programmatic tool calling"); it needs the basic
+`web_search_20250305`. The newer one needs Opus 4.6+ or Sonnet 4.6+. Model
+and tool have to move together, which is why `planFor` returns the pair and
+why downgrading a model without it would 400 every free-tier chat.
+
+`planFor` is a **module** export, not a method on the object `create()`
+returns — `identityLib.planFor(...)`, not `identity.planFor(...)`. The test
+suite caught that one.
+
 ## DataViz billing (Stripe)
 
 Stripe sandbox account `acct_1UHo8xF32OknjgD1`, **test mode**. Product

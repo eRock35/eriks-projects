@@ -90,10 +90,12 @@ function sampleOf(table) {
   ].join('\n');
 }
 
-/** Ask the model for a mapping onto the real column names. */
-async function design(table, hint = '') {
+/** Ask the model for a mapping onto the real column names.
+ *  `model` lets the caller tier this: the samples are free and open to anyone,
+ *  so they must not run on the most expensive model by default. */
+async function design(table, hint = '', model = MODEL) {
   const res = await anthropic().messages.create({
-    model: MODEL,
+    model,
     max_tokens: 2048,
     system: SYSTEM,
     tools: [TOOL],
@@ -119,9 +121,9 @@ async function design(table, hint = '') {
 
 /** Turn loose prose into a table, for the case where nothing parsed. This one
  *  DOES emit data, so it is the fallback rather than the path. */
-async function tableFromProse(prose, hint = '') {
+async function tableFromProse(prose, hint = '', model = MODEL) {
   const res = await anthropic().messages.create({
-    model: MODEL,
+    model,
     max_tokens: 4096,
     system: 'You pull the numbers out of text into a table. Use only figures that actually appear in the text. If there are none, return an empty table rather than inventing any.',
     tools: [{
