@@ -381,15 +381,22 @@ re-copy.
   on each service. The rpID is what makes ONE Face ID enrolment work on every
   subdomain.
 
-### Managing the account: `/account` on the landing site
+### Managing the account: `acct.strongtechnicalconsulting.com`
 
 One page for the account itself - display name, plan and remaining credit,
 which apps it opens, passkeys (add here, remove any), the password, a
-bring-your-own key, and deleting the whole thing. It lives on the landing
-service because identity is already mounted there; a service of its own would
-have needed a new domain mapping, new secrets and a new runtime account to say
-the same things. Mapping `acct.<domain>` at the landing service is a console
-step if the subdomain is ever wanted.
+bring-your-own key, and deleting the whole thing.
+
+The subdomain is a **domain mapping onto the landing service**, not a service
+of its own: identity is already mounted there, so a separate service would
+have needed new secrets and a new runtime account to say the same things. The
+landing service serves `account.html` at `/` when the host is `acct.`, scoped
+by hostname so the apex still serves the marketing site, and `/account`
+remains an alias on every host so older links keep working. Everything else
+answers on that host too - `/api/id/*`, `/reset`, `/passkey-client.js` - which
+is load-bearing rather than incidental, since the page fetches all of them
+relative to wherever it was served from.
+
 
 Two routes exist only for it:
 
@@ -692,6 +699,10 @@ for visitors on its own, and it can be deleted. Adding records at the
 registrar is Erik's step. Google returns the exact records in the mapping's
 `status.resourceRecords`: an apex takes four A and four AAAA records, a
 subdomain takes `CNAME <name> ghs.googlehosted.com.`
+
+Live mappings: `strongtechnicalconsulting.com` and `www` -> landing-page,
+`acct` -> landing-page (the account page; see "The shared account"), `trip`,
+`footballapp`, `friction`, `dataviz`, `beer` -> their own services.
 
 **Before mapping anything, re-read "Settled decisions".** One app must never
 get a mapping.
