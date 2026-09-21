@@ -588,31 +588,27 @@
     var el = sheet('<h3>' + esc(me.email) + '</h3>' +
       '<p class="hint">' + (me.pro ? '<span class="plan">Pro</span> &nbsp;Your own data is unlocked.'
                                    : 'Free plan &mdash; samples only.') + '</p>' +
-      // Pro (unlimited, no balance to think about) stays on offer, but once
-      // membership exists it is the wrong thing to lead with: most people
-      // want the $5 and their own credit. Two primary buttons is no hierarchy
-      // at all, so this one steps back to secondary when membership is live.
-      (me.billing && !me.pro
-        ? '<button class="btn' + (me.membership && me.membership.available && !me.membership.active ? ' sec' : '') +
-          '" id="upBtn2">Unlimited plan</button>'
-        : '') +
-      (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
-      // The flat monthly fee. Offered to anyone still on the free allowance:
-      // it is what turns "you get $3 to try this" into an account that can
-      // keep going. Deliberately worded as hosting and metering rather than
-      // as tokens, because that is what it actually pays for - the credit
-      // underneath is sold at what a call costs.
+      // The membership leads. It is the offer for everyone - one price, no
+      // decisions to make - so it comes before Pro and before any mention of
+      // keys, credit or tokens. What it sells is the apps; the mechanics
+      // underneath are our problem, not the buyer's.
       (me.membership && me.membership.available && !me.pro && !me.membership.active
-        ? '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
-          '<p class="hint" style="margin:0 0 8px"><b>$' + me.membership.monthlyUsd + '/month</b> covers hosting and ' +
-          'usage tracking across every app here. On top of it you either buy credit at what a call actually costs, ' +
-          'or bring your own Anthropic key and pay Anthropic directly.</p>' +
-          '<button class="btn" id="memberBtn">Become a member</button></div>'
+        ? '<div style="margin-top:14px">' +
+          '<p class="hint" style="margin:0 0 8px"><b>$' + me.membership.monthlyUsd + ' a month</b> for all five apps, ' +
+          'synced across your devices, with AI built in and tracked so you always know what you have used.</p>' +
+          '<button class="btn" id="memberBtn">Get everything &mdash; $' + me.membership.monthlyUsd + '/month</button></div>'
         : '') +
       (me.membership && me.membership.active
-        ? '<p class="hint" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
-          'Member — $' + me.membership.monthlyUsd + '/month. Credit below is sold at cost.</p>'
+        ? '<p class="hint" style="margin-top:14px">Member &mdash; $' + me.membership.monthlyUsd + '/month. ' +
+          'Credit below is sold at what a call actually costs, with no markup.</p>'
         : '') +
+      // Pro (unlimited, no balance to think about) stays available, but it is
+      // not what anyone is being sold. Secondary, and below the membership.
+      (me.billing && !me.pro
+        ? '<button class="btn' + (me.membership && me.membership.available && !me.membership.active ? ' sec' : '') +
+          '" id="upBtn2" style="margin-top:8px">Unlimited plan</button>'
+        : '') +
+      (me.pro ? '<button class="btn sec" id="manageBtn">Manage billing</button>' : '') +
       // The credit meter. Shown to anyone on an allowance - Pro and the owner
       // are not metered, so a balance would be meaningless to them.
       (!me.pro && me.budget && !me.budget.unlimited
@@ -621,22 +617,32 @@
           me.budget.allowanceUsd.toFixed(2) + ' credit left &mdash; it works across every app on this domain.</p>' +
           '<div class="btn-row" id="topUps"></div></div>'
         : '') +
-      // Bring your own key. Offered to everyone who is not already on their
-      // own key: it is the other way to stop being metered, and unlike Pro it
-      // costs Erik nothing and the user nothing extra if they already have an
-      // Anthropic account.
+      // Bring your own key: folded away, and labelled for who it is for.
+      //
+      // It is the cheapest path for both sides - they pay Anthropic directly,
+      // we carry no balance - but it asks someone to go and create an
+      // Anthropic account and paste an API key, and most people neither can
+      // nor should. Leading with it would make the normal customer feel the
+      // product was not built for them. Closed by default, phrased as a
+      // question only someone who already has a key will answer yes to, and
+      // never the thing being sold.
       (me.byok && me.byok.supported
-        ? '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)">' +
+        ? '<details style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sep)"' +
+          (me.byok.present ? ' open' : '') + '>' +
+          '<summary style="cursor:pointer;font-size:13px;opacity:.75">' +
+          (me.byok.present ? 'Running on your own Anthropic key' : 'Already have your own Anthropic API key?') +
+          '</summary><div style="margin-top:10px">' +
           (me.byok.present
-            ? '<p class="hint" style="margin:0 0 8px">Running on <b>your own Anthropic key</b> (\u2026' + esc(me.byok.last4 || '') + '). ' +
-              'Nothing here is billed to you by us.</p>' +
+            ? '<p class="hint" style="margin:0 0 8px">Running on <b>your own Anthropic key</b> (…' + esc(me.byok.last4 || '') + '). ' +
+              'Anthropic bills you directly; we bill you nothing for usage.</p>' +
               '<button class="btn sec" id="byokRemove">Remove my key</button>'
-            : '<p class="hint" style="margin:0 0 8px"><b>Use your own Anthropic key</b> instead of the shared credit. ' +
-              'It is stored encrypted, never shown again, and you can remove it any time.</p>' +
-              '<input id="byokKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-\u2026" ' +
+            : '<p class="hint" style="margin:0 0 8px">If you already have one, you can use it here instead of the ' +
+              'credit above and pay Anthropic directly. It is stored encrypted, never shown again, and you can ' +
+              'remove it any time. Most people should skip this.</p>' +
+              '<input id="byokKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" ' +
               'style="width:100%;font:inherit;padding:9px;border-radius:10px;border:1px solid var(--sep);background:transparent;color:inherit">' +
               '<button class="btn sec" id="byokSave" style="margin-top:8px">Save key</button>') +
-          '<p class="status" id="byokStatus" style="min-height:1.2em"></p></div>'
+          '<p class="status" id="byokStatus" style="min-height:1.2em"></p></div></details>'
         : '') +
       // Not everyone who wants Pro wants to pay for it today - a teacher, a
       // friend, someone trying it for a project. Asking is a second door to
