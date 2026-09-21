@@ -44,6 +44,19 @@
   .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .tag { font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 999px; background: var(--fill); color: var(--label-2); }
   .tag.hot { background: rgba(255,59,48,0.14); color: var(--red); }
+  .card { cursor: pointer; border: 0; font: inherit; color: inherit; }
+  .card:active { transform: scale(.99); }
+  .detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--sep); }
+  .card.open .detail { display: block; }
+  .detail h4 { margin: 0 0 3px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--label-2); }
+  .detail p { margin: 0 0 12px; font-size: 14.5px; line-height: 1.45; }
+  .axes { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 0 0 12px; }
+  .axis { display: grid; grid-template-columns: 92px 1fr 28px; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); }
+  .axis i { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; display: block; }
+  .axis i b { display: block; height: 100%; border-radius: 3px; background: var(--tint); }
+  .axis span:last-child { text-align: right; font-variant-numeric: tabular-nums; color: var(--label); }
+  .chev { float: right; color: var(--label-3); font-size: 12px; margin-top: 2px; transition: transform .2s; }
+  .card.open .chev { transform: rotate(180deg); }
   .empty { text-align: center; color: var(--label-2); padding: 48px 20px; }
   .foot { margin-top: 22px; padding: 14px; border-radius: 15px; background: var(--fill); font-size: 14px; color: var(--label-2); line-height: 1.45; }
   .foot a { color: var(--tint); font-weight: 600; text-decoration: none; }
@@ -73,8 +86,13 @@
   fetch("/api/public/board").then(function (r) { return r.json(); }).then(function (d) {
     var list = document.getElementById("list");
     if (!d.signals || !d.signals.length) { list.innerHTML = '<div class="empty">Nothing on the board yet. The first scan fills it.</div>'; return; }
+    var AXES = [["frequency", "How often"], ["intensity", "How much it hurts"], ["budget", "Would pay"], ["feasibility", "Buildable"], ["whitespace", "Nothing good yet"]];
     list.innerHTML = d.signals.map(function (s) {
-      return '<div class="card"><div class="card-top">' +
+      var axes = s.scores ? '<div class="axes">' + AXES.map(function (a) {
+        var v = Number(s.scores[a[0]] || 0);
+        return '<div class="axis"><span>' + a[1] + '</span><i><b style="width:' + (v * 10) + '%"></b></i><span>' + v + '</span></div>';
+      }).join("") + '</div>' : '';
+      return '<button type="button" class="card" aria-expanded="false"><span class="chev">&#9660;</span><div class="card-top">' +
         '<span class="sc" style="background:' + color(s.score) + '">' + (s.score == null ? "?" : esc(s.score)) + '</span>' +
         '<span><h3>' + esc(s.title) + '</h3><p class="who">' + esc(s.who) + '</p></span></div>' +
         (s.summary ? '<p class="summary">' + esc(s.summary) + '</p>' : '') +
@@ -82,8 +100,21 @@
           (s.lens ? '<span class="tag">' + esc(s.lens) + '</span>' : '') +
           '<span class="tag' + (s.seenCount >= 3 ? ' hot' : '') + '">Seen ' + esc(s.seenCount) + (s.seenCount === 1 ? ' time' : ' times') + '</span>' +
           (s.lastSeenAt ? '<span class="tag">' + esc(ago(s.lastSeenAt)) + '</span>' : '') +
-        '</div></div>';
+        '</div>' +
+        '<div class="detail">' +
+          '<h4>Scored on</h4>' + axes +
+          (s.existingTools ? '<h4>What people use now</h4><p>' + esc(s.existingTools) + '</p>' : '') +
+          (s.angle ? '<h4>The angle</h4><p>' + esc(s.angle) + '</p>' : '') +
+          '<h4>Recurrence</h4><p>First seen ' + esc(ago(s.firstSeenAt)) + ', ' + esc(s.seenCount) + (s.seenCount === 1 ? ' sighting' : ' sightings') +
+            (s.peakScore != null ? ', peaked at ' + esc(s.peakScore) : '') +
+            (s.sources && s.sources.length ? '. Sources: ' + esc(s.sources.join(', ')) : '') + '.</p>' +
+        '</div></button>';
     }).join("");
+    list.addEventListener("click", function (e) {
+      var card = e.target.closest(".card"); if (!card) return;
+      var open = !card.classList.contains("open");
+      card.classList.toggle("open", open); card.setAttribute("aria-expanded", String(open));
+    });
   }).catch(function () {
     document.getElementById("list").innerHTML = '<div class="empty">Could not load the preview.</div>';
   });
@@ -91,9 +122,8 @@
 </script>
 <script src="/tour.js"></script>
 <script>
-// The self-running demo the landing page frames: read down the board, look
-// at a couple of problems, back to the top, again. Nothing is tapped for
-// real - the preview has nothing to tap.
+// The self-running demo the landing page frames: open the top problems one
+// at a time to read how each was scored, then read down the rest of the board.
 (function () {
   "use strict";
   if (!window.Tour || !Tour.active()) return;
@@ -105,13 +135,16 @@
       await T.wait(1400);
     },
     async function () {
+      // Open the top three one at a time - read the detail, close it, move on.
       var cards = document.querySelectorAll(".card");
-      for (var i = 0; i < Math.min(cards.length, 4); i++) {
+      for (var i = 0; i < Math.min(cards.length, 3); i++) {
         var c = cards[i];
-        await T.scrollTo(window, Math.max(0, c.getBoundingClientRect().top + window.scrollY - 90), 900);
-        await T.wait(300);
-        await T.tap(c, { silent: true });
-        await T.wait(1500);
+        await T.scrollTo(window, Math.max(0, c.getBoundingClientRect().top + window.scrollY - 80), 900);
+        await T.wait(400);
+        await T.tap(c);
+        await T.wait(3800);
+        await T.tap(c);
+        await T.wait(700);
       }
     },
     async function () {

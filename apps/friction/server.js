@@ -99,6 +99,17 @@ app.get('/api/public/board', async (_req, res) => {
         score: r.score == null ? null : Number(r.score),
         seenCount: Number(r.seenCount || 1),
         lastSeenAt: r.lastSeenAt || null,
+        // The detail a card opens to. All of it is the model's own scoring
+        // and reasoning about the problem - still no evidence, no status.
+        firstSeenAt: r.firstSeenAt || null,
+        peakScore: r.peakScore == null ? null : Number(r.peakScore),
+        existingTools: r.existingTools || '',
+        angle: r.angle || '',
+        scores: r.scores && typeof r.scores === 'object' ? {
+          frequency: Number(r.scores.frequency || 0), intensity: Number(r.scores.intensity || 0), budget: Number(r.scores.budget || 0),
+          feasibility: Number(r.scores.feasibility || 0), whitespace: Number(r.scores.whitespace || 0),
+        } : null,
+        sources: Array.isArray(r.sources) ? r.sources.slice(0, 6) : [],
       }));
     // Public and unauthenticated, so let it be cached: the landing page frames
     // this and a Firestore read per visitor would be silly.

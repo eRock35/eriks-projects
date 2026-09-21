@@ -33,7 +33,7 @@
    "db": "hopscotch",
    "verify_job": "hopscotch-dispatch",
    "verify_doc": null,
-   "unsupported": "Hopscotch builds through its own cloudbuild.yaml with a git-sha image tag, an APP_VERSION build arg, and a separate 'hopscotch' Artifact Registry repo. Its committed deploy tooling also assumes gcloud, which does not exist here, and names two secrets that do not exist in this project (hopscotch-anthropic-key, hopscotch-cron-secret) \u2014 the live service uses the shared anthropic-api-key and cron-secret. Deploy it by hand until that is reconciled."
+   "note": "Ships through the generic pipeline: docker build on the repo's own Dockerfile (which builds the web bundle inside), pushed to the erik-projects registry and patched onto the live service image-only, so the service keeps its env and secrets (the shared anthropic-api-key and cron-secret). The repo's own cloudbuild.yaml / deploy.sh still assume gcloud and are not used from here."
   },
   "landing": {
    "repo": "eriks-projects",

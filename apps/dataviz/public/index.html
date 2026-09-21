@@ -737,27 +737,42 @@
 </script>
 <script src="/tour.js"></script>
 <script>
-// The self-running demo the landing page frames: play one free sample, then
-// the next, forever. ONLY samples marked free - those render from a baked
-// spec with no model call, so this never spends anything.
+// The self-running demo the landing page frames: tap a free sample, watch it
+// play, tap "New one", tap the next. ONLY samples marked free - those render
+// from a baked spec with no model call, so this never spends anything.
+//
+// It does not scroll on its own. Tapping a sample swaps the intro for the
+// result at the top of the page, which is what the app does for anyone; an
+// extra scroll on top of that read as the page jumping about. "New one" is
+// the app's own way back, and it scrolls up smoothly itself.
 (function () {
   "use strict";
   if (!window.Tour || !Tour.active()) return;
   var T = window.Tour;
   var i = 0;
+  function inView(el) { var r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; }
   T.run([
-    async function () {
-      var free = await T.until(function () { var f = document.querySelectorAll('#samples [data-free="1"]'); return f.length ? f : null; }, 20000);
+    async function pickOne() {
+      var free = await T.until(function () {
+        var f = document.querySelectorAll('#samples [data-free="1"]');
+        return f.length && !document.getElementById('intro').hidden ? f : null;
+      }, 20000);
       var btn = free[i++ % free.length];
-      await T.scrollTo(window, Math.max(0, btn.getBoundingClientRect().top + window.scrollY - 160), 600);
-      await T.tap(btn);
-      // #stage IS the canvas; it gets a size once a viz is showing.
-      await T.until(function () { var st = document.getElementById('stage'); return st && st.getBoundingClientRect().height > 0; }, 15000);
+      if (!inView(btn)) await T.scrollTo(window, Math.max(0, btn.getBoundingClientRect().top + window.scrollY - 120), 650);
       await T.wait(400);
-      await T.scrollTo(window, 0, 500);
-      await T.wait(9000);
+      await T.tap(btn);
     },
-  ], { pause: 300 });
+    async function watchIt() {
+      await T.until(function () { var st = document.getElementById('stage'); return st && st.getBoundingClientRect().height > 0; }, 15000);
+      await T.wait(9500);
+    },
+    async function newOne() {
+      var again = document.getElementById('againBtn');
+      if (!inView(again)) await T.scrollTo(window, Math.max(0, again.getBoundingClientRect().top + window.scrollY - 300), 600);
+      await T.tap(again);
+      await T.wait(900);
+    },
+  ], { pause: 200 });
 })();
 </script>
 </body>
