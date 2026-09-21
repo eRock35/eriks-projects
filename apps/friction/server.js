@@ -76,6 +76,9 @@ app.get('/passkey.js', (_req, res) => res.sendFile(path.join(__dirname, 'public'
 // The self-running demo helper. The public preview page needs it and static
 // files are served below the gate.
 app.get('/tour.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'tour.js')));
+// The login page and the public preview both live outside the gate, and both
+// need the desktop layer.
+app.get('/desktop.css', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'desktop.css')));
 app.get('/icon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'icon.svg')));
 
 /* ---------- the public preview: read-only, outside the gate ---------- */

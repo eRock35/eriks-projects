@@ -29,11 +29,12 @@ const TARGETS = [
   // Santa Rosa is single-account on purpose and shares only these two.
   ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
   // The browser-side tour helper.
-  ['eriks-projects/apps/friction/public', ['tour.js']],
-  ['eriks-projects/apps/dataviz/public',  ['tour.js']],
-  ['trip-planner/public',                 ['tour.js']],
-  ['college-football-app/public',         ['tour.js']],
+  ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css']],
+  ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css']],
+  ['trip-planner/public',                 ['tour.js', 'desktop.css']],
+  ['college-football-app/public',         ['tour.js', 'desktop.css']],
   ['beer-app/web/public',                 ['tour.js']],
+  ['santa-rosa-beach-trip/public',        ['desktop.css']],
 ];
 
 // Apps that already had a webauthn.js of their own; identity.js is copied in

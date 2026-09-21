@@ -64,13 +64,14 @@
   @keyframes pulse { 50% { opacity: .55; } }
   @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
 </style>
+<link rel="stylesheet" href="/desktop.css">
 </head>
-<body>
-<div class="wrap">
+<body class="dk">
+<div class="wrap dk-wrap">
   <p class="eyebrow">Friction</p>
   <h1>What keeps coming back</h1>
   <p class="sub">Problems people complain about across Hacker News, GitHub and App Store reviews, scored and re-scored as they recur. This is the read-only preview — <a href="/">sign in</a> to see the evidence, the lenses, and the full board.</p>
-  <div id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+  <div id="list" class="dk-grid"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   <div class="foot">Scores are 1–10 for how real and how recurring a problem is. A high score seen four times over a month means more than one loud thread. <a href="/">Ask for access &rarr;</a></div>
 </div>
 <script>
