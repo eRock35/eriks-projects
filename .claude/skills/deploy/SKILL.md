@@ -117,10 +117,22 @@ root for the decision record.
 
 ## Known state
 
-- Every service runs as the broad deployer account `cover-sheet-deployer@`
-  rather than a scoped-down per-app identity. Fixing it needs
-  `roles/iam.serviceAccountAdmin`, which the deployer lacks. **Do not
-  self-grant IAM** — ask Erik.
+- Every service runs as **its own** runtime account (`dataviz-run`,
+  `friction-run`, `hopscotch-run`, `football-run`, `trip-planner-run`,
+  `vacation-run`, `landing-run`) as of 2026-09-21. Each holds only
+  `logging.logWriter`, `datastore.user` conditioned to its own databases, and
+  `secretmanager.secretAccessor` on the secrets it mounts. `docs/phase4-runtime-service-accounts.md`
+  has the table and the verification.
+
+  `ship` never rebuilds the template from a config file, so it carries the
+  service account along like everything else — nothing extra to do. If you add
+  a secret or a database to an app, **bind it to that app's runtime account**,
+  or the next revision will fail to start. The deployer cannot do that itself
+  (see below); ask Erik.
+- The deployer holds `iam.serviceAccountUser` on those seven accounts, which is
+  what lets it ship them, and `logging.viewer` (so reading this project's logs
+  finally works). It is **not** an Owner and holds no IAM-admin rights. **Do
+  not self-grant IAM** — ask Erik.
 - An empty `cover-sheet` Firestore database in `us-east4` still exists;
   deleting it was blocked by a safety classifier. Harmless.
 

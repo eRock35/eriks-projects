@@ -1,112 +1,107 @@
-# Phase 4: give each service its own runtime identity
+# Runtime service accounts — done 2026-09-21
 
-All seven Cloud Run services run as `cover-sheet-deployer@` — the same account
-that builds images, pushes to Artifact Registry and rewrites Cloud Run specs.
-So the DataViz container, which takes pasted data from strangers, holds the
-credentials to redeploy the vacation app.
+Every Cloud Run service now runs as its own account. Before this, all seven ran
+as `cover-sheet-deployer@` — the account that builds images, pushes to
+Artifact Registry and rewrites Cloud Run specs. The DataViz container, which
+takes pasted data from strangers, held the credentials to redeploy the
+vacation app.
 
-This is the fix. It is written down rather than done because the step that
-starts it needs a project Owner, and this sandbox does not authenticate as one.
+| Service | Runs as | Firestore | Secrets |
+|---|---|---|---|
+| `dataviz` | `dataviz-run` | `dataviz`, `identity` | 6 |
+| `friction` | `friction-run` | `friction`, `identity` | 6 |
+| `hopscotch` | `hopscotch-run` | `hopscotch` | 3 |
+| `college-football-app` | `football-run` | `college-football-app`, `identity` | 7 |
+| `trip-planner` | `trip-planner-run` | `trip-planner`, `identity` | 6 |
+| `santa-rosa-beach-trip` | `vacation-run` | `santa-rosa-beach-trip` | 4 |
+| `landing-page` | `landing-run` | **all** — see below | 7 |
 
-## Why Claude cannot start it
+Each account holds `roles/logging.logWriter`, `roles/datastore.user`
+**conditioned to its own databases**, and `roles/secretmanager.secretAccessor`
+on each secret that service actually mounts — nothing else. No deploy rights,
+no Cloud Build, no Artifact Registry, no blanket Secret Manager.
 
-The sandbox authenticates with the uploaded key for
-`cover-sheet-deployer@metal-celerity-236019.iam.gserviceaccount.com`. That
-account can deploy, but holds no IAM-administration rights anywhere:
+## The database conditions really work
+
+`roles/datastore.user` is a project-level role, so scoping it needs an IAM
+condition — and a condition that is syntactically valid but never matches
+would silently deny, which is the kind of thing you find out by taking an app
+down. So it was tested before any live service moved: the deployer was given
+`tokenCreator` on each new account, impersonated it, and asked Firestore
+directly.
 
 ```
-$ POST cloudresourcemanager…:testIamPermissions
-  asked:   iam.serviceAccounts.create, resourcemanager.projects.setIamPolicy,
-           resourcemanager.projects.getIamPolicy, iam.serviceAccounts.actAs,
-           run.services.update
-  granted: iam.serviceAccounts.actAs, run.services.update
-
-$ POST cloudresourcemanager…:getIamPolicy
-  403 "The caller does not have permission"
-
-$ POST secretmanager…/secrets/ANTHROPIC_API_KEY:testIamPermissions
-  asked:   secretmanager.secrets.setIamPolicy, secretmanager.secrets.getIamPolicy
-  granted: {} — neither
+dataviz-run       dataviz=OK  identity=OK  [santa-rosa-beach-trip]=blocked
+friction-run      friction=OK identity=OK  [santa-rosa-beach-trip]=blocked
+hopscotch-run     hopscotch=OK            [identity]=blocked
+football-run      college-football-app=OK identity=OK [santa-rosa-beach-trip]=blocked
+trip-planner-run  trip-planner=OK identity=OK [santa-rosa-beach-trip]=blocked
+vacation-run      santa-rosa-beach-trip=OK [identity]=blocked
+landing-run       eriks-projects=OK identity=OK dataviz=OK
 ```
 
-An Owner can always read the project IAM policy. This account cannot, so it is
-not one.
-
-The split matters: **Claude already holds the half that swaps a service's
-identity** (`run.services.update` + `iam.serviceAccounts.actAs`). What it
-cannot do is create the accounts or grant them anything. Once the accounts
-exist with their roles, Claude can do the rest and roll it back.
-
-## Two ways forward
-
-**A. Grant the deployer the two admin roles, and Claude does all of it.**
-
-```bash
-PROJECT=metal-celerity-236019
-DEPLOYER=cover-sheet-deployer@$PROJECT.iam.gserviceaccount.com
-for ROLE in roles/iam.serviceAccountAdmin roles/resourcemanager.projectIamAdmin; do
-  gcloud projects add-iam-policy-binding $PROJECT \
-    --member="serviceAccount:$DEPLOYER" --role="$ROLE"
-done
-```
-
-Worth knowing what this trades: `projectIamAdmin` lets the holder grant itself
-anything, so this makes the deployer key effectively Owner-equivalent — and
-that key sits in a sandbox upload. It is the fastest path and a reasonable one
-for a personal project, but it is the opposite direction from what Phase 4 is
-for. Revoking both roles once the accounts exist gets the ratchet back.
-
-**B. Run `scripts/phase4-service-accounts.sh` yourself in Cloud Shell**, then
-tell Claude. It creates the seven accounts and their bindings and touches
-nothing else — no Cloud Run service is modified, so nothing can break while
-it runs. Claude then does the identity swap one service at a time.
-
-B is the better shape: the privilege to hand out privilege never leaves your
-own account.
-
-## What each service actually needs
-
-Collected from the live specs on 2026-09-21.
-
-| Service | Firestore databases | Secrets |
-|---|---|---|
-| `dataviz` | `dataviz`, `identity` | `anthropic-api-key`, `byok-encryption-key`, `dataviz-session-secret`, `dataviz-stripe-secret-key`, `dataviz-stripe-webhook-secret`, `identity-session-secret` |
-| `friction` | `friction`, `identity` | `anthropic-api-key`, `byok-encryption-key`, `friction-app-password`, `friction-cron-secret`, `friction-session-secret`, `identity-session-secret` |
-| `landing-page` | **all of them** — see below | `anthropic-api-key`, `byok-encryption-key`, `cron-secret`, `identity-session-secret`, `landing-admin-password`, `landing-session-secret`, `resend-api-key` |
-| `trip-planner` | `trip-planner`, `identity` | `anthropic-api-key`, `byok-encryption-key`, `identity-session-secret`, `trip-planner-admin-email`, `trip-planner-cron-secret`, `trip-planner-session-secret` |
-| `hopscotch` | `hopscotch` | `anthropic-api-key`, `cron-secret`, `hopscotch-jwt-secret` |
-| `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | `anthropic-api-key`, `vacation-login-password`, `vacation-login-username`, `vacation-session-secret` |
-| `college-football-app` | `college-football-app`, `identity` | `anthropic-api-key`, `byok-encryption-key`, `cfb-session-secret`, `cron-secret`, `site-login-password`, `site-login-username` |
+Secrets were checked the same way: `dataviz-run` reads
+`dataviz-session-secret` and is refused `vacation-login-password`;
+`vacation-run` the reverse. `tokenCreator` was removed afterwards — it existed
+only for that test.
 
 **`landing-page` is the exception and stays broad.** `lib/digest.js` composes
-the weekly roundup by reading every app's database, and `lib/uptime.js` probes
-every app. Scoping it to one database would break the digest. That is a real
-limit on what Phase 4 buys: six of seven services get narrowed, the seventh
-keeps project-wide Firestore read. If that ever matters more than the digest
-does, the fix is to have each app expose its own counts behind the cron key
-rather than letting the landing page read its way in.
+the weekly roundup by reading every app's database and `lib/uptime.js` probes
+every app, so scoping it would break the digest. Six of seven are narrowed;
+the seventh is not. If that ever matters more than the digest does, the fix is
+to have each app expose its own counts behind the cron key rather than letting
+the landing page read its way in.
 
-Secret access is granted **per secret**, which is exact and needs no
-conditions. Firestore is the loose one: `roles/datastore.user` is a
-project-level role, so the script attempts an IAM condition scoping each
-binding to that service's databases. **Verify the condition took effect before
-relying on it** — if conditions are rejected for this role, the fallback is
-unconditioned `datastore.user`, which still removes deploy rights, Cloud Build
-and blanket Secret Manager from every app container. That alone is most of the
-win.
+## What it was verified against
 
-## The swap, and getting back
+Cloud Run reports a revision ready only after it resolves every secret env
+var, so seven `CONDITION_SUCCEEDED` revisions prove the secret bindings. The
+rest was checked live:
 
-Changing a service's runtime identity creates a new revision from the same
-image. Nothing is rebuilt.
+- `trip-planner-check-watches` forced → `control/watch-cron` rewritten at
+  15:08:32 by `trip-planner-run`. That is a **write** through a conditioned
+  binding, not just a read.
+- `cfb-batch-collect` forced → 2xx. It returns `{skipped: "nothing pending"}`
+  without writing, so `control/status` stays where it was; the 2xx is the
+  proof that `football-run` read Firestore.
+- `landing-notify` forced → all seven apps probed from inside Cloud Run,
+  **HTTP 200 each**, twice: once after the swaps and once after Owner was
+  revoked.
+- Cloud Logging, severity ≥ WARNING since the swap: no permission failures on
+  any service. The only warnings were bots probing `/functionRouter` and
+  `/api/templates/preview` on the landing page and getting 404s, which is
+  ordinary background noise.
 
-Claude does them one at a time, least critical first — `dataviz`, `friction`,
-`hopscotch`, `college-football-app`, `trip-planner`, `landing-page`,
-`santa-rosa-beach-trip` — and stops at the first one that misbehaves. Because
-this sandbox cannot reach `*.run.app`, "the revision went green" is not "the
-app works": after each swap someone has to open it, or the app's cron
-`verify` has to come back clean. Expect to be asked.
+## The Owner grant is gone
 
-Rollback is one field: set `template.serviceAccount` back to
-`cover-sheet-deployer@…` and PATCH. The previous revision is also still there
-to route traffic back to.
+Creating accounts and binding roles needs a project Owner, which the deployer
+was not. Erik granted it Owner for that one job. It has been **revoked** —
+`roles/owner` on this project is `user:strongtechnicalconsulting@gmail.com`
+and nothing else, confirmed against the live policy, and
+`iam.serviceAccounts.create` and `resourcemanager.projects.setIamPolicy` both
+read back denied once IAM propagated.
+
+Two changes to the deployer survive on purpose:
+
+- `roles/iam.serviceAccountUser` on each of the seven new accounts. Without it
+  the deployer cannot ship a service that runs as one of them.
+- `roles/logging.viewer`, added on the way out. Reading this project's logs had
+  been a 403 for the deployer all along — `college-football-app/server.js`
+  carries a comment about working around exactly that — and it is read-only.
+
+**The deployer is still a powerful account** (`run.admin`, `datastore.owner`,
+`secretmanager.admin`, `storage.admin` and more). Phase 4 did not change that
+and was not meant to. What changed is that no app container runs as it any
+more, so a bug in an app is no longer a path to the deploy pipeline.
+
+## Rolling back
+
+One field per service. `scripts/phase4-service-accounts.sh` documents the
+bindings; to put a service back:
+
+```
+PATCH run.googleapis.com/v2/…/services/<svc>
+  template.serviceAccount = cover-sheet-deployer@metal-celerity-236019.iam.gserviceaccount.com
+```
+
+The pre-swap revision is also still there to route traffic back to.

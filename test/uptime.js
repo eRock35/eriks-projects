@@ -49,6 +49,16 @@ global.fetch = async () => {
   r = await uptime.check();
   ok('...and then it goes quiet again', !uptime.compose(r));
 
+  // The document is written with merge:true, and a merge does not delete keys
+  // the new map leaves out. So a record that once failed kept the failure's
+  // body forever, sitting under a green HTTP 200 - which is exactly how a
+  // healthy app gets misread as broken.
+  const doc = h.bag('identity').get('control/uptime');
+  const rec = doc.apps[uptime.TARGETS[0].key];
+  ok('a healthy record reports 200', rec.lastStatus === 200, JSON.stringify(rec.lastStatus));
+  ok('...and carries no stale failure body', !rec.lastBody, JSON.stringify(rec.lastBody));
+  ok('...and no stale error either', !rec.lastError, JSON.stringify(rec.lastError));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();
