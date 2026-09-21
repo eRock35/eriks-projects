@@ -193,12 +193,9 @@ async function applyBillingEvent(event) {
     // wrong in this direction hands someone unlimited spend for $5, so the
     // default is the metered one, not the generous one.
     const membership = (obj.metadata && obj.metadata.kind) === 'membership';
-    await db.merge('users', uid, {
-      plan: membership ? 'member' : 'pro',
-      stripeCustomerId: obj.customer || null,
-      stripeSubscriptionId: obj.subscription || null,
-      [membership ? 'memberSince' : 'proSince']: new Date().toISOString(),
-    });
+    const plan = { plan: membership ? 'member' : 'pro',
+                   [membership ? 'memberSince' : 'proSince']: new Date().toISOString() };
+    await writePlan(uid, plan, obj.customer || null, obj.subscription || null);
     await identity.log(membership ? 'membership.started' : 'pro.started', null, { uid });
     return;
   }
@@ -222,13 +219,46 @@ async function applyBillingEvent(event) {
       const existing = await db.get('users', target).catch(() => null);
       kind = existing && existing.plan === 'member' ? 'membership' : 'pro';
     }
-    await db.merge('users', target, {
+    await writePlan(target, {
       plan: active ? (kind === 'membership' ? 'member' : 'pro') : 'free',
-      stripeSubscriptionId: obj.id || null,
-      currentPeriodEnd: obj.current_period_end ? new Date(obj.current_period_end * 1000).toISOString() : null,
+      currentPeriodEnd: obj.current_period_end
+        ? new Date(obj.current_period_end * 1000).toISOString() : null,
       subscriptionStatus: obj.status || null,
-    });
+    }, null, obj.id || null);
   }
+}
+
+/**
+ * Write an entitlement to the SHARED identity record, not this app's own.
+ *
+ * This is the bug that made it worth writing down. Credit already landed on
+ * the shared record - there is an explicit comment above saying so, because
+ * it is spendable in every app - but the PLAN was being written to DataViz's
+ * own database. Every other app loads its user from identity and has never
+ * heard of DataViz's `users` collection, so a $5 membership bought here would
+ * have been invisible in Trip Planner, Football, Friction and Hopscotch:
+ * budgetFor() would see no `plan`, isMember() would return false, and a
+ * paying member would have been served the free tier - Haiku and four
+ * searches - in four of the five apps they had just paid for.
+ *
+ * It did not show up in testing because every test asks DataViz, which merges
+ * its own record onto req.user in attachProfile and therefore always agreed
+ * with itself.
+ *
+ * The local row is still written, and only because the subscription.updated
+ * handler looks an account up by stripeCustomerId - the shared store has no
+ * query-by-field. Identity is what any app reads; the local row is an index.
+ */
+async function writePlan(uid, fields, customerId, subscriptionId) {
+  if (!uid) return;
+  const record = { ...fields };
+  if (customerId) record.stripeCustomerId = customerId;
+  if (subscriptionId) record.stripeSubscriptionId = subscriptionId;
+  await identityStore.store.merge('users', uid, record).catch((e) => {
+    console.error('[billing] could not write the plan to identity', e);
+    throw e;   // a paid subscription that does not land is not a silent failure
+  });
+  await db.merge('users', uid, record).catch(() => {});
 }
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));

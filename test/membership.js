@@ -17,6 +17,7 @@ Object.assign(process.env, {
   STRIPE_SECRET_KEY: 'sk_test_dummy_not_called',
   STRIPE_PRICE_ID: 'price_dummy_not_called',
   STRIPE_MEMBER_PRICE_ID: 'price_member_dummy',
+  STRIPE_WEBHOOK_SECRET: 'whsec_test_signing_secret',
   PORT: '9212',
 });
 require(require('path').join(__dirname, '..', 'apps', 'dataviz', 'server.js'));
@@ -30,6 +31,21 @@ const J = { 'content-type': 'application/json' };
 const post = (p, b, c) => fetch(B + p, { method: 'POST', headers: c ? { ...J, cookie: c } : J, body: JSON.stringify(b) });
 const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
 const TIERS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+const crypto = require('crypto');
+
+/** Post a webhook the way Stripe does: signed, over HTTP, raw body. Driving
+ *  the real route rather than the handler keeps the signature check and the
+ *  raw-body parser in the test. */
+async function webhook(event) {
+  const raw = JSON.stringify(event);
+  const t = Math.floor(Date.now() / 1000);
+  const sig = crypto.createHmac('sha256', 'whsec_test_signing_secret').update(`${t}.${raw}`).digest('hex');
+  return fetch(B + '/api/stripe/webhook', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'stripe-signature': `t=${t},v1=${sig}` },
+    body: raw,
+  });
+}
 
 (async () => {
   await new Promise((r) => setTimeout(r, 900));
@@ -99,8 +115,55 @@ const TIERS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
   ok('...that this account is not yet a member', view.member === false);
   ok('...and offers the bring-your-own-key path', view.byok !== undefined);
 
+  // --- the bug this suite exists for ---------------------------------------
+  // A membership bought on DataViz has to be visible to every other app. They
+  // load their user from the SHARED identity record and have never heard of
+  // DataViz's own users collection, so writing the plan locally would have
+  // served the free tier to a paying member in four of the five apps. The
+  // assertion is deliberately made from identity's point of view rather than
+  // by asking DataViz, because DataViz merges its own row onto req.user and
+  // would agree with itself either way.
+  const uid = Buffer.from('member@example.com').toString('base64url');
+  let hook = await webhook({ id: 'evt_1', type: 'checkout.session.completed',
+    data: { object: { mode: 'subscription', customer: 'cus_test_1', subscription: 'sub_test_1',
+                      metadata: { uid, kind: 'membership' } } } });
+  ok('a signed webhook is accepted', hook.status === 200, String(hook.status));
+
+  const shared = h.bag('identity').get('users/' + uid);
+  ok('the plan lands on the SHARED identity record', shared && shared.plan === 'member',
+     JSON.stringify(shared && shared.plan));
+  ok('...so another app sees a member', identity.isMember(shared) === true);
+  ok('...and gives them the paid model tier', identity.planFor(shared, TIERS).model === 'claude-sonnet-5');
+  ok('...with the bigger search budget', identity.planFor(shared, TIERS).maxUses >= 10);
+  ok('...while still being metered, not unlimited', identity.budgetFor(shared).unlimited === false);
+
+  // A Pro subscription must not be confused for a membership on the way in.
+  const proUid = Buffer.from('pro@example.com').toString('base64url');
+  await webhook({ id: 'evt_2', type: 'checkout.session.completed',
+    data: { object: { mode: 'subscription', customer: 'cus_test_2', subscription: 'sub_test_2',
+                      metadata: { uid: proUid, kind: 'pro' } } } });
+  const proShared = h.bag('identity').get('users/' + proUid);
+  ok('a Pro subscription writes pro, not member', proShared && proShared.plan === 'pro', JSON.stringify(proShared && proShared.plan));
+  ok('...and Pro IS unlimited', identity.budgetFor(proShared).unlimited === true);
+
+  // Cancellation has to reach identity too, or a lapsed member keeps the tier.
+  await webhook({ id: 'evt_3', type: 'customer.subscription.deleted',
+    data: { object: { id: 'sub_test_1', customer: 'cus_test_1', status: 'canceled',
+                      metadata: { uid, kind: 'membership' } } } });
+  const after = h.bag('identity').get('users/' + uid);
+  ok('cancelling reaches identity, so the tier actually drops', after.plan === 'free', JSON.stringify(after.plan));
+  ok('...and they are no longer a member', identity.isMember(after) === false);
+
   // --- an unauthenticated stranger cannot start either ----------------------
   ok('membership checkout needs an account', (await post('/api/membership/checkout', {})).status === 401);
+
+  // An unsigned webhook is how someone would grant themselves a plan for free.
+  const forged = await fetch(B + '/api/stripe/webhook', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'checkout.session.completed',
+      data: { object: { mode: 'subscription', metadata: { uid, kind: 'pro' } } } }),
+  });
+  ok('an unsigned webhook is refused', forged.status >= 400, String(forged.status));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
