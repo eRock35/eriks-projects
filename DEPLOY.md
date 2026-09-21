@@ -381,6 +381,59 @@ re-copy.
   on each service. The rpID is what makes ONE Face ID enrolment work on every
   subdomain.
 
+### Managing the account: `/account` on the landing site
+
+One page for the account itself - display name, plan and remaining credit,
+which apps it opens, passkeys (add here, remove any), the password, a
+bring-your-own key, and deleting the whole thing. It lives on the landing
+service because identity is already mounted there; a service of its own would
+have needed a new domain mapping, new secrets and a new runtime account to say
+the same things. Mapping `acct.<domain>` at the landing service is a console
+step if the subdomain is ever wanted.
+
+Two routes exist only for it:
+
+- `POST /api/id/profile` - display name, and only that. The email derives the
+  uid every app keys its data by, so changing it would orphan every trip,
+  project and slip that person owns. That is a migration, not a text field.
+- `DELETE /api/id/account` - removes the record, the passkeys, the stored key
+  and the grants. Proof is the same standard as changing the password: a
+  passkey session is enough alone, a password one must produce the password.
+  It does NOT delete what lives in each app's own database, and the page says
+  so rather than implying a deletion that did not happen. The record is
+  removed rather than tombstoned, so the address can register again - the cost
+  is that re-registering derives the same uid and reclaims whatever app data
+  still references it, which is the assumption every app already makes.
+
+### Signing in from inside each app
+
+A portable cookie is not the same as a way in. Until 2026-09-21 friction's
+login page asked only for the app password and football's account sheet only
+offered its own registration, so the shared account could only be used by
+signing in somewhere else and navigating back. Both now post to their own
+`/api/id/login` mount, and friction's Face ID button looks in the shared
+passkey store first and its own second. The legacy doors stay: an app password
+that cannot be broken by a fault in the identity service is worth keeping.
+
+### Hopscotch is wired but switched OFF
+
+`beer-app` accepts the shared cookie as a second door (`server/src/
+shared-identity.js`), mapping it to a Hopscotch user by email. Its own `u_...`
+ids stay the thing everything is keyed by - identity says who, the local row
+stays what the data points at.
+
+It is inert until BOTH are set on the `hopscotch` service, and neither can be
+done by the deployer:
+
+1. `IDENTITY_SESSION_SECRET` from the `identity-session-secret` secret, which
+   needs `secretAccessor` for `hopscotch-run@`.
+2. `IDENTITY_DATABASE_ID=identity`, which needs `roles/datastore.user`
+   conditioned to the `identity` database for `hopscotch-run@`.
+
+Both are Erik's to grant. **Do not add the env vars before the bindings
+exist** - Cloud Run resolves secret env vars before it reports a revision
+ready, so the next deploy would simply fail to start.
+
 ### Migrate an app's users BEFORE switching its login over
 
 Learned the hard way on 2026-09-20. trip-planner's login was moved to identity
@@ -635,9 +688,19 @@ get a mapping.
 | `cfb-batch-submit` | `0 8,18 * * 2-5` |
 | `cfb-batch-collect` | `30 * * * 2-6` |
 | `cfb-saturday-live` | `0 9-23 * * 6` |
+| `cfb-weekend-settle` | `0 10 * * 0,1` - grades last week and builds the new board |
 | `trip-planner-check-watches` | `0 * * * *` |
 | `hopscotch-dispatch` | `0 8 * * 4` (America/Chicago) |
 | `friction-scan` | `15 */4 * * *` |
+
+`cfb-weekend-settle` used to point at `batch-submit` and now runs
+`/api/research/weekly-board`: it grades the picks that were on the board
+against final scores, then researches and builds the coming week's. Its
+`attemptDeadline` is **900s**, not the 180s default - two web-search research
+calls do not finish in three minutes, and a Scheduler deadline that short
+reports DEADLINE_EXCEEDED while the app is still working. The job name is now
+a lie about what it does; Scheduler job names are immutable, so renaming it
+means create-new plus delete-old.
 
 Weekday football research runs through the **Anthropic Batch API** (50% cost,
 up to 24h latency) and goes live hourly on Saturdays. Batch supports
@@ -656,10 +719,13 @@ path; nothing else knows or cares.
 
 ## Known open items
 
-- **Runtime service account is over-privileged.** All services run as the broad
-  deployer account rather than scoped-down per-app identities. Fixing it needs
-  `roles/iam.serviceAccountAdmin`, which the deployer lacks. Do not self-grant
-  IAM — ask Erik.
+- **Hopscotch's shared sign-in is waiting on two IAM grants.** See "Hopscotch
+  is wired but switched OFF" above. The code is deployed and inert.
+- ~~Runtime service account is over-privileged.~~ Done 2026-09-21: every
+  service runs as its own scoped account. The record is in
+  `docs/phase4-runtime-service-accounts.md`. The deployer still holds no
+  IAM-admin rights, so every new binding is Erik's to make - do not self-grant
+  IAM, and do not add an env var that needs a binding before it exists.
 - **Empty `cover-sheet` Firestore database (us-east4) still exists.** Deleting it
   was blocked by a safety classifier. Left in place; harmless but untidy.
 
