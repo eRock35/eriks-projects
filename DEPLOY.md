@@ -154,8 +154,13 @@ must not also open the trip apps.
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
 - Landing page: `landing-session-secret`, `landing-admin-password`, `resend-api-key`
 - Friction: `friction-app-password`, `friction-session-secret`, `friction-cron-secret`
-- DataViz: `dataviz-session-secret`, `dataviz-stripe-webhook-secret`,
-  `dataviz-stripe-secret-key` — see "DataViz billing" below
+- DataViz: `dataviz-session-secret`
+- Billing, domain-wide and NOT DataViz's own: `stripe-secret-key`,
+  `stripe-webhook-secret`, `stripe-member-price`. Checkout is served from
+  DataViz because that is the service holding the keys and the verified
+  webhook, but what it sells is an account-level membership that spends in
+  every app — see "Billing" below. Renamed off the `dataviz-` prefix on
+  2026-09-21 for exactly that reason.
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.
@@ -315,7 +320,7 @@ from any config file.
 ### Rotating the key
 
 Roll it in the Dashboard (Developers → API keys), then add the new value as a
-**new version** of `dataviz-stripe-secret-key`. The service mounts `latest`,
+**new version** of `stripe-secret-key`. The service mounts `latest`,
 so it picks the new version up on the next revision — which means a deploy, or
 any other patch to the service, not automatically. Disable the old version
 only once `/api/stripe/health` reports `ok: true` again.

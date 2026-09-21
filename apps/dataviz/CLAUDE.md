@@ -96,9 +96,14 @@ Stripe sandbox account `acct_1UHo8xF32OknjgD1`.
   `*.run.app` URL, not the custom domain. Deliberate: the run.app hostname
   works regardless of what DNS is doing, and Stripe does not care how pretty
   the URL is.
-- Secrets: `dataviz-stripe-webhook-secret`. The SECRET KEY is not here -
-  Stripe has no API for issuing one, so it has to be copied from the
-  Dashboard by hand and mounted as `STRIPE_SECRET_KEY`.
+- Secrets: `stripe-webhook-secret`, `stripe-secret-key`,
+  `stripe-member-price` - all domain-wide names, because the membership is
+  for every app and the `dataviz-` prefix they used to carry said otherwise.
+  The SECRET KEY still cannot be automated: Stripe only issues keys
+  programmatically to an approved Stripe App holding `api_key_write`, which
+  this is not, so it is copied from the Dashboard by hand and mounted as
+  `STRIPE_SECRET_KEY`. The price ID and the webhook endpoint CAN be created
+  through the API, and were.
 
 **With no secret key mounted the whole app is free and fully working**, because
 `stripe.enabled()` is false and `isPro()` then returns true for everyone. That
