@@ -73,10 +73,24 @@
     Sign in with Face ID
   </button>
   <div class="or" id="or" hidden>or</div>
-  <button type="button" class="linkish" id="showPw" hidden>Use the password instead</button>
-  <form id="f">
-    <input type="password" id="pw" placeholder="Password" autocomplete="current-password"
+  <button type="button" class="linkish" id="showPw" hidden>Use a password instead</button>
+
+  <!-- The shared account. One email and password for every app on this
+       domain, and the form people should reach for - the app password below
+       is the original single-key door, kept so a fault in the identity
+       service cannot lock Erik out of his own tool. -->
+  <form id="idForm">
+    <input type="email" id="idEmail" placeholder="Email" autocomplete="username" inputmode="email"
+           autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Email" required>
+    <input type="password" id="idPw" placeholder="Password" autocomplete="current-password"
            enterkeyhint="go" aria-label="Password" required>
+    <button type="submit" id="idGo">Sign in</button>
+  </form>
+
+  <button type="button" class="linkish" id="showApp">Use the app password</button>
+  <form id="f" hidden>
+    <input type="password" id="pw" placeholder="App password" autocomplete="current-password"
+           enterkeyhint="go" aria-label="App password" required>
     <button type="submit" id="go">Sign in</button>
   </form>
   <p class="err" id="err"></p>
@@ -84,25 +98,63 @@
 <script src="/passkey.js"></script>
 <script>
   var f = document.getElementById("f"), pw = document.getElementById("pw");
+  var idForm = document.getElementById("idForm"), idEmail = document.getElementById("idEmail");
+  var idPw = document.getElementById("idPw"), idGo = document.getElementById("idGo");
   var faceBtn = document.getElementById("faceBtn"), orEl = document.getElementById("or");
-  var showPw = document.getElementById("showPw");
+  var showPw = document.getElementById("showPw"), showApp = document.getElementById("showApp");
 
-  // Only offer Face ID once one exists for this hostname. A button that
-  // always fails is worse than no button.
+  // TWO passkey stores live behind this one button.
+  //
+  // /api/id/passkey belongs to the shared account - the passkey someone
+  // enrolled once and expects to work on all five apps. /api/auth/passkey is
+  // this app's own, from when Friction had a single password and no accounts.
+  // The shared one wins when it has a credential for this hostname, because
+  // that is the one people think they registered; the local one stays as the
+  // fallback that cannot be broken by the identity service.
+  var SHARED = "/api/id/passkey", LOCAL = "/api/auth/passkey";
+  var passkeyBase = LOCAL;
+
   if (window.Passkey && Passkey.supported()) {
-    Passkey.status().then(function (st) {
-      if (!st.registered) return;
-      faceBtn.hidden = false; orEl.hidden = false; showPw.hidden = false; f.hidden = true;
+    Promise.all([Passkey.status(SHARED), Passkey.status(LOCAL)]).then(function (states) {
+      var shared = states[0] && states[0].registered;
+      var local = states[1] && states[1].registered;
+      if (!shared && !local) return;   // a button that can only fail is worse than none
+      passkeyBase = shared ? SHARED : LOCAL;
+      faceBtn.hidden = false; orEl.hidden = false; showPw.hidden = false;
+      idForm.hidden = true; showApp.hidden = true;
       faceBtn.focus();
     });
   }
-  showPw.addEventListener("click", function () { f.hidden = false; showPw.hidden = true; pw.focus(); });
+  showPw.addEventListener("click", function () {
+    idForm.hidden = false; showApp.hidden = false; showPw.hidden = true; idEmail.focus();
+  });
+  showApp.addEventListener("click", function () {
+    f.hidden = false; showApp.hidden = true; pw.focus();
+  });
   faceBtn.addEventListener("click", async function () {
     faceBtn.disabled = true; err.textContent = "";
-    try { await Passkey.signIn(); location.href = "/"; }
+    try { await Passkey.signIn(passkeyBase); location.href = "/"; }
     catch (e) {
       err.textContent = Passkey.cancelled(e) ? "" : (e.message || "Face ID did not work.");
-      faceBtn.disabled = false; f.hidden = false; showPw.hidden = true;
+      faceBtn.disabled = false; idForm.hidden = false; showApp.hidden = false; showPw.hidden = true;
+    }
+  });
+
+  idForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    err.textContent = ""; idGo.disabled = true; idGo.textContent = "Signing in…";
+    try {
+      var res = await fetch("/api/id/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: idEmail.value, password: idPw.value })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || "Sign-in failed.");
+      location.href = "/";
+    } catch (e2) {
+      err.textContent = e2.message;
+      idGo.disabled = false; idGo.textContent = "Sign in";
+      idPw.select();
     }
   });
   var go = document.getElementById("go"), err = document.getElementById("err");
@@ -123,7 +175,7 @@
       pw.select();
     }
   });
-  if (!f.hidden) pw.focus();
+  if (!idForm.hidden) idEmail.focus();
 </script>
 </body>
 </html>
