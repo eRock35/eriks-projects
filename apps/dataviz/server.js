@@ -210,6 +210,13 @@ async function applyBillingEvent(event) {
 }
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
+// Cloud Run's edge swallows /healthz: in production it returns a 404 with no
+// Server header, on the run.app URL and the custom domain alike, while every
+// other path - including ones the app does not define - reaches the app. It
+// works locally, which is why it went unnoticed: CI and boot checks were
+// testing a route no external monitor could ever reach. /api/health is the
+// same handler on a path the edge leaves alone.
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 /* ---------- accounts (only ever needed to SAVE) ---------- */
 
