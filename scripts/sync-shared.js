@@ -29,6 +29,8 @@ const TARGETS = [
   // Santa Rosa is single-account on purpose and shares only these two.
   ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
   // The browser-side tour helper.
+  // The account page's passkey half. The landing site serves site/ statically.
+  ['eriks-projects/site', ['passkey-client.js']],
   ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css']],
   ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css']],
   ['trip-planner/public',                 ['tour.js', 'desktop.css']],

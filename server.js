@@ -845,6 +845,13 @@ app.post('/api/id/reset/complete', async (req, res) => {
 
 app.get('/reset', (_req, res) => res.sendFile(path.join(SITE_DIR, 'reset.html')));
 
+// One place to manage the shared account: profile, password, passkeys, your
+// own API key, and leaving. It lives on the landing service rather than in a
+// service of its own because identity is already mounted here - a new Cloud
+// Run service would have needed a new domain mapping, new secrets and a new
+// runtime account to say exactly what this page says.
+app.get('/account', (_req, res) => res.sendFile(path.join(SITE_DIR, 'account.html')));
+
 app.post('/api/cron/notify', async (req, res) => {
   const key = req.get('X-Cron-Key');
   const viaCron = CRON_SECRET && key && key === CRON_SECRET;

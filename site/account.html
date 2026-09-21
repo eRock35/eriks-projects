@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Your account</title>
+<script src="/analytics.js" async></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f5f7; --card: #fcfcfb; --text: #0b0b0b; --dim: #52514e;
+    --muted: #8a8a8f; --line: rgba(60,60,67,.16); --tint: #2a78d6;
+    --good: #0ca30c; --bad: #d03b3b; --fill: rgba(120,120,128,.09);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #000; --card: #1a1a19; --text: #fff; --dim: #c3c2b7;
+      --muted: #8a8a8f; --line: rgba(84,84,88,.5); --tint: #3987e5;
+      --fill: rgba(120,120,128,.22);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    padding: 24px 16px 64px;
+  }
+  .wrap { width: 100%; max-width: 34em; margin: 0 auto; }
+  .page-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 6px 0 18px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -.02em; }
+  h2 { font-size: 15px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; margin-bottom: 14px; }
+  .card > p.sub { color: var(--dim); font-size: 13.5px; margin: 0 0 14px; }
+  label { display: block; font-size: 12.5px; color: var(--muted); margin: 14px 0 5px; }
+  input { width: 100%; min-height: 46px; font: inherit; font-size: 16px; padding: 10px 12px;
+          border: 1px solid var(--line); border-radius: 11px; background: var(--bg); color: var(--text); }
+  button { min-height: 44px; font: inherit; font-weight: 600; border: 0; border-radius: 11px;
+           background: var(--tint); color: #fff; cursor: pointer; padding: 0 16px; }
+  button.wide { width: 100%; margin-top: 14px; }
+  button.sec { background: var(--fill); color: var(--text); }
+  button.danger { background: var(--bad); }
+  button:disabled { opacity: .55; cursor: default; }
+  .status { min-height: 1.35em; font-size: 13.5px; margin-top: 10px; color: var(--dim); }
+  .status.ok { color: var(--good); } .status.err { color: var(--bad); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title { font-size: 14.5px; font-weight: 600; }
+  .row-sub { font-size: 12.5px; color: var(--muted); }
+  .pill { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+          padding: 3px 8px; border-radius: 7px; background: var(--fill); color: var(--dim); }
+  .pill.on { background: #0ca30c22; color: var(--good); }
+  .link { background: none; border: 0; color: var(--tint); font: inherit; padding: 0; cursor: pointer; min-height: 0; font-weight: 500; }
+  a { color: var(--tint); }
+  .foot { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .danger-zone { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-head">
+    <h1>Your account</h1>
+    <button class="link" id="signOut" hidden>Sign out</button>
+  </div>
+
+  <!-- ================= signed out ================= -->
+  <div class="card" id="signedOut" hidden>
+    <h2>Sign in</h2>
+    <p class="sub">One account covers every app on this domain. Signing in here signs you in everywhere.</p>
+    <button class="sec wide" id="faceBtn" hidden>Sign in with Face ID</button>
+    <label for="email">Email</label>
+    <input type="email" id="email" autocomplete="username" inputmode="email"
+           autocapitalize="none" autocorrect="off" spellcheck="false">
+    <label for="password">Password</label>
+    <input type="password" id="password" autocomplete="current-password" enterkeyhint="go">
+    <button class="wide" id="signIn">Sign in</button>
+    <div class="status" id="signInStatus"></div>
+    <p class="foot">
+      New here? <button class="link" id="registerToggle">Create an account</button> ·
+      <a href="/reset">Forgot your password</a>
+    </p>
+  </div>
+
+  <!-- ================= signed in ================= -->
+  <div id="signedIn" hidden>
+
+    <div class="card">
+      <h2>Profile</h2>
+      <p class="sub" id="whoSub"></p>
+      <label for="displayName">Display name</label>
+      <input type="text" id="displayName" maxlength="80" autocomplete="name" placeholder="What the apps should call you">
+      <button class="wide" id="saveProfile">Save</button>
+      <div class="status" id="profileStatus"></div>
+      <p class="foot">
+        Your email address is the account itself — every app keys your trips, projects and
+        slips to it — so it cannot be edited here. Ask Erik if it has to change.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Plan and credit</h2>
+      <p class="sub" id="planSub">Loading…</p>
+      <div id="planActions"></div>
+    </div>
+
+    <div class="card">
+      <h2>Apps</h2>
+      <p class="sub">What this account opens. Ask for access from inside the app you want.</p>
+      <div id="appsList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Face ID and passkeys</h2>
+      <p class="sub">A passkey signs you in on every app on this domain, on this device.</p>
+      <div id="passkeyList"></div>
+      <div id="addPasskeyBox">
+        <label for="enrolPassword">Your password, to add one</label>
+        <input type="password" id="enrolPassword" autocomplete="current-password">
+        <button class="sec wide" id="addPasskey">Add a passkey on this device</button>
+      </div>
+      <div class="status" id="passkeyStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>Change password</h2>
+      <p class="sub" id="pwSub">Enter your current password to set a new one.</p>
+      <label for="curPassword" id="curLabel">Current password</label>
+      <input type="password" id="curPassword" autocomplete="current-password">
+      <label for="newPassword">New password (at least 10 characters)</label>
+      <input type="password" id="newPassword" autocomplete="new-password">
+      <button class="wide" id="changePassword">Change it</button>
+      <div class="status" id="pwStatus"></div>
+    </div>
+
+    <div class="card" id="byokCard" hidden>
+      <h2>Your own API key</h2>
+      <p class="sub" id="byokSub"></p>
+      <div id="byokAdd">
+        <label for="byokKey">Anthropic API key</label>
+        <input type="password" id="byokKey" autocomplete="off" placeholder="sk-ant-…">
+        <button class="sec wide" id="saveByok">Save key</button>
+      </div>
+      <button class="sec wide" id="removeByok" hidden>Remove my key</button>
+      <div class="status" id="byokStatus"></div>
+    </div>
+
+    <div class="card danger-zone">
+      <h2>Delete this account</h2>
+      <p class="sub">
+        This removes your sign-in, your passkeys, any API key you saved, and every access
+        grant. It does <b>not</b> delete what you made inside the apps — trips, projects and
+        slips live in each app's own database. Delete those there first if you want them gone.
+        There is no undo.
+      </p>
+      <div id="deleteProof">
+        <label for="deletePassword">Your password, to confirm</label>
+        <input type="password" id="deletePassword" autocomplete="current-password">
+      </div>
+      <button class="danger wide" id="deleteAccount">Delete my account</button>
+      <div class="status" id="deleteStatus"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/passkey-client.js"></script>
+<script>
+(function () {
+  'use strict';
+  var ID = '/api/id';
+  var PASSKEY_BASE = ID + '/passkey';
+  var $ = function (id) { return document.getElementById(id); };
+  var me = null, registering = false;
+
+  // The apps this account can open, in the order they appear on the landing
+  // page. The key is what each app reads out of `access`; the levels are that
+  // app's own words, so this page never tries to rank them.
+  var APPS = [
+    { key: 'trip-planner', name: 'Trip Planner', url: 'https://trip.strongtechnicalconsulting.com' },
+    { key: 'football', name: 'College Football', url: 'https://footballapp.strongtechnicalconsulting.com' },
+    { key: 'friction', name: 'Friction', url: 'https://friction.strongtechnicalconsulting.com' },
+    { key: 'dataviz', name: 'DataViz', url: 'https://dataviz.strongtechnicalconsulting.com' },
+    // Hopscotch still keeps its own accounts, so this record says nothing
+    // about it either way. Saying "no access" would be a lie in the other
+    // direction - you may well have an account over there.
+    { key: 'hopscotch', name: 'Hopscotch', url: 'https://beer.strongtechnicalconsulting.com', separate: true }
+  ];
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function say(el, text, kind) {
+    el.textContent = text || '';
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+  async function call(method, path, body) {
+    var res = await fetch(path, {
+      method: method,
+      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || 'That did not work.');
+    return data;
+  }
+
+  /* ---------------- loading ---------------- */
+
+  async function load() {
+    try { me = await call('GET', ID + '/me'); } catch (e) { me = { signedIn: false }; }
+    var inn = !!me.signedIn;
+    $('signedIn').hidden = !inn;
+    $('signedOut').hidden = inn;
+    $('signOut').hidden = !inn;
+    if (!inn) { offerFaceId(); return; }
+    renderProfile();
+    renderPlan();
+    renderApps();
+    renderByok();
+    renderProofFields();
+    loadPasskeys();
+  }
+
+  function renderProfile() {
+    $('whoSub').textContent = 'Signed in as ' + me.email + (me.admin ? ' · admin' : '');
+    $('displayName').value = me.displayName || '';
+  }
+
+  function renderPlan() {
+    var b = me.budget || {};
+    var line;
+    if (b.unlimited) {
+      // Infinity does not survive JSON, so an unlimited allowance arrives as
+      // null. Saying "$null left" would be worse than saying nothing.
+      line = b.reason === 'byok'
+        ? 'Running on your own API key — nothing here is billed to us, and nothing is metered.'
+        : 'Not metered.';
+    } else {
+      line = '$' + Number(b.remainingUsd || 0).toFixed(2) + ' of $' + Number(b.allowanceUsd || 0).toFixed(2) + ' left' +
+        (b.member ? ' · member' : '') + '.';
+    }
+    $('planSub').textContent = line;
+    $('planActions').innerHTML = b.unlimited ? '' :
+      '<a href="https://dataviz.strongtechnicalconsulting.com/?topup=1"><button class="sec">Membership and credit</button></a>';
+  }
+
+  function renderApps() {
+    var access = me.access || {}, requests = me.requests || {};
+    $('appsList').innerHTML = APPS.map(function (app) {
+      var level = access[app.key];
+      var asked = requests[app.key] && requests[app.key].state !== 'denied';
+      var pill = app.separate
+        ? '<span class="pill">own sign-in</span>'
+        : (me.admin || level
+            ? '<span class="pill on">' + esc(me.admin && !level ? 'owner' : level === true ? 'yes' : level) + '</span>'
+            : '<span class="pill">' + (asked ? 'asked' : 'no access') + '</span>');
+      return '<div class="row"><div class="row-main">' +
+        '<div class="row-title">' + esc(app.name) + '</div>' +
+        '<div class="row-sub"><a href="' + esc(app.url) + '">Open</a>' +
+          (app.separate ? ' · signs in separately for now' : '') + '</div>' +
+        '</div>' + pill + '</div>';
+    }).join('');
+  }
+
+  function renderByok() {
+    var byok = me.byok || {};
+    $('byokCard').hidden = !byok.supported;
+    if (!byok.supported) return;
+    $('byokAdd').hidden = !!byok.present;
+    $('removeByok').hidden = !byok.present;
+    $('byokSub').textContent = byok.present
+      ? 'Using your key ending ' + (byok.last4 || '????') + '. Your calls are billed to you, not to us.'
+      : 'Optional. Supply an Anthropic key and every app runs your work on it instead of the shared allowance.';
+  }
+
+  /** A Face ID session already proved who you are, so it does not have to
+   *  produce a password to change one or to leave. A password-proved session
+   *  does - otherwise a stolen cookie could take the account for good. */
+  function renderProofFields() {
+    var viaPasskey = me.via === 'passkey';
+    $('curLabel').hidden = viaPasskey;
+    $('curPassword').hidden = viaPasskey;
+    $('deleteProof').hidden = viaPasskey;
+    $('pwSub').textContent = viaPasskey
+      ? 'You signed in with Face ID, which is proof enough — just pick a new password.'
+      : 'Enter your current password to set a new one.';
+  }
+
+  async function loadPasskeys() {
+    var box = $('passkeyList');
+    try {
+      var data = await call('GET', ID + '/passkeys');
+      var list = data.passkeys || [];
+      box.innerHTML = list.length ? list.map(function (k) {
+        return '<div class="row"><div class="row-main">' +
+          '<div class="row-title">' + esc(k.label || 'Passkey') + '</div>' +
+          '<div class="row-sub">' + esc(k.rpID || '') +
+            (k.lastUsedAt ? ' · last used ' + esc(String(k.lastUsedAt).slice(0, 10)) : '') + '</div>' +
+          '</div><button class="link" data-remove-passkey="' + esc(k.id) + '">Remove</button></div>';
+      }).join('') : '<p class="foot" style="margin:0 0 4px">No passkeys yet.</p>';
+    } catch (e) {
+      box.innerHTML = '<p class="foot" style="margin:0 0 4px">Could not load your passkeys.</p>';
+    }
+    $('addPasskeyBox').hidden = !(window.Passkey && Passkey.supported());
+  }
+
+  /* ---------------- signed out ---------------- */
+
+  async function offerFaceId() {
+    if (!(window.Passkey && Passkey.supported())) return;
+    var state = await Passkey.status(PASSKEY_BASE);
+    // Only offer it when a passkey actually exists for this hostname. A button
+    // that can only fail is worse than no button.
+    $('faceBtn').hidden = !(state && state.registered);
+  }
+
+  $('faceBtn').addEventListener('click', async function () {
+    var s = $('signInStatus');
+    say(s, 'Waiting for Face ID…');
+    try { await Passkey.signIn(PASSKEY_BASE); location.reload(); }
+    catch (e) { say(s, Passkey.cancelled(e) ? 'Cancelled.' : 'Face ID sign-in failed — use your password.', 'err'); }
+  });
+
+  $('registerToggle').addEventListener('click', function () {
+    registering = !registering;
+    $('signIn').textContent = registering ? 'Create account' : 'Sign in';
+    this.textContent = registering ? 'I already have one' : 'Create an account';
+    $('password').setAttribute('autocomplete', registering ? 'new-password' : 'current-password');
+    say($('signInStatus'), registering ? 'Pick a password of at least 10 characters.' : '');
+  });
+
+  $('signIn').addEventListener('click', async function () {
+    var s = $('signInStatus');
+    this.disabled = true;
+    say(s, registering ? 'Creating…' : 'Signing in…');
+    try {
+      await call('POST', ID + (registering ? '/register' : '/login'),
+                 { email: $('email').value, password: $('password').value });
+      location.reload();
+    } catch (e) { say(s, e.message, 'err'); this.disabled = false; }
+  });
+  $('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('signIn').click(); });
+
+  $('signOut').addEventListener('click', async function () {
+    try { await call('POST', ID + '/logout'); } catch (e) {}
+    location.reload();
+  });
+
+  /* ---------------- signed in ---------------- */
+
+  $('saveProfile').addEventListener('click', async function () {
+    var s = $('profileStatus');
+    this.disabled = true;
+    try {
+      var r = await call('POST', ID + '/profile', { displayName: $('displayName').value });
+      $('displayName').value = r.displayName;
+      say(s, 'Saved.', 'ok');
+    } catch (e) { say(s, e.message, 'err'); }
+    this.disabled = false;
+  });
+
+  $('changePassword').addEventListener('click', async function () {
+    var s = $('pwStatus');
+    this.disabled = true;
+    say(s, 'Changing…');
+    try {
+      await call('POST', ID + '/password', { current: $('curPassword').value, next: $('newPassword').value });
+      $('curPassword').value = ''; $('newPassword').value = '';
+      say(s, 'Changed. It works on every app.', 'ok');
+    } catch (e) { say(s, e.message, 'err'); }
+    this.disabled = false;
+  });
+
+  $('addPasskey').addEventListener('click', async function () {
+    var s = $('passkeyStatus');
+    this.disabled = true;
+    say(s, 'Waiting for Face ID…');
+    try {
+      await Passkey.enrol({ password: $('enrolPassword').value }, PASSKEY_BASE, deviceLabel());
+      $('enrolPassword').value = '';
+      say(s, 'Added.', 'ok');
+      loadPasskeys();
+    } catch (e) { say(s, Passkey.cancelled(e) ? 'Cancelled.' : e.message, 'err'); }
+    this.disabled = false;
+  });
+
+  $('passkeyList').addEventListener('click', async function (e) {
+    var btn = e.target.closest('[data-remove-passkey]');
+    if (!btn) return;
+    var s = $('passkeyStatus');
+    try {
+      await call('DELETE', ID + '/passkeys/' + encodeURIComponent(btn.getAttribute('data-remove-passkey')));
+      say(s, 'Removed.', 'ok');
+      loadPasskeys();
+    } catch (err) { say(s, err.message, 'err'); }
+  });
+
+  $('saveByok').addEventListener('click', async function () {
+    var s = $('byokStatus');
+    this.disabled = true;
+    try {
+      await call('POST', ID + '/byok', { key: $('byokKey').value });
+      $('byokKey').value = '';
+      say(s, 'Saved.', 'ok');
+      await load();
+    } catch (e) { say(s, e.message, 'err'); }
+    this.disabled = false;
+  });
+
+  $('removeByok').addEventListener('click', async function () {
+    var s = $('byokStatus');
+    this.disabled = true;
+    try { await call('DELETE', ID + '/byok'); say(s, 'Removed.', 'ok'); await load(); }
+    catch (e) { say(s, e.message, 'err'); }
+    this.disabled = false;
+  });
+
+  // Two steps, on purpose. The first press explains exactly what is about to
+  // happen and turns into the one that does it - a single misplaced tap
+  // should not end an account.
+  var armed = false;
+  $('deleteAccount').addEventListener('click', async function () {
+    var s = $('deleteStatus');
+    if (!armed) {
+      armed = true;
+      this.textContent = 'Yes, delete it permanently';
+      say(s, 'Press again to delete ' + me.email + '. This cannot be undone.', 'err');
+      return;
+    }
+    this.disabled = true;
+    say(s, 'Deleting…');
+    try {
+      await call('DELETE', ID + '/account', { password: $('deletePassword').value });
+      document.body.innerHTML = '<div class="wrap"><div class="card"><h2>Account deleted</h2>' +
+        '<p class="sub">Your sign-in and passkeys are gone. Anything you made inside the apps is still there.</p>' +
+        '<p><a href="/">Back to the site</a></p></div></div>';
+    } catch (e) {
+      say(s, e.message, 'err');
+      armed = false;
+      this.textContent = 'Delete my account';
+      this.disabled = false;
+    }
+  });
+
+  /** A name for the passkey, so a list of three is not three rows saying
+   *  "Face ID". The platform is the only thing a browser will tell us. */
+  function deviceLabel() {
+    var ua = navigator.userAgent || '';
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    if (/Macintosh/.test(ua)) return 'Mac';
+    if (/Android/.test(ua)) return 'Android';
+    if (/Windows/.test(ua)) return 'Windows';
+    return 'This device';
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
