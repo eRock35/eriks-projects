@@ -681,6 +681,14 @@ app.get('/feed.xml', async (req, res) => {
 });
 
 app.get('/robots.txt', (req, res) => {
+  // The account subdomain serves this same app, so without a per-host answer
+  // it would hand crawlers the marketing site's robots.txt and invite them to
+  // index a page titled "Your account" with a sign-in form on it. Nothing
+  // there is secret - it is all behind a session - but an account page has no
+  // business in a search index.
+  if (String(req.hostname || '').toLowerCase() === ACCOUNT_HOST) {
+    return res.type('text/plain').send('User-agent: *\nDisallow: /\n');
+  }
   res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nSitemap: ${view.origin()}/feed.xml\n`);
 });
 
@@ -852,9 +860,25 @@ app.get('/reset', (_req, res) => res.sendFile(path.join(SITE_DIR, 'reset.html'))
 // exactly what this page says. The subdomain is a domain mapping onto this
 // same service, which costs nothing and needs no second deployment.
 const ACCOUNT_HOST = String(process.env.ACCOUNT_HOST || 'acct.strongtechnicalconsulting.com').toLowerCase();
+const BASE_DOMAIN = String(process.env.PASSKEY_RP_ID || 'strongtechnicalconsulting.com').toLowerCase();
 const accountPage = (_req, res) => res.sendFile(path.join(SITE_DIR, 'account.html'));
 
-app.get('/account', accountPage);
+// `/account` on any other host of this domain is the old URL, and it stays -
+// as a redirect, not as a second copy. Deleting it would break the landing
+// footer, anything bookmarked, and the links other apps shipped with before
+// the subdomain existed, and would buy nothing: one canonical URL is what
+// "only one place" actually means, and a 301 is how you say it.
+//
+// Scoped to hosts under the base domain so localhost, the *.run.app URL and
+// the tests still serve the page directly. A redirect to production is a
+// strange thing to hit while developing.
+app.get('/account', (req, res) => {
+  const host = String(req.hostname || '').toLowerCase();
+  if (host !== ACCOUNT_HOST && host.endsWith(BASE_DOMAIN)) {
+    return res.redirect(301, `https://${ACCOUNT_HOST}`);
+  }
+  return accountPage(req, res);
+});
 
 // On acct.<domain> the account page IS the site. Registered before the static
 // middleware so it wins the root path, and scoped by hostname so the landing

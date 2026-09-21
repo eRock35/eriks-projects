@@ -38,6 +38,18 @@ function rawGet(path, host) {
   });
 }
 
+/** Like rawGet, but for the status line and Location. */
+function rawHead(path, host) {
+  return new Promise((resolve, reject) => {
+    const req = require('http').request(
+      { host: '127.0.0.1', port: 9206, path, method: 'GET', headers: { Host: host, Accept: 'text/html' } },
+      (res) => { res.resume(); resolve({ status: res.statusCode, location: res.headers.location }); },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 (async () => {
   await new Promise((r) => setTimeout(r, 900));
 
@@ -57,6 +69,25 @@ function rawGet(path, host) {
   ok('acct.<domain>/ serves the account page', /Your account/i.test(html), html.slice(0, 80));
   html = await (await fetch(B + '/', { headers: { Accept: 'text/html' } })).text();
   ok('...and the apex still serves the landing page', !/Your account/i.test(html), html.slice(0, 80));
+
+  // One canonical URL, without breaking the old one. /account is where the
+  // landing footer, every bookmark and two other apps used to point.
+  let r301 = await rawHead('/account', 'strongtechnicalconsulting.com');
+  ok('/account on the apex redirects to the subdomain', r301.status === 301, String(r301.status));
+  ok('...to the account host itself', r301.location === 'https://acct.strongtechnicalconsulting.com', String(r301.location));
+  r301 = await rawHead('/account', 'acct.strongtechnicalconsulting.com');
+  ok('...and does not redirect to itself in a loop', r301.status === 200, String(r301.status));
+  // Redirecting to production while developing would be its own small hell.
+  r301 = await rawHead('/account', '127.0.0.1');
+  ok('...and a host outside the domain still serves the page', r301.status === 200, String(r301.status));
+
+  // An account page has no business in a search index.
+  const robots = await rawGet('/robots.txt', 'acct.strongtechnicalconsulting.com');
+  ok('the account host tells crawlers to stay out', /Disallow: \/\s*$/m.test(robots), JSON.stringify(robots));
+  const wwwRobots = await rawGet('/robots.txt', 'www.strongtechnicalconsulting.com');
+  ok('...and the marketing site is still indexable', /Disallow: \/admin/.test(wwwRobots), JSON.stringify(wwwRobots));
+  html = await rawGet('/', 'acct.strongtechnicalconsulting.com');
+  ok('...and the page says so itself', /noindex/.test(html));
 
   /* ---------- profile ---------- */
   r = await post('/api/id/register', { email: 'leaver@example.com', password: 'a-long-password-1' });
