@@ -204,6 +204,35 @@ why downgrading a model without it would 400 every free-tier chat.
 returns — `identityLib.planFor(...)`, not `identity.planFor(...)`. The test
 suite caught that one.
 
+## Public previews, and what frames what
+
+Every app can be looked at without an account; only the things that cost
+money or belong to someone need a sign-in. What each shows signed-out:
+
+| App | Signed-out | Gated |
+|---|---|---|
+| football | the whole board (`/api/games`, `/api/asks`, `/api/changelog` are open) | research, the slip |
+| trip-planner | **the example trip** at `#/trip/demo` — itinerary, watches with history, a short chat; served from `demo.js`, not Firestore, read-only for everyone (`loadOwnedTrip` 403s writes to it) | your own trips |
+| dataviz | the samples | your own data, saving |
+| friction | **`/preview`** — the strongest problems, title/summary/who/score/recurrence only. Never the evidence quotes (other people's words, under their sources' licences), never status or notes (Erik's decisions). `/api/public/board`, cached 10 min | the board, lenses, runs |
+| santa-rosa | nothing, deliberately | everything |
+
+The landing page's **Projects** section frames those preview URLs in a
+swipeable strip of phone-shaped frames. Each frame loads only when it
+scrolls near (five cold starts on page load would be silly), the app inside
+renders at 390px and is scaled to fit, and a transparent layer over each
+keeps swipes on the strip and turns a tap into "open the app".
+
+**`Content-Security-Policy: frame-ancestors`** on football, trip-planner,
+dataviz and friction allows `'self'` plus `strongtechnicalconsulting.com`
+and `www.`. Nothing set X-Frame-Options before, so anyone could frame these
+apps; this narrows it to the landing page. Hopscotch's build cannot run in
+the sandbox so it has no such header yet — it frames because nothing forbids
+it.
+
+**Friction's scan is daily** (06:15 ET) as of 2026-09-21. Four-hourly on
+Opus measured ~$0.83/day.
+
 ## Bring your own key
 
 A user can run every app on their own Anthropic key instead of the shared $2.

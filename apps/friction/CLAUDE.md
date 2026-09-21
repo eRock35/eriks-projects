@@ -69,8 +69,11 @@ inside the free tier's 100/minute. Do not remove that to make scans faster.
 Six lenses x four subreddits x six phrases would be 144 rate-limited requests
 in one HTTP handler, which does not fit a request timeout. So a run scans the
 single stalest lens (`pickNext`, ordered by `lastScannedAt`) and the Cloud
-Scheduler job fires every 4 hours - six lenses, so each comes round about once
-a day. `scope=all` exists for manual use and will be slow.
+Scheduler job fires **once a day, 06:15 America/New_York** - six lenses, so
+each comes round about once a week. It was every 4 hours until 2026-09-21;
+that measured ~$0.83/day on Opus (~$25/month), and Erik asked for less. The
+recurrence design still works at a week per lens, just slower to confirm a
+problem is a pattern. `scope=all` exists for manual use and will be slow.
 
 Do not "fix" this by scanning everything in one run.
 
@@ -113,5 +116,5 @@ apps (no gcloud, no local Docker) - see `college-football-app/docs/gcp-deploymen
   `friction-cron-secret`. `anthropic-api-key` is the shared one.
 - Env: `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_DATABASE_ID=friction`, `ENABLE_REDDIT`,
   `SCAN_MODEL`, `MAX_ITEMS_PER_RUN`.
-- Cloud Scheduler job `friction-scan`, every 4 hours, POSTing
+- Cloud Scheduler job `friction-scan`, daily at 06:15 ET, POSTing
   `/api/cron/scan` with `X-Cron-Key`.

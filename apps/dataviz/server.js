@@ -19,6 +19,14 @@ const mail = require('./lib/mail');
 const reset = require('./lib/reset');
 
 const app = express();
+
+// Only the landing page may put this app in a frame - it shows a live
+// preview you can swipe through. Nothing else should be able to: a gated app
+// inside a hostile page is the setup for clickjacking a signed-in session.
+app.use((req, res, next) => {
+  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  next();
+});
 const PORT = process.env.PORT || 8080;
 const MAX_PROJECTS = 60;
 

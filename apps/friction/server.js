@@ -14,6 +14,14 @@ const identityStore = require('./lib/identity-store');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Only the landing page may put this app in a frame - it shows a live
+// preview you can swipe through. Nothing else should be able to: a gated app
+// inside a hostile page is the setup for clickjacking a signed-in session.
+app.use((req, res, next) => {
+  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  next();
+});
+
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -59,6 +67,45 @@ app.get('/login', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'lo
 // button, silently, with nothing in the log to say why.
 app.get('/passkey.js', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'passkey.js')));
 app.get('/icon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'icon.svg')));
+
+/* ---------- the public preview: read-only, outside the gate ---------- */
+
+// The board is invite-only and that is right - but the sign-in wall meant
+// nobody could see what the tool does. This shows the strongest problems it
+// has found, and only the parts that are the tool's own output: title,
+// summary, who it hurts, score, how often it recurs. NOT the evidence quotes
+// (they are other people's words, from sources with their own licences), NOT
+// the status or notes (those are Erik's decisions), NOT anything editable.
+app.get('/preview', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'preview.html')));
+
+const PREVIEW_MAX = 12;
+app.get('/api/public/board', async (_req, res) => {
+  try {
+    const [all, lenses] = await Promise.all([db.list('signals'), scan.loadLenses()]);
+    const label = {};
+    for (const l of lenses) label[l.id] = l.label;
+    const rows = all
+      .filter((r) => (r.status || 'new') !== 'passed')
+      .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.seenCount || 0) - (a.seenCount || 0))
+      .slice(0, PREVIEW_MAX)
+      .map((r) => ({
+        title: r.title,
+        summary: r.summary || '',
+        who: r.who || '',
+        lens: label[r.lensId] || r.lensId || '',
+        score: r.score == null ? null : Number(r.score),
+        seenCount: Number(r.seenCount || 1),
+        lastSeenAt: r.lastSeenAt || null,
+      }));
+    // Public and unauthenticated, so let it be cached: the landing page frames
+    // this and a Firestore read per visitor would be silly.
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json({ signals: rows, total: all.length });
+  } catch (err) {
+    console.error('GET /api/public/board', err);
+    res.status(500).json({ error: 'Could not load the preview.' });
+  }
+});
 
 /* ---------- password, changeable without a deploy ---------- */
 

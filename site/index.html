@@ -154,6 +154,36 @@
   [data-reveal].in { opacity: 1; transform: none; }
 
   /* ---------- Projects ---------- */
+  /* The live previews strip. A phone-shaped frame per app, scroll-snapped so
+     a swipe lands on the next one; the app inside renders at its natural
+     390px and is scaled down to fit, so nothing reflows into a squashed
+     layout. Bleeds to the page edge on a phone so the next card peeks in. */
+  .previews { margin: 0 -16px 22px; }
+  .preview-strip { display: flex; gap: 14px; padding: 4px 16px 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+                   scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .preview-strip::-webkit-scrollbar { display: none; }
+  /* Sized so a frame, its caption and the dots all fit one phone screen with
+     the section head above: about 58% of the width, never taller than the
+     viewport allows. */
+  .preview { flex: 0 0 auto; margin: 0; scroll-snap-align: center; width: min(58vw, 210px, calc((100vh - 260px) * 9 / 18.5)); }
+  .phone { position: relative; aspect-ratio: 9 / 18.5; border-radius: 30px; background: var(--card); box-shadow: var(--shadow-lift);
+           padding: 8px; overflow: hidden; }
+  .phone-screen { position: relative; width: 100%; height: 100%; border-radius: 23px; overflow: hidden; background: var(--fill); }
+  .phone-screen iframe { position: absolute; top: 0; left: 0; width: 390px; height: 800px; border: 0; transform-origin: top left;
+                         opacity: 0; transition: opacity .5s var(--ease); pointer-events: none; }
+  .phone-screen iframe.in { opacity: 1; }
+  .phone-skel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+                font-size: 12.5px; color: var(--label-3); padding: 20px; }
+  .phone-tap { position: absolute; inset: 0; border-radius: 30px; }
+  .phone-tap:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+  .preview figcaption { display: flex; flex-direction: column; gap: 1px; margin: 10px 4px 0; }
+  .preview figcaption b { font-size: 15px; font-weight: 600; }
+  .preview figcaption span { font-size: 13px; color: var(--label-2); }
+  .preview-dots { display: flex; justify-content: center; gap: 6px; margin-top: 4px; }
+  .preview-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--fill-2); transition: background .2s, transform .2s; }
+  .preview-dots i.on { background: var(--tint); transform: scale(1.25); }
+  @media (min-width: 620px) { .previews { margin-left: 0; margin-right: 0; } .preview-strip { padding-left: 0; padding-right: 0; } }
+
   .projects { display: grid; grid-template-columns: 1fr; gap: 12px; }
   @media (min-width: 620px) { .projects { grid-template-columns: 1fr 1fr; } }
   .project {
@@ -345,6 +375,37 @@
 
   <section id="projects">
     <div class="section-head" data-reveal><h2>Projects</h2><span class="sub">Live apps, built for a phone</span></div>
+
+    <!-- Live previews. Each phone is the real app in a frame, loaded only
+         when it scrolls into view (five apps on page load would be five
+         cold starts for nothing). A transparent layer over each frame keeps
+         swipes on the strip rather than inside the app, and a tap opens it. -->
+    <div class="previews" data-reveal aria-label="Live previews - swipe to browse">
+      <div class="preview-strip" id="previewStrip">
+        <figure class="preview" data-src="https://footballapp.strongtechnicalconsulting.com/" data-href="https://footballapp.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open College Football"></a></div>
+          <figcaption><b>College Football</b><span>The whole board, live</span></figcaption>
+        </figure>
+        <figure class="preview" data-src="https://trip.strongtechnicalconsulting.com/#/trip/demo" data-href="https://trip.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Trip Planner"></a></div>
+          <figcaption><b>Trip Planner</b><span>An example trip, start to finish</span></figcaption>
+        </figure>
+        <figure class="preview" data-src="https://dataviz.strongtechnicalconsulting.com/" data-href="https://dataviz.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open DataViz"></a></div>
+          <figcaption><b>DataViz</b><span>Samples that move</span></figcaption>
+        </figure>
+        <figure class="preview" data-src="https://friction.strongtechnicalconsulting.com/preview" data-href="https://friction.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://friction.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Friction"></a></div>
+          <figcaption><b>Friction</b><span>The problems that keep coming back</span></figcaption>
+        </figure>
+        <figure class="preview" data-src="https://beer.strongtechnicalconsulting.com/" data-href="https://beer.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Hopscotch"></a></div>
+          <figcaption><b>Hopscotch</b><span>A craft beer passport</span></figcaption>
+        </figure>
+      </div>
+      <div class="preview-dots" id="previewDots" aria-hidden="true"></div>
+    </div>
+
     <div class="projects">
       <a class="project" data-reveal style="--d:.05s" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/football.svg" alt="" width="56" height="56">
@@ -721,6 +782,65 @@
       card.addEventListener("pointerleave", function () { card.style.transform = ""; });
     });
   }
+})();
+</script>
+<script>
+(function () {
+  "use strict";
+  var strip = document.getElementById("previewStrip");
+  if (!strip || !("IntersectionObserver" in window)) return;
+  var cards = Array.prototype.slice.call(strip.querySelectorAll(".preview"));
+  var dots = document.getElementById("previewDots");
+  cards.forEach(function () { var i = document.createElement("i"); dots.appendChild(i); });
+
+  // The app renders at 390px wide - what it was designed for - and is scaled
+  // to whatever the phone frame happens to be. Re-fit on resize.
+  function fit(card) {
+    var screen = card.querySelector(".phone-screen"), frame = screen.querySelector("iframe");
+    if (!frame) return;
+    var k = screen.clientWidth / 390;
+    frame.style.transform = "scale(" + k + ")";
+    frame.style.height = Math.ceil(screen.clientHeight / k) + "px";
+  }
+  function load(card) {
+    if (card.dataset.loaded) return;
+    card.dataset.loaded = "1";
+    var screen = card.querySelector(".phone-screen");
+    var frame = document.createElement("iframe");
+    frame.title = card.querySelector("figcaption b").textContent + " preview";
+    frame.loading = "lazy";
+    frame.referrerPolicy = "strict-origin";
+    frame.setAttribute("aria-hidden", "true");
+    frame.tabIndex = -1;
+    frame.addEventListener("load", function () {
+      frame.classList.add("in");
+      var skel = screen.querySelector(".phone-skel");
+      if (skel) skel.remove();
+    });
+    screen.appendChild(frame);
+    fit(card);
+    frame.src = card.dataset.src;
+  }
+
+  // Load a card when it is on screen or one card away - not the whole strip
+  // at once, and not only when it is already centred (that would show a
+  // cold start every swipe).
+  var loader = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { load(e.target); loader.unobserve(e.target); } });
+  }, { root: strip, rootMargin: "0px 60% 0px 60%", threshold: 0.01 });
+  cards.forEach(function (c) { loader.observe(c); });
+
+  // Which one is centred, for the dots: the MOST visible card, not whichever
+  // entry happened to arrive last - two can be partly in view at once.
+  var ratios = cards.map(function () { return 0; });
+  var centred = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { ratios[cards.indexOf(e.target)] = e.isIntersecting ? e.intersectionRatio : 0; });
+    var best = ratios.indexOf(Math.max.apply(null, ratios));
+    Array.prototype.forEach.call(dots.children, function (d, j) { d.classList.toggle("on", best === j); });
+  }, { root: strip, threshold: [0, 0.25, 0.5, 0.75, 1] });
+  cards.forEach(function (c) { centred.observe(c); });
+
+  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(function () { cards.forEach(fit); }, 120); });
 })();
 </script>
 </body>

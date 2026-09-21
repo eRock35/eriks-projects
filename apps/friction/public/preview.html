@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Friction — preview</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/analytics.js" async></script>
+<style>
+  /* Same tokens as the app, so a frame of this on the landing page reads as
+     the real thing and not a mock-up. Kept in step with index.html by hand. */
+  :root {
+    --tint: #007AFF; --green: #34C759; --amber: #FF9F0A; --red: #FF3B30;
+    --bg: #F2F2F7; --card: #FFFFFF; --fill: rgba(118,118,128,0.12);
+    --label: #1C1C1E; --label-2: #6E6E73; --label-3: #A1A1A6;
+    --sep: rgba(60,60,67,0.16);
+    --shadow: 0 1px 2px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #000000; --card: #1C1C1E; --fill: rgba(118,118,128,0.24);
+            --label: #F5F5F7; --label-2: #98989D; --label-3: #6E6E73;
+            --sep: rgba(84,84,88,0.5); --shadow: 0 1px 2px rgba(0,0,0,0.5); }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--label);
+    font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 28px); }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tint); margin: 0 0 4px; }
+  h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 6px; }
+  .sub { color: var(--label-2); font-size: 15px; margin: 0 0 18px; }
+  .sub a { color: var(--tint); text-decoration: none; }
+  .card { display: block; width: 100%; text-align: left; background: var(--card); border-radius: 15px; box-shadow: var(--shadow);
+          padding: 14px 14px 12px; margin-bottom: 10px; }
+  .card-top { display: flex; gap: 12px; align-items: flex-start; }
+  .sc { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px; color: #fff; font-weight: 700; font-size: 15px;
+        display: flex; align-items: center; justify-content: center; }
+  .card h3 { font-size: 16px; font-weight: 600; margin: 0 0 3px; letter-spacing: -0.01em; line-height: 1.3; }
+  .who { margin: 0; font-size: 13.5px; color: var(--label-2); }
+  .summary { margin: 10px 0 0; font-size: 14.5px; color: var(--label); line-height: 1.45; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag { font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 999px; background: var(--fill); color: var(--label-2); }
+  .tag.hot { background: rgba(255,59,48,0.14); color: var(--red); }
+  .empty { text-align: center; color: var(--label-2); padding: 48px 20px; }
+  .foot { margin-top: 22px; padding: 14px; border-radius: 15px; background: var(--fill); font-size: 14px; color: var(--label-2); line-height: 1.45; }
+  .foot a { color: var(--tint); font-weight: 600; text-decoration: none; }
+  .skel { height: 92px; border-radius: 15px; background: var(--fill); margin-bottom: 10px; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Friction</p>
+  <h1>What keeps coming back</h1>
+  <p class="sub">Problems people complain about across Hacker News, GitHub and App Store reviews, scored and re-scored as they recur. This is the read-only preview — <a href="/">sign in</a> to see the evidence, the lenses, and the full board.</p>
+  <div id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+  <div class="foot">Scores are 1–10 for how real and how recurring a problem is. A high score seen four times over a month means more than one loud thread. <a href="/">Ask for access &rarr;</a></div>
+</div>
+<script>
+(function () {
+  "use strict";
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function color(n) { if (n >= 7.5) return "var(--red)"; if (n >= 6) return "var(--amber)"; if (n >= 4) return "var(--tint)"; return "var(--label-3)"; }
+  function ago(iso) {
+    if (!iso) return "";
+    var d = (Date.now() - Date.parse(iso)) / 86400000;
+    if (d < 1) return "today"; if (d < 2) return "yesterday"; if (d < 30) return Math.round(d) + "d ago"; return Math.round(d / 30) + "mo ago";
+  }
+  fetch("/api/public/board").then(function (r) { return r.json(); }).then(function (d) {
+    var list = document.getElementById("list");
+    if (!d.signals || !d.signals.length) { list.innerHTML = '<div class="empty">Nothing on the board yet. The first scan fills it.</div>'; return; }
+    list.innerHTML = d.signals.map(function (s) {
+      return '<div class="card"><div class="card-top">' +
+        '<span class="sc" style="background:' + color(s.score) + '">' + (s.score == null ? "?" : esc(s.score)) + '</span>' +
+        '<span><h3>' + esc(s.title) + '</h3><p class="who">' + esc(s.who) + '</p></span></div>' +
+        (s.summary ? '<p class="summary">' + esc(s.summary) + '</p>' : '') +
+        '<div class="meta">' +
+          (s.lens ? '<span class="tag">' + esc(s.lens) + '</span>' : '') +
+          '<span class="tag' + (s.seenCount >= 3 ? ' hot' : '') + '">Seen ' + esc(s.seenCount) + (s.seenCount === 1 ? ' time' : ' times') + '</span>' +
+          (s.lastSeenAt ? '<span class="tag">' + esc(ago(s.lastSeenAt)) + '</span>' : '') +
+        '</div></div>';
+    }).join("");
+  }).catch(function () {
+    document.getElementById("list").innerHTML = '<div class="empty">Could not load the preview.</div>';
+  });
+})();
+</script>
+</body>
+</html>
