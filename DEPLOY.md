@@ -784,11 +784,24 @@ surfaces — `/api/stats/public` is public and this repo is public.
 
 ### On the landing page
 
-`site/index.html` labels rather than reorders: the `#1` app gets a "Trending"
-badge and every card gets "N views this week", but the authored order and the
-staggered reveal delays stay as written. Sorting cards by rank would reshuffle
-the page on every visit and fight the `--d` delays baked into the markup. The
-fetch runs after paint and swallows every failure, so no card depends on it.
+Two surfaces, both fed by the same `/api/stats/public` call and both additive:
+
+- **A ranked strip** ("Most used this week") above the previews. The landing
+  page itself is filtered out of it — every visitor arrives there first, so it
+  would sit at #1 every week and say nothing about the apps. An app with no
+  views is left out rather than listed at zero, and the strip is not drawn at
+  all below two rows, because a ranking of one is not a ranking. `/admin/views`
+  keeps the whole picture, landing page included.
+- **Per-card labels**: a "Trending" badge and "N views this week".
+
+It **labels rather than reorders**. Sorting cards by rank would reshuffle the
+page on every visit and fight the staggered `--d` reveal delays baked into the
+markup. The fetch runs after paint and swallows every failure, so no card
+depends on it.
+
+The badge keys off the busiest **app**, not `rank === 1`. Rank is across
+everything the counter tracks and #1 is always the landing page, which has no
+card — so the original version could never have shown the badge on anything.
 
 ## Analytics
 

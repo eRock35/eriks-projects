@@ -194,12 +194,21 @@
      clipped edge. Both rows break out of the column to their own width and
      centre; nothing else moves. */
   @media (min-width: 1180px) {
-    .previews { margin-inline: calc((680px - var(--wide-row)) / 2); }
-    .preview-strip { justify-content: center; overflow-x: visible; scroll-snap-type: none; padding-inline: 0; }
     .projects { margin-inline: calc((680px - var(--wide-row)) / 2); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-    .preview-dots { display: none; }  /* nothing left to page through */
   }
-  :root { --wide-row: 1120px; }
+  /* The strip breaks out later than the card grid does, because it needs more
+     room: six frames at 210px with 14px gaps is 1330px, and the cutoff used to
+     be tuned to exactly five. Laying all six out at 1180px would either
+     overflow the window or shrink them into something you cannot read.
+     Below this width it stays the swipe strip it is on a phone - which works
+     with a trackpad and keeps its dots - and above it they all sit side by
+     side with nothing left to page through. */
+  @media (min-width: 1400px) {
+    .previews { margin-inline: calc((680px - var(--wide-strip)) / 2); }
+    .preview-strip { justify-content: center; overflow-x: visible; scroll-snap-type: none; padding-inline: 0; }
+    .preview-dots { display: none; }
+  }
+  :root { --wide-row: 1120px; --wide-strip: 1340px; }
   .project {
     position: relative; overflow: hidden; display: flex; gap: 14px; align-items: flex-start;
     background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; color: inherit;
@@ -223,12 +232,31 @@
   .project:hover .open svg { transform: translate(2px, -2px); }
   .live { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #04280f; background: var(--green); border-radius: 999px; padding: 2px 7px; position: relative; }
   .live::before { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--green); animation: pulse 2.4s ease-out infinite; z-index: -1; }
-  /* Populated from Spellbook's public stats, and empty until then. The page
-     must read correctly with the fetch failing - it is a static page and the
-     counter is somebody else's service. */
+  /* Populated from this service's own /api/stats/public, and empty until it
+     answers. The page must still read correctly with the fetch failing. */
   .trending { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
     color: #2b1a00; background: var(--amber, #ffb020); border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
   .views { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* The trending strip. A ranked row rather than a chart: there are seven
+     apps and one number each, and a chart of seven bars says nothing a row
+     of seven does not. The bar behind each row is the magnitude, drawn as a
+     background so it can never push the text around. */
+  .trendbar { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px 16px 10px; margin-bottom: 22px; }
+  .trendbar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .trendbar-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--label-2); }
+  .trendbar-sub { font-size: 12.5px; color: var(--label-3); }
+  .trendlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .trendlist a { position: relative; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px;
+                 color: inherit; text-decoration: none; overflow: hidden; }
+  .trendlist a::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); border-radius: 10px;
+                         background: color-mix(in srgb, var(--tint) 13%, transparent); transition: width .6s var(--ease); }
+  .trendlist a:hover { background: var(--fill); }
+  .trendlist .tl-rank { position: relative; width: 16px; font-size: 12px; font-weight: 700; color: var(--label-3); font-variant-numeric: tabular-nums; }
+  .trendlist .tl-name { position: relative; flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-weight: 600;
+                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trendlist .tl-n { position: relative; font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+  @media (min-width: 1180px) { .trendbar { margin-inline: calc((680px - var(--wide-row)) / 2); } }
   @keyframes pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
   .project.soon { opacity: 0.7; }
   .project.soon .placeholder { width: 56px; height: 56px; border-radius: 14px; background: var(--fill-2); display: grid; place-items: center; color: var(--label-3); font-size: 26px; flex: 0 0 auto; }
@@ -396,6 +424,19 @@
   <section id="projects">
     <div class="section-head" data-reveal><h2>Projects</h2><span class="sub">Live apps, built for a phone</span></div>
 
+    <!-- What is actually getting used this week. Hidden until the counter
+         answers, so a cold start or a failed fetch leaves the page reading
+         exactly as authored rather than showing an empty frame. Filled by the
+         trending script at the bottom; see lib/views.js for where the numbers
+         come from and what is deliberately not collected. -->
+    <div class="trendbar" id="trendBar" data-reveal hidden>
+      <div class="trendbar-head">
+        <span class="trendbar-title">Most used this week</span>
+        <span class="trendbar-sub" id="trendWhen"></span>
+      </div>
+      <ol class="trendlist" id="trendList"></ol>
+    </div>
+
     <!-- Live previews. Each phone is the real app in a frame, running its
          own tour (?tour=1 - see shared/tour.js) so it looks used, loaded only
          when it scrolls into view (five apps on page load would be five
@@ -422,6 +463,13 @@
         <figure class="preview" data-src="https://beer.strongtechnicalconsulting.com/?tour=1#trips" data-href="https://beer.strongtechnicalconsulting.com">
           <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Hopscotch"></a></div>
           <figcaption><b>Hopscotch</b><span>Planning a crawl</span></figcaption>
+        </figure>
+        <!-- Spellbook has no ?tour=1 of its own; it does not need one. Its
+             front page IS the library, and it is readable signed out, so the
+             frame shows real prompts rather than a sign-in form. -->
+        <figure class="preview" data-src="https://spellbook.strongtechnicalconsulting.com/" data-href="https://spellbook.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Spellbook"></a></div>
+          <figcaption><b>Spellbook</b><span>Prompts worth keeping</span></figcaption>
         </figure>
       </div>
       <div class="preview-dots" id="previewDots" aria-hidden="true"></div>
@@ -468,7 +516,7 @@
           <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="spellbook" data-reveal style="--d:.40s" href="https://spellbook-u4h4ftn3fa-uc.a.run.app" target="_blank" rel="noopener">
+      <a class="project" data-app="spellbook" data-reveal style="--d:.40s" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/spellbook.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Spellbook <span class="live">Live</span></h3>
@@ -894,11 +942,52 @@
   'use strict';
   var STATS = '/api/stats/public';   // same origin: the counter lives here now
   function n(v) { return Number(v || 0).toLocaleString(); }
+  // Labels and URLs come from the counter's own allowlist, not from this page,
+  // so they are data rather than markup and get escaped like any other.
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
   try {
     fetch(STATS, { credentials: 'omit' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d || !Array.isArray(d.apps)) return;
+
+        // The ranked strip. Three filters, each for its own reason:
+        //  - this page itself is left out. Every visitor arrives here first,
+        //    so it would sit at #1 every week and say nothing; the strip is
+        //    about the apps. The whole picture is on /admin/views.
+        //  - an app with no views is left out rather than listed at zero.
+        //  - and nothing is drawn at all below two rows, because a ranking of
+        //    one is not a ranking.
+        var seen = d.apps.filter(function (a) {
+          return a.app !== 'landing' && (a.views7 || a.totalViews) > 0;
+        });
+        if (seen.length > 1) {
+          var top = Math.max.apply(null, seen.map(function (a) { return a.views7 || a.totalViews; }));
+          // Seven days, because that is the window the numbers below are from
+          // (views7) - not d.days, which is how long the sparkline series is.
+          document.getElementById('trendWhen').textContent =
+            'Last 7 days \u00b7 first-party counter, no third-party tracker';
+          document.getElementById('trendList').innerHTML = seen.map(function (a, i) {
+            var v = a.views7 || a.totalViews;
+            var pct = Math.max(6, Math.round((v / top) * 100));
+            return '<li><a href="' + esc(a.url) + '" style="--w:' + pct + '%">'
+              + '<span class="tl-rank">' + (i + 1) + '</span>'
+              + '<span class="tl-name">' + esc(a.icon || '') + ' ' + esc(a.label) + '</span>'
+              + '<span class="tl-n">' + n(v) + (a.views7 ? '' : ' all time') + '</span>'
+              + '</a></li>';
+          }).join('');
+          document.getElementById('trendBar').hidden = false;
+        }
+
+        // `rank` is the rank across everything the counter tracks, and #1 is
+        // always this page - so keying the badge off it meant no app card
+        // would ever carry it. The badge belongs to the busiest APP.
+        var leader = seen.length ? seen[0].app : null;
+
         d.apps.forEach(function (a) {
           var card = document.querySelector('a.project[data-app="' + a.app + '"]');
           if (!card) return;
@@ -906,7 +995,7 @@
           // nothing until there is something to say.
           if (!a.views7 && !a.totalViews) return;
           var h3 = card.querySelector('h3');
-          if (a.rank === 1 && h3 && !h3.querySelector('.trending')) {
+          if (a.app === leader && h3 && !h3.querySelector('.trending')) {
             var b = document.createElement('span');
             b.className = 'trending';
             b.textContent = 'Trending';
