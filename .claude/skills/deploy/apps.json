@@ -1,62 +1,69 @@
 {
- "_comment": "App registry. Env vars and secrets are deliberately NOT listed here \u2014 gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
- "project": "metal-celerity-236019",
- "region": "us-central1",
- "registry": "erik-projects",
- "build_bucket": "metal-celerity-236019-cb-source",
- "page_bucket": "www.strongtechnicalconsulting.com",
- "apps": {
-  "football": {
-   "repo": "college-football-app",
-   "service": "college-football-app",
-   "db": "college-football-app",
-   "verify_job": "cfb-batch-collect",
-   "verify_doc": "control/status"
-  },
-  "trip": {
-   "repo": "trip-planner",
-   "service": "trip-planner",
-   "db": "trip-planner",
-   "verify_job": "trip-planner-check-watches",
-   "verify_doc": "control/watch-cron"
-  },
-  "vacation": {
-   "repo": "santa-rosa-beach-trip",
-   "service": "santa-rosa-beach-trip",
-   "db": "santa-rosa-beach-trip",
-   "verify_job": null,
-   "verify_doc": null
-  },
-  "beer": {
-   "repo": "beer-app",
-   "service": "hopscotch",
-   "db": "hopscotch",
-   "verify_job": "hopscotch-dispatch",
-   "verify_doc": null,
-   "note": "Ships through the generic pipeline: docker build on the repo's own Dockerfile (which builds the web bundle inside), pushed to the erik-projects registry and patched onto the live service image-only, so the service keeps its env and secrets (the shared anthropic-api-key and cron-secret). The repo's own cloudbuild.yaml / deploy.sh still assume gcloud and are not used from here."
-  },
-  "landing": {
-   "repo": "eriks-projects",
-   "service": "landing-page",
-   "db": null,
-   "verify_job": null,
-   "verify_doc": null
-  },
-  "friction": {
-   "repo": "eriks-projects/apps/friction",
-   "service": "friction",
-   "db": "friction",
-   "verify_job": "friction-scan",
-   "verify_doc": "control/last-run",
-   "_note": "Lives in a subdirectory of eriks-projects because the GitHub App cannot create repos. gcpdeploy resolves repo as $REPO_ROOT/<repo>, so this packages the subdirectory alone."
-  },
-  "dataviz": {
-   "repo": "eriks-projects/apps/dataviz",
-   "service": "dataviz",
-   "db": "dataviz",
-   "verify_job": null,
-   "verify_doc": null,
-   "_note": "Subdirectory app, same as friction. Nothing scheduled; verify by opening it."
+  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here \u2014 gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
+  "project": "metal-celerity-236019",
+  "region": "us-central1",
+  "registry": "erik-projects",
+  "build_bucket": "metal-celerity-236019-cb-source",
+  "page_bucket": "www.strongtechnicalconsulting.com",
+  "apps": {
+    "football": {
+      "repo": "college-football-app",
+      "service": "college-football-app",
+      "db": "college-football-app",
+      "verify_job": "cfb-batch-collect",
+      "verify_doc": "control/status"
+    },
+    "trip": {
+      "repo": "trip-planner",
+      "service": "trip-planner",
+      "db": "trip-planner",
+      "verify_job": "trip-planner-check-watches",
+      "verify_doc": "control/watch-cron"
+    },
+    "vacation": {
+      "repo": "santa-rosa-beach-trip",
+      "service": "santa-rosa-beach-trip",
+      "db": "santa-rosa-beach-trip",
+      "verify_job": null,
+      "verify_doc": null
+    },
+    "beer": {
+      "repo": "beer-app",
+      "service": "hopscotch",
+      "db": "hopscotch",
+      "verify_job": "hopscotch-dispatch",
+      "verify_doc": null,
+      "note": "Ships through the generic pipeline: docker build on the repo's own Dockerfile (which builds the web bundle inside), pushed to the erik-projects registry and patched onto the live service image-only, so the service keeps its env and secrets (the shared anthropic-api-key and cron-secret). The repo's own cloudbuild.yaml / deploy.sh still assume gcloud and are not used from here."
+    },
+    "spellbook": {
+      "repo": "spellbook",
+      "service": "spellbook",
+      "db": "spellbook",
+      "verify_job": "spellbook-rollup",
+      "verify_doc": "control/rollup"
+    },
+    "landing": {
+      "repo": "eriks-projects",
+      "service": "landing-page",
+      "db": null,
+      "verify_job": null,
+      "verify_doc": null
+    },
+    "friction": {
+      "repo": "eriks-projects/apps/friction",
+      "service": "friction",
+      "db": "friction",
+      "verify_job": "friction-scan",
+      "verify_doc": "control/last-run",
+      "_note": "Lives in a subdirectory of eriks-projects because the GitHub App cannot create repos. gcpdeploy resolves repo as $REPO_ROOT/<repo>, so this packages the subdirectory alone."
+    },
+    "dataviz": {
+      "repo": "eriks-projects/apps/dataviz",
+      "service": "dataviz",
+      "db": "dataviz",
+      "verify_job": null,
+      "verify_doc": null,
+      "_note": "Subdirectory app, same as friction. Nothing scheduled; verify by opening it."
+    }
   }
- }
 }

@@ -148,11 +148,23 @@ cmd_ship() {
   [[ -z "$un" ]] || die "$app is not supported by this tool.
 $un"
 
-  local repo svc dir
+  local repo svc dir subdir
   repo="$(app_field "$app" repo)"
   svc="$(app_field "$app" service)"
+  subdir="$(app_field "$app" subdir)"
   dir="${REPO_ROOT:-/home/user}/$repo"
   [[ -d "$dir" ]] || die "repo not checked out at $dir"
+
+  # An app may live in a subdirectory of its repo rather than at the root.
+  # Only that subtree is packaged, so the build context and the Dockerfile are
+  # the app's own and not its neighbour's. The clean-tree check below still
+  # covers the whole repo on purpose - a deployed image should correspond to a
+  # commit of the repository, not to a tidy corner of a dirty one.
+  local ctx="$dir"
+  if [[ -n "$subdir" ]]; then
+    ctx="$dir/$subdir"
+    [[ -f "$ctx/Dockerfile" ]] || die "$app declares subdir '$subdir' but $ctx/Dockerfile does not exist"
+  fi
 
   # Refuse to ship uncommitted work: the image would not match any commit.
   if [[ -n "$(git -C "$dir" status --porcelain)" ]]; then
@@ -164,7 +176,7 @@ image that matches no commit is not reproducible."
 
   local obj="$app-$(date +%s).tar.gz"
   say "packaging"
-  tar --exclude=.git --exclude=node_modules -czf "$STATE/$obj" -C "$dir" .
+  tar --exclude=.git --exclude=node_modules -czf "$STATE/$obj" -C "$ctx" .
 
   say "uploading source"
   curl -sS -o /dev/null -f -X POST \
