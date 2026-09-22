@@ -313,9 +313,69 @@ five apps, DataViz's own-data feature included. If you are tempted to bring a
 second tier back, price it against what the calls actually cost rather than
 against the first one.
 
-The service mounts `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
-`STRIPE_MEMBER_PRICE_ID` from Secret Manager. `STRIPE_PRICE_ID` — the old Pro
-price — is read by nothing and should not be set on any service.
+### Where checkout is served (2026-09-22)
+
+It used to be DataViz alone, and every other app's "AI credit" was a link
+there. What that link sold was never DataViz's — the membership covers all
+five apps and the balance spends in all five — so the reader was sent into a
+chart app they were not using, styled like a different product, to manage an
+account that has nothing to do with it. Erik's words: "I don't like when I
+press ai credits it takes me to data viz."
+
+The checkout routes live in `shared/identity.js` now, under whatever path each
+app mounts identity on:
+
+| | |
+|---|---|
+| `GET <mount>/billing` | what is on offer, and what this account has paid |
+| `POST <mount>/billing/membership` | → a Stripe Checkout URL |
+| `POST <mount>/billing/credit` | → the same, for a top-up |
+| `POST <mount>/billing/portal` | → the Stripe-hosted billing page |
+
+`<mount>` is `/api/id` on football, friction and the landing site, `/api/auth`
+on trip-planner and DataViz. Each app draws its own sheet in its own styling
+and passes its OWN origin as `success_url`, so a purchase started in the trip
+planner ends in the trip planner.
+
+`returnTo` is a **path**, and is checked for it. Stripe follows `success_url`
+after a real payment, so an absolute one there would be an open redirect with
+a card charge attached; `//evil.example` is a URL wearing a path's clothes and
+is refused too.
+
+**The webhook did not move.** Stripe delivers to one endpoint, and
+`STRIPE_WEBHOOK_SECRET` has no reason to exist on five services to serve one
+of them. Only the ability to CREATE a checkout session spreads, which is why
+the split is worth keeping: a key that can mint a checkout session is a much
+smaller thing to hold than one that can also forge a payment confirmation.
+
+**A service with no Stripe key still behaves.** `topUpUrl()` and the
+`elsewhere` field follow the money: a service holding the key answers with a
+relative `?topup=1` that opens its own sheet, and one without it names a
+service that can actually sell. So an app deployed before its secrets are
+bound shows the balance in its own sheet and a button out, rather than a
+dead-end saying "not switched on" — and the button comes home the moment the
+key is mounted. That is a fallback, not the intended state.
+
+### The secrets, and which services need them
+
+`STRIPE_SECRET_KEY` and `STRIPE_MEMBER_PRICE_ID` are needed by **every**
+service that offers checkout; `STRIPE_WEBHOOK_SECRET` by **exactly one**
+(DataViz). `STRIPE_PRICE_ID` — the old Pro price — is read by nothing and
+should not be set on any service.
+
+Binding a secret to a runtime service account is
+`secretmanager.secrets.setIamPolicy`, which the deployer does hold. As of this
+writing only `dataviz-run@` is bound; `trip-planner-run@`, `football-run@`,
+`friction-run@` and `landing-run@` still need `roles/secretmanager.secretAccessor`
+on `stripe-secret-key` and `stripe-member-price`, and the two env vars added
+to their services. Until then those four run on the fallback above.
+
+**Worth doing before that:** make the key a **restricted** key rather than the
+full `sk_live_`. Minting a checkout session needs write on Checkout Sessions
+and Billing Portal Sessions and read on Prices and Customers — nothing that
+can issue a refund or read the charge history. Spreading a full secret key to
+five containers to do a job a restricted one does is the avoidable half of
+this change.
 
 **Stripe has no API that issues a secret key** — it only exists in the
 Dashboard, so getting one into Secret Manager is a manual step and always will

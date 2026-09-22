@@ -352,8 +352,12 @@
 
     if (b.unlimited && b.reason === 'byok') { $('planActions').innerHTML = ''; return; }
     if (!bill.available) {
+      // This service holds no Stripe key, so it cannot take the payment.
+      // Name the one that can; the button comes home once the key is mounted.
       $('planActions').innerHTML = b.unlimited ? '' :
-        '<p class="foot">Buying credit is not switched on yet.</p>';
+        (bill.elsewhere
+          ? '<a href="' + esc(bill.elsewhere) + '"><button class="sec">Membership and credit</button></a>'
+          : '<p class="foot">Buying credit is not switched on yet.</p>');
       return;
     }
 

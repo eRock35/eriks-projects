@@ -654,12 +654,19 @@
         : creditMoney(bu.remainingUsd) + " left of " + creditMoney(bu.allowanceUsd) +
           ". It works across every app on this domain.") + "</p>";
 
-    if (b.available && !b.member) {
+    if (!b.available) {
+      // No Stripe key on this service. Name one that can sell rather than
+      // showing a balance with no way to add to it.
+      if (b.elsewhere) {
+        html += '<a class="btn" href="' + esc(b.elsewhere) +
+          '" style="display:block;text-align:center;text-decoration:none;margin-top:10px">Membership and credit</a>';
+      }
+    } else if (!b.member) {
       html += '<p style="color:var(--label-2);font-size:14px"><b>' + creditFee(b.monthlyUsd) +
         " a month</b> covers every app here, and credit on top is sold at what the calls cost.</p>" +
         '<button type="button" class="btn" id="memberBtn" style="width:100%;margin-top:10px">Become a member \u2014 ' +
         creditFee(b.monthlyUsd) + "/month</button>";
-    } else if (b.available) {
+    } else {
       html += '<div style="display:flex;gap:8px;margin-top:10px">' +
         (b.topUps || []).map(function (o) {
           return '<button type="button" class="btn sec" data-usd="' + Number(o.usd) +
