@@ -410,96 +410,16 @@ app.get('/api/stripe/health', accounts.requireUser, async (req, res) => {
   res.json(out);
 });
 
-// Buying credit. Hosted here because this is the service holding the Stripe
-// keys and the verified webhook, but what it buys is account-level: the
-// balance is on the shared identity record and spends in every app.
-app.get('/api/credit', accounts.requireUser, (req, res) => {
-  res.json({
-    budget: identityLib.budgetFor(req.user),
-    options: stripe.TOP_UPS,
-    billing: stripe.enabled(),
-  });
-});
-
-app.post('/api/credit/checkout', accounts.requireUser, async (req, res) => {
-  try {
-    if (!stripe.enabled()) return res.status(503).json({ error: 'Billing is not set up on this deployment.' });
-    // Credit is sold at cost, so the membership is what pays for the apps
-    // around it. Buying tokens without one would mean running the whole
-    // platform at exactly break-even on the tokens and nothing on the rest.
-    if (!identityLib.paysPlatformFee(req.user)) {
-      return res.status(402).json({
-        error: 'Credit is part of the membership.',
-        detail: `Membership is $${stripe.MEMBERSHIP_USD} a month and covers every app; credit on top is sold at what the calls actually cost.`,
-        membership: true,
-      });
-    }
-    const origin = `${req.protocol}://${req.get('host')}`;
-    const session = await stripe.createTopUp({
-      uid: req.user.id,
-      email: req.user.email,
-      usd: Number((req.body || {}).usd),
-      customerId: req.user.stripeCustomerId || null,
-      successUrl: `${origin}/?credited=1`,
-      cancelUrl: `${origin}/`,
-    });
-    res.json({ url: session.url });
-  } catch (err) { fail(res, err, 'Could not start that purchase.'); }
-});
-
-// The flat monthly fee, and the two ways to use it.
+// Buying credit and the membership used to be five routes right here, because
+// this was the only service holding the Stripe keys. They now live in the
+// shared account module and every app mounts them, so pressing "AI credit" in
+// the trip planner opens the trip planner rather than landing the reader in a
+// chart app they were not using. This app reaches them at
+// /api/auth/billing* - its own identity mount path - like any other app.
 //
-// This is the whole commercial model in one payload: pay $5 a month for the
-// hosting and the ledger, then either buy credit at what a call actually
-// costs, or bring your own Anthropic key and pay Anthropic directly. It is
-// mounted here for the same reason the credit routes are - this service holds
-// the Stripe keys - but what it sells is account-level and spends everywhere.
-app.get('/api/membership', accounts.requireUser, (req, res) => {
-  const budget = identityLib.budgetFor(req.user);
-  res.json({
-    available: stripe.membershipEnabled(),
-    monthlyUsd: stripe.MEMBERSHIP_USD,
-    member: identityLib.isMember(req.user),
-    // Their key, their Anthropic bill - so the fee is the only thing they pay
-    // us, and there is no balance to run down.
-    byok: {
-      supported: identity.byokEnabled(),
-      present: Boolean(req.user.byok && req.user.byok.blob),
-    },
-    budget,
-    topUps: stripe.TOP_UPS,
-    manageable: Boolean(req.user.stripeCustomerId),
-  });
-});
-
-app.post('/api/membership/checkout', accounts.requireUser, async (req, res) => {
-  try {
-    if (!stripe.membershipEnabled()) {
-      return res.status(503).json({ error: 'Membership is not set up on this deployment.' });
-    }
-    if (identityLib.isMember(req.user)) {
-      return res.status(400).json({ error: 'You are already a member.' });
-    }
-    const origin = `${req.protocol}://${req.get('host')}`;
-    const session = await stripe.createMembership({
-      uid: req.user.id,
-      email: req.user.email,
-      customerId: req.user.stripeCustomerId || null,
-      successUrl: `${origin}/?member=1`,
-      cancelUrl: `${origin}/`,
-    });
-    res.json({ url: session.url });
-  } catch (err) { fail(res, err, 'Could not start that subscription.'); }
-});
-
-app.post('/api/billing-portal', accounts.requireUser, async (req, res) => {
-  try {
-    if (!req.user.stripeCustomerId) return res.status(400).json({ error: 'No subscription to manage yet.' });
-    const origin = `${req.protocol}://${req.get('host')}`;
-    const session = await stripe.createPortal({ customerId: req.user.stripeCustomerId, returnUrl: `${origin}/` });
-    res.json({ url: session.url });
-  } catch (err) { fail(res, err, 'Could not open the billing page.'); }
-});
+// What did NOT move is the webhook at the top of this file. Stripe delivers to
+// one endpoint, and STRIPE_WEBHOOK_SECRET has no reason to exist on five
+// services to serve one of them.
 
 /* ---------- the one route that costs money ---------- */
 

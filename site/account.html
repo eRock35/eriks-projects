@@ -58,6 +58,8 @@
   .link { background: none; border: 0; color: var(--tint); font: inherit; padding: 0; cursor: pointer; min-height: 0; font-weight: 500; }
   a { color: var(--tint); }
   .foot { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .top-ups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+  .top-ups button { padding: 0 6px; font-size: 14px; }
   .danger-zone { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
   [hidden] { display: none !important; }
 
@@ -160,6 +162,7 @@
       <h2>Plan and credit</h2>
       <p class="sub" id="planSub">Loading…</p>
       <div id="planActions"></div>
+      <div class="status" id="planStatus"></div>
     </div>
 
     <div class="card" id="byokCard" hidden>
@@ -271,6 +274,10 @@
 
   async function load() {
     try { me = await call('GET', ID + '/me'); } catch (e) { me = { signedIn: false }; }
+    // What is on offer and what it costs. A separate call because /me answers
+    // for anyone and this one talks to Stripe's configuration; a page that
+    // cannot reach it still renders everything else.
+    try { me.billing = await call('GET', ID + '/billing'); } catch (e) { me.billing = {}; }
     var inn = !!me.signedIn;
     $('signedIn').hidden = !inn;
     $('signedOut').hidden = inn;
@@ -282,6 +289,16 @@
     renderByok();
     renderProofFields();
     loadPasskeys();
+    noteBillingReturn();
+  }
+
+  /** Stripe returns here after a purchase. Say so, rather than leaving someone
+   *  to work out from the balance whether the card went through. */
+  function noteBillingReturn() {
+    var q = new URLSearchParams(location.search);
+    if (!q.get('member') && !q.get('credited')) return;
+    history.replaceState(null, '', location.pathname);
+    say($('planStatus'), q.get('member') ? 'You\u2019re a member — thank you.' : 'Credit added.', 'ok');
   }
 
   function renderProfile() {
@@ -289,8 +306,36 @@
     $('displayName').value = me.displayName || '';
   }
 
+  /** A price, not a balance. "$5 a month" reads like a price; "$5.00 a month"
+   *  reads like an invoice. */
+  function fee(n) { var v = Number(n || 0); return '$' + (v % 1 ? v.toFixed(2) : String(v)); }
+
+  /** Off to Stripe, and back to this page afterwards.
+   *
+   *  This card used to be a link to DataViz, because DataViz was the only
+   *  service holding the Stripe keys. Sending someone from their own account
+   *  page into a chart app to manage their account was the most obviously
+   *  wrong instance of that, since this page IS the place all of it belongs.
+   *  The checkout routes are part of identity now, which this page already
+   *  speaks to for everything else. */
+  async function checkout(path, extra, btn) {
+    var s = $('planStatus');
+    btn.disabled = true;
+    say(s, 'Opening checkout…');
+    try {
+      var body = { returnTo: '/' };
+      for (var k in (extra || {})) body[k] = extra[k];
+      var d = await call('POST', ID + '/billing/' + path, body);
+      location.href = d.url;
+    } catch (e) {
+      say(s, e.message, 'err');
+      btn.disabled = false;
+    }
+  }
+
   function renderPlan() {
     var b = me.budget || {};
+    var bill = me.billing || {};
     var line;
     if (b.unlimited) {
       // Infinity does not survive JSON, so an unlimited allowance arrives as
@@ -303,11 +348,40 @@
         (b.member ? ' · member' : '') + '.';
     }
     $('planSub').textContent = line;
-    $('planActions').innerHTML = b.unlimited ? '' :
-      '<a href="https://dataviz.strongtechnicalconsulting.com/?topup=1"><button class="sec">Membership and credit</button></a>' +
-      '<p class="foot">Free use is capped at $' + Number(b.allowanceUsd || 0).toFixed(2) +
-      '. Past that, membership covers the apps and credit is sold at what the calls cost \u2014 ' +
-      'or bring your own key. Stopping there is free: everything that is not an AI call keeps working.</p>';
+    say($('planStatus'), '');
+
+    if (b.unlimited && b.reason === 'byok') { $('planActions').innerHTML = ''; return; }
+    if (!bill.available) {
+      $('planActions').innerHTML = b.unlimited ? '' :
+        '<p class="foot">Buying credit is not switched on yet.</p>';
+      return;
+    }
+
+    var html = '';
+    if (!bill.member) {
+      html += '<button class="sec" id="buyMember">Become a member — ' + fee(bill.monthlyUsd) + '/month</button>' +
+        '<p class="foot">Free use is capped at $' + Number(b.allowanceUsd || 0).toFixed(2) +
+        '. Past that, membership covers the apps and credit is sold at what the calls cost \u2014 ' +
+        'or bring your own key below. Stopping there is free: everything that is not an AI call keeps working.</p>';
+    } else {
+      html += '<div class="top-ups">' + (bill.topUps || []).map(function (o) {
+        return '<button class="sec" data-usd="' + Number(o.usd) + '">' + esc(o.label) + '</button>';
+      }).join('') + '</div>' +
+      (bill.manageable ? '<button class="sec wide" id="managePlan">Manage billing</button>' : '') +
+      '<p class="foot">Member — ' + fee(bill.monthlyUsd) + ' a month, covering every app. ' +
+      'Credit is sold at what the calls actually cost.</p>';
+    }
+    $('planActions').innerHTML = html;
+
+    var mb = $('buyMember');
+    if (mb) mb.addEventListener('click', function () { checkout('membership', {}, mb); });
+    var pb = $('managePlan');
+    if (pb) pb.addEventListener('click', function () { checkout('portal', {}, pb); });
+    $('planActions').querySelectorAll('[data-usd]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        checkout('credit', { usd: Number(btn.getAttribute('data-usd')) }, btn);
+      });
+    });
   }
 
   function renderApps() {

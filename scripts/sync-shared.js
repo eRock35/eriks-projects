@@ -22,10 +22,10 @@ const SHARED = path.join(__dirname, '..', 'shared');
 // Which shared files each app carries, and where they live inside it.
 const TARGETS = [
   // Server-side modules, per app, exactly as each app actually carries them.
-  ['eriks-projects/apps/friction/lib', ['identity.js', 'identity-store.js', 'byok.js', 'webauthn.js', 'sitepass.js', 'analytics.js']],
-  ['eriks-projects/apps/dataviz/lib',  ['identity.js', 'identity-store.js', 'byok.js', 'webauthn.js', 'analytics.js']],
-  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'analytics.js']],
-  ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'sitepass.js', 'analytics.js']],
+  ['eriks-projects/apps/friction/lib', ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'sitepass.js', 'analytics.js']],
+  ['eriks-projects/apps/dataviz/lib',  ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'analytics.js']],
+  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js']],
+  ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
   // Santa Rosa is single-account on purpose and shares only these two.
   ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
   // The browser-side tour helper.

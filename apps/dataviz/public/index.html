@@ -290,7 +290,7 @@
   // paid tier now, and this used to send people to the retired $9 Pro plan.
   async function startCheckout() {
     try {
-      var d = await api('/api/membership/checkout', { method: 'POST' });
+      var d = await api('/api/auth/billing/membership', { method: 'POST' });
       location.href = d.url;
     } catch (err) { toast(err.message); }
   }
@@ -712,7 +712,7 @@
     if (mem) mem.addEventListener('click', async function () {
       mem.disabled = true;
       try {
-        var out = await api('/api/membership/checkout', { method: 'POST' });
+        var out = await api('/api/auth/billing/membership', { method: 'POST' });
         location.href = out.url;
       } catch (err) {
         toast(err.message || 'Could not start that.');
@@ -721,16 +721,16 @@
     });
     var ups = el.querySelector('#topUps');
     if (ups) {
-      fetch('/api/credit').then(function (r) { return r.json(); }).then(function (d) {
-        if (!d.billing) { ups.innerHTML = '<p class="hint">Top-ups are not available on this deployment.</p>'; return; }
-        ups.innerHTML = d.options.map(function (o) {
+      fetch('/api/auth/billing').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.available) { ups.innerHTML = '<p class="hint">Top-ups are not available on this deployment.</p>'; return; }
+        ups.innerHTML = d.topUps.map(function (o) {
           return '<button class="btn sec" data-usd="' + o.usd + '">' + esc(o.label) + '</button>';
         }).join('');
         ups.querySelectorAll('[data-usd]').forEach(function (b) {
           b.addEventListener('click', async function () {
             b.disabled = true;
             try {
-              var out = await api('/api/credit/checkout', { method: 'POST', body: JSON.stringify({ usd: Number(b.getAttribute('data-usd')) }) });
+              var out = await api('/api/auth/billing/credit', { method: 'POST', body: JSON.stringify({ usd: Number(b.getAttribute('data-usd')) }) });
               window.location.href = out.url;
             } catch (e) { toast(e.message, 'error'); b.disabled = false; }
           });
@@ -782,7 +782,7 @@
     });
     var man = el.querySelector('#manageBtn');
     if (man) man.addEventListener('click', async function () {
-      try { var d = await api('/api/billing-portal', { method: 'POST' }); location.href = d.url; }
+      try { var d = await api('/api/auth/billing/portal', { method: 'POST' }); location.href = d.url; }
       catch (err) { toast(err.message); }
     });
     el.querySelector('#outBtn').addEventListener('click', async function () {

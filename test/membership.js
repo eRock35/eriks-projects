@@ -102,7 +102,7 @@ async function webhook(event) {
     return realCall(url, init);
   };
 
-  r = await post('/api/membership/checkout', {}, cookie);
+  r = await post('/api/auth/billing/membership', {}, cookie);
   ok('a member checkout starts', r.status === 200, String(r.status));
   const body = seen.join('\n');
   ok('...as a subscription', /mode=subscription/.test(body));
@@ -115,7 +115,7 @@ async function webhook(event) {
   // around it. Buying tokens without one would run the platform at exactly
   // break-even on the tokens and nothing on the rest.
   seen.length = 0;
-  let topUp = await post('/api/credit/checkout', { usd: 25 }, cookie);
+  let topUp = await post('/api/auth/billing/credit', { usd: 25 }, cookie);
   ok('credit cannot be bought without a membership', topUp.status === 402, String(topUp.status));
   ok('...and says why', /membership/i.test(JSON.stringify(await topUp.json())));
   ok('...and no checkout was built', seen.length === 0, String(seen.length));
@@ -129,7 +129,7 @@ async function webhook(event) {
   h.bag('identity').set('users/' + buyerUid, { ...before, plan: 'member' });
 
   seen.length = 0;
-  await post('/api/credit/checkout', { usd: 25 }, buyer);
+  await post('/api/auth/billing/credit', { usd: 25 }, buyer);
   const credit = seen.join('\n');
   ok('a top-up is a one-off payment, never a subscription', /mode=payment/.test(credit) && !/mode=subscription/.test(credit));
   ok('...and is tagged as credit so it cannot grant a plan', /metadata\[kind\]=credit/.test(credit));
@@ -142,7 +142,7 @@ async function webhook(event) {
   ok('every top-up is at least $10', stripe.TOP_UPS.every((t) => t.usd >= 10));
 
   // --- what the account page is told ---------------------------------------
-  r = await fetch(B + '/api/membership', { headers: { cookie } });
+  r = await fetch(B + '/api/auth/billing', { headers: { cookie } });
   const view = await r.json();
   ok('the membership view reports the fee', view.monthlyUsd === 5, String(view.monthlyUsd));
   ok('...that this account is not yet a member', view.member === false);
@@ -196,7 +196,7 @@ async function webhook(event) {
   ok('...and they are no longer a member', identity.isMember(after) === false);
 
   // --- an unauthenticated stranger cannot start either ----------------------
-  ok('membership checkout needs an account', (await post('/api/membership/checkout', {})).status === 401);
+  ok('membership checkout needs an account', (await post('/api/auth/billing/membership', {})).status === 401);
 
   // An unsigned webhook is how someone would grant themselves a plan for free.
   const forged = await fetch(B + '/api/stripe/webhook', {

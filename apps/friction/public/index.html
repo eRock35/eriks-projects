@@ -564,7 +564,15 @@
         '<label style="display:block;font-size:12px;color:var(--label-3);margin:10px 0 4px">New password</label>' +
         '<input id="cpNew" type="password" autocomplete="new-password" style="width:100%;min-height:44px;font:inherit;font-size:16px;padding:10px;border:1px solid var(--sep);border-radius:10px;background:var(--bg);color:var(--label)">' +
         '<button type="button" class="btn" id="cpGo" style="width:100%;margin-top:10px">Change password</button>' +
-        '<div id="cpStatus" style="min-height:1.3em;font-size:14px;margin-top:8px"></div>';
+        '<div id="cpStatus" style="min-height:1.3em;font-size:14px;margin-top:8px"></div>' +
+        // Credit, bought here rather than in DataViz. Friction is invite-only
+        // and its scan runs on Erik's own budget, so most people will never
+        // see anything but the meter - but the scan route is behind
+        // requireBudget, and a 402 whose "top up" link goes nowhere is worse
+        // than no link. identity's link is relative now, so it lands here.
+        '<h4 style="margin-top:20px" id="creditHead" hidden>AI credit</h4>' +
+        '<div id="creditBody"></div>' +
+        '<div id="creditStatus" style="min-height:1.3em;font-size:14px;margin-top:8px"></div>';
 
       body.querySelectorAll("[data-del]").forEach(function (b) {
         b.addEventListener("click", async function () {
@@ -602,8 +610,73 @@
         }
         this.disabled = false;
       });
+
+      paintCredit(body);
     }
     render();
+  }
+
+  function creditMoney(n) { return "$" + Number(n || 0).toFixed(2); }
+  /** A price, not a balance: "$5 a month", not "$5.00 a month". */
+  function creditFee(n) { var v = Number(n || 0); return "$" + (v % 1 ? v.toFixed(2) : String(v)); }
+
+  /** Off to Stripe, and back to this page. */
+  async function startCheckout(path, extra, btn, st) {
+    if (btn) btn.disabled = true;
+    st.style.color = ""; st.textContent = "Opening checkout\u2026";
+    try {
+      var payload = Object.assign({ returnTo: location.pathname }, extra || {});
+      var d = await api(path, { method: "POST", body: JSON.stringify(payload) });
+      location.href = d.url;
+    } catch (e) {
+      st.style.color = "var(--red)"; st.textContent = e.message;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function paintCredit(body) {
+    var head = body.querySelector("#creditHead");
+    var box = body.querySelector("#creditBody");
+    var st = body.querySelector("#creditStatus");
+    if (!head || !box) return;
+    var b = await fetch("/api/id/billing").then(function (r) { return r.json(); })
+      .catch(function () { return null; });
+    // Signed in through the app password rather than the shared account:
+    // there is no balance to report and nothing to sell.
+    if (!b || !b.signedIn) { head.hidden = true; box.innerHTML = ""; return; }
+    head.hidden = false;
+
+    var bu = b.budget || {};
+    var html = '<p style="color:var(--label-2);font-size:14px">' +
+      (bu.unlimited
+        ? (bu.reason === "byok" ? "Running on your own Anthropic key \u2014 not metered."
+                                : "Not metered.")
+        : creditMoney(bu.remainingUsd) + " left of " + creditMoney(bu.allowanceUsd) +
+          ". It works across every app on this domain.") + "</p>";
+
+    if (b.available && !b.member) {
+      html += '<p style="color:var(--label-2);font-size:14px"><b>' + creditFee(b.monthlyUsd) +
+        " a month</b> covers every app here, and credit on top is sold at what the calls cost.</p>" +
+        '<button type="button" class="btn" id="memberBtn" style="width:100%;margin-top:10px">Become a member \u2014 ' +
+        creditFee(b.monthlyUsd) + "/month</button>";
+    } else if (b.available) {
+      html += '<div style="display:flex;gap:8px;margin-top:10px">' +
+        (b.topUps || []).map(function (o) {
+          return '<button type="button" class="btn sec" data-usd="' + Number(o.usd) +
+            '" style="flex:1;padding:10px 4px">' + esc(o.label.replace(" of credit", "")) + "</button>";
+        }).join("") + "</div>";
+    }
+    box.innerHTML = html;
+
+    var mb = box.querySelector("#memberBtn");
+    if (mb) mb.addEventListener("click", function () {
+      startCheckout("/api/id/billing/membership", {}, mb, st);
+    });
+    box.querySelectorAll("[data-usd]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        startCheckout("/api/id/billing/credit", { usd: Number(btn.getAttribute("data-usd")) }, btn, st);
+      });
+    });
   }
 
   $("navLeft").addEventListener("click", openAccount);
@@ -641,6 +714,18 @@
   var hash = (location.hash || "").replace("#", "");
   selectTab(["board", "lenses", "runs"].indexOf(hash) >= 0 ? hash : "board");
   Promise.all([loadBoard(), loadRuns()]).catch(function (e) { toast(e.message, "error"); });
+
+  // Coming back from Stripe, and the link a 402 carries. identity's "out of
+  // credit" link is relative now, so ?topup=1 opens this app's own account
+  // sheet rather than sending the reader to a different app to buy something.
+  (function () {
+    var q = new URLSearchParams(location.search);
+    if (!q.get("topup") && !q.get("member") && !q.get("credited")) return;
+    history.replaceState(null, "", location.pathname + location.hash);
+    if (q.get("member")) toast("You\u2019re a member \u2014 thank you");
+    else if (q.get("credited")) toast("Credit added");
+    openAccount();
+  })();
 })();
 </script>
 </body>
