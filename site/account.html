@@ -361,19 +361,33 @@
       return;
     }
 
+    // The membership is NOT AI. It is the fee for the apps; the AI is bought on
+    // top or brought yourself. Someone who pays $5 expecting tokens and finds
+    // an empty balance has been mis-sold, however true the small print was.
     var html = '';
     if (!bill.member) {
-      html += '<button class="sec" id="buyMember">Become a member — ' + fee(bill.monthlyUsd) + '/month</button>' +
-        '<p class="foot">Free use is capped at $' + Number(b.allowanceUsd || 0).toFixed(2) +
-        '. Past that, membership covers the apps and credit is sold at what the calls cost \u2014 ' +
-        'or bring your own key below. Stopping there is free: everything that is not an AI call keeps working.</p>';
+      html += '<p class="foot" style="margin-top:0">Your first $' + Number(b.allowanceUsd || 0).toFixed(2) +
+        ' of AI is free, once, across every app. Past that it is <b>two separate things, and you need both</b>: ' +
+        'the <b>' + fee(bill.monthlyUsd) + '/month membership</b>, which is the fee for the apps and ' +
+        '<b>includes no AI</b>; and <b>credit</b> bought on top, sold at what the calls actually cost. ' +
+        'Bringing your own Anthropic key replaces the credit, not the membership.</p>' +
+        '<button class="sec" id="buyMember">Become a member — ' + fee(bill.monthlyUsd) + '/month</button>' +
+        '<p class="foot">Stopping here is free: everything that is not an AI call keeps working, ' +
+        'for as long as you like.</p>';
+    } else if (b.unlimited && b.reason === 'byok') {
+      html += (bill.manageable ? '<button class="sec wide" id="managePlan">Manage billing</button>' : '') +
+        '<p class="foot">Member — ' + fee(bill.monthlyUsd) + ' a month for the apps, and your own ' +
+        'key covers the AI, so there is no credit to buy.</p>';
     } else {
-      html += '<div class="top-ups">' + (bill.topUps || []).map(function (o) {
-        return '<button class="sec" data-usd="' + Number(o.usd) + '">' + esc(o.label) + '</button>';
-      }).join('') + '</div>' +
-      (bill.manageable ? '<button class="sec wide" id="managePlan">Manage billing</button>' : '') +
-      '<p class="foot">Member — ' + fee(bill.monthlyUsd) + ' a month, covering every app. ' +
-      'Credit is sold at what the calls actually cost.</p>';
+      html += '<p class="foot" style="margin-top:0">Member — ' + fee(bill.monthlyUsd) +
+        ' a month for the apps. <b>That fee is not AI</b>: chat, research and price watches spend ' +
+        'credit, which is bought here and sold at cost, with no markup.</p>' +
+        '<div class="top-ups">' + (bill.topUps || []).map(function (o) {
+          return '<button class="sec" data-usd="' + Number(o.usd) + '">' + esc(o.label) + '</button>';
+        }).join('') + '</div>' +
+        (bill.manageable ? '<button class="sec wide" id="managePlan">Manage billing</button>' : '') +
+        '<p class="foot">Credit never expires and works in every app. Or add your own Anthropic key ' +
+        'below and pay Anthropic directly instead.</p>';
     }
     $('planActions').innerHTML = html;
 

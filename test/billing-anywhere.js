@@ -164,6 +164,13 @@ function captureStripe() {
   ok('...returning to the trip planner, because that is where they pressed it',
      /success_url=https:\/\/trip\.strongtechnicalconsulting\.com\/\?credited=1/.test(credit), credit.slice(0, 300));
 
+  // Managed Payments is on by default on this account and REFUSES a line item
+  // whose product carries no tax code - the buyer never reaches a card field.
+  // A top-up is built from inline price_data, so the code has to ride on the
+  // request; the membership's stored Product carries its own, set in Stripe.
+  ok('a top-up names a product tax code, or Managed Payments refuses it',
+     /product_data\]\[tax_code\]=txcd_/.test(credit), credit.slice(0, 400));
+
   // --- the API version --------------------------------------------------------
   // The bug this guards: a hardcoded version string that only the real Stripe
   // can judge, in a file nothing here can point at the real Stripe.
