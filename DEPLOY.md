@@ -140,7 +140,7 @@ initial state*, not a failure.
 | College Football | `college-football-app` | `college-football-app` | `footballapp.strongtechnicalconsulting.com` |
 | Hopscotch (beer) | `hopscotch` | `hopscotch` | `beer.strongtechnicalconsulting.com` |
 | Trip Planner | `trip-planner` | `trip-planner` | `trip.strongtechnicalconsulting.com` |
-| Spellbook (prompts) | `spellbook` | `spellbook` | `spellbook.strongtechnicalconsulting.com` |
+| Spellbook (prompts) | `spellbook` | `spellbook` | `spellbook-…-uc.a.run.app` (no custom domain yet) |
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
 | Landing page | `landing-page` | — | `www.strongtechnicalconsulting.com` |
 
@@ -262,15 +262,45 @@ first deploy needs, in order:
 5. The five composite indexes in `spellbook/firestore.indexes.json`.
 6. Scheduler job `spellbook-rollup`, every 6 hours, POSTing
    `/api/cron/rollup` with the `X-Cron-Key` header.
-7. Domain mapping for `spellbook.strongtechnicalconsulting.com`, plus the
-   `CNAME … ghs.googlehosted.com.` record at the registrar. **The landing page
-   hardcodes that hostname** in its beacon script, so until the mapping and DNS
-   are live no view is recorded — the page still renders correctly, it just
-   counts nothing.
+7. *(still outstanding)* Domain mapping for
+   `spellbook.strongtechnicalconsulting.com`, plus the
+   `CNAME spellbook → ghs.googlehosted.com.` record at the registrar.
+
+   Until then the landing page's beacon and the Spellbook card both point at
+   the service's own `*.run.app` hostname, which works today. Writing that
+   hostname into this public repo is fine **for this app** — it is public, open
+   to registration, and linked from the landing page, so there is no quiet URL
+   to protect. The same is emphatically not true of the vacation app; see
+   **Settled decisions**.
+
+   Flipping to the custom domain afterwards is three edits: `var API` and the
+   card `href` in `site/index.html`, and `APPS.spellbook.url` in
+   `spellbook/analytics.js`. Nothing else knows the hostname — the beacon's
+   CORS check keys off the *calling* origin, not the host it runs on.
 
 The admin account is whichever registration matches `ADMIN_EMAIL`; it starts
 with AI access approved and is the only account that can see `/api/admin/*`,
 which 404s for everyone else.
+
+## Deployed — Spellbook (2026-09-22)
+
+- Cloud Run service `spellbook`, revision `spellbook-00001-9ws`, image pinned by
+  digest. 512Mi with `cpuIdle: true`, `minInstanceCount` 0. `allUsers` holds
+  `roles/run.invoker` — the app gates itself, and an unauthenticated visitor has
+  to reach `/login` to register at all.
+- Firestore database `spellbook` (Native, `us-central1`), five composite indexes
+  from `spellbook/firestore.indexes.json`.
+- Secrets `spellbook-session-secret`, `spellbook-cron-secret`,
+  `spellbook-admin-email` (the last copied from `trip-planner-admin-email`, so
+  the admin identity is the same person across both apps). `anthropic-api-key`
+  is the shared one.
+- Scheduler job `spellbook-rollup`, `0 */6 * * *` America/New_York.
+- **Verified end to end**: a forced run returned an empty `status` `{}` with a
+  fresh `lastAttemptTime`, and `control/rollup` came back with
+  `scanned: 0, rescored: 0` and a five-app ranking at zero views — which proves
+  Cloud Run booted, the secrets mounted, the cron key matched, and the handler
+  read and wrote Firestore. No browser check was possible from the container
+  (the proxy blocks `*.run.app`).
 
 ## Known open items
 

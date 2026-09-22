@@ -110,7 +110,7 @@
       <span class="views"></span>
     </a>
 
-    <a class="card" data-app="spellbook" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+    <a class="card" data-app="spellbook" href="https://spellbook-u4h4ftn3fa-uc.a.run.app" target="_blank" rel="noopener">
       <span class="card-icon">✨</span>
       <h2>Spellbook</h2>
       <p>A shared prompt library — publish the prompts that work, vote on everyone else's, and remix the good ones.</p>
@@ -144,7 +144,14 @@
 // order in the HTML is already the order Erik wants when no stats arrive.
 (function () {
   "use strict";
-  var API = "https://spellbook.strongtechnicalconsulting.com";
+  // NOTE ON THIS URL: spellbook.strongtechnicalconsulting.com is not mapped yet
+  // (a Cloud Run domain mapping needs a DNS record only Erik can add), so this
+  // points at the service's own *.run.app hostname, which is live today. That
+  // is safe to write in a public file for THIS app -- it is public, open to
+  // registration, and linked from the card below. It would NOT be safe for the
+  // vacation app; see DEPLOY.md. When the mapping exists, change this one
+  // constant and the card's href.
+  var API = "https://spellbook-u4h4ftn3fa-uc.a.run.app";
 
   function beacon() {
     try {
