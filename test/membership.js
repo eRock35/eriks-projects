@@ -34,6 +34,7 @@ const post = (p, b, c) => fetch(B + p, { method: 'POST', headers: c ? { ...J, co
 const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
 const TIERS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 const crypto = require('crypto');
+const uidOfEmail = (e) => Buffer.from(e.toLowerCase()).toString('base64url');
 
 /** Post a webhook the way Stripe does: signed, over HTTP, raw body. Driving
  *  the real route rather than the handler keeps the signature check and the
@@ -194,6 +195,38 @@ async function webhook(event) {
   const after = h.bag('identity').get('users/' + uid);
   ok('cancelling reaches identity, so the tier actually drops', after.plan === 'free', JSON.stringify(after.plan));
   ok('...and they are no longer a member', identity.isMember(after) === false);
+
+  // --- where the period end lives -------------------------------------------
+  // Stripe's basil release moved current_period_end OFF the Subscription and
+  // onto its items. This webhook endpoint has api_version null, so it renders
+  // in whatever the account's default version is - reading only the old place
+  // writes null forever and silently retires isMember's expiry check, which is
+  // the only thing covering a `deleted` event that never arrives.
+  const laterUid = uidOfEmail('member@example.com');
+  const soon = Math.floor(Date.now() / 1000) + 86400;
+  await webhook({ id: 'evt_4', type: 'customer.subscription.updated',
+    data: { object: { id: 'sub_test_1', customer: 'cus_test_1', status: 'active',
+                      metadata: { uid: laterUid, kind: 'membership' },
+                      items: { data: [{ current_period_end: soon }] } } } });
+  const itemised = h.bag('identity').get('users/' + laterUid);
+  ok('a period end carried on the ITEM is still recorded',
+     itemised.currentPeriodEnd === new Date(soon * 1000).toISOString(),
+     JSON.stringify(itemised.currentPeriodEnd));
+  ok('...and they are a member while it is in the future', identity.isMember(itemised) === true);
+
+  // The pre-basil shape still works, since the account may render either.
+  await webhook({ id: 'evt_5', type: 'customer.subscription.updated',
+    data: { object: { id: 'sub_test_1', customer: 'cus_test_1', status: 'active',
+                      metadata: { uid: laterUid, kind: 'membership' },
+                      current_period_end: soon } } });
+  ok('...as is one carried on the subscription itself',
+     h.bag('identity').get('users/' + laterUid).currentPeriodEnd
+       === new Date(soon * 1000).toISOString());
+
+  // And the expiry it exists for actually bites.
+  const lapsed = { plan: 'member', currentPeriodEnd: new Date(Date.now() - 1000).toISOString() };
+  ok('a member whose paid period has passed is not a member',
+     identity.isMember(lapsed) === false);
 
   // --- an unauthenticated stranger cannot start either ----------------------
   ok('membership checkout needs an account', (await post('/api/auth/billing/membership', {})).status === 401);

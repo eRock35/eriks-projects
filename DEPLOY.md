@@ -414,12 +414,24 @@ purchase, not as a failed health check.
 Pressing "Become a member" and then closing Stripe's page is the whole test:
 it creates the session (proving the write) and charges nothing.
 
-**There is also no billing portal configuration on the live account**
-(`GET /v1/billing_portal/configurations` is empty), so `POST
-<mount>/billing/portal` — the "Manage billing" button — will fail with
-Stripe's "No configuration provided" until one is created, in the Dashboard
-under Settings → Billing → Customer portal, or by API. The button only shows
-to someone with a `stripeCustomerId`, so nobody can have hit it yet.
+### The customer portal (2026-09-22)
+
+Erik switched it on: `bpc_1UIIaUFbShmvZtSfnAxAe1K0`, live, default, so
+`POST <mount>/billing/portal` has something to open. Cancellation is
+**`at_period_end`** with no proration, which is the setting the entitlement
+code assumes — a cancelling member keeps the tier until the period they paid
+for runs out, and `customer.subscription.deleted` is what finally drops it.
+
+`subscription_update` is off, which is right while there is one thing to buy:
+there is nothing to switch to, and an update flow would only offer a decision
+that does not exist.
+
+**`current_period_end` moved.** Stripe's basil release took it off the
+Subscription object and put it on the subscription's items, and this webhook
+endpoint has `api_version: null` — it renders in the account's default version,
+whatever that becomes. The handler reads both places. Reading only the old one
+wrote `null` forever, which silently retired `isMember`'s expiry check: the
+only cover for a `customer.subscription.deleted` that never arrives.
 
 **Stripe has no API that issues a secret key** — it only exists in the
 Dashboard, so getting one into Secret Manager is a manual step and always will

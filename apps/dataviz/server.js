@@ -242,10 +242,20 @@ async function applyBillingEvent(event) {
     if (!target) return;
     const active = event.type !== 'customer.subscription.deleted'
       && ['active', 'trialing', 'past_due'].includes(obj.status);
+    // Where the period end lives depends on the API version rendering the
+    // event. Stripe's basil release MOVED current_period_end off the
+    // Subscription and onto its items, and this endpoint has api_version null
+    // - it renders in the account's default version, whatever that becomes.
+    // Reading only the old place would have written null forever and quietly
+    // retired isMember's expiry check, which is the safety net for the case
+    // where the `deleted` event never arrives.
+    const periodEnd = obj.current_period_end
+      || (obj.items && obj.items.data && obj.items.data[0]
+          && obj.items.data[0].current_period_end)
+      || null;
     await writePlan(target, {
       plan: active ? 'member' : 'free',
-      currentPeriodEnd: obj.current_period_end
-        ? new Date(obj.current_period_end * 1000).toISOString() : null,
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       subscriptionStatus: obj.status || null,
     }, null, obj.id || null);
   }
