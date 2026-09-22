@@ -24,7 +24,7 @@ const TARGETS = [
   // Server-side modules, per app, exactly as each app actually carries them.
   ['eriks-projects/apps/friction/lib', ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'sitepass.js', 'analytics.js']],
   ['eriks-projects/apps/dataviz/lib',  ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'analytics.js']],
-  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js']],
+  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js']],
   ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
   // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
   // own to collide with, unlike trip-planner and football. It does not take
@@ -33,8 +33,11 @@ const TARGETS = [
   // 2026-09-22), but because GA was never wired into its pages. Adding it is
   // a page change as well as a copy; don't list it here until that is done.
   ['spellbook',                        ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
-  // Santa Rosa is single-account on purpose and shares only these two.
-  ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
+  // Santa Rosa is single-account on purpose. It takes gmail.js and byok.js
+  // (the token vault) and nothing from identity: reading booking mail does
+  // not need the shared account, and joining it would put a private app on
+  // the domain-wide sign-in it deliberately stays off.
+  ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js', 'gmail.js', 'byok.js']],
   // The browser-side tour helper.
   // The view beacon rides along with the browser helpers: every app that
   // appears in the trending ranking has to report itself, or the ranking is
