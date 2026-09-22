@@ -135,8 +135,8 @@
 // The counter and the stats API live in Spellbook, not here — this page stays a
 // static page with no database and no backend, which is the whole reason it can
 // sit on Cloud Run at min-instances 0 inside the free tier. See
-// spellbook/analytics.js for what is stored (and what deliberately is not: no
-// IPs, no user agents, no third-party tracker).
+// analytics.js in the eRock35/spellbook repo for what is stored (and what
+// deliberately is not: no IPs, no user agents, no third-party tracker).
 //
 // Everything below is decoration. If Spellbook is down, cold-starting, or
 // blocked by a privacy extension, the page must look exactly as authored — so

@@ -16,11 +16,9 @@ The Santa Rosa Beach trip app is intentionally **not** linked here — it holds
 family PII and its URL is deliberately kept off public surfaces. See
 `DEPLOY.md` for the reasoning before adding it.
 
-**This repo also holds Spellbook**, in `spellbook/` — a prompt library that
-doubles as the view-tracking backend for every app on the domain. It is a
-separate Cloud Run service with its own Firestore database, README and
-Dockerfile; see `spellbook/README.md`. The landing page and Spellbook share
-nothing but a repository and one deferred `<script>`.
+Spellbook — the prompt library that doubles as the view-tracking backend behind
+those re-ordering cards — lives in its own repo, `eRock35/spellbook`. All this
+page keeps of it is one deferred `<script>`.
 
 The page itself is now served by Cloud Run (`server.js`), not by the GCS bucket
 — GCS static website hosting cannot do HTTPS on a custom domain at all, which

@@ -2,8 +2,3 @@
 node_modules
 .claude
 
-# Spellbook is a separate Cloud Run service built from spellbook/ with its own
-# Dockerfile. `gcpdeploy ship spellbook` packages only that subtree, but a
-# landing-page build runs from the repo root and would otherwise copy the whole
-# app into an image that never runs it. Excluded so the two stay independent.
-spellbook

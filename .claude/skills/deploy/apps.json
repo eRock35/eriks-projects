@@ -36,13 +36,11 @@
       "unsupported": "Hopscotch builds through its own cloudbuild.yaml with a git-sha image tag, an APP_VERSION build arg, and a separate 'hopscotch' Artifact Registry repo. Its committed deploy tooling also assumes gcloud, which does not exist here, and names two secrets that do not exist in this project (hopscotch-anthropic-key, hopscotch-cron-secret) \u2014 the live service uses the shared anthropic-api-key and cron-secret. Deploy it by hand until that is reconciled."
     },
     "spellbook": {
-      "repo": "eriks-projects",
-      "subdir": "spellbook",
+      "repo": "spellbook",
       "service": "spellbook",
       "db": "spellbook",
       "verify_job": "spellbook-rollup",
-      "verify_doc": "control/rollup",
-      "note": "Lives in the eriks-projects repo under spellbook/ rather than its own repo (GitHub repo creation was not available to the session that built it). `ship` must build from that subdirectory, not the repo root -- the root Dockerfile is the landing page's."
+      "verify_doc": "control/rollup"
     },
     "landing": {
       "repo": "eriks-projects",

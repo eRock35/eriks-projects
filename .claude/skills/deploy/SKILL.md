@@ -20,12 +20,11 @@ hand-roll `curl` calls unless the script genuinely can't do what's needed.
 Apps: `football`, `trip`, `vacation`, `spellbook`. (`beer` is registered but
 deliberately refuses — see **Hopscotch** below.)
 
-`spellbook` is the odd one: it lives in a **subdirectory** of `eriks-projects`
-(`spellbook/`) rather than at a repo root, alongside the landing page. Its
-`apps.json` entry carries a `subdir` key and `ship` packages only that subtree,
-so the two services never share a build context. Don't "fix" this by moving its
-Dockerfile to the repo root — that would hand the landing page a Firestore
-client it must not have. See `DEPLOY.md` § Two services from `eriks-projects`.
+An app may live in a **subdirectory** of its repo rather than at a repo root:
+give its `apps.json` entry a `subdir` key and `ship` packages only that subtree,
+so two services in one repo never share a build context. Nothing uses that today
+— Spellbook did until it got its own repo on 2026-09-22 — but the mechanism is
+there and tested if a second app ever shares a repository.
 
 ## The environment constraints that shape all of this
 

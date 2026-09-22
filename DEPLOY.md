@@ -140,7 +140,7 @@ initial state*, not a failure.
 | College Football | `college-football-app` | `college-football-app` | `footballapp.strongtechnicalconsulting.com` |
 | Hopscotch (beer) | `hopscotch` | `hopscotch` | `beer.strongtechnicalconsulting.com` |
 | Trip Planner | `trip-planner` | `trip-planner` | `trip.strongtechnicalconsulting.com` |
-| Spellbook (prompts) | `spellbook` | `spellbook` | `spellbook-…-uc.a.run.app` (no custom domain yet) |
+| Spellbook (prompts) | `spellbook` | `spellbook` | `spellbook-…-uc.a.run.app` (CNAME live, mapping pending) |
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
 | Landing page | `landing-page` | — | `www.strongtechnicalconsulting.com` |
 
@@ -219,34 +219,11 @@ Weekday football research runs through the **Anthropic Batch API** (50% cost,
 up to 24h latency) and goes live hourly on Saturdays. Batch supports
 `web_search_20260209`; this was verified with a real test batch, not assumed.
 
-## Two services from `eriks-projects`
-
-This repo builds **two** Cloud Run services:
-
-- `landing-page` from the repo root (`server.js`, `site/`).
-- `spellbook` from the `spellbook/` subdirectory, which has its own
-  `Dockerfile`, `package.json` and Firestore database.
-
-`apps.json` gives the `spellbook` entry a **`subdir`** key, and `gcpdeploy ship`
-packages only that subtree — so a build of one service can never pick up the
-other's Dockerfile. If you add a third app to a subdirectory, that key is the
-only thing needed.
-
-`ship` still refuses on *any* uncommitted change in the repository, not just in
-the subtree being shipped. That is deliberate: a deployed image should
-correspond to a commit of the repository, not to a tidy corner of a dirty one.
-
-**Why Spellbook is not its own repo:** the session that built it could not
-create one — the GitHub App token returns `403 Resource not accessible by
-integration` on `POST /user/repos`. Erik's convention is one repo per project,
-so this is a deviation to undo whenever convenient: `git mv spellbook/` into a
-new repo, change `repo` and drop `subdir` in `apps.json`. Nothing in the code
-depends on its location.
-
 ## First deploy of Spellbook — what has to exist
 
-`gcpdeploy ship` updates an existing service and cannot create one, so the
-first deploy needs, in order:
+Done on 2026-09-22; kept as the reference for the next new app.
+`gcpdeploy ship` updates an existing service and cannot create one, so a first
+deploy needs, in order:
 
 1. Firestore database `spellbook`, **Native mode**, `us-central1`. Never
    `(default)` — see the note above.
@@ -259,24 +236,28 @@ first deploy needs, in order:
    `CRON_SECRET`, `ADMIN_EMAIL`, `ANTHROPIC_API_KEY`.
 4. `setIamPolicy` granting `roles/run.invoker` to `allUsers` — the app gates
    itself, and an unauthenticated visitor needs to reach `/login` to register.
-5. The five composite indexes in `spellbook/firestore.indexes.json`.
+5. The five composite indexes in the app's own `firestore.indexes.json`.
 6. Scheduler job `spellbook-rollup`, every 6 hours, POSTing
    `/api/cron/rollup` with the `X-Cron-Key` header.
-7. *(still outstanding)* Domain mapping for
-   `spellbook.strongtechnicalconsulting.com`, plus the
-   `CNAME spellbook → ghs.googlehosted.com.` record at the registrar.
+7. A domain mapping, if the app wants a subdomain. **A DNS CNAME on its own
+   does nothing** — Google's frontend needs the Cloud Run mapping to know which
+   service to route the hostname to, so a CNAME without a mapping serves a 404.
+   Both halves are required, in either order.
 
-   Until then the landing page's beacon and the Spellbook card both point at
-   the service's own `*.run.app` hostname, which works today. Writing that
-   hostname into this public repo is fine **for this app** — it is public, open
-   to registration, and linked from the landing page, so there is no quiet URL
-   to protect. The same is emphatically not true of the vacation app; see
-   **Settled decisions**.
+   Spellbook's CNAME (`spellbook → ghs.googlehosted.com.`) is live; its
+   **mapping is still outstanding** — the session container's guardrails refuse
+   DNS/domain/cert changes, so this one is Erik's to create in the Cloud Run
+   console. Until it exists, `site/index.html` points its beacon and its card at
+   Spellbook's `*.run.app` hostname, which works today; `APPS.spellbook.url` in
+   the spellbook repo already carries the custom domain, with a comment
+   explaining the split. Writing a `*.run.app` hostname into this public repo is
+   fine **for that app** — it is public, open to registration, and linked from
+   the landing page, so there was no quiet URL to protect. The same is
+   emphatically not true of the vacation app; see **Settled decisions**.
 
-   Flipping to the custom domain afterwards is three edits: `var API` and the
-   card `href` in `site/index.html`, and `APPS.spellbook.url` in
-   `spellbook/analytics.js`. Nothing else knows the hostname — the beacon's
-   CORS check keys off the *calling* origin, not the host it runs on.
+   When the mapping is live, two edits finish it: `var API` and the card `href`
+   in `site/index.html`. Nothing else knows the hostname — the beacon's CORS
+   check keys off the *calling* origin, not the host it runs on.
 
 The admin account is whichever registration matches `ADMIN_EMAIL`; it starts
 with AI access approved and is the only account that can see `/api/admin/*`,
@@ -289,7 +270,7 @@ which 404s for everyone else.
   `roles/run.invoker` — the app gates itself, and an unauthenticated visitor has
   to reach `/login` to register at all.
 - Firestore database `spellbook` (Native, `us-central1`), five composite indexes
-  from `spellbook/firestore.indexes.json`.
+  from the spellbook repo's `firestore.indexes.json`.
 - Secrets `spellbook-session-secret`, `spellbook-cron-secret`,
   `spellbook-admin-email` (the last copied from `trip-planner-admin-email`, so
   the admin identity is the same person across both apps). `anthropic-api-key`
