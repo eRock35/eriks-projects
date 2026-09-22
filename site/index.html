@@ -63,6 +63,17 @@
     background: rgba(34,211,238,0.12); color: var(--accent);
   }
 
+  .card .tag.hot {
+    background: rgba(167,139,250,0.16); color: var(--accent2);
+  }
+  /* Populated from Spellbook's public stats. Empty until then, and the card
+     reads correctly with it empty — the page must never depend on that fetch. */
+  .card .views {
+    display: block; margin-top: 10px; font-size: 12px; color: var(--muted);
+    font-variant-numeric: tabular-nums; min-height: 0;
+  }
+  .card .views b { color: var(--text); font-weight: 600; }
+
   footer { margin-top: 56px; color: var(--muted); font-size: 12.5px; text-align: center; }
   footer a { color: var(--muted); }
 </style>
@@ -75,29 +86,40 @@
   </header>
 
   <div class="grid">
-    <a class="card" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+    <a class="card" data-app="football" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
       <span class="card-icon">🏈</span>
       <h2>College Football App</h2>
       <p>College football betting research — live odds, picks, and AI-backed research on demand.</p>
       <span class="tag">Live</span>
+      <span class="views"></span>
     </a>
 
-    <a class="card" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+    <a class="card" data-app="hopscotch" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
       <span class="card-icon">🍺</span>
       <h2>Hopscotch</h2>
       <p>A craft beer passport — find breweries anywhere, scan a can or a glass, and remember what you drank.</p>
       <span class="tag">Live</span>
+      <span class="views"></span>
     </a>
 
-    <a class="card" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+    <a class="card" data-app="trip" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
       <span class="card-icon">✈️</span>
       <h2>Trip Planner</h2>
       <p>Research and monitor upcoming trips — flights, hotels, Airbnbs — with Claude watching prices in the background.</p>
       <span class="tag">Live</span>
+      <span class="views"></span>
+    </a>
+
+    <a class="card" data-app="spellbook" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <span class="card-icon">✨</span>
+      <h2>Spellbook</h2>
+      <p>A shared prompt library — publish the prompts that work, vote on everyone else's, and remix the good ones.</p>
+      <span class="tag">Live</span>
+      <span class="views"></span>
     </a>
 
     <a class="card placeholder">
-      <span class="card-icon">✨</span>
+      <span class="card-icon">🧭</span>
       <h2>More on the way</h2>
       <p>Next project lands here.</p>
     </a>
@@ -106,5 +128,81 @@
   <footer>
     Built and run by Erik &middot; <a href="https://github.com/eRock35" target="_blank" rel="noopener">github.com/eRock35</a>
   </footer>
+
+<script>
+// View counting and trending order for this page.
+//
+// The counter and the stats API live in Spellbook, not here — this page stays a
+// static page with no database and no backend, which is the whole reason it can
+// sit on Cloud Run at min-instances 0 inside the free tier. See
+// spellbook/analytics.js for what is stored (and what deliberately is not: no
+// IPs, no user agents, no third-party tracker).
+//
+// Everything below is decoration. If Spellbook is down, cold-starting, or
+// blocked by a privacy extension, the page must look exactly as authored — so
+// nothing here runs before paint, nothing throws into the page, and the card
+// order in the HTML is already the order Erik wants when no stats arrive.
+(function () {
+  "use strict";
+  var API = "https://spellbook.strongtechnicalconsulting.com";
+
+  function beacon() {
+    try {
+      fetch(API + "/api/beacon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",  // carries the opaque visitor id cookie
+        keepalive: true,         // survives the tab navigating away
+        body: JSON.stringify({ app: "landing", path: location.pathname, ref: document.referrer || "" })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  function decorate() {
+    fetch(API + "/api/stats/public", { credentials: "omit" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.apps || !data.apps.length) return;
+        var grid = document.querySelector(".grid");
+        var byApp = {};
+        data.apps.forEach(function (a) { byApp[a.app] = a; });
+
+        var cards = Array.prototype.slice.call(grid.querySelectorAll("a.card[data-app]"));
+        cards.forEach(function (card) {
+          var s = byApp[card.getAttribute("data-app")];
+          if (!s) return;
+          var slot = card.querySelector(".views");
+          if (slot && s.totalViews > 0) {
+            slot.innerHTML = "<b>" + s.totalViews.toLocaleString() + "</b> views"
+              + (s.views7 > 0 ? " &middot; <b>" + s.views7.toLocaleString() + "</b> this week" : "");
+          }
+          // Only the leader gets a badge, and only once there is enough traffic
+          // for "trending" to mean anything. One view does not make a trend.
+          if (s.rank === 1 && s.views7 >= 5) {
+            var tag = card.querySelector(".tag");
+            if (tag) { tag.textContent = "Trending"; tag.classList.add("hot"); }
+          }
+        });
+
+        // Re-order live cards by the last seven days, most-viewed first, and
+        // keep the placeholder last. Cards with no stats hold their authored
+        // position relative to each other rather than being shoved to the end.
+        var ranked = cards.slice().sort(function (a, b) {
+          var x = byApp[a.getAttribute("data-app")], y = byApp[b.getAttribute("data-app")];
+          return ((y && y.views7) || 0) - ((x && x.views7) || 0);
+        });
+        var placeholder = grid.querySelector("a.card.placeholder");
+        ranked.forEach(function (c) { grid.appendChild(c); });
+        if (placeholder) grid.appendChild(placeholder);
+      })
+      .catch(function () {});
+  }
+
+  beacon();
+  // Decoration waits for idle so it never competes with first paint.
+  if (window.requestIdleCallback) window.requestIdleCallback(decorate, { timeout: 2000 });
+  else setTimeout(decorate, 400);
+})();
+</script>
 </body>
 </html>

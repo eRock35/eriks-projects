@@ -139,9 +139,16 @@ initial state*, not a failure.
 |---|---|---|---|
 | College Football | `college-football-app` | `college-football-app` | `footballapp.strongtechnicalconsulting.com` |
 | Hopscotch (beer) | `hopscotch` | `hopscotch` | `beer.strongtechnicalconsulting.com` |
-| Trip Planner | `trip-planner` | `trip-planner` | `trip-planner-…-uc.a.run.app` |
+| Trip Planner | `trip-planner` | `trip-planner` | `trip.strongtechnicalconsulting.com` |
+| Spellbook (prompts) | `spellbook` | `spellbook` | `spellbook.strongtechnicalconsulting.com` |
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
-| Landing page | — (GCS bucket) | — | `www.strongtechnicalconsulting.com` |
+| Landing page | `landing-page` | — | `www.strongtechnicalconsulting.com` |
+
+The landing page row used to read "— (GCS bucket)". It moved to Cloud Run
+because GCS static website hosting cannot serve HTTPS on a custom domain at
+all — not a missing setting, the capability isn't there — which is why the root
+domain read "Not Secure". `gcpdeploy page` still uploads to the bucket; that
+path is stale and should be retired or repointed at the service.
 
 Per-app secrets are deliberately **not** shared. The football app's login is the
 kind of thing Erik might hand to a friend so they can run research; that password
@@ -150,6 +157,9 @@ must not also open the trip apps.
 - Football: `site-login-username`, `site-login-password`, `cfb-session-secret`, `cron-secret`
 - Trip Planner: `trip-planner-login-username`, `-login-password`, `-cron-secret`, `-session-secret`
 - Santa Rosa: `vacation-login-username`, `vacation-login-password`, `vacation-session-secret`
+- Spellbook: `spellbook-session-secret`, `spellbook-cron-secret`, `spellbook-admin-email`
+  (no login username/password pair — the app is multi-user with open
+  registration, so there is no single site credential to store)
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.
@@ -203,10 +213,64 @@ get a mapping.
 | `cfb-saturday-live` | `0 9-23 * * 6` |
 | `trip-planner-check-watches` | `0 * * * *` |
 | `hopscotch-dispatch` | `0 8 * * 4` (America/Chicago) |
+| `spellbook-rollup` | `0 */6 * * *` |
 
 Weekday football research runs through the **Anthropic Batch API** (50% cost,
 up to 24h latency) and goes live hourly on Saturdays. Batch supports
 `web_search_20260209`; this was verified with a real test batch, not assumed.
+
+## Two services from `eriks-projects`
+
+This repo builds **two** Cloud Run services:
+
+- `landing-page` from the repo root (`server.js`, `site/`).
+- `spellbook` from the `spellbook/` subdirectory, which has its own
+  `Dockerfile`, `package.json` and Firestore database.
+
+`apps.json` gives the `spellbook` entry a **`subdir`** key, and `gcpdeploy ship`
+packages only that subtree — so a build of one service can never pick up the
+other's Dockerfile. If you add a third app to a subdirectory, that key is the
+only thing needed.
+
+`ship` still refuses on *any* uncommitted change in the repository, not just in
+the subtree being shipped. That is deliberate: a deployed image should
+correspond to a commit of the repository, not to a tidy corner of a dirty one.
+
+**Why Spellbook is not its own repo:** the session that built it could not
+create one — the GitHub App token returns `403 Resource not accessible by
+integration` on `POST /user/repos`. Erik's convention is one repo per project,
+so this is a deviation to undo whenever convenient: `git mv spellbook/` into a
+new repo, change `repo` and drop `subdir` in `apps.json`. Nothing in the code
+depends on its location.
+
+## First deploy of Spellbook — what has to exist
+
+`gcpdeploy ship` updates an existing service and cannot create one, so the
+first deploy needs, in order:
+
+1. Firestore database `spellbook`, **Native mode**, `us-central1`. Never
+   `(default)` — see the note above.
+2. Secrets `spellbook-session-secret` (any long random string),
+   `spellbook-cron-secret`, `spellbook-admin-email`. `anthropic-api-key` is the
+   shared one.
+3. A build, then one `POST .../services?serviceId=spellbook` with the image
+   pinned by digest, `cpuIdle: true`, `minInstanceCount: 0`, and env vars
+   `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_DATABASE_ID=spellbook`, `SESSION_SECRET`,
+   `CRON_SECRET`, `ADMIN_EMAIL`, `ANTHROPIC_API_KEY`.
+4. `setIamPolicy` granting `roles/run.invoker` to `allUsers` — the app gates
+   itself, and an unauthenticated visitor needs to reach `/login` to register.
+5. The five composite indexes in `spellbook/firestore.indexes.json`.
+6. Scheduler job `spellbook-rollup`, every 6 hours, POSTing
+   `/api/cron/rollup` with the `X-Cron-Key` header.
+7. Domain mapping for `spellbook.strongtechnicalconsulting.com`, plus the
+   `CNAME … ghs.googlehosted.com.` record at the registrar. **The landing page
+   hardcodes that hostname** in its beacon script, so until the mapping and DNS
+   are live no view is recorded — the page still renders correctly, it just
+   counts nothing.
+
+The admin account is whichever registration matches `ADMIN_EMAIL`; it starts
+with AI access approved and is the only account that can see `/api/admin/*`,
+which 404s for everyone else.
 
 ## Known open items
 

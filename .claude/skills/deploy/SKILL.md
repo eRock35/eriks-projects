@@ -17,8 +17,15 @@ hand-roll `curl` calls unless the script genuinely can't do what's needed.
 ./gcpdeploy auth            # re-mint the token (ship/verify do this for you)
 ```
 
-Apps: `football`, `trip`, `vacation`. (`beer` is registered but deliberately
-refuses — see **Hopscotch** below.)
+Apps: `football`, `trip`, `vacation`, `spellbook`. (`beer` is registered but
+deliberately refuses — see **Hopscotch** below.)
+
+`spellbook` is the odd one: it lives in a **subdirectory** of `eriks-projects`
+(`spellbook/`) rather than at a repo root, alongside the landing page. Its
+`apps.json` entry carries a `subdir` key and `ship` packages only that subtree,
+so the two services never share a build context. Don't "fix" this by moving its
+Dockerfile to the repo root — that would hand the landing page a Firestore
+client it must not have. See `DEPLOY.md` § Two services from `eriks-projects`.
 
 ## The environment constraints that shape all of this
 
@@ -81,6 +88,11 @@ A job that has never run reports `code: -1`. That's the never-run initial
 state, not a failure.
 
 `vacation` has no cron job, so it has no automated verification. Ask Erik.
+
+`spellbook`'s job is `spellbook-rollup`, writing `control/rollup`. It recomputes
+time-decayed trending scores and snapshots the app leaderboard. Unlike
+trip-planner's sweep it calls no model, so forcing it costs nothing — which
+makes it a genuinely free end-to-end check.
 
 ## Firestore
 
