@@ -729,6 +729,67 @@ Verified end to end on 2026-09-20 by setting a reset flag on Erik's own
 record, watching `lastSubject` appear (it is written only after the send
 returns), then clearing the flag and confirming the next run stayed quiet.
 
+## View counts and "what's trending" (2026-09-22)
+
+Separate from GA and not a replacement for it. GA answers questions about
+sessions and behaviour; this answers one question — which of Erik's apps is
+getting used this week — and it answers it from a first-party counter he owns,
+so the landing page can badge the leader without asking Google at render time.
+
+- `lib/views.js` — the whole thing: the beacon endpoint, the rollups, and the
+  two read endpoints. It runs on **this** service.
+- `shared/beacon.js` — the browser half, copied into every app by
+  `scripts/sync-shared.js`. One `<script src="/beacon.js" data-app="NAME">` tag
+  per app; the `data-app` value must be a key in the `APPS` allowlist.
+- `site/views.html` at `/admin/views` — the dashboard, admin-gated.
+- `GET /api/stats/public` — counts and shape only, CORS-open to the domain.
+  `GET /api/admin/stats` — uniques, top paths, referrer hosts; 404s otherwise.
+
+**It lived in Spellbook until 2026-09-22.** The reasoning for putting it there
+was that the landing service was static and dependency-light and a database
+would make it a real backend. By then it already had a Firestore, an admin
+gate, the identity store, an uptime prober and a cron, so the premise was
+stale and the effect was that the numbers for seven apps sat inside one of the
+seven — and the root domain made a cross-origin call to an app subdomain in
+order to draw itself. The counters restarted with the move; they were a day
+old, and re-basing them would have meant copying rows between databases to
+avoid admitting a gap of one day.
+
+### What is stored, and what deliberately is not
+
+Stored: the app name, a coarse path, the referrer **host**, an opaque random
+visitor id in a first-party cookie, and counters.
+
+Not stored: IP addresses, user agents, full referrer URLs, query strings, or
+anything tied to a signed-in identity. Enough to count and rank, not enough to
+follow a person. Don't add an IP column "just for geo" without deciding that
+tradeoff out loud.
+
+**`santa-rosa-beach-trip` is not in the allowlist and must not be added.** It
+is private, holds family PII, and its hostname is deliberately kept off public
+surfaces — `/api/stats/public` is public and this repo is public.
+`test/views.js` asserts its absence, so the addition fails loudly.
+
+### Two things that bit once each
+
+- **The beacon sends a host; the server parsed a URL.** `shared/beacon.js`
+  reduces `document.referrer` to its host before sending, and `referrerHost()`
+  ran `new URL()` on it, which throws. Every referrer was silently dropped and
+  the dashboard said "No external referrers yet" under every app while traffic
+  was arriving. It takes either shape now.
+- **Seven apps, five colours.** `colorFor()` folded everything past slot 5 into
+  slot 5, so Spellbook, DataViz and Friction drew as the same pink. `APP_ORDER`
+  is append-only and there are seven slots; adding a name to the end gives the
+  new app the next colour and repaints nothing.
+
+### On the landing page
+
+`site/index.html` labels rather than reorders: the `#1` app gets a "Trending"
+badge and every card gets "N views this week", but the authored order and the
+staggered reveal delays stay as written. Sorting cards by rank would reshuffle
+the page on every visit and fight the `--d` delays baked into the markup. The
+fetch runs after paint and swallows every failure, so no card depends on it.
+
 ## Analytics
 
 One GA4 property covers every app. They are all subdomains of one registrable

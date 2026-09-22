@@ -879,7 +879,7 @@
 <script>
 /* What's trending, labelled rather than re-sorted.
  *
- * The counts live in Spellbook (see analytics.js there and beacon.js here).
+ * The counts live on this service (see lib/views.js and beacon.js).
  * The prompt-library version of this page re-ORDERED the cards by rank; that
  * fights this page, whose cards carry staggered CSS reveal delays written
  * into the markup, so reordering would make them flash in at the wrong times
@@ -892,7 +892,7 @@
  */
 (function () {
   'use strict';
-  var STATS = 'https://spellbook-u4h4ftn3fa-uc.a.run.app/api/stats/public';
+  var STATS = '/api/stats/public';   // same origin: the counter lives here now
   function n(v) { return Number(v || 0).toLocaleString(); }
   try {
     fetch(STATS, { credentials: 'omit' })

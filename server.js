@@ -30,6 +30,7 @@ const digest = require('./lib/digest');
 const reset = require('./shared/reset');
 const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
+const views = require('./lib/views');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -680,6 +681,10 @@ app.get('/feed.xml', async (req, res) => {
   }
 });
 
+// Cross-app view counts. The beacon lands here now rather than inside one of
+// the apps it counts - see lib/views.js for why that moved.
+views.createViews({ requireAdmin }).mount(app);
+
 app.get('/robots.txt', (req, res) => {
   // The account subdomain serves this same app, so without a per-host answer
   // it would hand crawlers the marketing site's robots.txt and invite them to
@@ -707,6 +712,10 @@ const adminGate = (req, res, next) =>
 
 app.get('/admin', adminGate, (_req, res) => res.sendFile(path.join(SITE_DIR, 'admin-insights.html')));
 app.get('/admin/writing', adminGate, (_req, res) => res.sendFile(path.join(SITE_DIR, 'admin.html')));
+// The cross-app view dashboard. It sits with the other admin pages because
+// adminGate is defined just above - the routes it gates cannot be registered
+// before it exists.
+app.get('/admin/views', adminGate, (_req, res) => res.sendFile(path.join(SITE_DIR, 'views.html')));
 
 // The dashboard: who is using the apps, what happened, what it cost, what is
 // broken. Its own page rather than another tab inside admin.html, which is

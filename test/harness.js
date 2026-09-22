@@ -53,6 +53,20 @@ class FakeFirestore {
         return { id: key.slice(name.length + 1),
           async get() { const d = store.get(key); return { exists: d !== undefined, id: key.slice(name.length + 1), data: () => d }; },
           async set(v, o) { noNestedArrays(v); store.set(key, o && o.merge ? applyIncrements(store.get(key), v) : JSON.parse(JSON.stringify(v))); },
+          /** Firestore's write-if-absent. It is the cheapest test-and-set the
+           *  database offers, and two things here lean on it: accounts.js to
+           *  make a duplicate email fail without a uniqueness index, and
+           *  lib/views.js to count a unique visitor without a read on the
+           *  common repeat-view path. Both catch code 6 and carry on, so a
+           *  fake that always succeeds turns every repeat view into a new
+           *  visitor and never fails a duplicate registration. */
+          async create(v) {
+            noNestedArrays(v);
+            if (store.get(key) !== undefined) {
+              throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 });
+            }
+            store.set(key, JSON.parse(JSON.stringify(v)));
+          },
           async update(v) { noNestedArrays(v); store.set(key, Object.assign({}, store.get(key) || {}, v)); },
           async delete() { store.delete(key); },
           collection: (sub) => new FakeFirestore({ databaseId: 'sub' }).collection(key + '/' + sub) };

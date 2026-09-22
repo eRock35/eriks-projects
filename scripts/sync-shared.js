@@ -27,10 +27,11 @@ const TARGETS = [
   ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js']],
   ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
   // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
-  // own to collide with, unlike trip-planner and football. It is also the one
-  // app that does NOT take shared/analytics.js - it has a file by that name
-  // already, and that one is its view tracker, not the GA beacon. Copying over
-  // it would delete the feature the app is built around.
+  // own to collide with, unlike trip-planner and football. It does not take
+  // shared/analytics.js - not because of a name collision any more (its own
+  // analytics.js was the view tracker and moved to lib/views.js on
+  // 2026-09-22), but because GA was never wired into its pages. Adding it is
+  // a page change as well as a copy; don't list it here until that is done.
   ['spellbook',                        ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   // Santa Rosa is single-account on purpose and shares only these two.
   ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
@@ -44,6 +45,7 @@ const TARGETS = [
   ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js']],
   ['beer-app/web/public',                 ['tour.js', 'beacon.js']],
+  ['spellbook/public',                    ['beacon.js']],
   ['santa-rosa-beach-trip/public',        ['desktop.css']],
 ];
 
