@@ -364,18 +364,38 @@ service that offers checkout; `STRIPE_WEBHOOK_SECRET` by **exactly one**
 should not be set on any service.
 
 Binding a secret to a runtime service account is
-`secretmanager.secrets.setIamPolicy`, which the deployer does hold. As of this
-writing only `dataviz-run@` is bound; `trip-planner-run@`, `football-run@`,
-`friction-run@` and `landing-run@` still need `roles/secretmanager.secretAccessor`
-on `stripe-secret-key` and `stripe-member-price`, and the two env vars added
-to their services. Until then those four run on the fallback above.
+`secretmanager.secrets.setIamPolicy`, which the deployer does hold. All five
+runtime accounts — `dataviz-run@`, `trip-planner-run@`, `football-run@`,
+`friction-run@`, `landing-run@` — hold `secretAccessor` on `stripe-secret-key`
+and `stripe-member-price` as of 2026-09-22, and all five services mount the two
+env vars. `stripe-webhook-secret` is bound to `dataviz-run@` only, and should
+stay that way.
 
-**Worth doing before that:** make the key a **restricted** key rather than the
-full `sk_live_`. Minting a checkout session needs write on Checkout Sessions
-and Billing Portal Sessions and read on Prices and Customers — nothing that
-can issue a refund or read the charge history. Spreading a full secret key to
-five containers to do a job a restricted one does is the avoidable half of
-this change.
+**The key in `stripe-secret-key` is already a RESTRICTED key** (`rk_live_`),
+not a full `sk_live_`. That is what makes spreading it to five containers
+reasonable: minting a checkout session needs write on Checkout Sessions and
+Billing Portal Sessions and read on Prices and Customers, and none of that can
+issue a refund or read the charge history. If it is ever replaced, replace it
+with another restricted key — an `sk_live_` here would quietly widen five
+containers at once.
+
+### Nothing has been bought yet, so the write path is unproven
+
+`GET /api/stripe/health` proves the key can **read** a Price. It does not prove
+the key can **write** a Checkout Session, and as of 2026-09-22 the live account
+has never had one: `GET /v1/checkout/sessions` returns an empty list. So a
+missing permission on the restricted key would first show up as a failed
+purchase, not as a failed health check.
+
+Pressing "Become a member" and then closing Stripe's page is the whole test:
+it creates the session (proving the write) and charges nothing.
+
+**There is also no billing portal configuration on the live account**
+(`GET /v1/billing_portal/configurations` is empty), so `POST
+<mount>/billing/portal` — the "Manage billing" button — will fail with
+Stripe's "No configuration provided" until one is created, in the Dashboard
+under Settings → Billing → Customer portal, or by API. The button only shows
+to someone with a `stripeCustomerId`, so nobody can have hit it yet.
 
 **Stripe has no API that issues a secret key** — it only exists in the
 Dashboard, so getting one into Secret Manager is a manual step and always will
