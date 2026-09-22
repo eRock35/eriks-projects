@@ -5,6 +5,10 @@ const h = require('./harness.js');
 h.install();
 process.env.GOOGLE_CLOUD_PROJECT = 'test';
 process.env.IDENTITY_DATABASE_ID = 'identity';
+// Santa Rosa's real hostname is deliberately absent from this public repo, so
+// the prober reads it from the environment. A stand-in keeps every target on
+// the board here; the unconfigured case is covered separately at the bottom.
+process.env.SANTAROSA_HEALTH_URL = 'https://santarosa.test/api/health';
 
 const uptime = require(require('path').join(__dirname, '..', 'lib', 'uptime.js'));
 
@@ -58,6 +62,14 @@ global.fetch = async () => {
   ok('a healthy record reports 200', rec.lastStatus === 200, JSON.stringify(rec.lastStatus));
   ok('...and carries no stale failure body', !rec.lastBody, JSON.stringify(rec.lastBody));
   ok('...and no stale error either', !rec.lastError, JSON.stringify(rec.lastError));
+
+  // An app whose health URL was never configured must look wrong rather than
+  // quietly drop off the board - an unwatched app that reports nothing is
+  // indistinguishable from a healthy one, which is the failure mode that
+  // matters here.
+  const unconfigured = await uptime.probeOne({ key: 'x', label: 'X', url: '' });
+  ok('an unconfigured target fails loudly', unconfigured.ok === false, JSON.stringify(unconfigured.ok));
+  ok('...and says why', /no health URL configured/.test(unconfigured.error || ''), JSON.stringify(unconfigured.error));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
