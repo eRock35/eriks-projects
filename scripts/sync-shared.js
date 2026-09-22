@@ -35,13 +35,15 @@ const TARGETS = [
   // Santa Rosa is single-account on purpose and shares only these two.
   ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
   // The browser-side tour helper.
-  // The account page's passkey half. The landing site serves site/ statically.
-  ['eriks-projects/site', ['passkey-client.js']],
-  ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css']],
-  ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css']],
-  ['trip-planner/public',                 ['tour.js', 'desktop.css']],
-  ['college-football-app/public',         ['tour.js', 'desktop.css']],
-  ['beer-app/web/public',                 ['tour.js']],
+  // The view beacon rides along with the browser helpers: every app that
+  // appears in the trending ranking has to report itself, or the ranking is
+  // just whichever app happens to carry the file.
+  ['eriks-projects/site', ['passkey-client.js', 'beacon.js']],
+  ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css', 'beacon.js']],
+  ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css', 'beacon.js']],
+  ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js']],
+  ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js']],
+  ['beer-app/web/public',                 ['tour.js', 'beacon.js']],
   ['santa-rosa-beach-trip/public',        ['desktop.css']],
 ];
 

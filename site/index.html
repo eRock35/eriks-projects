@@ -223,6 +223,12 @@
   .project:hover .open svg { transform: translate(2px, -2px); }
   .live { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #04280f; background: var(--green); border-radius: 999px; padding: 2px 7px; position: relative; }
   .live::before { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--green); animation: pulse 2.4s ease-out infinite; z-index: -1; }
+  /* Populated from Spellbook's public stats, and empty until then. The page
+     must read correctly with the fetch failing - it is a static page and the
+     counter is somebody else's service. */
+  .trending { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: #2b1a00; background: var(--amber, #ffb020); border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
+  .views { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   @keyframes pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
   .project.soon { opacity: 0.7; }
   .project.soon .placeholder { width: 56px; height: 56px; border-radius: 14px; background: var(--fill-2); display: grid; place-items: center; color: var(--label-3); font-size: 26px; flex: 0 0 auto; }
@@ -422,7 +428,7 @@
     </div>
 
     <div class="projects">
-      <a class="project" data-reveal style="--d:.05s" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <a class="project" data-app="football" data-reveal style="--d:.05s" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/football.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>College Football <span class="live">Live</span></h3>
@@ -430,7 +436,7 @@
           <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-reveal style="--d:.12s" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <a class="project" data-app="hopscotch" data-reveal style="--d:.12s" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/hopscotch.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Hopscotch <span class="live">Live</span></h3>
@@ -438,7 +444,7 @@
           <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-reveal style="--d:.19s" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <a class="project" data-app="trip" data-reveal style="--d:.19s" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/trips.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Trip Planner <span class="live">Live</span></h3>
@@ -446,7 +452,7 @@
           <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-reveal style="--d:.26s" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <a class="project" data-app="dataviz" data-reveal style="--d:.26s" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/dataviz.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>DataViz <span class="live">Live</span></h3>
@@ -454,7 +460,7 @@
           <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-reveal style="--d:.33s" href="https://friction.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <a class="project" data-app="friction" data-reveal style="--d:.33s" href="https://friction.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/friction.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Friction <span class="live">Live</span></h3>
@@ -462,7 +468,7 @@
           <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-reveal style="--d:.40s" href="https://spellbook-u4h4ftn3fa-uc.a.run.app" target="_blank" rel="noopener">
+      <a class="project" data-app="spellbook" data-reveal style="--d:.40s" href="https://spellbook-u4h4ftn3fa-uc.a.run.app" target="_blank" rel="noopener">
         <img src="/assets/spellbook.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Spellbook <span class="live">Live</span></h3>
@@ -870,5 +876,54 @@
   var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(function () { cards.forEach(fit); }, 120); });
 })();
 </script>
+<script>
+/* What's trending, labelled rather than re-sorted.
+ *
+ * The counts live in Spellbook (see analytics.js there and beacon.js here).
+ * The prompt-library version of this page re-ORDERED the cards by rank; that
+ * fights this page, whose cards carry staggered CSS reveal delays written
+ * into the markup, so reordering would make them flash in at the wrong times
+ * and the order would change under a returning reader for no reason they can
+ * see. Labelling says the same thing and keeps both.
+ *
+ * Everything here is additive and failure is silent: this is a static page
+ * and the counter is another service. If the fetch never lands, the cards
+ * read exactly as they do now.
+ */
+(function () {
+  'use strict';
+  var STATS = 'https://spellbook-u4h4ftn3fa-uc.a.run.app/api/stats/public';
+  function n(v) { return Number(v || 0).toLocaleString(); }
+  try {
+    fetch(STATS, { credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !Array.isArray(d.apps)) return;
+        d.apps.forEach(function (a) {
+          var card = document.querySelector('a.project[data-app="' + a.app + '"]');
+          if (!card) return;
+          // A view count nobody has earned yet reads as a dead app. Say
+          // nothing until there is something to say.
+          if (!a.views7 && !a.totalViews) return;
+          var h3 = card.querySelector('h3');
+          if (a.rank === 1 && h3 && !h3.querySelector('.trending')) {
+            var b = document.createElement('span');
+            b.className = 'trending';
+            b.textContent = 'Trending';
+            h3.appendChild(b);
+          }
+          var body = card.querySelector('.project-body');
+          if (!body || body.querySelector('.views')) return;
+          var v = document.createElement('span');
+          v.className = 'views';
+          v.textContent = a.views7 ? n(a.views7) + ' views this week' : n(a.totalViews) + ' views';
+          body.appendChild(v);
+        });
+      })
+      .catch(function () {});
+  } catch (e) {}
+})();
+</script>
+<script src="/beacon.js" data-app="landing" async></script>
 </body>
 </html>
