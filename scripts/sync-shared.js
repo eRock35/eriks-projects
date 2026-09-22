@@ -26,6 +26,12 @@ const TARGETS = [
   ['eriks-projects/apps/dataviz/lib',  ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'analytics.js']],
   ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js']],
   ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
+  // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
+  // own to collide with, unlike trip-planner and football. It is also the one
+  // app that does NOT take shared/analytics.js - it has a file by that name
+  // already, and that one is its view tracker, not the GA beacon. Copying over
+  // it would delete the feature the app is built around.
+  ['spellbook',                        ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   // Santa Rosa is single-account on purpose and shares only these two.
   ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js']],
   // The browser-side tour helper.
