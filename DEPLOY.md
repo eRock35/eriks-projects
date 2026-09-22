@@ -379,6 +379,30 @@ issue a refund or read the charge history. If it is ever replaced, replace it
 with another restricted key — an `sk_live_` here would quietly widen five
 containers at once.
 
+### The API version was invented, and nothing ever worked (2026-09-22)
+
+`stripe.js` hardcoded `Stripe-Version: 2026-08-27.basil`. That is not a Stripe
+API version: the current train is `dahlia`, and basil never had an 08-27. So
+**every** call this code has ever made returned `Invalid Stripe API version` —
+checkout, the billing portal, and the Price read behind `/api/stripe/health`,
+which was therefore answering `ok: false` rather than confirming anything. It
+went unnoticed because nothing had ever been bought and nobody read the health
+route's body.
+
+It survived review twice because it is **untestable from here**: this container
+cannot reach `api.stripe.com`, the suites stub `fetch`, and no stub looked at
+the header. A string only the real Stripe can judge should not be hardcoded by
+someone who cannot ask it.
+
+The fix is to send **no version header**, so Stripe uses the account's default
+API version — correct by construction, and the same version the webhook
+endpoint renders events in. `STRIPE_API_VERSION` pins one deliberately once
+somebody has confirmed it against the account.
+
+`test/billing-anywhere.js` now rejects, in the stub, any version the real
+Stripe would reject. That is the general lesson and the one worth keeping: a
+fake that accepts anything proves nothing.
+
 ### Nothing has been bought yet, so the write path is unproven
 
 `GET /api/stripe/health` proves the key can **read** a Price. It does not prove

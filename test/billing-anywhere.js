@@ -53,12 +53,31 @@ function raw(method, path, body, cookie, host) {
   });
 }
 
-/** Swap fetch for one that records the form Stripe would have received. */
+// The API versions the real Stripe accepts. A stub that takes any string is
+// how `2026-08-27.basil` - not a version, never was - shipped and made every
+// call this code has ever made fail with `Invalid Stripe API version`. It
+// survived because nothing here could reach Stripe and nothing here looked at
+// the header, so the fake agreed with whatever it was handed.
+const REAL_API_VERSIONS = new Set(['2026-08-26.dahlia']);
+
+/** Swap fetch for one that records the form Stripe would have received - and
+ *  rejects a request Stripe itself would reject. */
 function captureStripe() {
   const seen = [];
   const real = global.fetch;
   global.fetch = async (url, init) => {
     if (String(url).startsWith('https://api.stripe.com')) {
+      const headers = (init && init.headers) || {};
+      const version = headers['Stripe-Version'];
+      // Absent is fine and is the default: Stripe then uses the account's own
+      // version. Present and unknown is a 400, exactly as it is in production.
+      if (version !== undefined && !REAL_API_VERSIONS.has(version)) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({ error: { message: `Invalid Stripe API version: ${version}` } }),
+        };
+      }
       seen.push(String(init && init.body) || '');
       return { ok: true, status: 200, json: async () => ({ url: 'https://stripe.test/session' }) };
     }
@@ -144,6 +163,30 @@ function captureStripe() {
      /metadata\[kind\]=credit/.test(credit));
   ok('...returning to the trip planner, because that is where they pressed it',
      /success_url=https:\/\/trip\.strongtechnicalconsulting\.com\/\?credited=1/.test(credit), credit.slice(0, 300));
+
+  // --- the API version --------------------------------------------------------
+  // The bug this guards: a hardcoded version string that only the real Stripe
+  // can judge, in a file nothing here can point at the real Stripe.
+  const stripeLib = require(require('path').join(__dirname, '..', 'shared', 'stripe.js'));
+  ok('no API version is pinned unless someone set one',
+     stripeLib.apiVersion() === '', stripeLib.apiVersion());
+
+  process.env.STRIPE_API_VERSION = '2026-08-27.basil';
+  cap = captureStripe();
+  const bogus = await raw('POST', '/api/id/billing/credit', { usd: 25 }, cookie);
+  cap.restore();
+  delete process.env.STRIPE_API_VERSION;
+  ok('a version Stripe does not know fails loudly rather than silently',
+     bogus.status >= 400 && /Invalid Stripe API version/.test(JSON.stringify(bogus.json)),
+     JSON.stringify(bogus.json));
+
+  process.env.STRIPE_API_VERSION = '2026-08-26.dahlia';
+  cap = captureStripe();
+  const pinned = await raw('POST', '/api/id/billing/credit', { usd: 25 }, cookie);
+  cap.restore();
+  delete process.env.STRIPE_API_VERSION;
+  ok('...and a real one is accepted, so pinning stays possible',
+     pinned.status === 200, JSON.stringify(pinned.json));
 
   // --- signed out ----------------------------------------------------------
   const out = await raw('POST', '/api/id/billing/membership', {});
