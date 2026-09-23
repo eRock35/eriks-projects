@@ -161,7 +161,9 @@
     groups.forEach(function (g) {
       if (!g.photos.length) return;
       if (groups.length > 1 || !opts.title) {
-        slides.push({ type: "title", title: g.title, subtitle: g.dayNumber ? "Day " + g.dayNumber + (g.dateLabel ? " · " + g.dateLabel : "") : g.dateLabel });
+        // A day the itinerary does not name is titled by its date already;
+        // repeating the date underneath would say it twice.
+        slides.push({ type: "title", title: g.title, subtitle: g.dayNumber ? "Day " + g.dayNumber + (g.dateLabel ? " · " + g.dateLabel : "") : (g.dateLabel !== g.title ? g.dateLabel : "") });
       }
       g.photos.forEach(function (p) {
         slides.push({ type: "photo", src: opts.src(p), caption: p.caption || "", sub: g.dateLabel });

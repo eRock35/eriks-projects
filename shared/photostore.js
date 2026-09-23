@@ -86,7 +86,13 @@ function create({ bucket = () => process.env.PHOTOS_BUCKET || '', fetchImpl = (.
       });
       if (!res.ok) throw Object.assign(new Error(`photo list failed: ${res.status}`), { status: 502 });
       const d = await res.json();
-      for (const it of d.items || []) { await del(it.name); n++; }
+      // Eight at a time: a trip of 500 photos is 1,000 objects, and one at a
+      // time inside a single request would be a minute of round trips.
+      const names = (d.items || []).map((it) => it.name);
+      for (let k = 0; k < names.length; k += 8) {
+        await Promise.all(names.slice(k, k + 8).map((name) => del(name)));
+      }
+      n += names.length;
       pageToken = d.nextPageToken || '';
     } while (pageToken);
     return n;
