@@ -64,6 +64,7 @@
   <p>Google's only permission for reading email is <code>gmail.readonly</code>, so Google's screen will say the app can "read your email." What the apps actually do is narrower, and the code enforces it:</p>
   <ul>
     <li><b>A fixed search.</b> The apps search only for messages from a fixed list of about 100 travel companies, in nine groups: airlines, hotels and stays, car rentals, booking sites, trains and buses, cruises, tours and tickets, restaurants, and parking. The search covers the last 12 months only. The list is written into the code, and nothing you type or a request sends can widen it. It skips Gmail's Promotions and Social tabs.</li>
+    <li><b>Forwarded bookings.</b> It also finds emails from those same companies that were forwarded to you, such as a booking made from a work address. That means messages whose subject starts "Fwd" or "FW" and whose text names one of those companies' email domains. No other forwarded mail is searched.</li>
     <li><b>At most 40 messages</b> per scan, and only when you tap to scan.</li>
     <li><b>Read-only.</b> The apps can't send, delete, label or change anything in your mailbox.</li>
   </ul>
