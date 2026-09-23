@@ -115,7 +115,7 @@ Secret Manager's own IAM policies rather than from memory:
 |---|---|---|---|
 | 2026-09-22 | `trip-planner-run` | `stripe-secret-key`, `stripe-member-price` | Credit and membership are sold from inside the app |
 | 2026-09-22 | `vacation-run` | `vacation-gmail-token-key` | Seals the vacation app's Gmail token. Its **own** key, bound to nothing else — the public apps share `byok-encryption-key`, and this app's rule is that no other service can read its data |
-| 2026-09-23 | `trip-planner-run`, `vacation-run` | `google-oauth-client-id`, `google-oauth-client-secret` | Gmail booking import. One OAuth client, two redirect URIs, testing mode |
+| 2026-09-23 | `trip-planner-run`, `vacation-run` | `google-oauth-client-id`, `google-oauth-client-secret` | Gmail booking import. One OAuth client, two redirect URIs; testing mode, published (unverified) the same day |
 
 As of 2026-09-23: `trip-planner-run` reads 10 secrets, `vacation-run` reads 7.
 `vacation-run` still reads nothing any other app can use to reach its data, and
