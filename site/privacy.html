@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Privacy Policy</title>
+<meta name="description" content="What Erik's Apps collect, why, who else sees it, and how to have it deleted.">
+<script src="/analytics.js" async></script>
+<!-- This page is linked from the Google OAuth consent screen ("Erik's Apps")
+     as its privacy policy. The Gmail section is not boilerplate: every claim
+     in it is enforced in shared/gmail.js and the apps' Gmail routes. Change
+     those and this page must change with them, or the consent screen is
+     promising something the code no longer does. -->
+<link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+<main class="doc">
+  <p class="back"><a href="/">&larr; strongtechnicalconsulting.com</a></p>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Erik's Apps &middot; Effective September 23, 2026</p>
+
+  <p class="lede">This covers every app at strongtechnicalconsulting.com. It is written in plain language and it describes what the code actually does. If something here is unclear, email me and I'll explain it.</p>
+
+  <nav class="toc" aria-label="On this page">
+    <a href="#who">Who runs this</a>
+    <a href="#collect">What is collected</a>
+    <a href="#gmail">Gmail and Google data</a>
+    <a href="#share">Who else sees it</a>
+    <a href="#cookies">Cookies and analytics</a>
+    <a href="#keep">How long it's kept</a>
+    <a href="#delete">Deleting your data</a>
+    <a href="#security">Security</a>
+    <a href="#kids">Children</a>
+    <a href="#changes">Changes</a>
+    <a href="#contact">Contact</a>
+  </nav>
+
+  <h2 id="who">Who runs this</h2>
+  <p>Erik's Apps are built and run by Erik Strong (Strong Technical Consulting) in Atlanta, Georgia, USA. They include Trip Planner, the college football app, Hopscotch, Spellbook, DataViz, Friction, the shared account site, this website, and one private, invitation-only family trip app. "I" and "me" below means Erik.</p>
+
+  <h2 id="collect">What is collected</h2>
+  <h3>Your account</h3>
+  <ul>
+    <li><b>Email address</b>, to identify your account and sign you in.</li>
+    <li><b>Password</b>, stored only as a one-way salted hash, never as the password itself.</li>
+    <li><b>Passkeys</b> (Face ID / Touch ID), stored as public keys. Your fingerprint or face never leaves your device.</li>
+    <li><b>Usage balance</b>: how much of your AI allowance or credit you have spent, and whether you have a membership.</li>
+  </ul>
+  <h3>What you put into the apps</h3>
+  <p>The trips, itineraries, notes, packing lists, budgets, chat questions and answers, prompts, uploaded data and other things you create. They are stored so the app can show them back to you. Other users can't see them unless you share them yourself, for example with a share link.</p>
+  <h3>Payments</h3>
+  <p>Payments are handled by Stripe. I store your Stripe customer ID and your membership status. <b>I never see or store your card number.</b></p>
+  <h3>Your own API key</h3>
+  <p>If you choose to bring your own Anthropic API key, it is stored encrypted (AES-256-GCM) and used only for your own requests.</p>
+  <h3>Newsletter</h3>
+  <p>If you subscribe to the blog, I store your email address and whether you confirmed or unsubscribed. Every email has an unsubscribe link.</p>
+  <h3>Usage counts</h3>
+  <p>Anonymous view counts: which app and page were opened, the site that linked to it (host name only), and a random ID in a cookie. <b>IP addresses, device details and anything tied to your account are not stored.</b> See also <a href="#cookies">Cookies and analytics</a>.</p>
+
+  <h2 id="gmail">Gmail and Google data</h2>
+  <p>Trip Planner, and the private trip app, can read your travel booking confirmations from Gmail and offer to turn them into trips or bookings. <b>This is off unless you connect Gmail yourself</b>, and you can disconnect at any time.</p>
+  <h3>What is accessed</h3>
+  <p>Google's only permission for reading email is <code>gmail.readonly</code>, so Google's screen will say the app can "read your email." What the apps actually do is narrower, and the code enforces it:</p>
+  <ul>
+    <li><b>A fixed search.</b> The apps search only for messages from a fixed list of about 100 travel companies, in nine groups: airlines, hotels and stays, car rentals, booking sites, trains and buses, cruises, tours and tickets, restaurants, and parking. The search covers the last 12 months only. The list is written into the code, and nothing you type or a request sends can widen it. It skips Gmail's Promotions and Social tabs.</li>
+    <li><b>At most 40 messages</b> per scan, and only when you tap to scan.</li>
+    <li><b>Read-only.</b> The apps can't send, delete, label or change anything in your mailbox.</li>
+  </ul>
+  <h3>How it is used</h3>
+  <p>The text of those messages is used only to pull out booking details, such as flights, hotels, rental cars, reservations and confirmation numbers, and show them to you as a suggestion. <b>Nothing is saved until you tap to add it.</b> What you add becomes part of your trip, like anything else you type in.</p>
+  <h3>What is stored</h3>
+  <ul>
+    <li><b>Email contents are never stored.</b> They are read once for the scan and then discarded. The only thing kept is the booking details you choose to save.</li>
+    <li>A Google <b>access token</b> is stored, encrypted (AES-256-GCM) and tied to your account, so the app can scan again when you ask.</li>
+  </ul>
+  <h3>Who else sees it</h3>
+  <p>To extract booking details, the message text is sent to <b>Anthropic</b>, which provides the AI model. It is sent only for that purpose, and Anthropic processes it under its commercial API terms, which do not allow it to train its models on that data. It is not shared with anyone else, not sold, and not used for advertising. I don't read your email. The only exceptions: if you ask me to help with a problem, if it's needed for security, or if the law requires it.</p>
+  <p>Google user data is never used to develop, improve or train AI or machine-learning models.</p>
+  <h3>Disconnecting</h3>
+  <p>Tap <b>Disconnect Gmail</b> in the app. This revokes access at Google first, then deletes the stored token. You can also remove access at any time from your Google Account at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+  <p class="callout">Erik's Apps' use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+  <h2 id="share">Who else sees it</h2>
+  <p>I don't sell your data and there is no advertising. These companies process data only to run the apps:</p>
+  <ul>
+    <li><b>Google Cloud</b>: hosting and the databases everything above is stored in (United States).</li>
+    <li><b>Anthropic</b>: the AI model. It receives what you ask the AI features and the context needed to answer, such as a trip's details or the Gmail messages described above.</li>
+    <li><b>Stripe</b>: payments.</li>
+    <li><b>Google Analytics</b>: usage statistics on the public apps (see below).</li>
+    <li><b>Resend</b>: sends newsletter and password-reset email.</li>
+    <li><b>MET Norway</b> and <b>OpenStreetMap Nominatim</b>: Trip Planner's weather. They receive only a trip's destination name or map coordinates, never who you are.</li>
+  </ul>
+  <p>I would also disclose data if the law required it, or to protect the apps or their users from fraud or abuse.</p>
+
+  <h2 id="cookies">Cookies and analytics</h2>
+  <ul>
+    <li><b>Sign-in cookies</b> keep you signed in. They're required for the apps to work.</li>
+    <li><b>A random visitor ID</b> for the anonymous view counts above.</li>
+    <li><b>Google Analytics</b> runs on the public apps and sets its own cookies, to show which pages are used. It doesn't run on the admin pages or on the private trip app. You can block it with any content blocker, or with Google's <a href="https://tools.google.com/dlpage/gaoptout">opt-out add-on</a>. The apps work the same either way.</li>
+  </ul>
+
+  <h2 id="keep">How long it's kept</h2>
+  <p>Your account and what you create are kept until you delete them or ask me to. Payment records are kept as long as tax and accounting law requires. A Gmail token is kept until you disconnect or Google ends the connection. Email contents are never kept.</p>
+
+  <h2 id="delete">Deleting your data</h2>
+  <ul>
+    <li>Delete a trip, list or other item from inside the app.</li>
+    <li>Delete your account from the <a href="https://acct.strongtechnicalconsulting.com">account page</a>. That removes the sign-in, but not what you made inside each app, so delete those items first or ask me to.</li>
+    <li>To have everything removed from every app, or to get a copy of your data, email me from the address on your account. I'll do it within 30 days and confirm when it's done.</li>
+  </ul>
+
+  <h2 id="security">Security</h2>
+  <p>All traffic is encrypted with HTTPS. Passwords are hashed. API keys and Gmail tokens are encrypted. Each app runs under its own restricted service account that can reach only the data that app needs. No system is perfectly secure. If I learn of a breach that affects your data, I'll tell you.</p>
+
+  <h2 id="kids">Children</h2>
+  <p>The apps are not meant for children under 13, and I don't knowingly collect data from them. If you believe a child has created an account, email me and I'll delete it.</p>
+
+  <h2 id="changes">Changes</h2>
+  <p>If this policy changes, the date at the top changes too. If a change affects how your data is used, especially Gmail data, I'll say so in the app before it takes effect, and I won't use data you already gave for a new purpose without asking.</p>
+
+  <h2 id="contact">Contact</h2>
+  <p>Erik Strong &middot; <a href="mailto:erik.strong@strongtechnicalconsulting.com">erik.strong@strongtechnicalconsulting.com</a> &middot; Atlanta, Georgia, USA</p>
+
+  <p class="foot"><a href="/terms">Terms of Service</a> &middot; <a href="/">Home</a></p>
+</main>
+</body>
+</html>
