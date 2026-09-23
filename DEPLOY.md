@@ -110,12 +110,39 @@ that, `gcpdeploy ship` handles every later deploy.
 
 Two things Cloud Run will reject or overcharge for:
 
-- **Memory under 512Mi requires `resources.cpuIdle: true`.** Without it the
-  service defaults to CPU always-allocated, which both rejects 256Mi and bills
-  for idle time. `cpuIdle: true` bills CPU only while a request is in flight.
+- **Set `resources.cpuIdle: true` on EVERY service, explicitly.** In the v2
+  API, a container that declares `resources.limits` and leaves `cpuIdle`
+  unset gets CPU always-allocated — instance-based billing, charged for every
+  second an instance is alive, including the ~15 idle minutes after each
+  request. `cpuIdle: true` bills only while a request is in flight. (Under
+  512Mi it is also mandatory; 256Mi is rejected without it.)
+
+  This cost real money until 2026-09-23. Five services (football,
+  trip-planner, friction, dataviz, santa-rosa) had it unset and were billed
+  ~296 instance-hours in 30 days for ~2 hours of actual request handling —
+  roughly $15/month after the free tier, for traffic the free tier covers
+  entirely on request-based billing. The landing page, on `cpuIdle: true`,
+  served the MOST requests (15.8k) and was billed half an hour. All eight
+  services are request-based now. `gcpdeploy ship` copies the live template,
+  so the setting survives deploys; a new service must set it itself.
+
+  **The rule this imposes on code: never keep working after the response.**
+  Between requests the CPU is throttled to near zero, so anything
+  fire-and-forget — respond 202 then process, a `setInterval` sweep, a
+  promise left running after `res.json()` — stalls until the next request.
+  Every cron route here awaits its work before responding (checked
+  2026-09-23), and `streamedJson`'s heartbeat runs inside an open request,
+  which keeps CPU allocated. Keep it that way; a job that needs to outlive its
+  request needs a Cloud Run job, not a detached promise.
 - **Leave `minInstanceCount` at 0.** Any other value is a standing charge. For
   the landing page that is the entire reason it is on Cloud Run rather than
   behind a load balancer.
+- **Old images clean themselves up.** The `erik-projects` Artifact Registry
+  repository has a cleanup policy (2026-09-23): delete versions older than 7
+  days UNLESS among the 5 newest of that image. Every running service ran its
+  image's newest version when it was set, and each deploy pushes a new one, so
+  rollback reaches back five deploys per app. It was 3.6 GB and growing with
+  no policy at all.
 
 ## Verifying without HTTP access
 
