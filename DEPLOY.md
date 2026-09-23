@@ -143,6 +143,13 @@ Two things Cloud Run will reject or overcharge for:
   image's newest version when it was set, and each deploy pushes a new one, so
   rollback reaches back five deploys per app. It was 3.6 GB and growing with
   no policy at all.
+- **Trip photos live in Cloud Storage, one private bucket per app**
+  (2026-09-23): public access prevention enforced, uniform access, each
+  bucket readable only by its own app's runtime account (see
+  `docs/phase4-runtime-service-accounts.md`). Mounted as `PHOTOS_BUCKET`;
+  without it the Memories feature reports itself unavailable. The apps stream
+  every photo themselves through their sign-in check — no public objects, no
+  signed URLs. `shared/photostore.js` is the client.
 
 ## Verifying without HTTP access
 

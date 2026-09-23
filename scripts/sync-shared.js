@@ -24,7 +24,7 @@ const TARGETS = [
   // Server-side modules, per app, exactly as each app actually carries them.
   ['eriks-projects/apps/friction/lib', ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'sitepass.js', 'analytics.js']],
   ['eriks-projects/apps/dataviz/lib',  ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'analytics.js']],
-  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js']],
+  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js', 'receipts.js', 'statement.js', 'photostore.js']],
   ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
   // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
   // own to collide with, unlike trip-planner and football. It does not take
@@ -37,7 +37,7 @@ const TARGETS = [
   // (the token vault) and nothing from identity: reading booking mail does
   // not need the shared account, and joining it would put a private app on
   // the domain-wide sign-in it deliberately stays off.
-  ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js', 'gmail.js', 'byok.js']],
+  ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js', 'gmail.js', 'byok.js', 'receipts.js', 'statement.js', 'photostore.js']],
   // The browser-side tour helper.
   // The view beacon rides along with the browser helpers: every app that
   // appears in the trending ranking has to report itself, or the ranking is
@@ -45,11 +45,11 @@ const TARGETS = [
   ['eriks-projects/site', ['passkey-client.js', 'beacon.js']],
   ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css', 'beacon.js']],
   ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css', 'beacon.js']],
-  ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js']],
+  ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js']],
   ['beer-app/web/public',                 ['tour.js', 'beacon.js']],
   ['spellbook/public',                    ['beacon.js']],
-  ['santa-rosa-beach-trip/public',        ['desktop.css']],
+  ['santa-rosa-beach-trip/public',        ['desktop.css', 'photo-tools.js']],
 ];
 
 // Apps that already had a webauthn.js of their own; identity.js is copied in
