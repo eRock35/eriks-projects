@@ -18,6 +18,10 @@ const { host, mounted } = require('../server');
   const ok = (name) => { n++; console.log('  ok  ' + name); };
 
   assert.ok(mounted.includes('spar')); ok('spar is mounted');
+  const cors = await fetch(base + '/api/lab', { headers: { Origin: 'https://www.strongtechnicalconsulting.com' } });
+  assert.strictEqual(cors.headers.get('access-control-allow-origin'), 'https://www.strongtechnicalconsulting.com');
+  const evil = await fetch(base + '/api/lab', { headers: { Origin: 'https://evil.example' } });
+  assert.strictEqual(evil.headers.get('access-control-allow-origin'), null); ok('only the main site may read the lab cross-origin');
   const lab = await call('GET', '/api/lab');
   assert.strictEqual(lab.status, 200); assert.ok(lab.data.apps.length >= 1); ok('lab lists the apps');
   const r = await call('GET', '/spar');

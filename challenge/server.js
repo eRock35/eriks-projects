@@ -107,8 +107,13 @@ const lj = express.json({ limit: '8kb' });
 host.get('/api/health', (_req, res) => res.json({ ok: true, apps: mounted }));
 host.get('/healthz', (_req, res) => res.json({ ok: true }));
 
+// The main site's /challenge page draws the live drops from here.
+const SITE_ORIGINS = new Set(['https://www.strongtechnicalconsulting.com', 'https://strongtechnicalconsulting.com']);
+
 host.get('/api/lab', async (req, res) => {
   try {
+    const origin = req.get('origin');
+    if (origin && SITE_ORIGINS.has(origin)) { res.set('Access-Control-Allow-Origin', origin); res.set('Vary', 'Origin'); }
     const vid = visitor(req, res);
     const apps = [];
     for (const a of lab.APPS) {

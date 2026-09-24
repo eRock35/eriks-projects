@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Challenge · Erik Strong</title>
+<meta name="description" content="Erik's build-in-public challenge: a new app every other day, each one aimed at a real business problem. Try them, vote to keep or kill, and watch the winners graduate." />
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+<meta property="og:title" content="The Challenge: a new app every other day" />
+<meta property="og:description" content="Real business problems, fun apps, built in public. Try them and vote keep or kill." />
+<meta property="og:image" content="https://www.strongtechnicalconsulting.com/assets/erik.jpg" />
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/erik-320.jpg" />
+<script src="/analytics.js" async></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #F2F2F7; --card: #FFFFFF; --fill: rgba(120,120,128,0.12); --fill-2: rgba(120,120,128,0.18);
+    --label: #000; --label-2: rgba(60,60,67,0.62); --label-3: rgba(60,60,67,0.42); --sep: rgba(60,60,67,0.16);
+    --tint: #007AFF; --violet: #7c3aed; --pink: #ec4899; --amber: #f59e0b; --green: #34C759;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 24px rgba(0,0,0,0.06);
+    --shadow-lift: 0 2px 6px rgba(0,0,0,0.05), 0 22px 44px rgba(0,0,0,0.11);
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
+      --label: #fff; --label-2: rgba(235,235,245,0.62); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.5);
+      --tint: #0A84FF; --green: #32D74B;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
+      --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 44px rgba(0,0,0,0.6);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--label); overflow-x: hidden;
+    font: 17px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 40px);
+  }
+  a { color: var(--tint); text-decoration: none; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.025em; line-height: 1.08; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
+
+  .aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .aurora::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, var(--bg) 70%); }
+  .aurora i { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .42; }
+  .aurora i:nth-child(1) { width: 50vmax; height: 50vmax; top: -22vmax; left: -14vmax; background: var(--violet); animation: d1 28s var(--ease) infinite alternate; }
+  .aurora i:nth-child(2) { width: 42vmax; height: 42vmax; top: -12vmax; right: -16vmax; background: var(--pink); animation: d2 34s var(--ease) infinite alternate; }
+  .aurora i:nth-child(3) { width: 30vmax; height: 30vmax; top: 16vmax; left: 30vmax; background: var(--amber); opacity: .22; animation: d1 40s var(--ease) infinite alternate-reverse; }
+  @keyframes d1 { to { transform: translate3d(12vmax, 8vmax, 0) scale(1.15); } }
+  @keyframes d2 { to { transform: translate3d(-10vmax, 12vmax, 0) scale(.9); } }
+
+  .top { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; font-size: 15px; font-weight: 600; }
+  .top a.back { color: var(--label-2); }
+
+  .hero { padding: 40px 0 10px; }
+  .kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--label-2); background: var(--card); padding: 7px 13px; border-radius: 999px; box-shadow: var(--shadow); }
+  .kicker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: ping 1.8s infinite; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(52,199,89,.6); } 70%, 100% { box-shadow: 0 0 0 10px rgba(52,199,89,0); } }
+  .hero h1 { font-size: clamp(42px, 8.5vw, 84px); font-weight: 800; margin: 20px 0 16px; }
+  .grad { background: linear-gradient(100deg, var(--violet), var(--pink) 50%, var(--amber)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: clamp(18px, 2.3vw, 21px); color: var(--label-2); max-width: 680px; margin: 0; }
+  .lede b { color: var(--label); }
+  .ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 20px; border-radius: 14px; font-weight: 700; font-size: 16px; transition: transform .15s var(--ease), box-shadow .2s; }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { color: #fff; background: linear-gradient(135deg, var(--violet), var(--pink)); box-shadow: 0 12px 28px -10px var(--pink); }
+  .btn-primary:hover { box-shadow: 0 16px 34px -10px var(--pink); }
+  .btn-secondary { color: var(--label); background: var(--card); box-shadow: var(--shadow); }
+
+  .scoreboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 40px 0 10px; }
+  .score { background: var(--card); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
+  .score b { display: block; font-size: 36px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .score span { color: var(--label-2); font-size: 14px; font-weight: 600; }
+  .score.hot b { background: linear-gradient(100deg, var(--violet), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .goalbar { margin-top: 10px; height: 8px; border-radius: 99px; background: var(--fill); overflow: hidden; }
+  .goalbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--violet), var(--pink), var(--amber)); transition: width 1.4s var(--ease); }
+
+  section { padding: 50px 0 0; }
+  .sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .sec-head h2 { font-size: clamp(28px, 4.5vw, 40px); }
+  .sec-head span { color: var(--label-2); font-size: 15px; }
+
+  .why { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .why div { background: var(--card); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); }
+  .why .e { font-size: 30px; }
+  .why h3 { font-size: 19px; margin: 10px 0 6px; }
+  .why p { margin: 0; color: var(--label-2); font-size: 15.5px; }
+
+  .drops { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .drop { display: flex; flex-direction: column; background: var(--card); border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); color: var(--label); transition: transform .3s var(--ease), box-shadow .3s; }
+  .drop:hover { transform: translateY(-5px); box-shadow: var(--shadow-lift); }
+  .drop .band { position: relative; height: 110px; padding: 16px 18px; color: #fff; background: linear-gradient(135deg, var(--c1), var(--c2)); }
+  .drop .band .n { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; background: rgba(0,0,0,.2); padding: 4px 9px; border-radius: 999px; }
+  .drop .band .em { position: absolute; right: 16px; bottom: 10px; font-size: 64px; line-height: 1; filter: drop-shadow(0 8px 12px rgba(0,0,0,.25)); transition: transform .4s var(--ease); }
+  .drop:hover .em { transform: rotate(-10deg) scale(1.08); }
+  .drop .b { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .drop h3 { font-size: 22px; }
+  .drop p { margin: 0; color: var(--label-2); font-size: 15px; }
+  .drop .meta { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600; }
+  .drop .meta .v { color: var(--label-2); }
+  .drop .meta .go { color: var(--tint); }
+  .drop.next .band { background: repeating-linear-gradient(135deg, #2a2440 0 16px, #342c52 16px 32px); }
+  .drop.next .em { animation: bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-8px) rotate(8deg); } }
+  .count { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+  .timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+  .timeline::before { content: ""; position: absolute; left: 21px; top: 6px; bottom: 6px; width: 2px; background: var(--sep); }
+  .timeline li { position: relative; display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; }
+  .timeline .ic { width: 44px; height: 44px; flex: 0 0 auto; border-radius: 14px; display: grid; place-items: center; font-size: 22px; background: var(--card); box-shadow: var(--shadow); position: relative; z-index: 1; }
+  .timeline b { display: block; font-size: 17px; }
+  .timeline span { color: var(--label-2); font-size: 15px; }
+  .timeline .d { color: var(--label-3); font-size: 13px; font-weight: 600; }
+
+  .how { counter-reset: s; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .how div { background: var(--card); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
+  .how div::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: #fff; font-weight: 800; background: linear-gradient(135deg, var(--violet), var(--pink)); margin-bottom: 10px; }
+  .how b { display: block; font-size: 17px; }
+  .how p { margin: 4px 0 0; color: var(--label-2); font-size: 15px; }
+
+  .final { margin-top: 56px; text-align: center; background: var(--card); border-radius: 28px; padding: 40px 22px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .final::before { content: ""; position: absolute; inset: -40% -10% auto; height: 120%; background: radial-gradient(closest-side, color-mix(in srgb, var(--pink) 28%, transparent), transparent); pointer-events: none; }
+  .final h2 { font-size: clamp(28px, 5vw, 44px); position: relative; }
+  .final p { color: var(--label-2); position: relative; max-width: 520px; margin: 12px auto 22px; }
+  .final .btn { position: relative; }
+  footer { text-align: center; color: var(--label-3); font-size: 14px; margin-top: 40px; }
+
+  [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+  [data-reveal].in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } [data-reveal] { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="wrap">
+  <nav class="top"><a class="back" href="/">&larr; Erik Strong</a><a href="https://challenge.strongtechnicalconsulting.com">Open the lab ↗</a></nav>
+
+  <header class="hero">
+    <span class="kicker"><span class="dot"></span> Building in public</span>
+    <h1>The Challenge:<br><span class="grad">a new app every other day.</span></h1>
+    <p class="lede">I set myself a goal of shipping <b>one app a week</b>. Then I decided to find out how fast I could really go. Every other morning a brand-new app goes live in the lab. Each one goes after <b>a real business problem</b> and tries to be <b>genuinely fun to use</b>. You try it, you vote <b>keep or kill</b>, and the winners graduate to their own home.</p>
+    <div class="ctas">
+      <a class="btn btn-primary" href="https://challenge.strongtechnicalconsulting.com">🧪 Enter the lab</a>
+      <a class="btn btn-secondary" href="#drops">See the drops</a>
+    </div>
+  </header>
+
+  <div class="scoreboard" data-reveal>
+    <div class="score hot"><b id="sTotal">–</b><span>apps shipped since Sep 20</span></div>
+    <div class="score"><b id="sLab">–</b><span>challenge drops</span></div>
+    <div class="score"><b id="sPace">–</b><span>apps per week, vs a goal of 1</span><div class="goalbar"><i id="goalbar"></i></div></div>
+    <div class="score"><b id="sNext">–</b><span>until the next drop</span></div>
+  </div>
+
+  <section>
+    <div class="sec-head" data-reveal><h2>Why do this?</h2></div>
+    <div class="why">
+      <div data-reveal><div class="e">⚡</div><h3>Speed is a skill</h3><p>AI has changed how fast one person can go from idea to working product. The only honest way to find the new limit is to push on it every week.</p></div>
+      <div data-reveal><div class="e">💼</div><h3>Real problems only</h3><p>Every app starts from a headache someone actually has at work: slow quotes, awkward sales role-play, meetings nobody prepared for. No toy demos.</p></div>
+      <div data-reveal><div class="e">🎮</div><h3>Useful should be fun</h3><p>Streaks, scoreboards, a bit of theatre. If people don’t come back to a business tool, it isn’t working.</p></div>
+      <div data-reveal><div class="e">🗳️</div><h3>You decide what lives</h3><p>Nothing is precious. Your keep and kill votes decide which apps get a proper launch, and maybe an iPhone app.</p></div>
+    </div>
+  </section>
+
+  <section id="drops">
+    <div class="sec-head" data-reveal><h2>The drops</h2><span>Live in the lab now. Free to try.</span></div>
+    <div class="drops" id="dropGrid"></div>
+  </section>
+
+  <section>
+    <div class="sec-head" data-reveal><h2>How it works</h2></div>
+    <div class="how">
+      <div data-reveal><b>It drops</b><p>A new app goes live at challenge.strongtechnicalconsulting.com every other morning.</p></div>
+      <div data-reveal><b>You play</b><p>One free account covers every app on this site, with $2 of AI credit to start.</p></div>
+      <div data-reveal><b>You vote</b><p>🔥 Keep or 💀 kill, and tell me what you’d change. I read every note.</p></div>
+      <div data-reveal><b>It graduates</b><p>Keepers get their own subdomain and a real launch, like the apps below.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head" data-reveal><h2>The road so far</h2><span>Shipped and running</span></div>
+    <ol class="timeline" id="timeline"></ol>
+  </section>
+
+  <div class="final" data-reveal>
+    <h2>Come break something.</h2>
+    <p>The lab is where the rough edges live. Try an app, vote, and tell me what would make you use it every week.</p>
+    <a class="btn btn-primary" href="https://challenge.strongtechnicalconsulting.com">🧪 Enter the lab</a>
+  </div>
+  <footer>Built by <a href="/">Erik Strong</a> with Claude as co-pilot · Atlanta, Georgia</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var LAB = 'https://challenge.strongtechnicalconsulting.com';
+  // Apps shipped before the challenge started, oldest first. Kept here rather
+  // than fetched: they change rarely, and this page must draw with no network.
+  var SHIPPED = [
+    { name: 'College Football', emoji: '🏈', what: 'Weekly picks, parlays and a team page for every FBS school', date: '2026-09-20', url: 'https://footballapp.strongtechnicalconsulting.com' },
+    { name: 'Hopscotch', emoji: '🍺', what: 'A craft beer passport, brewery finder and tasting journal', date: '2026-09-20', url: 'https://beer.strongtechnicalconsulting.com' },
+    { name: 'Trip Planner', emoji: '✈️', what: 'Research, plan and watch prices for every trip in one place', date: '2026-09-20', url: 'https://trip.strongtechnicalconsulting.com' },
+    { name: 'Friction', emoji: '🧭', what: 'Finds the business problems people keep complaining about', date: '2026-09-21', url: 'https://friction.strongtechnicalconsulting.com' },
+    { name: 'DataViz', emoji: '📊', what: 'Paste a table, get an animated chart', date: '2026-09-21', url: 'https://dataviz.strongtechnicalconsulting.com' },
+    { name: 'Spellbook', emoji: '✨', what: 'A prompt library with what’s trending', date: '2026-09-22', url: 'https://spellbook.strongtechnicalconsulting.com' },
+  ];
+  // What the lab held when this page was written, so it draws even if the lab
+  // is asleep or unreachable. Replaced by the live list when it answers.
+  var FALLBACK = [
+    { slug: 'spar', name: 'Spar', emoji: '🥊', color: '#ff5a36', color2: '#ff8a3d', dropped: '2026-09-24', tagline: 'Practise the hard conversation before it counts.', votes: { keep: 0, kill: 0 }, status: 'testing' },
+    { slug: 'snapquote', name: 'Snapquote', emoji: '📸', color: '#10b981', color2: '#06b6d4', dropped: '2026-09-24', tagline: 'A few photos and a voice note become a pro quote in 60 seconds.', votes: { keep: 0, kill: 0 }, status: 'testing' },
+  ];
+  var START = new Date('2026-09-20T00:00:00Z');
+
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fmt(iso) { return new Date(iso + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+  function nextDrop(now) {
+    var d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 9));
+    for (var i = 0; i < 40; i++) { if (d > now && d.getUTCDate() % 2 === 0) return d; d = new Date(d.getTime() + 864e5); }
+    return d;
+  }
+
+  function draw(apps) {
+    var grid = document.getElementById('dropGrid');
+    grid.innerHTML = apps.map(function (a, i) {
+      var href = a.status === 'graduated' && a.home ? a.home : LAB + '/' + a.slug + '/';
+      var total = (a.votes.keep || 0) + (a.votes.kill || 0);
+      var v = total ? '🔥 ' + Math.round(a.votes.keep / total * 100) + '% keep · ' + total + ' vote' + (total === 1 ? '' : 's') : 'No votes yet';
+      return '<a class="drop" href="' + esc(href) + '" style="--c1:' + esc(a.color) + ';--c2:' + esc(a.color2) + '">' +
+        '<div class="band"><span class="n">Drop #' + String(i + 1).padStart(2, '0') + ' · ' + esc(fmt(a.dropped)) + '</span><span class="em">' + esc(a.emoji) + '</span></div>' +
+        '<div class="b"><h3>' + esc(a.name) + '</h3><p>' + esc(a.tagline) + '</p>' +
+        '<div class="meta"><span class="v">' + esc(v) + '</span><span class="go">Try it ↗</span></div></div></a>';
+    }).join('') +
+      '<a class="drop next" href="' + LAB + '"><div class="band"><span class="n">Drop #' + String(apps.length + 1).padStart(2, '0') + ' · Classified</span><span class="em">🧪</span></div>' +
+      '<div class="b"><h3>Next up…</h3><p>Being built right now.</p><div class="count" id="count">–</div><div class="meta"><span class="v">Every other day</span><span class="go">Open the lab ↗</span></div></div></a>';
+
+    var total = SHIPPED.length + apps.length;
+    var weeks = Math.max(1, (Date.now() - START) / (7 * 864e5));
+    var pace = total / weeks;
+    document.getElementById('sTotal').textContent = total;
+    document.getElementById('sLab').textContent = apps.length;
+    document.getElementById('sPace').textContent = pace.toFixed(1) + '×';
+    setTimeout(function () { document.getElementById('goalbar').style.width = Math.min(100, pace / 7 * 100) + '%'; }, 300);
+
+    var tl = SHIPPED.map(function (s) { return { name: s.name, emoji: s.emoji, what: s.what, date: s.date, url: s.url }; })
+      .concat(apps.map(function (a) { return { name: a.name + ' (in the lab)', emoji: a.emoji, what: a.tagline, date: a.dropped, url: LAB + '/' + a.slug + '/' }; }))
+      .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    document.getElementById('timeline').innerHTML = tl.map(function (t) {
+      return '<li data-reveal class="in"><span class="ic">' + esc(t.emoji) + '</span><div><div class="d">' + esc(fmt(t.date)) + '</div><b><a href="' + esc(t.url) + '">' + esc(t.name) + '</a></b><span>' + esc(t.what) + '</span></div></li>';
+    }).join('');
+  }
+
+  function tick() {
+    var ms = nextDrop(new Date()) - Date.now();
+    var d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60, s = Math.floor(ms / 1e3) % 60;
+    var short = (d ? d + 'd ' : '') + h + 'h ' + String(m).padStart(2, '0') + 'm';
+    document.getElementById('sNext').textContent = short;
+    var c = document.getElementById('count'); if (c) c.textContent = short + ' ' + String(s).padStart(2, '0') + 's';
+  }
+
+  draw(FALLBACK); tick(); setInterval(tick, 1000);
+  fetch(LAB + '/api/lab', { mode: 'cors' }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && d.apps && d.apps.length) { draw(d.apps.filter(function (a) { return a.status !== 'retired'; })); tick(); } })
+    .catch(function () { /* the fallback is already drawn */ });
+
+  var io = 'IntersectionObserver' in window ? new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 }) : null;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-reveal]'), function (el) { io ? io.observe(el) : el.classList.add('in'); });
+})();
+</script>
+</body>
+</html>
