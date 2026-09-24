@@ -88,15 +88,18 @@ Accounts are the shared identity (`identity` database), mounted at `/api/auth`.
 
 ## Deploy (first time — not done yet)
 
-Built in a session with no GCP key, so it has **never been deployed**. The
-first deploy needs these, in order:
-
-1. Firestore database `spar`, Native mode, `us-central1`.
+1. Firestore database `spar`, Native mode, `us-central1` — **created
+   2026-09-24**.
 2. Runtime service account `spar-run@` holding `logging.logWriter`,
    `datastore.user` conditioned to the `spar` **and** `identity` databases, and
    `secretAccessor` on `anthropic-api-key` and `identity-session-secret`. The
-   deployer cannot grant IAM — **this step is Erik's**, same as every other
-   runtime account (`docs/phase4-runtime-service-accounts.md`).
+   deployer cannot grant IAM — **this step is Erik's**:
+   `scripts/new-app-accounts.sh spar` in Cloud Shell does exactly this.
+
+   Borrowing another app's runtime account to stage sooner was considered and
+   refused: running as `dataviz-run` would mean writing Spar's data into
+   DataViz's database, and `landing-run` can read every database including
+   the family app's. Staging a day later beats either.
 3. Build the image (Cloud Build, as `gcpdeploy ship` does) and `POST` the
    service once (DEPLOY.md → "Creating a service") with `cpuIdle: true`,
    `minInstanceCount: 0`, `allUsers` as invoker, and env:

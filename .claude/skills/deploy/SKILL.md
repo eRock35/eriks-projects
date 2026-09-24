@@ -12,6 +12,7 @@ hand-roll `curl` calls unless the script genuinely can't do what's needed.
 ```
 ./gcpdeploy status          # what's running: services, cron jobs, databases
 ./gcpdeploy ship <app>      # build the checked-out repo and deploy it
+./gcpdeploy create <app>    # FIRST deploy of a new standard app (see below)
 ./gcpdeploy verify <app>    # force the cron job, read back what it wrote
 ./gcpdeploy page            # upload the landing page
 ./gcpdeploy auth            # re-mint the token (ship/verify do this for you)
@@ -69,6 +70,18 @@ Two things that have bitten this project before:
 A revision reaching Ready is real evidence: Cloud Run fails the revision if a
 referenced secret can't be read, so Ready means the secrets mounted and the
 container bound its port.
+
+## First deploy of a new app: `create`
+
+`ship` only updates a service that exists. `create` (create_service.py) does
+the first deploy for the standard shape every new app shares: its own
+Firestore database (created if missing), runs as `<service>-run@`, env for
+project/database/identity plus the `anthropic-api-key` and
+`identity-session-secret` secrets, `cpuIdle: true`, min instances 0, public
+invoker. It refuses if the runtime account does not exist - Erik creates it
+with `scripts/new-app-accounts.sh <app>` in Cloud Shell, because the deployer
+has no IAM-admin rights. **Do not borrow another app's runtime account** to
+get around that: it means borrowing that app's data access.
 
 ## Verifying without HTTP
 

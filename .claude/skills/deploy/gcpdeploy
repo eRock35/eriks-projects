@@ -331,6 +331,8 @@ case "${1:-}" in
   ship)   shift; cmd_ship "$@";;
   verify) shift; cmd_verify "$@";;
   page)   cmd_page;;
+  create) shift; [[ -n "${1:-}" ]] || die "usage: gcpdeploy create <app>"
+          "$(find_venv)" "$HERE/create_service.py" "$(find_key)" "$1";;
   ""|-h|--help|help) usage;;
   *) die "unknown command '$1' (try: gcpdeploy help)";;
 esac
