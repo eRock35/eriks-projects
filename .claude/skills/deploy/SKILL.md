@@ -12,7 +12,6 @@ hand-roll `curl` calls unless the script genuinely can't do what's needed.
 ```
 ./gcpdeploy status          # what's running: services, cron jobs, databases
 ./gcpdeploy ship <app>      # build the checked-out repo and deploy it
-./gcpdeploy account <app>   # create <app>-run@ with the standard narrow roles
 ./gcpdeploy create <app>    # FIRST deploy of a new standard app (see below)
 ./gcpdeploy verify <app>    # force the cron job, read back what it wrote
 ./gcpdeploy page            # upload the landing page
@@ -79,11 +78,9 @@ the first deploy for the standard shape every new app shares: its own
 Firestore database (created if missing), runs as `<service>-run@`, env for
 project/database/identity plus the `anthropic-api-key` and
 `identity-session-secret` secrets, `cpuIdle: true`, min instances 0, public
-invoker. It refuses if the runtime account does not exist - create it first
-with `gcpdeploy account <app>` (runtime_account.py). Erik made the deployer an
-Owner on 2026-09-24 and asked for this step to be automated; the tool grants a
-fixed, narrow set of roles and has no flag for more. Without Owner on the
-deployer, `scripts/new-app-accounts.sh <app>` in Cloud Shell does the same. **Do not borrow another app's runtime account** to
+invoker. It refuses if the runtime account does not exist - Erik creates it
+with `scripts/new-app-accounts.sh <app>` in Cloud Shell, because the deployer
+has no IAM-admin rights. **Do not borrow another app's runtime account** to
 get around that: it means borrowing that app's data access.
 
 ## Verifying without HTTP
