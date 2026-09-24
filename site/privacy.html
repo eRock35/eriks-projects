@@ -26,6 +26,7 @@
     <a href="#who">Who runs this</a>
     <a href="#collect">What is collected</a>
     <a href="#gmail">Gmail and Google data</a>
+    <a href="#receipts">Receipts, statements and photos</a>
     <a href="#share">Who else sees it</a>
     <a href="#cookies">Cookies and analytics</a>
     <a href="#keep">How long it's kept</a>
@@ -48,7 +49,7 @@
     <li><b>Usage balance</b>: how much of your AI allowance or credit you have spent, and whether you have a membership.</li>
   </ul>
   <h3>What you put into the apps</h3>
-  <p>The trips, itineraries, notes, packing lists, budgets, chat questions and answers, prompts, uploaded data and other things you create. They are stored so the app can show them back to you. Other users can't see them unless you share them yourself, for example with a share link.</p>
+  <p>The trips, itineraries, notes, packing lists, budgets, trip photos, chat questions and answers, prompts, uploaded data and other things you create. They are stored so the app can show them back to you. Other users can't see them unless you share them yourself: a trip you share with someone by email, which they can then see and change, or a share link.</p>
   <h3>Payments</h3>
   <p>Payments are handled by Stripe. I store your Stripe customer ID and your membership status. <b>I never see or store your card number.</b></p>
   <h3>Your own API key</h3>
@@ -57,6 +58,20 @@
   <p>If you subscribe to the blog, I store your email address and whether you confirmed or unsubscribed. Every email has an unsubscribe link.</p>
   <h3>Usage counts</h3>
   <p>Anonymous view counts: which app and page were opened, the site that linked to it (host name only), and a random ID in a cookie. <b>IP addresses, device details and anything tied to your account are not stored.</b> See also <a href="#cookies">Cookies and analytics</a>.</p>
+
+  <h2 id="receipts">Receipts, card statements and photos</h2>
+  <p>The trip apps can add spending from a photo of a receipt or from a card statement, and keep a trip's photos as Memories.</p>
+  <h3>Receipt photos</h3>
+  <p>When you scan a receipt, the photo is sent to <b>Anthropic</b> to read the total, the merchant and the date, and shown to you as a suggestion. <b>The photo is not stored.</b> It's read once and dropped. Only the spending line you choose to add is kept.</p>
+  <h3>Card statements</h3>
+  <p>There is <b>no connection to your bank or card</b>, and the apps never see a bank login. You download your statement as a CSV file from your card's website and upload it. The file is read once to list the charges that fall within the trip, and then discarded. Only the charges you tick are saved. Statements are not sent to any AI.</p>
+  <h3>Photos</h3>
+  <ul>
+    <li><b>Private.</b> Photos are stored in private Google Cloud storage and are shown only to someone signed in to the account that owns the trip. They're never given a public link.</li>
+    <li><b>No location.</b> Your phone makes a smaller copy of each photo before uploading it, and that copy doesn't carry the photo's embedded location or camera details. The only thing kept is the date and time it was taken, so it's filed under the right day.</li>
+    <li><b>Not sent to AI.</b> Photos are not sent to Anthropic or any other AI service.</li>
+    <li><b>Deleted with the trip.</b> Deleting a photo, or the trip it belongs to, deletes the stored copies too.</li>
+  </ul>
 
   <h2 id="gmail">Gmail and Google data</h2>
   <p>Trip Planner, and the private trip app, can read your travel booking confirmations from Gmail and offer to turn them into trips or bookings. <b>This is off unless you connect Gmail yourself</b>, and you can disconnect at any time.</p>
@@ -86,11 +101,13 @@
   <p>I don't sell your data and there is no advertising. These companies process data only to run the apps:</p>
   <ul>
     <li><b>Google Cloud</b>: hosting and the databases everything above is stored in (United States).</li>
-    <li><b>Anthropic</b>: the AI model. It receives what you ask the AI features and the context needed to answer, such as a trip's details or the Gmail messages described above.</li>
+    <li><b>Anthropic</b>: the AI model. It receives what you ask the AI features and the context needed to answer, such as a trip's details, the Gmail messages described above, or a receipt photo you scan.</li>
     <li><b>Stripe</b>: payments.</li>
     <li><b>Google Analytics</b>: usage statistics on the public apps (see below).</li>
     <li><b>Resend</b>: sends newsletter and password-reset email.</li>
     <li><b>MET Norway</b> and <b>OpenStreetMap Nominatim</b>: Trip Planner's weather. They receive only a trip's destination name or map coordinates, never who you are.</li>
+    <li><b>Open Brewery DB</b>: Trip Planner's brewery crawls. It receives the map coordinates of the place you search near, never who you are.</li>
+    <li><b>OpenStreetMap</b>: the map on a brewery crawl. Your browser loads the map images directly from OpenStreetMap, so it sees your internet address and the area on screen, as with any map on the web.</li>
   </ul>
   <p>I would also disclose data if the law required it, or to protect the apps or their users from fraud or abuse.</p>
 
@@ -102,11 +119,11 @@
   </ul>
 
   <h2 id="keep">How long it's kept</h2>
-  <p>Your account and what you create are kept until you delete them or ask me to. Payment records are kept as long as tax and accounting law requires. A Gmail token is kept until you disconnect or Google ends the connection. Email contents are never kept.</p>
+  <p>Your account and what you create are kept until you delete them or ask me to. Payment records are kept as long as tax and accounting law requires. A Gmail token is kept until you disconnect or Google ends the connection. Email contents, receipt photos and statement files are never kept.</p>
 
   <h2 id="delete">Deleting your data</h2>
   <ul>
-    <li>Delete a trip, list or other item from inside the app.</li>
+    <li>Delete a trip, list, photo or other item from inside the app. Deleting a trip deletes its photos too.</li>
     <li>Delete your account from the <a href="https://acct.strongtechnicalconsulting.com">account page</a>. That removes the sign-in, but not what you made inside each app, so delete those items first or ask me to.</li>
     <li>To have everything removed from every app, or to get a copy of your data, email me from the address on your account. I'll do it within 30 days and confirm when it's done.</li>
   </ul>

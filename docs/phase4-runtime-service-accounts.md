@@ -121,3 +121,21 @@ As of 2026-09-23: `trip-planner-run` reads 10 secrets, `vacation-run` reads 7.
 `vacation-run` still reads nothing any other app can use to reach its data, and
 its datastore condition is unchanged — the OAuth client is shared, but a client
 ID and secret open nothing without a user's own consent at Google.
+
+### Photo buckets (2026-09-23)
+
+Two Cloud Storage buckets for trip photos, one per app, created by the
+deployer (it holds `storage.buckets.create` and bucket-level
+`setIamPolicy` — no project IAM was touched):
+
+| Bucket | Runtime account | Role | Notes |
+|---|---|---|---|
+| `metal-celerity-236019-trip-photos` | `trip-planner-run` | `roles/storage.objectUser` | Default project owner/editor/viewer convenience bindings left in place |
+| the vacation app's (named only in that app's service env, `PHOTOS_BUCKET`) | `vacation-run` | `roles/storage.objectUser` | The `projectViewer` convenience bindings were **removed**: photos of the children are readable by the app's own account and project owners/editors, nobody else |
+
+Both have uniform bucket-level access and public access prevention
+**enforced**, so no object in either can ever be made public. The apps stream
+every photo through their own sign-in check instead of handing out signed
+URLs — the runtime accounts hold no `iam.serviceAccounts.signBlob`, and
+should not gain it for this. No other runtime account holds a project-wide
+role, so none can reach either bucket.
