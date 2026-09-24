@@ -109,17 +109,24 @@ secrets. `anthropic-api-key` is the one intentionally shared value.
 
 ## Hopscotch (the beer app)
 
-`gcpdeploy ship beer` refuses on purpose. It builds through its own
-`cloudbuild.yaml` with a git-sha image tag, an `APP_VERSION` build arg, and a
-separate `hopscotch` Artifact Registry repo rather than the shared
-`erik-projects` one.
+`gcpdeploy ship beer` works: it is the `beer` entry in `apps.json`, shipped
+through the generic pipeline — Cloud Build on the repo's own Dockerfile (which
+builds the web bundle inside), pushed to the shared `erik-projects` registry
+and patched onto the live service image-only. The service keeps its env, the
+shared `anthropic-api-key` and `cron-secret`, its own `hopscotch-jwt-secret`,
+and its `hopscotch-run@` runtime account. Every revision since 4 went out this
+way.
 
-Its committed deploy tooling is also stale: `cloudbuild.yaml` and
-`deploy/deploy.sh` both call `gcloud`, which doesn't exist here, and they name
-two secrets that don't exist in this project (`hopscotch-anthropic-key`,
-`hopscotch-cron-secret`) — the running service uses the shared
-`anthropic-api-key` and `cron-secret`. Reconcile that before automating it;
-until then, deploy Hopscotch by hand.
+Two things to expect. Cloud Run has taken over ten minutes to start the new
+revision's instance; `ship` polls for less than that and can report "revision
+did not become ready" while the rollout is still in progress — check
+`gcpdeploy status` before treating that as a failure. And because the patch is
+image-only, `APP_VERSION` never changes; the reliable marker is `built` in
+`/api/health`, stamped at build time.
+
+The repo's own `cloudbuild.yaml` and `deploy/*.sh` drive `gcloud` and are for
+setting up a fresh project; they now default to the same secret names the
+running service uses.
 
 ## Custom domains
 
