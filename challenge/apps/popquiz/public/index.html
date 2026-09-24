@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pop Quiz — staff training that plays like a daily game</title>
+  <meta name="description" content="For restaurants, shops, salons, clinics, gyms and hotels: turn the binder nobody reads into five questions a day. Streaks, a team leaderboard, and a dashboard that shows what your team keeps getting wrong.">
+  <meta name="theme-color" content="#0d0b1a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5ff" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pop Quiz">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body class="dk">
+  <header class="top" id="top">
+    <a class="brand" href="#/"><span class="mark" aria-hidden="true">🧠</span>Pop Quiz</a>
+    <div class="row" id="topRight"></div>
+  </header>
+
+  <main class="wrap" id="view"></main>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Main">
+    <a class="brand rail-brand" href="#/"><span class="mark" aria-hidden="true">🧠</span>Pop Quiz</a>
+    <button data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H12L11 22l8.5-11.5H12z"/></svg><span>Today</span><i class="dot hidden" id="todayDot" aria-hidden="true"></i></button>
+    <button data-tab="board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg><span>Leaderboard</span></button>
+    <button data-tab="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span id="teamTabLabel">Dashboard</span></button>
+    <button data-tab="decks" id="decksTab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="14" height="15" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg><span>Decks</span></button>
+  </nav>
+
+  <script src="quiz.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

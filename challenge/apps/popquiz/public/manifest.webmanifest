@@ -1,0 +1,10 @@
+{
+  "name": "Pop Quiz",
+  "short_name": "Pop Quiz",
+  "description": "Staff training that plays like a daily game — five questions a day, streaks, and a leaderboard.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d0b1a",
+  "theme_color": "#0d0b1a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

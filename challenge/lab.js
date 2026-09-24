@@ -62,6 +62,21 @@ const APPS = [
     audience: 'Restaurants, salons, contractors, clinics & shops',
     status: 'testing',
   },
+  {
+    slug: 'popquiz',
+    name: 'Pop Quiz',
+    emoji: '🧠',
+    // Both ends hold white text at 4.5:1 or better, including under the
+    // card's white highlight in the top corner.
+    color: '#1e40af',
+    color2: '#6b21a8',
+    dropped: '2026-09-24',
+    tagline: 'Staff training that plays like a daily game.',
+    blurb: 'For any small team with new hires and rules that must stick. Paste the menu or the closing checklist — or snap the page — approve the questions, and your staff play five a day. Misses come back tomorrow, and you see what the whole team keeps getting wrong.',
+    features: ['Paste or snap the binder → a quiz', 'Five a day, streaks & a leaderboard', 'Misses come back until they stick', 'Blind spots: what to retrain'],
+    audience: 'Restaurants, shops, salons, clinics, gyms & hotels',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
