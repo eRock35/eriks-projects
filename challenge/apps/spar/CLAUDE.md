@@ -19,11 +19,13 @@ a public daily leaderboard), and gives managers a reason to pay: **Teams**,
 where they assign drills — including scenarios built about their own product —
 and see who practised and how they scored.
 
-## Same subdirectory arrangement as Friction and DataViz
+## Where it lives: the Challenge Lab
 
-Lives in `eriks-projects/apps/spar` because the installed GitHub App cannot
-create repositories. `apps.json` has a `spar` entry; moving it to its own repo
-is a `git mv` and one line.
+Spar is a trial app in `challenge/apps/spar`, served at
+`challenge.strongtechnicalconsulting.com/spar/` by the lab host. Read
+`challenge/CLAUDE.md` for how mounting, data prefixes (`spar_*` in the
+`challenge` database) and graduation work. Every browser URL here is relative
+to `BASE` for that reason; keep it that way.
 
 ## The decisions that matter
 
@@ -65,14 +67,14 @@ roughly 2¢ on Haiku, so the $2 free allowance is about 20+ rounds.
 
 ```
 npm run dev     # memory store + fake model on :8090, no Google, no key
-npm test        # 24 end-to-end tests over HTTP, same mode
+npm test        # 24 end-to-end tests over HTTP, mounted under /spar
 ```
 
 `SPAR_MEMORY=1` and `SPAR_FAKE_AI=1` both **throw on Cloud Run** (`K_SERVICE`
 set). A deployment that silently kept data in memory or answered with canned
 lines would look fine and be broken.
 
-## Data (Firestore, database `spar`)
+## Data (Firestore: `spar_*` collections in the lab database `challenge`)
 
 - `players/<uid>` — handle, xp, streak, badges, skill sums, best per scenario,
   teamIds.
@@ -86,36 +88,13 @@ lines would look fine and be broken.
 
 Accounts are the shared identity (`identity` database), mounted at `/api/auth`.
 
-## Deploy (first time — not done yet)
+## Deploy
 
-1. Firestore database `spar`, Native mode, `us-central1` — **created
-   2026-09-24**.
-2. Runtime service account `spar-run@` holding `logging.logWriter`,
-   `datastore.user` conditioned to the `spar` **and** `identity` databases, and
-   `secretAccessor` on `anthropic-api-key` and `identity-session-secret`. The
-   deployer cannot grant IAM — **this step is Erik's**:
-   `scripts/new-app-accounts.sh spar` in Cloud Shell does exactly this.
-
-   Borrowing another app's runtime account to stage sooner was considered and
-   refused: running as `dataviz-run` would mean writing Spar's data into
-   DataViz's database, and `landing-run` can read every database including
-   the family app's. Staging a day later beats either.
-3. Build the image (Cloud Build, as `gcpdeploy ship` does) and `POST` the
-   service once (DEPLOY.md → "Creating a service") with `cpuIdle: true`,
-   `minInstanceCount: 0`, `allUsers` as invoker, and env:
-   `GOOGLE_CLOUD_PROJECT=metal-celerity-236019`, `FIRESTORE_DATABASE_ID=spar`,
-   `IDENTITY_DATABASE_ID=identity`, `ANTHROPIC_API_KEY` (secret
-   `anthropic-api-key`), `IDENTITY_SESSION_SECRET` (secret
-   `identity-session-secret`).
-4. Leave `PASSKEY_RP_ID` **unset** while it lives on `*.run.app`: the shared
-   cookie and passkeys are scoped to `strongtechnicalconsulting.com`, which a
-   run.app host cannot use. Accounts still work (host-only cookie). Set it when
-   the subdomain is mapped — then sessions are shared with the other apps.
-5. No Stripe env yet: without `STRIPE_SECRET_KEY` the 402 links to a service
-   that can sell. Add `stripe-secret-key` / `stripe-member-price` with the
-   subdomain.
-
-After that, `gcpdeploy ship spar` handles every later deploy.
+Deployed as part of the lab: `gcpdeploy ship challenge`. It has no service,
+database or runtime account of its own until it graduates — see
+`challenge/CLAUDE.md` -> "Graduating an app". (A `spar` database was created
+on 2026-09-24 before the lab existed; it is empty and can be used on
+graduation or deleted.)
 
 ## Ideas not built yet
 

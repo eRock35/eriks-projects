@@ -108,6 +108,11 @@ function memoryBackend() {
  * Firestore
  * ------------------------------------------------------------------ */
 
+// Inside the challenge lab several apps share one database, so each app's
+// top-level collections carry its own prefix (`spar_players`, ...). Empty
+// once an app graduates to a database of its own.
+const PREFIX = String(process.env.SPAR_COLLECTION_PREFIX || '').replace(/[^a-z0-9_]/gi, '');
+
 function firestoreBackend() {
   const { Firestore, FieldValue } = require('@google-cloud/firestore');
   const db = new Firestore({
@@ -118,22 +123,22 @@ function firestoreBackend() {
   return {
     kind: 'firestore',
     async get(path, id) {
-      const snap = await db.collection(path).doc(String(id)).get();
+      const snap = await db.collection(PREFIX + path).doc(String(id)).get();
       return snap.exists ? { id: snap.id, ...snap.data() } : null;
     },
     async set(path, id, data) {
-      await db.collection(path).doc(String(id)).set(data);
+      await db.collection(PREFIX + path).doc(String(id)).set(data);
       return { id: String(id), ...data };
     },
     async merge(path, id, patch) {
-      await db.collection(path).doc(String(id)).set(patch, { merge: true });
+      await db.collection(PREFIX + path).doc(String(id)).set(patch, { merge: true });
     },
     async remove(path, id) {
-      await db.collection(path).doc(String(id)).delete();
+      await db.collection(PREFIX + path).doc(String(id)).delete();
     },
     async add(path, data) {
       const id = autoId();
-      await db.collection(path).doc(id).set(data);
+      await db.collection(PREFIX + path).doc(id).set(data);
       return id;
     },
     async bump(path, id, deltas) {
@@ -141,10 +146,10 @@ function firestoreBackend() {
       for (const [k, by] of Object.entries(deltas)) {
         if (typeof by === 'number' && Number.isFinite(by)) patch[k] = FieldValue.increment(by);
       }
-      if (Object.keys(patch).length) await db.collection(path).doc(String(id)).set(patch, { merge: true });
+      if (Object.keys(patch).length) await db.collection(PREFIX + path).doc(String(id)).set(patch, { merge: true });
     },
     async list(path, { where, orderBy, dir = 'desc', limit } = {}) {
-      let q = db.collection(path);
+      let q = db.collection(PREFIX + path);
       for (const [f, op, v] of where || []) q = q.where(f, op, v);
       if (orderBy) q = q.orderBy(orderBy, dir);
       if (limit) q = q.limit(limit);

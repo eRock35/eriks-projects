@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>The Challenge Lab — a new app every other day</title>
+  <meta name="description" content="Erik's app lab: a brand-new app drops every other day. Try them free, then vote to keep it or kill it. The winners graduate.">
+  <meta name="theme-color" content="#120f24">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/lab.css">
+</head>
+<body>
+  <div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <header class="nav">
+    <a class="logo" href="/"><span class="flask">🧪</span><span>The Challenge Lab</span></a>
+    <a class="nav-link" href="https://www.strongtechnicalconsulting.com">Erik’s projects ↗</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="dot"></span> Live experiment · new drop every other day</div>
+      <h1>A new app<br><span class="grad">every other day.</span></h1>
+      <p class="lede">This is where the experiments live. Each one tries to fix a real business headache in a way that’s actually fun to use. Try them for free, then vote: <b>keep it</b> or <b>kill it</b>. The keepers graduate to their own home.</p>
+      <div class="stats" id="stats">
+        <div class="stat"><b id="sApps">–</b><span>apps shipped</span></div>
+        <div class="stat"><b id="sDay">–</b><span>days running</span></div>
+        <div class="stat wide"><b id="sNext">–</b><span>until the next drop</span></div>
+      </div>
+      <a class="cta" href="#drops">See the drops ↓</a>
+    </section>
+
+    <section id="drops" class="drops" aria-live="polite"></section>
+
+    <section class="how">
+      <h2>How the lab works</h2>
+      <ol class="steps">
+        <li><span class="n">1</span><b>It drops.</b><p>A new app lands here every other morning, built around a real problem someone has at work.</p></li>
+        <li><span class="n">2</span><b>You play.</b><p>One free account works across every app on the site, with $2 of AI credit to spend however you like.</p></li>
+        <li><span class="n">3</span><b>You vote.</b><p>🔥 Keep it or 💀 kill it. Tell Erik what you’d change. Nothing here is precious yet.</p></li>
+        <li><span class="n">4</span><b>Winners graduate.</b><p>The ones people love get their own address, a proper launch and maybe an iPhone app.</p></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Built in public by <a href="https://www.strongtechnicalconsulting.com">Erik Strong</a>. Everything here is an experiment and may vanish without warning.</span>
+  </footer>
+
+  <script src="/lab.js"></script>
+</body>
+</html>

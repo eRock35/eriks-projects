@@ -53,8 +53,19 @@ def session(key):
 
 def main():
     if len(sys.argv) < 3:
-        die('usage: create_service.py <key.json> <app>')
+        die('usage: create_service.py <key.json> <app> [--env K=V ...] [--domain host]')
     key, app = sys.argv[1], sys.argv[2]
+    extra_env, domain = [], None
+    rest = sys.argv[3:]
+    while rest:
+        flag = rest.pop(0)
+        if flag == '--env' and rest and '=' in rest[0]:
+            k, v = rest.pop(0).split('=', 1)
+            extra_env.append({'name': k, 'value': v})
+        elif flag == '--domain' and rest:
+            domain = rest.pop(0)
+        else:
+            die(f'unknown argument {flag}')
     a = CFG['apps'].get(app) or die(f'{app} is not in apps.json')
     svc, db = a['service'], a['db']
     ctx = os.path.join(os.environ.get('REPO_ROOT', '/home/user'), a['repo'])
@@ -131,7 +142,7 @@ def main():
         {'name': 'IDENTITY_DATABASE_ID', 'value': 'identity'},
         {'name': 'ANTHROPIC_API_KEY', 'valueSource': {'secretKeyRef': {'secret': 'anthropic-api-key', 'version': 'latest'}}},
         {'name': 'IDENTITY_SESSION_SECRET', 'valueSource': {'secretKeyRef': {'secret': 'identity-session-secret', 'version': 'latest'}}},
-    ]
+    ] + extra_env
     body = {
         'ingress': 'INGRESS_TRAFFIC_ALL',
         'template': {
@@ -164,6 +175,21 @@ def main():
     if r.status_code >= 300:
         die(f'service is up but not public: {r.text[:300]}')
     say(f'live: {d.get("uri")}')
+
+    # The deployer is a verified owner of the domain in Search Console, which
+    # is what lets it create mappings (DEPLOY.md -> "Domain mappings"). The
+    # DNS record at the registrar is Erik's: CNAME <host> -> ghs.googlehosted.com.
+    if domain:
+        say(f'mapping {domain}')
+        r = s.post(f'https://{R}-run.googleapis.com/apis/domains.cloudrun.com/v1/namespaces/{P}/domainmappings', json={
+            'apiVersion': 'domains.cloudrun.com/v1', 'kind': 'DomainMapping',
+            'metadata': {'name': domain, 'namespace': P},
+            'spec': {'routeName': svc},
+        })
+        if r.status_code >= 300:
+            print(f'   mapping not created: {r.text[:300]}')
+        else:
+            print(f'   mapped. DNS: CNAME {domain.split(".")[0]} -> ghs.googlehosted.com (certificate follows within ~an hour)')
     print('\nThe proxy blocks *.run.app from this container, so you cannot curl it.'
           '\nFrom now on: gcpdeploy ship ' + app)
 

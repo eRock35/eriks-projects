@@ -8,6 +8,10 @@
 
   var state = { me: null, lib: null, daily: null, category: 'all' };
 
+  // Where this app is mounted: '/' on its own host, '/spar/' inside the
+  // challenge lab. Every URL the page builds goes through it.
+  var BASE = location.pathname.replace(/[^/]*$/, '');
+
   /* ---------------- utilities ---------------- */
 
   function esc(v) {
@@ -17,7 +21,7 @@
   }
 
   function api(method, path, body) {
-    return fetch(path, {
+    return fetch(BASE + String(path).replace(/^\//, ''), {
       method: method,
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
@@ -177,7 +181,7 @@
       };
       var pk = $('#pkBtn', root);
       if (pk) pk.onclick = function () {
-        Passkey.signIn().then(afterSignIn).catch(function (err) { if (!Passkey.cancelled(err)) showError(err, $('#authErr', root)); });
+        Passkey.signIn(BASE + 'api/auth/passkey').then(afterSignIn).catch(function (err) { if (!Passkey.cancelled(err)) showError(err, $('#authErr', root)); });
       };
     }
     sheet('', function (root) { draw(root); });
@@ -221,7 +225,7 @@
         if (pk) pk.onclick = function () {
           var pw = prompt('Your password, to confirm it is you:');
           if (!pw) return;
-          Passkey.enrol({ password: pw }).then(function () { toast('Face ID is set up.'); })
+          Passkey.enrol({ password: pw }, BASE + 'api/auth/passkey').then(function () { toast('Face ID is set up.'); })
             .catch(function (e) { if (!Passkey.cancelled(e)) showError(e); });
         };
         drawBilling($('#billing', root));
@@ -249,7 +253,7 @@
   }
 
   function checkout(path, body) {
-    body.returnTo = '/' + location.hash;
+    body.returnTo = BASE + location.hash;
     api('POST', path, body).then(function (r) { if (r.url) location.href = r.url; }).catch(function (e) { showError(e); });
   }
 
@@ -776,7 +780,7 @@
       function (root) {
         $('#mk', root).onclick = function () {
           api('POST', '/api/rounds/' + r.id + '/share', { transcript: $('#withT', root).checked }).then(function (x) {
-            var url = location.origin + '/#/share/' + x.shareId;
+            var url = location.origin + BASE + '#/share/' + x.shareId;
             $('#shareOut', root).innerHTML = '<input class="input" readonly value="' + esc(url) + '">';
             var text = 'I scored ' + r.scorecard.grade + ' on "' + r.scenario.title + '" in Spar. Think you can beat it?';
             if (navigator.share) navigator.share({ title: 'Spar scorecard', text: text, url: url }).catch(function () {});
@@ -877,7 +881,16 @@
   function renderProgress() {
     if (!signedIn()) return signedOutPitch('📈', 'Watch yourself get sharper', 'Every round is scored on five skills. Your profile, streaks, badges and history live here.');
     loading();
-    Promise.all([loadMe(), loadLib()]).then(function () {
+    // Inside the lab, a way back to it.
+  if (BASE !== '/') {
+    var lab = document.createElement('a');
+    lab.href = '/'; lab.className = 'pill'; lab.textContent = '🧪 Lab'; lab.style.textDecoration = 'none'; lab.style.color = 'var(--muted)';
+    lab.title = 'Back to the challenge lab';
+    var brand = document.querySelector('.top .brand');
+    brand.parentNode.insertBefore(lab, brand.nextSibling);
+  }
+
+  Promise.all([loadMe(), loadLib()]).then(function () {
       var me = state.me, p = me.player;
       var winRate = p.rounds ? Math.round(p.wins / p.rounds * 100) + '%' : '—';
       view.innerHTML =
@@ -1006,7 +1019,7 @@
     loading();
     Promise.all([api('GET', '/api/teams/' + encodeURIComponent(id)), loadLib()]).then(function (res) {
       var t = res[0];
-      var link = location.origin + '/#/join/' + t.code;
+      var link = location.origin + BASE + '#/join/' + t.code;
       var html = '<div class="row spread" style="margin-bottom:12px"><button class="btn small ghost" id="toTeams">← Teams</button><button class="btn small danger" id="leave">' + (t.owner ? 'Delete team' : 'Leave') + '</button></div>' +
         '<section class="hero"><div class="small muted">' + (t.owner ? 'You run this team' : 'Run by ' + esc(t.ownerHandle)) + '</div><h1 style="font-size:28px;margin-top:4px">' + esc(t.name) + '</h1>' +
         '<div class="row wrap-row" style="margin-top:14px"><div><div class="small muted">Invite code</div><div class="code">' + esc(t.code) + '</div></div><span style="flex:1"></span><button class="btn small" id="invite">Invite</button></div></section>';
@@ -1115,6 +1128,15 @@
   }
   if (qs.get('s')) { location.hash = '#/share/' + qs.get('s'); history.replaceState(null, '', location.pathname + location.hash); }
   var topup = qs.get('topup');
+
+  // Inside the lab, a way back to it.
+  if (BASE !== '/') {
+    var lab = document.createElement('a');
+    lab.href = '/'; lab.className = 'pill'; lab.textContent = '🧪 Lab'; lab.style.textDecoration = 'none'; lab.style.color = 'var(--muted)';
+    lab.title = 'Back to the challenge lab';
+    var brand = document.querySelector('.top .brand');
+    brand.parentNode.insertBefore(lab, brand.nextSibling);
+  }
 
   Promise.all([loadMe(), loadLib()]).then(function () {
     route();

@@ -289,9 +289,12 @@ test('handles are cleaned before they reach a leaderboard', async () => {
 /* ---------------- run ---------------- */
 
 (async () => {
-  const server = http.createServer(app).listen(0);
+  // Mounted the way the challenge lab mounts it, so the base path is real.
+  const host = require('express')();
+  host.use('/spar', app);
+  const server = http.createServer(host).listen(0);
   await new Promise((r) => server.once('listening', r));
-  base = `http://127.0.0.1:${server.address().port}`;
+  base = `http://127.0.0.1:${server.address().port}/spar`;
   let failed = 0;
   for (const t of tests) {
     try { await t.fn(); console.log(`  ok  ${t.name}`); } catch (err) { failed++; console.log(`  FAIL ${t.name}\n       ${err.stack.split('\n').slice(0, 3).join('\n       ')}`); }
