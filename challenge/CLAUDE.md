@@ -65,6 +65,35 @@ from `main`.
 3. `npm test` here runs the host tests and every app's suite.
 4. Commit, push, `gcpdeploy ship challenge`.
 
+### Holiday drops (Erik, 2026-09-24)
+
+On a holiday the day's drop is **themed for it** — "a Halloween, Thanksgiving,
+Christmas one on those days". The run fires at 07:00 UTC, so it is live by
+the morning of the day itself. Fun leads, but it should still be something
+people actually use that day: a household or small-business job the holiday
+creates, not a greeting card. The usual rules all still apply.
+
+| Date | Holiday | Seeds (not binding) |
+|---|---|---|
+| 2026-10-31 | Halloween | costume/party planner, trick-or-treat route + candy-house map, a shop's spooky-promo kit |
+| 2026-11-26 | Thanksgiving | oven & dish timeline, who-brings-what, leftovers planner |
+| 2026-11-27 | Black Friday | small-shop deal builder, price-drop sanity check |
+| 2026-11-28 | Small Business Saturday | shop-local passport, promo planner |
+| 2026-12-25 | Christmas | gift budget + list sharing, family secret-Santa, thank-you notes |
+| 2026-12-31 / 2027-01-01 | New Year's Eve / Day | resolution tracker, year-in-review for a business |
+| 2027-02-14 | Valentine's Day | date planner, a restaurant's prix-fixe builder |
+| 2027-03-17 | St. Patrick's Day | pub crawl / party planner |
+| 2027-03-28 | Easter | egg-hunt planner, brunch booking |
+| 2027-05-09 | Mother's Day | gift + brunch planner |
+| 2027-05-31 | Memorial Day | cookout planner |
+| 2027-06-20 | Father's Day | gift + grill planner |
+| 2027-07-04 | Independence Day | cookout + fireworks-spot planner |
+| 2027-09-06 | Labor Day | end-of-summer party planner |
+
+Moving holidays were checked against the calendar (Thanksgiving = fourth
+Thursday of November, and so on). Extend the table a year ahead each
+September.
+
 ## The landing page
 
 `public/` — no model calls, no account. Cards per drop with Try / 🔥 Keep /
