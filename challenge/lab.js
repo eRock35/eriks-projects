@@ -49,6 +49,19 @@ const APPS = [
     audience: 'Freelancers, agencies & small service businesses',
     status: 'testing',
   },
+  {
+    slug: 'rave',
+    name: 'Rave',
+    emoji: '⭐',
+    color: '#d97706',
+    color2: '#e11d48',
+    dropped: '2026-09-24',
+    tagline: 'Answer every review like a pro — even the ones that sting.',
+    blurb: 'For restaurants, salons, contractors, clinics and shops that live on their stars. Paste or screenshot a review and Rave triages it, drafts a reply in your voice, and cools down the angry one before you post it — with a checklist that catches the mistakes that go viral.',
+    features: ['Review inbox with triage & risk flags', 'Replies in your voice, or free templates', 'Cool down: a heat meter for angry replies', 'Scoreboard, streaks & a wall of love'],
+    audience: 'Restaurants, salons, contractors, clinics & shops',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

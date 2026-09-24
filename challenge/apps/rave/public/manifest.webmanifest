@@ -1,0 +1,10 @@
+{
+  "name": "Rave",
+  "short_name": "Rave",
+  "description": "Answer every review like a pro — an inbox for your reviews, replies in your voice, and a cool-down for the ones that sting.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#120f0c",
+  "theme_color": "#120f0c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
