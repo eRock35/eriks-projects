@@ -75,6 +75,16 @@ agent), changeable and withdrawable. Notes are stored in `lab_notes` and
 **never displayed** — nothing to moderate, nothing to deface. Read them in
 Firestore.
 
+## The teaser on the main site
+
+`site/challenge.html` (www…/challenge) is a **teaser**, not a second lab:
+two lines of story, the latest drop, the locked next one with its countdown,
+and the earlier drops as blurred emoji behind "N more waiting in the lab".
+It reads `/api/lab` live, so a daily drop needs no change there; its
+`FALLBACK` only matters when the lab is unreachable. Full cards, votes and
+"how it works" stay here. Erik asked for it that way on 2026-09-24 because
+the two pages were showing the same thing twice.
+
 ## Graduating an app
 
 When Erik picks a keeper:
