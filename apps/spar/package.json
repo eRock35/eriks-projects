@@ -1,0 +1,18 @@
+{
+  "name": "spar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "SPAR_MEMORY=1 SPAR_FAKE_AI=1 SPAR_FAKE_DELAY_MS=600 PORT=8090 node server.js",
+    "test": "SPAR_MEMORY=1 SPAR_FAKE_AI=1 node test/run.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "express": "^4.19.2"
+  }
+}

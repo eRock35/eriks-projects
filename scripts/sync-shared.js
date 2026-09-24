@@ -24,6 +24,7 @@ const TARGETS = [
   // Server-side modules, per app, exactly as each app actually carries them.
   ['eriks-projects/apps/friction/lib', ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'sitepass.js', 'analytics.js']],
   ['eriks-projects/apps/dataviz/lib',  ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js', 'analytics.js']],
+  ['eriks-projects/apps/spar/lib',     ['identity.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js']],
   ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
   // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
@@ -45,6 +46,7 @@ const TARGETS = [
   ['eriks-projects/site', ['passkey-client.js', 'beacon.js']],
   ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css', 'beacon.js']],
   ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css', 'beacon.js']],
+  ['eriks-projects/apps/spar/public',     ['desktop.css', 'passkey-client.js']],
   ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js']],
   ['beer-app/web/public',                 ['tour.js', 'beacon.js']],

@@ -64,6 +64,14 @@
       "verify_job": null,
       "verify_doc": null,
       "_note": "Subdirectory app, same as friction. Nothing scheduled; verify by opening it."
+    },
+    "spar": {
+      "repo": "eriks-projects/apps/spar",
+      "service": "spar",
+      "db": "spar",
+      "verify_job": null,
+      "verify_doc": null,
+      "_note": "Subdirectory app, same as friction and dataviz. Nothing scheduled. First deploy creates the service - see apps/spar/CLAUDE.md -> Deploy."
     }
   }
 }
