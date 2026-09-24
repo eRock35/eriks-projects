@@ -1,0 +1,10 @@
+{
+  "name": "Chaser",
+  "short_name": "Chaser",
+  "description": "Who to chase today, the chase written in your voice, and getting paid made to feel like a win.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c0b10",
+  "theme_color": "#0c0b10",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

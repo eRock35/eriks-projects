@@ -36,6 +36,19 @@ const APPS = [
     audience: 'Trades & small service businesses',
     status: 'testing',
   },
+  {
+    slug: 'chaser',
+    name: 'Chaser',
+    emoji: '💸',
+    color: '#7c5cff',
+    color2: '#ff5fa2',
+    dropped: '2026-09-24',
+    tagline: 'Get paid without the awkward part.',
+    blurb: 'For freelancers, agencies and small service businesses owed money. Add what you’re owed — or snap the invoice — and Chaser tells you who to chase today, writes the chase in your own voice, and turns every “paid” into a small celebration.',
+    features: ['Today’s chase list, ranked by what matters', 'Nudge → firm → final, in your voice', 'Client scorecards & a 4-week cash forecast', 'Printable statements with a share link'],
+    audience: 'Freelancers, agencies & small service businesses',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
