@@ -1,7 +1,7 @@
 # For Claude: the Challenge Lab
 
-`challenge.strongtechnicalconsulting.com` — where Erik's "new app every other
-day" experiments live while they are being tested. Erik asked for it on
+`challenge.strongtechnicalconsulting.com` — where Erik's "new app every day"
+experiments live while they are being tested. Erik asked for it on
 2026-09-24: one fun landing page for the test apps, each app at `/<slug>`,
 and the ones he likes get moved to a dedicated subdomain.
 
@@ -43,7 +43,19 @@ trial its own deploy" creep back in. Graduation is when an app gets its own.
   `<SLUG>_FAKE_AI=1` for every app. Each app's own tests mount it under its
   slug too, so the base path is always exercised.
 
-## Adding an app (what the every-other-day routine does)
+## Adding an app (what the daily routine does)
+
+A Claude Code Routine fires every day at 07:00 UTC ("Challenge Lab: new app
+every day"). Each run picks an idea, builds it, tests it, and ships it here —
+two hours before the landing page's 09:00 UTC countdown turns over. It changed
+from every other day to daily on 2026-09-24, at Erik's request; he decides
+which drops earn their own domain.
+
+**A daily run never creates infrastructure or changes IAM.** Everything it
+needs already exists: this service, this database, `challenge-run@`. If an
+idea needs a new secret, a bucket or a new API, it is the wrong idea for a
+daily drop — pick another, and note the one that needs Erik. The lab ships
+from `main`.
 
 1. Build it in `challenge/apps/<slug>/` following Spar (`apps/spar/CLAUDE.md`):
    exports `{ app }`, listens only when run directly, BASE-relative URLs,
@@ -57,7 +69,7 @@ trial its own deploy" creep back in. Graduation is when an app gets its own.
 
 `public/` — no model calls, no account. Cards per drop with Try / 🔥 Keep /
 💀 Kill, a private "tell Erik" note, a mystery card with a countdown to the
-next drop (09:00 UTC on even days, matching the routine), and "how the lab
+next drop (09:00 UTC daily, matching the routine), and "how the lab
 works". Votes are one per browser (an opaque `lab_vid` cookie; no IP, no user
 agent), changeable and withdrawable. Notes are stored in `lab_notes` and
 **never displayed** — nothing to moderate, nothing to deface. Read them in
@@ -78,7 +90,10 @@ When Erik picks a keeper:
 - Service `challenge`, database `challenge`, runtime account `challenge-run@`
   (datastore.user on `challenge` + `identity`; secrets `anthropic-api-key`,
   `identity-session-secret`).
-- First deploy:
+- **Live since 2026-09-24** at `https://challenge-u4h4ftn3fa-uc.a.run.app`,
+  domain mapping created; the site answers on the subdomain once the DNS
+  record below exists.
+- First deploy (done):
   `gcpdeploy create challenge --env PASSKEY_RP_ID=strongtechnicalconsulting.com --domain challenge.strongtechnicalconsulting.com`
   then DNS at the registrar: `CNAME challenge -> ghs.googlehosted.com`.
 - Every deploy after: `gcpdeploy ship challenge`.

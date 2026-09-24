@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>The Challenge · Erik Strong</title>
-<meta name="description" content="Erik's build-in-public challenge: a new app every other day, each one aimed at a real business problem. Try them, vote to keep or kill, and watch the winners graduate." />
+<meta name="description" content="Erik's build-in-public challenge: a new app every day, each one aimed at a real business problem. Try them, vote to keep or kill, and watch the winners graduate." />
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
-<meta property="og:title" content="The Challenge: a new app every other day" />
+<meta property="og:title" content="The Challenge: a new app every day" />
 <meta property="og:description" content="Real business problems, fun apps, built in public. Try them and vote keep or kill." />
 <meta property="og:image" content="https://www.strongtechnicalconsulting.com/assets/erik.jpg" />
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
@@ -141,8 +141,8 @@
 
   <header class="hero">
     <span class="kicker"><span class="dot"></span> Building in public</span>
-    <h1>The Challenge:<br><span class="grad">a new app every other day.</span></h1>
-    <p class="lede">I set myself a goal of shipping <b>one app a week</b>. Then I decided to find out how fast I could really go. Every other morning a brand-new app goes live in the lab. Each one goes after <b>a real business problem</b> and tries to be <b>genuinely fun to use</b>. You try it, you vote <b>keep or kill</b>, and the winners graduate to their own home.</p>
+    <h1>The Challenge:<br><span class="grad">a new app every day.</span></h1>
+    <p class="lede">I set myself a goal of shipping <b>one app a week</b>. Then I decided to find out how fast I could really go. Every morning a brand-new app goes live in the lab. Each one goes after <b>a real business problem</b> and tries to be <b>genuinely fun to use</b>. You try it, you vote <b>keep or kill</b>, and the winners graduate to their own home.</p>
     <div class="ctas">
       <a class="btn btn-primary" href="https://challenge.strongtechnicalconsulting.com">🧪 Enter the lab</a>
       <a class="btn btn-secondary" href="#drops">See the drops</a>
@@ -174,7 +174,7 @@
   <section>
     <div class="sec-head" data-reveal><h2>How it works</h2></div>
     <div class="how">
-      <div data-reveal><b>It drops</b><p>A new app goes live at challenge.strongtechnicalconsulting.com every other morning.</p></div>
+      <div data-reveal><b>It drops</b><p>A new app goes live at challenge.strongtechnicalconsulting.com every morning.</p></div>
       <div data-reveal><b>You play</b><p>One free account covers every app on this site, with $2 of AI credit to start.</p></div>
       <div data-reveal><b>You vote</b><p>🔥 Keep or 💀 kill, and tell me what you’d change. I read every note.</p></div>
       <div data-reveal><b>It graduates</b><p>Keepers get their own subdomain and a real launch, like the apps below.</p></div>
@@ -220,7 +220,7 @@
   function fmt(iso) { return new Date(iso + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
   function nextDrop(now) {
     var d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 9));
-    for (var i = 0; i < 40; i++) { if (d > now && d.getUTCDate() % 2 === 0) return d; d = new Date(d.getTime() + 864e5); }
+    for (var i = 0; i < 40; i++) { if (d > now) return d; d = new Date(d.getTime() + 864e5); }
     return d;
   }
 
@@ -236,7 +236,7 @@
         '<div class="meta"><span class="v">' + esc(v) + '</span><span class="go">Try it ↗</span></div></div></a>';
     }).join('') +
       '<a class="drop next" href="' + LAB + '"><div class="band"><span class="n">Drop #' + String(apps.length + 1).padStart(2, '0') + ' · Classified</span><span class="em">🧪</span></div>' +
-      '<div class="b"><h3>Next up…</h3><p>Being built right now.</p><div class="count" id="count">–</div><div class="meta"><span class="v">Every other day</span><span class="go">Open the lab ↗</span></div></div></a>';
+      '<div class="b"><h3>Next up…</h3><p>Being built right now.</p><div class="count" id="count">–</div><div class="meta"><span class="v">Every day</span><span class="go">Open the lab ↗</span></div></div></a>';
 
     var total = SHIPPED.length + apps.length;
     var weeks = Math.max(1, (Date.now() - START) / (7 * 864e5));

@@ -30,11 +30,11 @@
     }
   }
 
-  // Drops land at 09:00 UTC on even-numbered days of the month.
+  // Drops land at 09:00 UTC every day (the daily routine's schedule).
   function nextDrop(now) {
     var d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 9));
     for (var i = 0; i < 40; i++) {
-      if (d > now && d.getUTCDate() % 2 === 0 && d.getUTCDate() <= 30) return d;
+      if (d > now) return d;
       d = new Date(d.getTime() + 864e5);
     }
     return d;
