@@ -13,12 +13,24 @@
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/erik-320.jpg" />
+<!-- Runs before first paint. `js` gates the reveal-on-scroll hidden state, so
+     with scripts off (or blocked) every section is simply visible. The motion
+     preference is the footer's "Pause motion" switch, remembered per browser. -->
+<script>
+  document.documentElement.classList.add("js");
+  try { if (localStorage.getItem("motion") === "off") document.documentElement.setAttribute("data-motion", "off"); } catch (e) {}
+</script>
 <style>
   :root {
     color-scheme: light dark;
     --bg: #F2F2F7; --card: #FFFFFF; --fill: rgba(120,120,128,0.12); --fill-2: rgba(120,120,128,0.18);
-    --label: #000000; --label-2: rgba(60,60,67,0.6); --label-3: rgba(60,60,67,0.4); --sep: rgba(60,60,67,0.2);
+    --label: #000000; --label-2: rgba(60,60,67,0.8); --label-3: rgba(60,60,67,0.4); --sep: rgba(60,60,67,0.2);
     --tint: #007AFF; --indigo: #5856D6; --green: #34C759; --amber: #b3730a;
+    /* Text-safe versions of the tint. --tint stays the vivid system blue for
+       glows, icons and rings; anything that is READ (links, buttons, the
+       eyebrow) uses these, which clear 4.5:1 over the cards and the aurora. */
+    --link: #0066CC; --btn: #0066CC; --eyebrow: #003F80; --nav-link: rgba(60,60,67,0.9);
+    --field-border: rgba(60,60,67,0.6); --ok: #1E7B34;
     --bar: rgba(249,249,249,0.72); --bar-border: rgba(0,0,0,0.08);
     --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 24px rgba(0,0,0,0.06);
     --shadow-lift: 0 2px 6px rgba(0,0,0,0.05), 0 22px 44px rgba(0,0,0,0.11);
@@ -29,8 +41,10 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #000000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
-      --label: #FFFFFF; --label-2: rgba(235,235,245,0.6); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
+      --label: #FFFFFF; --label-2: rgba(235,235,245,0.7); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
       --tint: #0A84FF; --indigo: #7D7AFF; --green: #32D74B; --amber: #e8a93c;
+      --link: #0A84FF; --btn: #0071E3; --eyebrow: #9FCBFF; --nav-link: rgba(235,235,245,0.82);
+      --field-border: rgba(235,235,245,0.35); --ok: #32D74B;
       --bar: rgba(22,22,24,0.7); --bar-border: rgba(255,255,255,0.1);
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
       --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 44px rgba(0,0,0,0.6);
@@ -39,8 +53,10 @@
   }
   :root[data-theme="dark"] {
     --bg: #000000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
-    --label: #FFFFFF; --label-2: rgba(235,235,245,0.6); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
+    --label: #FFFFFF; --label-2: rgba(235,235,245,0.7); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
     --tint: #0A84FF; --indigo: #7D7AFF; --green: #32D74B; --amber: #e8a93c;
+    --link: #0A84FF; --btn: #0071E3; --eyebrow: #9FCBFF; --nav-link: rgba(235,235,245,0.82);
+    --field-border: rgba(235,235,245,0.35); --ok: #32D74B;
     --bar: rgba(22,22,24,0.7); --bar-border: rgba(255,255,255,0.1);
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
     --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 44px rgba(0,0,0,0.6);
@@ -56,7 +72,7 @@
     padding: calc(var(--sat) + 52px) 0 calc(var(--sab) + 40px);
     overflow-x: hidden;
   }
-  a { color: var(--tint); text-decoration: none; }
+  a { color: var(--link); text-decoration: none; }
   .wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
 
   /* ---------- Aurora backdrop ---------- */
@@ -83,18 +99,49 @@
     border-bottom: 1px solid transparent; transition: border-color 0.3s, background 0.3s;
   }
   .nav.is-scrolled { border-bottom-color: var(--bar-border); }
-  .nav-inner { max-width: 720px; margin: 0 auto; height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
-  .brand { font-weight: 700; font-size: 17px; color: var(--label); display: flex; align-items: center; gap: 10px; opacity: 0; transform: translateY(-6px); transition: opacity 0.4s var(--ease), transform 0.4s var(--ease); pointer-events: none; }
-  .nav.is-scrolled .brand { opacity: 1; transform: none; pointer-events: auto; }
+  .nav-inner { max-width: 720px; margin: 0 auto; height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 20px; }
+  /* The brand fades in once the page scrolls. While it is invisible it is
+     also visibility:hidden, so it is not an invisible first Tab stop; it
+     keeps its box either way, so the links never shift when it appears.
+     It never wraps: the breakpoints below take things away instead. */
+  .brand { flex: 0 0 auto; white-space: nowrap; font-weight: 700; font-size: 17px; color: var(--label); display: flex; align-items: center; gap: 10px;
+           opacity: 0; transform: translateY(-6px); visibility: hidden; pointer-events: none;
+           transition: opacity 0.4s var(--ease), transform 0.4s var(--ease), visibility 0s linear 0.4s; }
+  .nav.is-scrolled .brand { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition-delay: 0s; }
   .brand img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
-  .nav-links { display: flex; gap: 2px; margin-left: auto; }
-  .nav-links a { position: relative; font-size: 15px; font-weight: 500; color: var(--label-2); padding: 8px 12px; border-radius: 10px; min-height: 40px; display: inline-flex; align-items: center; transition: color 0.25s; }
-  .nav-links a::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--tint); transform: scaleX(0); transform-origin: center; transition: transform 0.3s var(--ease); }
+  /* --lp is the link's side padding, shared with its underline. The row may
+     shrink and scroll (with a fade on the hidden side, set by script) - a
+     last resort for very narrow screens, zoom and enlarged text spacing;
+     the breakpoints keep every tested width from needing it. */
+  .nav-links { --lp: 12px; display: flex; gap: 2px; margin-left: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links a { flex: 0 0 auto; position: relative; font-size: 15px; font-weight: 500; color: var(--nav-link); padding: 8px var(--lp); border-radius: 10px; min-height: 40px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; transition: color 0.25s; }
+  .nav-links a::after { content: ""; position: absolute; left: var(--lp); right: var(--lp); bottom: 5px; height: 2px; border-radius: 2px; background: var(--tint); transform: scaleX(0); transform-origin: center; transition: transform 0.3s var(--ease); }
   .nav-links a:hover { color: var(--label); }
+  .nav-links a:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
   .nav-links a.is-active { color: var(--label); }
   .nav-links a.is-active::after { transform: scaleX(1); }
   .progress { position: absolute; left: 0; bottom: -1px; height: 2px; width: 100%; transform: scaleX(0); transform-origin: 0 50%; background: linear-gradient(90deg, var(--tint), var(--indigo)); }
-  @media (max-width: 420px) { .nav-links a { padding: 8px 9px; font-size: 14px; } .brand span { display: none; } }
+  /* Narrowing, one step at a time: the name goes (the avatar stays), then the
+     links tighten, then the avatar goes and the links spread across the bar
+     like a tab bar, then the type drops a point for the smallest phones. */
+  @media (max-width: 600px) { .brand span { display: none; } }
+  @media (max-width: 520px) { .nav-inner { padding: 0 16px; } .nav-links { --lp: 9px; } .nav-links a { font-size: 14px; } }
+  @media (max-width: 420px) {
+    .nav-inner { padding: 0 12px; }
+    .brand { display: none; }
+    .nav-links { --lp: 8px; flex: 1 1 auto; margin-left: 0; justify-content: space-between; gap: 0; }
+  }
+  @media (max-width: 374px) { .nav-links { --lp: 6px; } .nav-links a { font-size: 13px; } }
+  /* Edge fade for a row that scrolls sideways: only on the side that has more. */
+  [data-fade="r"] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+  [data-fade="l"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px); mask-image: linear-gradient(90deg, transparent, #000 28px); }
+  [data-fade="lr"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+  /* Windows High Contrast drops the blur but keeps the bar's transparency,
+     so page text showed through the links. */
+  @media (forced-colors: active) {
+    .nav { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 1px solid CanvasText; }
+  }
 
   /* ---------- Hero ---------- */
   .hero { padding: 40px 0 26px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; }
@@ -107,7 +154,7 @@
   .avatar-ring::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--bg); }
   .avatar { position: relative; z-index: 1; width: 140px; height: 140px; border-radius: 50%; object-fit: cover; box-shadow: var(--shadow); background: var(--fill); animation: spin-back 14s linear infinite; }
   @keyframes spin-back { to { transform: rotate(-360deg); } }
-  .eyebrow { font-size: 13px; font-weight: 600; color: var(--tint); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+  .eyebrow { font-size: 13px; font-weight: 600; color: var(--eyebrow); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
   h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; margin: 0; text-wrap: balance; }
   h1 .w { display: inline-block; opacity: 0; transform: translateY(16px); animation: rise 0.7s var(--ease) forwards; }
   @keyframes rise { to { opacity: 1; transform: none; } }
@@ -120,27 +167,29 @@
   .btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 20px; border-radius: 14px; font-weight: 600; font-size: 16px; border: none; transition: transform 0.18s var(--ease), box-shadow 0.25s; }
   .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   .btn:active { transform: scale(0.97); }
-  .btn-primary { background: var(--tint); color: #fff; }
+  .btn-primary { background: var(--btn); color: #fff; }
+  /* The sheen moves by transform (no layout per frame) and plays twice, then
+     rests. At 0.12 white it never drops the label below 4.5:1. */
   .btn-primary::after {
-    content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-    animation: sheen 4.5s ease-in-out 1.2s infinite;
+    content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: 0; transform: translateX(-150%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    animation: sheen 4.5s ease-in-out 1.2s 2;
   }
-  @keyframes sheen { 0% { left: -60%; } 22%, 100% { left: 130%; } }
-  .btn-secondary { background: var(--card); color: var(--tint); box-shadow: var(--shadow); }
+  @keyframes sheen { 0% { transform: translateX(-150%); } 22%, 100% { transform: translateX(325%); } }
+  .btn-secondary { background: var(--card); color: var(--link); box-shadow: var(--shadow); }
   .btn svg { width: 20px; height: 20px; }
   .facts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .fact { font-size: 13.5px; font-weight: 500; color: var(--label-2); background: var(--card); box-shadow: var(--shadow); border-radius: 999px; padding: 7px 13px; display: inline-flex; align-items: center; gap: 6px; transition: transform 0.2s var(--ease), color 0.2s; }
   .fact:hover { transform: translateY(-2px); color: var(--label); }
   .fact svg { width: 14px; height: 14px; color: var(--tint); }
-  .cue { margin-top: 6px; color: var(--label-3); display: grid; place-items: center; animation: bob 2.2s ease-in-out infinite; }
+  .cue { margin-top: 6px; color: var(--label-3); display: grid; place-items: center; animation: bob 2.2s ease-in-out 3; }
   .cue svg { width: 22px; height: 22px; }
   @keyframes bob { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(6px); opacity: 1; } }
 
   /* ---------- Marquee ---------- */
   .marquee { margin: 22px -20px 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
-  .marquee-track { display: flex; width: max-content; gap: 10px; animation: slide 34s linear infinite; }
-  .marquee:hover .marquee-track { animation-play-state: paused; }
+  .marquee-track { display: flex; width: max-content; gap: 10px; margin: 0; padding: 0; list-style: none; animation: slide 34s linear infinite; }
+  .marquee:hover .marquee-track, .marquee.paused .marquee-track { animation-play-state: paused; }
   @keyframes slide { to { transform: translateX(-50%); } }
   .tag { flex: 0 0 auto; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--label-2); background: var(--fill); border-radius: 999px; padding: 7px 14px; white-space: nowrap; }
 
@@ -148,17 +197,17 @@
   section { padding: 26px 0 8px; scroll-margin-top: calc(var(--sat) + 60px); }
   .challenge-banner {
     display: flex; align-items: center; gap: 16px; margin: 0 0 30px; padding: 18px 20px; border-radius: 22px; color: #fff;
-    background: radial-gradient(120% 140% at 100% 0%, rgba(255,255,255,.22), transparent 55%), linear-gradient(120deg, #7c3aed, #ec4899 60%, #f59e0b);
+    background: radial-gradient(120% 140% at 100% 0%, rgba(255,255,255,.12), transparent 55%), linear-gradient(120deg, #6d28d9, #be185d 60%, #b45309);
     box-shadow: 0 16px 36px -14px rgba(236,72,153,.7); transition: transform .3s var(--ease), box-shadow .3s;
   }
   .challenge-banner:hover { transform: translateY(-3px); box-shadow: 0 22px 44px -14px rgba(236,72,153,.8); }
   .challenge-banner:active { transform: scale(.985); }
   .cb-flask { font-size: 38px; flex: 0 0 auto; width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: rgba(255,255,255,.18); }
   .cb-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .cb-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .9; display: flex; align-items: center; gap: 6px; }
+  .cb-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
   .cb-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,.3); }
   .cb-title { font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
-  .cb-sub { font-size: 14.5px; opacity: .92; line-height: 1.35; }
+  .cb-sub { font-size: 14.5px; line-height: 1.35; }
   @media (max-width: 480px) { .cb-long { display: none; } }
   .cb-go { font-size: 24px; font-weight: 700; transition: transform .3s var(--ease); }
   .challenge-banner:hover .cb-go { transform: translateX(4px); }
@@ -166,22 +215,28 @@
   h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
   .section-head .sub { color: var(--label-2); font-size: 15px; }
 
-  [data-reveal] { opacity: 0; transform: translateY(22px); transition: opacity 0.75s var(--ease), transform 0.75s var(--ease); transition-delay: var(--d, 0s); }
-  [data-reveal].in { opacity: 1; transform: none; }
+  /* Hidden only once script has run (the `js` class is set in <head>), so a
+     page with scripts off, or printed, shows everything. */
+  .js [data-reveal] { opacity: 0; transform: translateY(22px); transition: opacity 0.75s var(--ease), transform 0.75s var(--ease); transition-delay: var(--d, 0s); }
+  .js [data-reveal].in { opacity: 1; transform: none; }
+  @media print { [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; } }
 
   /* ---------- Projects ---------- */
   /* The live previews strip. A phone-shaped frame per app, scroll-snapped so
      a swipe lands on the next one; the app inside renders at its natural
      390px and is scaled down to fit, so nothing reflows into a squashed
      layout. Bleeds to the page edge on a phone so the next card peeks in. */
-  .previews { margin: 0 -16px 22px; }
-  .preview-strip { display: flex; gap: 14px; padding: 4px 16px 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+  .previews { position: relative; margin: 0 -20px 22px; }
+  .preview-strip { display: flex; gap: 14px; padding: 4px 20px 10px; scroll-padding-inline: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
                    scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
   .preview-strip::-webkit-scrollbar { display: none; }
   /* Sized so a frame, its caption and the dots all fit one phone screen with
      the section head above: about 58% of the width, never taller than the
-     viewport allows. */
-  .preview { flex: 0 0 auto; margin: 0; scroll-snap-align: center; width: min(58vw, 210px, calc((100vh - 260px) * 9 / 18.5)); }
+     viewport allows - but never under 150px, which a phone in landscape
+     would otherwise shrink them to. A frame taller than a landscape screen is
+     fine; the page scrolls. */
+  .preview { flex: 0 0 auto; margin: 0; scroll-snap-align: center; width: min(58vw, 210px, max(150px, calc((100vh - 260px) * 9 / 18.5)));
+             width: min(58vw, 210px, max(150px, calc((100svh - 260px) * 9 / 18.5))); }
   .phone { position: relative; aspect-ratio: 9 / 18.5; border-radius: 30px; background: var(--card); box-shadow: var(--shadow-lift);
            padding: 8px; overflow: hidden; }
   .phone-screen { position: relative; width: 100%; height: 100%; border-radius: 23px; overflow: hidden; background: var(--fill); }
@@ -189,16 +244,38 @@
                          opacity: 0; transition: opacity .5s var(--ease); pointer-events: none; }
   .phone-screen iframe.in { opacity: 1; }
   .phone-skel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
-                font-size: 12.5px; color: var(--label-3); padding: 20px; }
+                font-size: 12.5px; color: var(--label-2); padding: 20px; }
   .phone-tap { position: absolute; inset: 0; border-radius: 30px; }
-  .phone-tap:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
-  .preview figcaption { display: flex; flex-direction: column; gap: 1px; margin: 10px 4px 0; }
+  /* Inset, because .phone clips anything drawn outside it. */
+  .phone-tap:focus-visible { outline: 3px solid var(--tint); outline-offset: -3px; }
+  .preview figcaption { display: flex; flex-direction: column; gap: 1px; margin: 10px 4px 0; overflow-wrap: anywhere; }
   .preview figcaption b { font-size: 15px; font-weight: 600; }
   .preview figcaption span { font-size: 13px; color: var(--label-2); }
-  .preview-dots { display: flex; justify-content: center; gap: 6px; margin-top: 4px; }
-  .preview-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--fill-2); transition: background .2s, transform .2s; }
-  .preview-dots i.on { background: var(--tint); transform: scale(1.25); }
-  @media (min-width: 620px) { .previews { margin-left: 0; margin-right: 0; } .preview-strip { padding-left: 0; padding-right: 0; } }
+  /* Dots are buttons for a mouse (a tap on a phone is a swipe anyway); they
+     stay out of the Tab order and the accessibility tree, where the six
+     "Open ..." links already cover every frame. */
+  .preview-dots { display: flex; justify-content: center; margin-top: 2px; }
+  .preview-dots button { width: 12px; height: 18px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; }
+  .preview-dots button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--fill-2); transition: background .2s, transform .2s; }
+  .preview-dots button.on::before { background: var(--tint); transform: scale(1.25); }
+  /* Paddles, for a mouse: without them a wheel scrolls the page, not the
+     strip, and three of the six frames sit out of reach. */
+  .strip-nav { display: none; position: absolute; top: 42%; z-index: 2; width: 36px; height: 36px; margin-top: -18px; padding: 0; border: 0; border-radius: 50%;
+               place-items: center; background: var(--card); color: var(--label); box-shadow: var(--shadow-lift); cursor: pointer;
+               transition: opacity .25s, transform .2s var(--ease); }
+  .strip-nav:hover { transform: scale(1.08); }
+  .strip-nav svg { width: 8px; height: 14px; }
+  .strip-nav.prev { left: 8px; } .strip-nav.prev svg { transform: scaleX(-1); }
+  .strip-nav.next { right: 8px; }
+  .preview-strip:not([data-fade*="l"]) ~ .strip-nav.prev, .preview-strip:not([data-fade*="r"]) ~ .strip-nav.next { opacity: 0; pointer-events: none; }
+  @media (hover: hover) and (pointer: fine) and (max-width: 1399px) { .strip-nav { display: grid; } }
+  @media (min-width: 620px) {
+    .previews { margin-left: 0; margin-right: 0; } .preview-strip { padding-left: 0; padding-right: 0; scroll-padding-inline: 0; }
+    .strip-nav.prev { left: -16px; } .strip-nav.next { right: -16px; }
+  }
+  /* On a phone the strip already runs to the screen edge; in the desktop
+     column it stops at an arbitrary line, so fade that edge like the marquee. */
+  @media (max-width: 619px) { .preview-strip[data-fade] { -webkit-mask-image: none; mask-image: none; } }
 
   .projects { display: grid; grid-template-columns: 1fr; gap: 12px; }
   @media (min-width: 620px) { .projects { grid-template-columns: 1fr 1fr; } }
@@ -241,18 +318,18 @@
   .project img { width: 56px; height: 56px; border-radius: 14px; flex: 0 0 auto; box-shadow: 0 1px 2px rgba(0,0,0,0.12); transition: transform 0.35s var(--ease); }
   .project:hover img { transform: translateY(-3px) scale(1.06) rotate(-3deg); }
   .project-body { flex: 1 1 auto; min-width: 0; }
-  .project h3 { margin: 0 0 3px; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .project h3 { margin: 0 0 3px; font-size: 17px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
   .project p { margin: 0; font-size: 14.5px; color: var(--label-2); line-height: 1.4; }
-  .project .open { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--tint); margin-top: 8px; }
+  .project .open { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--link); margin-top: 8px; }
   .project .open svg { width: 12px; height: 12px; transition: transform 0.3s var(--ease); }
   .project:hover .open svg { transform: translate(2px, -2px); }
   .live { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #04280f; background: var(--green); border-radius: 999px; padding: 2px 7px; position: relative; }
-  .live::before { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--green); animation: pulse 2.4s ease-out infinite; z-index: -1; }
+  .live::before { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--green); animation: pulse 2.4s ease-out 3; z-index: -1; }
   /* Populated from this service's own /api/stats/public, and empty until it
      answers. The page must still read correctly with the fetch failing. */
   .trending { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-    color: #2b1a00; background: var(--amber, #ffb020); border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
-  .views { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    color: #000; background: var(--amber, #ffb020); border-radius: 999px; padding: 2px 7px; }
+  .views { display: block; margin-top: 6px; font-size: 12px; color: var(--label-2); font-variant-numeric: tabular-nums; }
 
   /* The trending strip. A ranked row rather than a chart: there are seven
      apps and one number each, and a chart of seven bars says nothing a row
@@ -261,20 +338,22 @@
   .trendbar { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px 16px 10px; margin-bottom: 22px; }
   .trendbar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
   .trendbar-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--label-2); }
-  .trendbar-sub { font-size: 12.5px; color: var(--label-3); }
+  .trendbar-sub { font-size: 12.5px; color: var(--label-2); }
   .trendlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .trendlist a { position: relative; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px;
                  color: inherit; text-decoration: none; overflow: hidden; }
   .trendlist a::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); border-radius: 10px;
                          background: color-mix(in srgb, var(--tint) 13%, transparent); transition: width .6s var(--ease); }
   .trendlist a:hover { background: var(--fill); }
-  .trendlist .tl-rank { position: relative; width: 16px; font-size: 12px; font-weight: 700; color: var(--label-3); font-variant-numeric: tabular-nums; }
+  .trendlist .tl-rank { position: relative; width: 16px; font-size: 12px; font-weight: 700; color: var(--label-2); font-variant-numeric: tabular-nums; }
   .trendlist .tl-name { position: relative; flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-weight: 600;
                         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trendlist .tl-n { position: relative; font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   @media (min-width: 1180px) { .trendbar { margin-inline: calc((680px - var(--wide-row)) / 2); } }
   @keyframes pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
-  .project.soon { opacity: 0.7; }
+  /* Dimmed once revealed (or when there is no script to reveal it); before
+     that it is hidden with the others so it fades in with them. */
+  .js .project.soon.in, html:not(.js) .project.soon { opacity: 0.7; }
   .project.soon .placeholder { width: 56px; height: 56px; border-radius: 14px; background: var(--fill-2); display: grid; place-items: center; color: var(--label-3); font-size: 26px; flex: 0 0 auto; }
 
   /* ---------- About ---------- */
@@ -290,11 +369,11 @@
   .stat-label { font-size: 13.5px; color: var(--label-2); margin-top: 4px; line-height: 1.35; }
 
   .verticals { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; margin-top: 14px; }
-  .vlabel { display: block; font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--label-3); margin-bottom: 11px; }
+  .vlabel { display: block; font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--label-2); margin-bottom: 11px; }
   .vchips { display: flex; flex-wrap: wrap; gap: 8px; }
   .vchips .tag { transition: transform 0.2s var(--ease), color 0.2s; }
   .vchips .tag:hover { transform: translateY(-2px); color: var(--label); }
-  .vchips .tag.more { color: var(--tint); font-style: italic; }
+  .vchips .tag.more { color: var(--label-2); font-style: italic; }
 
   .skills { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
   @media (min-width: 620px) { .skills { grid-template-columns: 1fr 1fr 1fr; } }
@@ -313,6 +392,7 @@
   .row { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 10px 16px; color: inherit; position: relative; transition: background 0.2s; }
   .row + .row::before { content: ""; position: absolute; left: 62px; right: 0; top: 0; height: 1px; background: var(--sep); }
   .row:hover, .row:active { background: var(--fill); }
+  .row:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
   .row-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex: 0 0 auto; transition: transform 0.3s var(--ease); }
   a.row:hover .row-icon { transform: scale(1.1) rotate(-6deg); }
   .row-icon svg { width: 18px; height: 18px; }
@@ -326,35 +406,47 @@
   .list-facts .row { align-items: flex-start; padding: 13px 16px; }
   .list-facts .row-icon { margin-top: 1px; }
   .list-facts .row-sub { white-space: normal; overflow: visible; line-height: 1.35; margin-top: 1px; }
+  /* The one place the address is written out: it wraps (at the @) rather
+     than ending in an ellipsis nobody can read or copy. */
+  .row-sub.wraps { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
 
   /* Subscribe */
   .sub-form { display: flex; gap: 10px; flex-wrap: wrap; }
   .sub-form input {
     flex: 1 1 220px; min-width: 0; min-height: 50px; padding: 12px 16px; font: inherit; font-size: 16px;
-    border: 1px solid var(--sep); border-radius: 14px; background: var(--bg); color: var(--label);
+    border: 1px solid var(--field-border); border-radius: 14px; background: var(--bg); color: var(--label);
   }
   .sub-form input:focus { outline: 2px solid var(--tint); outline-offset: 1px; border-color: transparent; }
   .sub-form button {
     flex: 0 0 auto; min-height: 50px; padding: 12px 24px; font: inherit; font-size: 16px; font-weight: 600;
-    border: none; border-radius: 14px; background: var(--tint); color: #fff; cursor: pointer;
+    border: none; border-radius: 14px; background: var(--btn); color: #fff; cursor: pointer;
     transition: transform 0.15s var(--ease);
   }
   .sub-form button:active { transform: scale(0.97); }
   .sub-form button:disabled { opacity: 0.5; }
-  .sub-note { margin: 12px 0 0; font-size: 13.5px; color: var(--label-3); }
-  .sub-note.ok { color: var(--green); }
+  .sub-label { display: block; font-size: 13.5px; font-weight: 600; color: var(--label-2); margin: 0 0 6px; }
+  /* .card .sub-note, not .sub-note: `.card p` would otherwise win and set it
+     at body size with no gap above. */
+  .card .sub-note { margin: 12px 0 0; font-size: 13.5px; color: var(--label-2); }
+  .sub-note.ok { color: var(--ok); }
   .sub-note.error { color: #d70015; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sub-note.error { color: #FF453A; } }
 
-  footer { text-align: center; color: var(--label-3); font-size: 13px; padding: 40px 20px 0; line-height: 1.6; position: relative; z-index: 1; }
-  footer a { color: var(--label-2); }
+  footer { text-align: center; color: var(--label-2); font-size: 13px; padding: 40px 20px 0; line-height: 1.6; position: relative; z-index: 1; }
+  footer a { color: var(--label); }
+  .motion-toggle { font: inherit; color: var(--label); background: none; border: 0; padding: 0; cursor: pointer; }
+  .motion-toggle:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
     [data-reveal] { opacity: 1 !important; transform: none !important; }
     h1 .w { opacity: 1 !important; transform: none !important; }
+    .motion-switch { display: none; }
   }
+  /* The footer's "Pause motion": the same stillness, chosen on the page. */
+  html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation: none !important; }
+  html[data-motion="off"] h1 .w { opacity: 1 !important; transform: none !important; }
 </style>
   <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
        the service, so local runs and browser tests send nothing. -->
@@ -392,9 +484,9 @@
 
 <nav class="nav" id="nav" aria-label="Page">
   <div class="nav-inner">
-    <a class="brand" href="#top"><img src="/assets/erik-320.jpg" alt="" width="28" height="28"><span>Erik Strong</span></a>
-    <div class="nav-links">
-      <a href="/writing">Blog</a>
+    <a class="brand" href="#top" aria-label="Erik Strong, back to top"><img src="/assets/erik-96.jpg" alt="" width="28" height="28"><span>Erik Strong</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="/writing" data-nav="writing">Blog</a>
       <a href="/challenge">Challenge</a>
       <a href="#projects" data-nav="projects">Projects</a>
       <a href="#about" data-nav="about">About</a>
@@ -404,11 +496,11 @@
   <span class="progress" id="progress"></span>
 </nav>
 
-<main class="wrap" id="top">
+<main class="wrap">
 
   <header class="hero">
     <div class="avatar-ring">
-      <img class="avatar" src="/assets/erik.jpg" alt="Erik Strong" width="140" height="140" fetchpriority="high">
+      <img class="avatar" src="/assets/erik-420.jpg" srcset="/assets/erik-280.jpg 280w, /assets/erik-420.jpg 420w" sizes="140px" alt="Erik Strong" width="140" height="140" fetchpriority="high">
     </div>
     <div>
       <p class="eyebrow">Atlanta, Georgia</p>
@@ -417,25 +509,25 @@
       <p class="lede">I turn customer and market data into <span class="rot" id="rot">real business action</span>.</p>
     </div>
     <div class="facts">
-      <span class="fact"><svg><use href="#i-chart"/></svg>Sales intelligence</span>
-      <span class="fact"><svg><use href="#i-people"/></svg>Customer insights</span>
-      <span class="fact"><svg><use href="#i-spark"/></svg>Applied AI</span>
-      <span class="fact"><svg><use href="#i-growth"/></svg>Sales data whisperer</span>
-      <span class="fact"><svg><use href="#i-briefcase"/></svg>C-suite whisperer</span>
-      <span class="fact"><svg><use href="#i-db"/></svg>Data &amp; engineering</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg>Sales intelligence</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg>Customer insights</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg>Applied AI</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-growth"/></svg>Sales data whisperer</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-briefcase"/></svg>C-suite whisperer</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-db"/></svg>Data &amp; engineering</span>
     </div>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg><use href="#i-linkedin"/></svg>LinkedIn</a>
-      <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg><use href="#i-github"/></svg>GitHub</a>
-      <a class="btn btn-secondary" href="mailto:erik.strong@strongtechnicalconsulting.com"><svg><use href="#i-mail"/></svg>Email</a>
+      <a class="btn btn-primary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>LinkedIn</a>
+      <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg>GitHub</a>
+      <a class="btn btn-secondary" href="mailto:erik.strong@strongtechnicalconsulting.com"><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Email</a>
     </div>
-    <a class="cue" href="#projects" aria-label="Scroll to projects"><svg><use href="#i-down"/></svg></a>
+    <a class="cue" href="#projects" aria-label="Scroll to projects"><svg aria-hidden="true" focusable="false"><use href="#i-down"/></svg></a>
   </header>
 
-  <div class="marquee" aria-hidden="true">
-    <div class="marquee-track" id="marquee">
-      <span class="tag">Applied AI</span><span class="tag">Python</span><span class="tag">SQL</span><span class="tag">SAS</span><span class="tag">R</span><span class="tag">JavaScript</span><span class="tag">PHP</span><span class="tag">PERL</span><span class="tag">Spotfire</span><span class="tag">Data visualization</span><span class="tag">Big data</span><span class="tag">Fraud detection</span>
-    </div>
+  <div class="marquee">
+    <ul class="marquee-track" id="marquee" role="list" aria-label="Tools and skills">
+      <li class="tag">Applied AI</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">SAS</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">PHP</li><li class="tag">PERL</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Big data</li><li class="tag">Fraud detection</li>
+    </ul>
   </div>
 
   <section id="projects">
@@ -471,7 +563,7 @@
          when it scrolls into view (five apps on page load would be five
          cold starts for nothing). A transparent layer over each frame keeps
          swipes on the strip rather than inside the app, and a tap opens it. -->
-    <div class="previews" data-reveal aria-label="Live previews - swipe to browse">
+    <div class="previews" data-reveal role="region" aria-label="Live previews">
       <div class="preview-strip" id="previewStrip">
         <figure class="preview" data-src="https://footballapp.strongtechnicalconsulting.com/?tour=1" data-href="https://footballapp.strongtechnicalconsulting.com">
           <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open College Football"></a></div>
@@ -502,6 +594,8 @@
         </figure>
       </div>
       <div class="preview-dots" id="previewDots" aria-hidden="true"></div>
+      <button class="strip-nav prev" type="button" tabindex="-1" aria-hidden="true" data-dir="-1"><svg aria-hidden="true" focusable="false"><use href="#i-chev"/></svg></button>
+      <button class="strip-nav next" type="button" tabindex="-1" aria-hidden="true" data-dir="1"><svg aria-hidden="true" focusable="false"><use href="#i-chev"/></svg></button>
     </div>
 
     <div class="projects">
@@ -510,7 +604,7 @@
         <div class="project-body">
           <h3>College Football <span class="live">Live</span></h3>
           <p>Saturday's card, the whole board, and AI-backed research on any game. Build a slip and it syncs across your devices.</p>
-          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <a class="project" data-app="hopscotch" data-reveal style="--d:.12s" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
@@ -518,7 +612,7 @@
         <div class="project-body">
           <h3>Hopscotch <span class="live">Live</span></h3>
           <p>A craft beer passport. Find breweries anywhere, scan a can or a pour, score it like a judge, and plan the crawl before you land.</p>
-          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <a class="project" data-app="trip" data-reveal style="--d:.19s" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
@@ -526,7 +620,7 @@
         <div class="project-body">
           <h3>Trip Planner <span class="live">Live</span></h3>
           <p>Research a trip with Claude, draft the itinerary, and have flight and hotel prices watched in the background until you book.</p>
-          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <a class="project" data-app="dataviz" data-reveal style="--d:.26s" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener">
@@ -534,7 +628,7 @@
         <div class="project-body">
           <h3>DataViz <span class="live">Live</span></h3>
           <p>Point at a link or paste a table. Claude works out which visual fits and it plays &mdash; bars overtaking each other, lines drawing themselves, traffic moving between places.</p>
-          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <a class="project" data-app="friction" data-reveal style="--d:.33s" href="https://friction.strongtechnicalconsulting.com" target="_blank" rel="noopener">
@@ -542,7 +636,7 @@
         <div class="project-body">
           <h3>Friction <span class="live">Live</span></h3>
           <p>Reads what people complain about across Hacker News, GitHub and App Store reviews, scores it, and keeps a board of the problems that keep coming back.</p>
-          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <a class="project" data-app="spellbook" data-reveal style="--d:.40s" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
@@ -550,7 +644,7 @@
         <div class="project-body">
           <h3>Spellbook <span class="live">Live</span></h3>
           <p>A shared prompt library — publish the prompts that work, vote on everyone else's, and remix the good ones.</p>
-          <span class="open">Open app <svg><use href="#i-arrow"/></svg></span>
+          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <div class="project soon" data-reveal style="--d:.47s" aria-hidden="true">
@@ -622,34 +716,34 @@
 
     <div class="list list-facts" data-reveal style="margin-top:14px">
       <div class="row">
-        <span class="row-icon" style="background: var(--indigo)"><svg><use href="#i-spark"/></svg></span>
+        <span class="row-icon" style="background: var(--indigo)"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg></span>
         <span class="row-main"><span class="row-title">Led AI adoption across the organization</span><span class="row-sub">Looked to as a thought leader on where the field is going</span></span>
       </div>
       <div class="row">
-        <span class="row-icon" style="background: var(--tint)"><svg><use href="#i-patent"/></svg></span>
+        <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-patent"/></svg></span>
         <span class="row-main"><span class="row-title">Two patents</span><span class="row-sub">Detecting synthetic fraud in the credit marketplace</span></span>
       </div>
       <div class="row">
-        <span class="row-icon" style="background: var(--amber)"><svg><use href="#i-award"/></svg></span>
+        <span class="row-icon" style="background: var(--amber)"><svg aria-hidden="true" focusable="false"><use href="#i-award"/></svg></span>
         <span class="row-main"><span class="row-title">Top Equifax awards, more than once</span><span class="row-sub">Rare for a role that isn't sales</span></span>
       </div>
       <div class="row">
-        <span class="row-icon" style="background: var(--green)"><svg><use href="#i-people"/></svg></span>
+        <span class="row-icon" style="background: var(--green)"><svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg></span>
         <span class="row-main"><span class="row-title">Coach player</span><span class="row-sub">Leads the teams and still builds alongside them</span></span>
       </div>
     </div>
 
     <div class="skills">
       <div class="skill" data-reveal style="--d:.05s">
-        <div class="skill-icon" style="background: var(--tint)"><svg><use href="#i-chart"/></svg></div>
+        <div class="skill-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg></div>
         <div><h3>Sales intelligence &amp; customer insights</h3><p>Customer and market data turned into the view that moves a deal, not another dashboard nobody opens.</p></div>
       </div>
       <div class="skill" data-reveal style="--d:.12s">
-        <div class="skill-icon" style="background: var(--amber)"><svg><use href="#i-spark"/></svg></div>
+        <div class="skill-icon" style="background: var(--amber)"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg></div>
         <div><h3>Applied AI</h3><p>AI that actually runs inside the business: monitoring it, surfacing signals, and flagging what matters.</p></div>
       </div>
       <div class="skill" data-reveal style="--d:.19s">
-        <div class="skill-icon" style="background: var(--green)"><svg><use href="#i-app"/></svg></div>
+        <div class="skill-icon" style="background: var(--green)"><svg aria-hidden="true" focusable="false"><use href="#i-app"/></svg></div>
         <div><h3>Products that ship</h3><p>Custom apps and tools built to generate revenue, and the teams to keep building them.</p></div>
       </div>
     </div>
@@ -660,12 +754,13 @@
     <div class="section-head" data-reveal><h2>Blog</h2><span class="sub">Occasional, when there's something to say</span></div>
     <div class="card" data-reveal>
       <p style="margin-bottom:16px">Short pieces on what actually works when you put data and AI in front of a business. New posts go out by email, and you can unsubscribe in one tap.</p>
+      <label class="sub-label" for="subEmail">Email address</label>
       <form class="sub-form" id="subForm" method="POST" action="/api/subscribe">
         <input type="email" name="email" id="subEmail" inputmode="email" autocomplete="email" autocapitalize="none"
-               spellcheck="false" enterkeyhint="go" placeholder="you@example.com" aria-label="Your email" required>
+               spellcheck="false" enterkeyhint="go" placeholder="you@example.com" required>
         <button type="submit" id="subBtn">Subscribe</button>
       </form>
-      <p class="sub-note" id="subNote">You will get one email to confirm. Nothing else until there is something to read.</p>
+      <p class="sub-note" id="subNote" role="status" aria-live="polite">You will get one email to confirm. Nothing else until there is something to read.</p>
       <p style="margin-top:14px"><a href="/writing" style="font-weight:600">Read the posts <span aria-hidden="true">&rsaquo;</span></a></p>
     </div>
   </section>
@@ -674,29 +769,29 @@
     <div class="section-head" data-reveal><h2>Get in touch</h2></div>
     <div class="list" data-reveal>
       <a class="row" href="mailto:erik.strong@strongtechnicalconsulting.com">
-        <span class="row-icon" style="background: var(--tint)"><svg><use href="#i-mail"/></svg></span>
-        <span class="row-main"><span class="row-title">Email</span><span class="row-sub">erik.strong@strongtechnicalconsulting.com</span></span>
-        <svg class="row-chev"><use href="#i-chev"/></svg>
+        <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg></span>
+        <span class="row-main"><span class="row-title">Email</span><span class="row-sub wraps">erik.strong@<wbr>strongtechnicalconsulting.com</span></span>
+        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
       </a>
       <a class="row" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: #0A66C2"><svg><use href="#i-linkedin"/></svg></span>
+        <span class="row-icon" style="background: #0A66C2"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg></span>
         <span class="row-main"><span class="row-title">LinkedIn</span><span class="row-sub">linkedin.com/in/eriksstrong</span></span>
-        <svg class="row-chev"><use href="#i-chev"/></svg>
+        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
       </a>
       <a class="row" href="https://github.com/eRock35" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: #24292F"><svg><use href="#i-github"/></svg></span>
+        <span class="row-icon" style="background: #24292F"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg></span>
         <span class="row-main"><span class="row-title">GitHub</span><span class="row-sub">github.com/eRock35</span></span>
-        <svg class="row-chev"><use href="#i-chev"/></svg>
+        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
       </a>
       <a class="row" href="https://twitter.com/sTechConsulting" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: #000"><svg><use href="#i-x"/></svg></span>
+        <span class="row-icon" style="background: #000"><svg aria-hidden="true" focusable="false"><use href="#i-x"/></svg></span>
         <span class="row-main"><span class="row-title">X</span><span class="row-sub">@sTechConsulting</span></span>
-        <svg class="row-chev"><use href="#i-chev"/></svg>
+        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
       </a>
       <a class="row" href="https://www.instagram.com/strongtechnicalconsulting/" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)"><svg><use href="#i-instagram"/></svg></span>
+        <span class="row-icon" style="background: linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)"><svg aria-hidden="true" focusable="false"><use href="#i-instagram"/></svg></span>
         <span class="row-main"><span class="row-title">Instagram</span><span class="row-sub">@strongtechnicalconsulting</span></span>
-        <svg class="row-chev"><use href="#i-chev"/></svg>
+        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
       </a>
     </div>
   </section>
@@ -708,7 +803,8 @@
        just a slower way to arrive. -->
   <a href="/writing">Blog</a> &middot; <a href="/feed.xml">RSS</a> &middot;
   <a href="https://acct.strongtechnicalconsulting.com">Account</a> &middot;
-  <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a><br>
+  <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a><span class="motion-switch"> &middot;
+  <button type="button" class="motion-toggle" id="motionToggle">Pause motion</button></span><br>
   Built and run by Erik Strong in Atlanta.
 </footer>
 
@@ -716,6 +812,8 @@
 (function () {
   "use strict";
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var root = document.documentElement;
+  function still() { return reduce || root.getAttribute("data-motion") === "off"; }
 
   /* ---------- Hero title: word-by-word rise ---------- */
   var title = document.getElementById("heroTitle");
@@ -733,11 +831,15 @@
   }
 
   /* ---------- Rotating phrase in the lede ---------- */
+  // One pass through the phrases, then it rests on the first one - the line
+  // as written - rather than changing under the reader forever.
   var rot = document.getElementById("rot");
   if (rot && !reduce) {
     var phrases = ["real business action", "applied AI that ships", "products that earn", "the call before the deal"];
     var i = 0;
-    setInterval(function () {
+    var rotTimer = setInterval(function () {
+      if (still() || i === phrases.length - 1) clearInterval(rotTimer);
+      if (still()) { i = 0; rot.textContent = phrases[0]; return; }
       rot.classList.add("out");
       setTimeout(function () {
         i = (i + 1) % phrases.length;
@@ -748,8 +850,60 @@
   }
 
   /* ---------- Seamless marquee: duplicate the track ---------- */
+  // The copy exists only to make the loop seamless, so only the copy is
+  // hidden from screen readers; the original list reads normally.
   var track = document.getElementById("marquee");
-  if (track) track.innerHTML += track.innerHTML;
+  if (track) {
+    Array.prototype.slice.call(track.children).forEach(function (li) {
+      var c = li.cloneNode(true);
+      c.setAttribute("aria-hidden", "true");
+      track.appendChild(c);
+    });
+    // Hover pauses it for a mouse; a tap does the same on a phone.
+    track.parentNode.addEventListener("click", function () { track.parentNode.classList.toggle("paused"); });
+  }
+
+  /* ---------- Pause motion (footer) ---------- */
+  var motionBtn = document.getElementById("motionToggle");
+  if (motionBtn) {
+    var syncMotion = function () {
+      motionBtn.textContent = root.getAttribute("data-motion") === "off" ? "Resume motion" : "Pause motion";
+    };
+    motionBtn.addEventListener("click", function () {
+      var off = root.getAttribute("data-motion") !== "off";
+      if (off) root.setAttribute("data-motion", "off"); else root.removeAttribute("data-motion");
+      try { if (off) localStorage.setItem("motion", "off"); else localStorage.removeItem("motion"); } catch (e) {}
+      syncMotion();
+    });
+    syncMotion();
+  }
+
+  /* ---------- Rows that scroll sideways: fade the side with more ---------- */
+  // Shared with the preview strip below (window.edgeFade).
+  function edgeFade(el) {
+    var max = el.scrollWidth - el.clientWidth, f = "";
+    if (max > 1) {
+      if (el.scrollLeft > 1) f += "l";
+      if (el.scrollLeft < max - 1) f += "r";
+    }
+    if (f) el.setAttribute("data-fade", f); else el.removeAttribute("data-fade");
+  }
+  window.edgeFade = edgeFade;
+
+  // The nav links only scroll as a last resort (see the CSS), but when they
+  // do, a focused link is brought into the row's view - Chromium does not
+  // reliably do that itself inside a fixed bar.
+  var navLinks = document.getElementById("navLinks");
+  if (navLinks) {
+    navLinks.addEventListener("scroll", function () { edgeFade(navLinks); }, { passive: true });
+    navLinks.addEventListener("focusin", function (e) {
+      var r = e.target.getBoundingClientRect(), c = navLinks.getBoundingClientRect();
+      if (r.left < c.left) navLinks.scrollLeft -= c.left - r.left + 12;
+      else if (r.right > c.right) navLinks.scrollLeft += r.right - c.right + 12;
+    });
+    var navT; window.addEventListener("resize", function () { clearTimeout(navT); navT = setTimeout(function () { edgeFade(navLinks); }, 100); });
+    edgeFade(navLinks);
+  }
 
   /* ---------- Scroll progress + nav state ---------- */
   var nav = document.getElementById("nav");
@@ -787,20 +941,20 @@
   }
 
   /* ---------- Active section in the nav ---------- */
+  // Tracks which sections are in the band across the middle of the screen
+  // and redraws from that, so the underline also CLEARS - back at the hero
+  // nothing is underlined. The Blog section lights "Blog".
   var links = {};
   document.querySelectorAll("[data-nav]").forEach(function (a) { links[a.dataset.nav] = a; });
   if ("IntersectionObserver" in window) {
+    var sections = ["projects", "about", "writing", "contact"], inBand = {};
     var spy = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        var a = links[e.target.id];
-        if (!a) return;
-        if (e.isIntersecting) {
-          Object.keys(links).forEach(function (k) { links[k].classList.remove("is-active"); });
-          a.classList.add("is-active");
-        }
-      });
+      entries.forEach(function (e) { inBand[e.target.id] = e.isIntersecting; });
+      var cur = null;
+      sections.forEach(function (id) { if (inBand[id]) cur = id; });
+      Object.keys(links).forEach(function (k) { links[k].classList.toggle("is-active", k === cur); });
     }, { rootMargin: "-45% 0px -50% 0px" });
-    ["projects", "about", "contact"].forEach(function (id) {
+    sections.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) spy.observe(el);
     });
@@ -871,7 +1025,11 @@
         input.value = "";
       } catch (err) {
         note.className = "sub-note error";
-        note.textContent = err.message || "That did not work. Try again.";
+        // A TypeError is fetch failing to reach the server at all, and its
+        // message is the browser's ("Failed to fetch", "Load failed").
+        note.textContent = err instanceof TypeError
+          ? "Couldn't reach the server. Check your connection and try again."
+          : (err.message || "That did not work. Try again.");
       }
       btn.disabled = false;
     });
@@ -902,7 +1060,28 @@
   if (!strip || !("IntersectionObserver" in window)) return;
   var cards = Array.prototype.slice.call(strip.querySelectorAll(".preview"));
   var dots = document.getElementById("previewDots");
-  cards.forEach(function () { var i = document.createElement("i"); dots.appendChild(i); });
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var how = reduce ? "auto" : "smooth";
+  // Scroll the strip (only the strip - never the page) so a card is centred.
+  function centre(card) {
+    var s = strip.getBoundingClientRect(), c = card.getBoundingClientRect();
+    strip.scrollBy({ left: (c.left + c.width / 2) - (s.left + s.width / 2), behavior: how });
+  }
+  cards.forEach(function (card) {
+    var b = document.createElement("button");
+    b.type = "button"; b.tabIndex = -1;
+    b.addEventListener("click", function () { centre(card); });
+    dots.appendChild(b);
+  });
+  document.querySelectorAll(".strip-nav").forEach(function (b) {
+    b.addEventListener("click", function () { strip.scrollBy({ left: Number(b.dataset.dir) * strip.clientWidth * 0.8, behavior: how }); });
+  });
+  // Tabbing to a frame's link brings the frame into view; mandatory snap
+  // otherwise pulls the strip back and leaves the focused frame off-screen.
+  strip.addEventListener("focusin", function (e) {
+    var c = e.target.closest(".preview");
+    if (c) c.scrollIntoView({ inline: "center", block: "nearest", behavior: how });
+  });
 
   // The app renders at 390px wide - what it was designed for - and is scaled
   // to whatever the phone frame happens to be. Re-fit on resize.
@@ -939,19 +1118,42 @@
   var loader = new IntersectionObserver(function (entries) {
     entries.forEach(function (e) { if (e.isIntersecting) { load(e.target); loader.unobserve(e.target); } });
   }, { root: strip, rootMargin: "0px 60% 0px 60%", threshold: 0.01 });
-  cards.forEach(function (c) { loader.observe(c); });
+  // That observer's root is the strip, so it measures against the strip's own
+  // box and knows nothing about the viewport: on its own it loaded the first
+  // cards on page load, below the fold, for visitors who never scrolled to
+  // them. So it only starts once the strip itself reaches the screen.
+  var gate = new IntersectionObserver(function (es) {
+    if (!es.some(function (e) { return e.isIntersecting; })) return;
+    gate.disconnect();
+    cards.forEach(function (c) { loader.observe(c); });
+  });
+  gate.observe(strip);
 
-  // Which one is centred, for the dots: the MOST visible card, not whichever
-  // entry happened to arrive last - two can be partly in view at once.
-  var ratios = cards.map(function () { return 0; });
-  var centred = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) { ratios[cards.indexOf(e.target)] = e.isIntersecting ? e.intersectionRatio : 0; });
-    var best = ratios.indexOf(Math.max.apply(null, ratios));
-    Array.prototype.forEach.call(dots.children, function (d, j) { d.classList.toggle("on", best === j); });
-  }, { root: strip, threshold: [0, 0.25, 0.5, 0.75, 1] });
-  cards.forEach(function (c) { centred.observe(c); });
+  // The dots follow the card nearest the strip's centre, and the ends win at
+  // the ends: on a wide screen several cards are fully visible at once, and
+  // "most visible" then always picked the first of them.
+  function sync() {
+    var max = strip.scrollWidth - strip.clientWidth, best = 0;
+    if (strip.scrollLeft >= max - 1 && max > 0) best = cards.length - 1;
+    else if (strip.scrollLeft > 1) {
+      var s = strip.getBoundingClientRect(), mid = s.left + s.width / 2, d = Infinity;
+      cards.forEach(function (c, j) {
+        var r = c.getBoundingClientRect(), k = Math.abs(r.left + r.width / 2 - mid);
+        if (k < d) { d = k; best = j; }
+      });
+    }
+    Array.prototype.forEach.call(dots.children, function (b, j) { b.classList.toggle("on", best === j); });
+    if (window.edgeFade) window.edgeFade(strip);
+  }
+  var ticking = false;
+  strip.addEventListener("scroll", function () {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () { ticking = false; sync(); });
+  }, { passive: true });
+  sync();
 
-  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(function () { cards.forEach(fit); }, 120); });
+  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(function () { cards.forEach(fit); sync(); }, 120); });
 })();
 </script>
 <script>
@@ -992,22 +1194,25 @@
         //  - an app with no views is left out rather than listed at zero.
         //  - and nothing is drawn at all below two rows, because a ranking of
         //    one is not a ranking.
+        //  - ranked, drawn and scaled on ONE number, this week's: an app with
+        //    no views this week is not "most used this week", and one big
+        //    all-time count would shrink every weekly bar beside it.
         var seen = d.apps.filter(function (a) {
-          return a.app !== 'landing' && (a.views7 || a.totalViews) > 0;
-        });
+          return a.app !== 'landing' && Number(a.views7) > 0;
+        }).sort(function (a, b) { return b.views7 - a.views7; });
         if (seen.length > 1) {
-          var top = Math.max.apply(null, seen.map(function (a) { return a.views7 || a.totalViews; }));
+          var top = Math.max.apply(null, seen.map(function (a) { return a.views7; }));
           // Seven days, because that is the window the numbers below are from
           // (views7) - not d.days, which is how long the sparkline series is.
           document.getElementById('trendWhen').textContent =
-            'Last 7 days \u00b7 first-party counter, no third-party tracker';
+            'Last 7 days \u00b7 counted first-party';
           document.getElementById('trendList').innerHTML = seen.map(function (a, i) {
-            var v = a.views7 || a.totalViews;
+            var v = a.views7;
             var pct = Math.max(6, Math.round((v / top) * 100));
             return '<li><a href="' + esc(a.url) + '" style="--w:' + pct + '%">'
               + '<span class="tl-rank">' + (i + 1) + '</span>'
               + '<span class="tl-name">' + esc(a.icon || '') + ' ' + esc(a.label) + '</span>'
-              + '<span class="tl-n">' + n(v) + (a.views7 ? '' : ' all time') + '</span>'
+              + '<span class="tl-n">' + n(v) + '</span>'
               + '</a></li>';
           }).join('');
           document.getElementById('trendBar').hidden = false;
@@ -1015,7 +1220,8 @@
 
         // `rank` is the rank across everything the counter tracks, and #1 is
         // always this page - so keying the badge off it meant no app card
-        // would ever carry it. The badge belongs to the busiest APP.
+        // would ever carry it. The badge belongs to the busiest APP this
+        // week, and to nobody in a week with no views.
         var leader = seen.length ? seen[0].app : null;
 
         d.apps.forEach(function (a) {

@@ -150,10 +150,18 @@
   var LAB = 'https://challenge.strongtechnicalconsulting.com';
   // What the lab held when this page was written, so it draws even if the lab
   // is asleep or unreachable. Replaced by the live list when it answers.
+  // What the lab held when this page was last updated. Drawn only if the
+  // lab does not answer quickly, so a visitor never sees an old count flash
+  // up first; the daily run does not need to keep it current.
   var FALLBACK = [
-    { slug: 'spar', name: 'Spar', emoji: '🥊', color: '#ff5a36', color2: '#ff8a3d', dropped: '2026-09-24', tagline: 'Practise the hard conversation before it counts.', status: 'testing' },
-    { slug: 'snapquote', name: 'Snapquote', emoji: '📸', color: '#10b981', color2: '#06b6d4', dropped: '2026-09-24', tagline: 'A few photos and a voice note become a pro quote in 60 seconds.', status: 'testing' },
-    { slug: 'chaser', name: 'Chaser', emoji: '💸', color: '#7c5cff', color2: '#ff5fa2', dropped: '2026-09-24', tagline: 'Get paid without the awkward part.', status: 'testing' },
+    { slug: 'spar', name: 'Spar', emoji: '🥊', color: '#ff5a36', color2: '#ff8a3d', dropped: '2026-09-24', tagline: "Practise the hard conversation before it counts.", status: 'testing' },
+    { slug: 'snapquote', name: 'Snapquote', emoji: '📸', color: '#10b981', color2: '#06b6d4', dropped: '2026-09-24', tagline: "A few photos and a voice note become a pro quote in 60 seconds.", status: 'testing' },
+    { slug: 'chaser', name: 'Chaser', emoji: '💸', color: '#7c5cff', color2: '#ff5fa2', dropped: '2026-09-24', tagline: "Get paid without the awkward part.", status: 'testing' },
+    { slug: 'rave', name: 'Rave', emoji: '⭐', color: '#d97706', color2: '#e11d48', dropped: '2026-09-24', tagline: "Answer every review like a pro — even the ones that sting.", status: 'testing' },
+    { slug: 'popquiz', name: 'Pop Quiz', emoji: '🧠', color: '#1e40af', color2: '#6b21a8', dropped: '2026-09-24', tagline: "Staff training that plays like a daily game.", status: 'testing' },
+    { slug: 'glowup', name: 'Glowup', emoji: '✨', color: '#6d1b7b', color2: '#8c2410', dropped: '2026-09-25', tagline: "Give your listing a glow-up — and watch the score climb.", status: 'testing' },
+    { slug: 'booth', name: 'Booth', emoji: '🎪', color: '#991b1b', color2: '#1e3a8a', dropped: '2026-09-25', tagline: "Trade-show leads that don’t go cold.", status: 'testing' },
+    { slug: 'receipt', name: 'Receipt', emoji: '🧾', color: '#0f4c45', color2: '#881337', dropped: '2026-09-25', tagline: "Every meeting gets a receipt.", status: 'testing' },
   ];
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -162,14 +170,18 @@
     return d > now ? d : new Date(d.getTime() + 864e5);
   }
 
-  function draw(apps) {
-    var n = apps.length, a = apps[n - 1];
+  // Drop numbers come from each app's place in the full list, retired ones
+  // included, so killing or graduating an app never renumbers the rest.
+  function draw(all) {
+    var apps = all.filter(function (x) { return x.status !== 'retired'; });
+    if (!apps.length) return;
+    var n = apps.length, a = apps[n - 1], num = all.indexOf(a) + 1;
     var latest = document.getElementById('latest');
     latest.href = a.status === 'graduated' && a.home ? a.home : LAB + '/' + a.slug + '/';
     latest.style.setProperty('--c1', a.color); latest.style.setProperty('--c2', a.color2);
-    latest.innerHTML = '<div class="band"><span class="tag">Latest drop · #' + String(n).padStart(2, '0') + '</span><span class="em">' + esc(a.emoji) + '</span></div>' +
+    latest.innerHTML = '<div class="band"><span class="tag">Latest drop · #' + String(num).padStart(2, '0') + '</span><span class="em">' + esc(a.emoji) + '</span></div>' +
       '<div class="b"><h3>' + esc(a.name) + '</h3><p>' + esc(a.tagline) + '</p><span class="go">Try it free ↗</span></div>';
-    document.getElementById('nextTag').textContent = 'Drop #' + String(n + 1).padStart(2, '0') + ' · Classified';
+    document.getElementById('nextTag').textContent = 'Drop #' + String(all.length + 1).padStart(2, '0') + ' · Classified';
     document.getElementById('sLab').textContent = n + (n === 1 ? ' app' : ' apps');
 
     // The earlier drops, as blurred emoji only: the names and pitches are the
@@ -188,10 +200,12 @@
     document.getElementById('count').textContent = h + 'h ' + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
   }
 
-  draw(FALLBACK); tick(); setInterval(tick, 1000);
+  tick(); setInterval(tick, 1000);
+  var drewLive = false;
+  var fallbackTimer = setTimeout(function () { if (!drewLive) draw(FALLBACK); }, 1200);
   fetch(LAB + '/api/lab', { mode: 'cors' }).then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) { var live = d && d.apps ? d.apps.filter(function (a) { return a.status !== 'retired'; }) : []; if (live.length) draw(live); })
-    .catch(function () { /* the fallback is already drawn */ });
+    .then(function (d) { if (d && d.apps && d.apps.length) { drewLive = true; clearTimeout(fallbackTimer); draw(d.apps); } else { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); } })
+    .catch(function () { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); });
 
   var io = 'IntersectionObserver' in window ? new IntersectionObserver(function (es) {
     es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });

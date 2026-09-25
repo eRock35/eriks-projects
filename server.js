@@ -999,9 +999,13 @@ app.use(express.static(SITE_DIR, {
   maxAge: '5m',
 }));
 
-// Anything unrecognised falls back to the landing page rather than a bare 404.
+// Anything unrecognised still shows the landing page, so a mistyped link is
+// never a dead end, but with a 404 status: answering 200 told search engines
+// that every made-up path was a copy of the home page. A path that looks like
+// a file (/favicon.ico, /x.png) gets a plain 404 rather than a page of HTML.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(SITE_DIR, 'index.html'));
+  if (/\.[a-z0-9]{1,6}$/i.test(req.path)) return res.status(404).type('text/plain').send('Not found');
+  res.status(404).sendFile(path.join(SITE_DIR, 'index.html'));
 });
 
 app.listen(PORT, () => {
