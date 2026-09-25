@@ -1,0 +1,10 @@
+{
+  "name": "Glowup",
+  "short_name": "Glowup",
+  "description": "Give your listing a glow-up — a 0–100 score with a fix for every point, and a score that climbs with every version.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#110c16",
+  "theme_color": "#110c16",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

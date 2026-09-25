@@ -77,6 +77,21 @@ const APPS = [
     audience: 'Restaurants, shops, salons, clinics, gyms & hotels',
     status: 'testing',
   },
+  {
+    slug: 'glowup',
+    name: 'Glowup',
+    emoji: '✨',
+    // Plum to ember, dark enough that white text holds 4.5:1 at both ends
+    // and in the middle under the card's white highlight.
+    color: '#6d1b7b',
+    color2: '#8c2410',
+    dropped: '2026-09-25',
+    tagline: 'Give your listing a glow-up — and watch the score climb.',
+    blurb: 'For hosts, Etsy and eBay sellers and local pros whose sales hang on one listing. Paste it or snap it for a 0–100 score with a fix for every point, then a rewrite that never invents a fact — scored by the same rules, so the jump is real.',
+    features: ['A 0–100 glow score with five rings', 'A fix for every point you lose', '3 titles, new copy & a shot list', 'Versions, a streak & a share card'],
+    audience: 'Airbnb & Vrbo hosts, Etsy & eBay sellers, local pros',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
