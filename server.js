@@ -12,6 +12,7 @@
 // min-instance count, a warmup, or anything else that keeps an instance alive.
 
 const express = require('express');
+const compression = require('compression');
 const path = require('path');
 
 const { store } = require('./lib/store');
@@ -44,8 +45,103 @@ const CONFIRM_TTL_SECONDS = 14 * 24 * 60 * 60;
 // pressing send again; every recipient is recorded, so nobody is mailed twice.
 const MAX_SEND_PER_RUN = Number(process.env.MAX_SEND_PER_RUN || 500);
 
+// The hosts this one service answers for. BASE_DOMAIN is the apex, and the
+// apex is the canonical address of everything on it - www. redirects there
+// (see canonicalHost below). ACCOUNT_HOST is a domain mapping onto this same
+// service; see the account routes further down.
+const BASE_DOMAIN = String(process.env.PASSKEY_RP_ID || 'strongtechnicalconsulting.com').toLowerCase();
+const ACCOUNT_HOST = String(process.env.ACCOUNT_HOST || 'acct.strongtechnicalconsulting.com').toLowerCase();
+const WWW_HOST = `www.${BASE_DOMAIN}`;
+const CANONICAL_ORIGIN = `https://${BASE_DOMAIN}`;
+
+// Every absolute link this service writes is built from SITE_ORIGIN: the
+// canonical and og:url tags and the feed (lib/render.js, which reads it at
+// call time), subscribe-confirm and unsubscribe links, and password-reset
+// links. Production set it to the www host back when www was the address.
+// Now that www redirects, a www link costs every reader a hop and tells search
+// engines the canonical URL is one that 301s - so the www origin, or no value
+// at all, is read as the apex. Anything else (a staging host, localhost) is
+// taken as meant. Written back to the environment because lib/render.js and
+// lib/notify.js read it from there.
+const SITE_ORIGIN = (() => {
+  const configured = String(process.env.SITE_ORIGIN || '').trim().replace(/\/+$/, '');
+  let host = '';
+  try { host = configured ? new URL(configured).hostname.toLowerCase() : ''; } catch (e) { host = ''; }
+  return !configured || host === WWW_HOST ? CANONICAL_ORIGIN : configured;
+})();
+process.env.SITE_ORIGIN = SITE_ORIGIN;
+
 const app = express();
 app.set('trust proxy', true);
+
+// gzip or brotli for text (HTML, CSS, JS, JSON, SVG, XML); images are already
+// compressed and are left alone by the default filter. Two exclusions on top
+// of it:
+// - text/event-stream. Nothing here streams today, but a compressor holds
+//   bytes back until it has a block worth emitting, which is exactly wrong for
+//   a stream whose point is to arrive as it is written. The same goes for a
+//   whitespace heartbeat like trip-planner's streamedJson: a route like that
+//   must set `Cache-Control: no-transform` (which the middleware honours) or
+//   call res.flush() after each write.
+// - 206 partial content. A byte range of the uncompressed file, then
+//   compressed, is not the range the client asked for.
+// Express's static ETags are weak (W/"..."), which is what makes one ETag
+// correct for both the compressed and the plain body.
+app.use(compression({
+  filter(req, res) {
+    if (res.statusCode === 206) return false;
+    if (/^text\/event-stream/i.test(String(res.getHeader('Content-Type') || ''))) return false;
+    return compression.filter(req, res);
+  },
+}));
+
+/* ------------------------------------------------------------------ *
+ * One canonical host
+ * ------------------------------------------------------------------ */
+
+// This service answers on the apex and on www. Two addresses for every page
+// splits links and search ranking between them and makes the canonical tag a
+// guess, so the apex is THE address and a GET on www is sent there with a 301.
+//
+// Deliberately NOT redirected on www:
+// - /api/*. Every app's view beacon POSTs to https://www.<domain>/api/beacon
+//   (shared/beacon.js, synced into each app's repo), and pages fetch
+//   /api/stats/public cross-origin. A CORS preflight that gets a redirect
+//   fails outright, and so would the count.
+// - Anything but GET and HEAD. A 301 turns a POST into a GET in every browser,
+//   which would drop a subscribe form, or a one-click unsubscribe from an
+//   email that still carries a www link, on the floor.
+// - /healthz, only so it behaves the same locally and in CI. In production
+//   Cloud Run's edge answers it before the container (see /api/health below);
+//   the probe that reaches the app is /api/health, covered by /api/*.
+// - /robots.txt. It is per host by definition (RFC 9309), and answering it
+//   directly means a crawler that will not follow a redirect for it still
+//   reads the rules, rather than treating "unreachable" as "allow all".
+// - /.well-known/*. Per host by definition (RFC 8615) - and if a certificate
+//   challenge for the www mapping ever reached the container, bouncing it to
+//   another host would fail the renewal.
+//
+// Only the www host. The account host, the *.run.app URL, localhost and the
+// tests are served exactly as before. The target is a fixed origin plus the
+// request's own path, so a path like //elsewhere.example cannot turn this into
+// an open redirect - but only an origin-form target (one starting with "/")
+// is a path. Node also accepts absolute-form (`GET http://evil.com/y`, or
+// `GET munity://x/y`, which glued onto the origin reads as the host
+// strongtechnicalconsulting.community), so anything else is left alone rather
+// than redirected. Keep the concatenation: new URL(originalUrl, origin) would
+// resolve //elsewhere.example off-host. A day of cache rather than none:
+// browsers otherwise keep a 301 for good, which would make a mistake here one
+// nobody could take back.
+const NOT_REDIRECTED = /^\/(?:api(?:\/|$)|healthz\/?$|robots\.txt$|\.well-known\/)/i;
+app.use(function canonicalHost(req, res, next) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (String(req.hostname || '').toLowerCase() !== WWW_HOST) return next();
+  if (!String(req.originalUrl || '').startsWith('/')) return next();
+  if (NOT_REDIRECTED.test(req.path)) return next();
+  res.set('Cache-Control', 'public, max-age=86400');
+  return res.redirect(301, CANONICAL_ORIGIN + req.originalUrl);
+});
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -694,7 +790,59 @@ app.get('/robots.txt', (req, res) => {
   if (String(req.hostname || '').toLowerCase() === ACCOUNT_HOST) {
     return res.type('text/plain').send('User-agent: *\nDisallow: /\n');
   }
-  res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nSitemap: ${view.origin()}/feed.xml\n`);
+  // Canonical URLs whichever host was asked: www answers this directly rather
+  // than redirecting (see canonicalHost), and must still point at the apex.
+  // The feed stays listed too - search engines take RSS as a sitemap, and it
+  // is the one that says what is new.
+  res.type('text/plain').send(
+    'User-agent: *\nDisallow: /admin\n'
+    + `Sitemap: ${CANONICAL_ORIGIN}/sitemap.xml\n`
+    + `Sitemap: ${CANONICAL_ORIGIN}/feed.xml\n`,
+  );
+});
+
+// Every public page, at its canonical (apex) address. The posts come from the
+// same query /writing uses, so a post is listed exactly when it is readable.
+// The pages the admin surface and the account host serve are not listed.
+const SITEMAP_PAGES = ['/', '/challenge', '/writing', '/privacy', '/terms'];
+
+function xmlEscape(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+}
+
+function isoOrNull(value) {
+  const d = new Date(value || '');
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+app.get('/sitemap.xml', async (req, res) => {
+  // The account host serves this same app, and its robots.txt says stay out;
+  // a sitemap there listing the apex's pages would be a cross-host sitemap,
+  // which search engines ignore at best.
+  if (String(req.hostname || '').toLowerCase() === ACCOUNT_HOST) {
+    return res.status(404).type('text/plain').send('Not found');
+  }
+  let posts = [];
+  try {
+    posts = await publishedPosts();
+  } catch (err) {
+    // The static pages are still worth listing. Leaving a URL out of a sitemap
+    // is not a removal request, so a store hiccup costs nothing lasting.
+    console.error('GET /sitemap.xml', err);
+  }
+  const newest = posts.map((p) => isoOrNull(p.updatedAt || p.publishedAt)).filter(Boolean).sort().pop() || null;
+  const entries = SITEMAP_PAGES.map((p) => ({ loc: CANONICAL_ORIGIN + p, lastmod: p === '/writing' ? newest : null }))
+    .concat(posts.map((p) => ({
+      loc: `${CANONICAL_ORIGIN}/writing/${encodeURIComponent(p.slug)}`,
+      lastmod: isoOrNull(p.updatedAt || p.publishedAt),
+    })));
+  const body = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + entries.map((e) => `  <url><loc>${xmlEscape(e.loc)}</loc>${e.lastmod ? `<lastmod>${e.lastmod}</lastmod>` : ''}</url>\n`).join('')
+    + '</urlset>\n';
+  res.set('Content-Type', 'application/xml; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=600');
+  res.send(body);
 });
 
 /* ------------------------------------------------------------------ *
@@ -807,7 +955,10 @@ app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GR
 // This replaces the admin-issues-a-temporary-password arrangement, which was
 // written when there was no mail sender on the project. There is one now, and
 // nobody should have to ask a person to get back into their own account.
-const RESET_ORIGIN = process.env.SITE_ORIGIN || 'https://www.strongtechnicalconsulting.com';
+// The apex unless SITE_ORIGIN names some other host - see SITE_ORIGIN at the
+// top. The reset page posts back to its own origin, and the session it issues
+// is scoped to the parent domain, so the signed-in state reaches every app.
+const RESET_ORIGIN = SITE_ORIGIN;
 
 app.post('/api/id/reset/request', async (req, res) => {
   const address = String((req.body || {}).email || '').trim().toLowerCase();
@@ -868,8 +1019,8 @@ app.get('/reset', (_req, res) => res.sendFile(path.join(SITE_DIR, 'reset.html'))
 // Run service would have needed new secrets and a new runtime account to say
 // exactly what this page says. The subdomain is a domain mapping onto this
 // same service, which costs nothing and needs no second deployment.
-const ACCOUNT_HOST = String(process.env.ACCOUNT_HOST || 'acct.strongtechnicalconsulting.com').toLowerCase();
-const BASE_DOMAIN = String(process.env.PASSKEY_RP_ID || 'strongtechnicalconsulting.com').toLowerCase();
+// ACCOUNT_HOST and BASE_DOMAIN are defined at the top, beside the canonical
+// host they are read with.
 const accountPage = (_req, res) => res.sendFile(path.join(SITE_DIR, 'account.html'));
 
 // `/account` on any other host of this domain is the old URL, and it stays -
@@ -993,10 +1144,27 @@ app.get('/api/admin/insights', requireAdmin, async (req, res) => {
  * Static files and the landing page
  * ------------------------------------------------------------------ */
 
+// Images and fonts under /assets keep for a week; everything else - the HTML
+// above all, and the CSS, which changes with it - for five minutes. None of
+// these names are fingerprinted, so an image replaced in place can show the
+// old one for up to a week: give a changed image a new name instead
+// (erik-420.jpg -> erik-420-v2.jpg). ETags stay on, so once the week is up a
+// browser revalidates with a 304 rather than downloading it again.
+const ASSETS_DIR = path.join(SITE_DIR, 'assets') + path.sep;
+const LONG_CACHE = /\.(?:jpe?g|png|gif|webp|avif|svg|ico|woff2?|ttf|otf)$/i;
+const WEEK_SECONDS = 7 * 24 * 60 * 60;
+
 app.use(express.static(SITE_DIR, {
   extensions: ['html'],
   // The page changes rarely but should not go stale for long when it does.
   maxAge: '5m',
+  // Runs before `send` writes its own Cache-Control, and `send` leaves one
+  // that is already set alone.
+  setHeaders(res, filePath) {
+    if (filePath.startsWith(ASSETS_DIR) && LONG_CACHE.test(filePath)) {
+      res.setHeader('Cache-Control', `public, max-age=${WEEK_SECONDS}`);
+    }
+  },
 }));
 
 // Anything unrecognised still shows the landing page, so a mistyped link is

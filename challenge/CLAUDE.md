@@ -146,11 +146,12 @@ When Erik picks a keeper:
   (datastore.user on `challenge` + `identity`; secrets `anthropic-api-key`,
   `identity-session-secret`).
 - **Live since 2026-09-24** at `https://challenge-u4h4ftn3fa-uc.a.run.app`,
-  domain mapping created; the site answers on the subdomain once the DNS
-  record below exists.
+  and at `https://challenge.strongtechnicalconsulting.com` since its CNAME
+  went in on 2026-09-25.
 - First deploy (done):
   `gcpdeploy create challenge --env PASSKEY_RP_ID=strongtechnicalconsulting.com --domain challenge.strongtechnicalconsulting.com`
-  then DNS at the registrar: `CNAME challenge -> ghs.googlehosted.com`.
+  then DNS at the registrar: `CNAME challenge -> ghs.googlehosted.com`
+  (done 2026-09-25).
 - Every deploy after: `gcpdeploy ship challenge`.
 - Billed per request (`cpuIdle: true`) like everything else — never keep
   working after a response.

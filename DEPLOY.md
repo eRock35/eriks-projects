@@ -14,10 +14,17 @@ automate everything below. Prefer them:
 
 ```
 ./.claude/skills/deploy/gcpdeploy status
-./.claude/skills/deploy/gcpdeploy ship <football|trip|vacation>
+./.claude/skills/deploy/gcpdeploy ship <app>
+./.claude/skills/deploy/gcpdeploy create <app>
 ./.claude/skills/deploy/gcpdeploy verify <app>
 ./.claude/skills/deploy/gcpdeploy page
 ```
+
+`<app>` is any key in `.claude/skills/deploy/apps.json`, one per app —
+`landing` for this site, `challenge` for the lab, and so on. `create` is the first deploy of a
+new app (see "Creating a service"). `page` uploads `site/index.html` to the
+old landing bucket, which is a rollback copy now, not the live site — the
+live site is the `landing` entry, shipped like any other app.
 
 The rest of this file is the reference behind the tool — read it when the
 script can't do what you need, or when you need the raw REST shapes.
@@ -67,7 +74,9 @@ Deployer service account: `cover-sheet-deployer@metal-celerity-236019.iam.gservi
 - GCP project `metal-celerity-236019`, region `us-central1`
 - Artifact Registry repo `erik-projects`
 - Cloud Build staging bucket `metal-celerity-236019-cb-source`
-- Landing page bucket `www.strongtechnicalconsulting.com` (static website hosting)
+- Landing page bucket `www.strongtechnicalconsulting.com` — where the page
+  lived as static website hosting before it moved to Cloud Run. Kept only as
+  a rollback; no hostname serves from it (see "Domain mappings").
 - Shared secret: `anthropic-api-key`
 
 **Firestore: never use `(default)`.** On this project it is a legacy
@@ -97,8 +106,22 @@ container bound its port.
 
 ## Creating a service (first deploy only)
 
-`gcpdeploy ship` updates an existing service; it cannot create one. For a new
-app, build first, then POST the service once:
+`gcpdeploy ship` updates an existing service; it cannot create one.
+`gcpdeploy create <app>` does the first deploy for the shape every new app
+shares — its own database (created if missing), running as `<service>-run@`,
+the identity env and the `anthropic-api-key` and `identity-session-secret`
+secrets, `cpuIdle: true`, minimum instances 0, public invoker, and with
+`--domain` its mapping. It refuses when the runtime account does not exist
+yet: Erik creates it with `scripts/new-app-accounts.sh <service>` in Cloud
+Shell, because the deployer holds no IAM-admin rights. The argument is the
+**service** name, not the `apps.json` key: the script makes `<name>-run@` and
+conditions its datastore access on a database called `<name>`, so for a key
+that differs from its service (`beer` -> `hopscotch`, `trip` ->
+`trip-planner`) the key would make the wrong account. A new app should use one
+name for its `apps.json` key, its service and its database. The Challenge Lab
+went out this way on 2026-09-24.
+
+For anything `create` cannot do, build first, then POST the service once:
 
 ```
 POST run.googleapis.com/v2/projects/$P/locations/us-central1/services?serviceId=<name>
@@ -123,8 +146,9 @@ Two things Cloud Run will reject or overcharge for:
   roughly $15/month after the free tier, for traffic the free tier covers
   entirely on request-based billing. The landing page, on `cpuIdle: true`,
   served the MOST requests (15.8k) and was billed half an hour. All eight
-  services are request-based now. `gcpdeploy ship` copies the live template,
-  so the setting survives deploys; a new service must set it itself.
+  services are request-based now, and `challenge`, created the next day, was
+  born that way. `gcpdeploy ship` copies the live template, so the setting
+  survives deploys; a new service must set it itself (`create` does).
 
   **The rule this imposes on code: never keep working after the response.**
   Between requests the CPU is throttled to near zero, so anything
@@ -173,11 +197,13 @@ initial state*, not a failure.
 |---|---|---|---|
 | College Football | `college-football-app` | `college-football-app` | `footballapp.strongtechnicalconsulting.com` |
 | Hopscotch (beer) | `hopscotch` | `hopscotch` | `beer.strongtechnicalconsulting.com` |
-| Trip Planner | `trip-planner` | `trip-planner` | `trip-planner-…-uc.a.run.app` |
+| Trip Planner | `trip-planner` | `trip-planner` | `trip.strongtechnicalconsulting.com` |
 | Santa Rosa Beach Trip | `santa-rosa-beach-trip` | `santa-rosa-beach-trip` | *URL not written down — see below* |
-| Landing page + writing | `landing-page` | `eriks-projects` | `strongtechnicalconsulting.com` and `www.` |
+| Landing page + writing | `landing-page` | `eriks-projects` | `strongtechnicalconsulting.com` (`www.` 301s to it; `acct.` is the account page) |
 | Friction (signal board) | `friction` | `friction` | `friction.strongtechnicalconsulting.com` |
 | DataViz (animated charts) | `dataviz` | `dataviz` | `dataviz.strongtechnicalconsulting.com` |
+| Spellbook (prompt library) | `spellbook` | `spellbook` | `spellbook.strongtechnicalconsulting.com` |
+| Challenge Lab (every trial app) | `challenge` | `challenge` | `challenge.strongtechnicalconsulting.com`, each app at `/<slug>/` |
 
 Per-app secrets are deliberately **not** shared. The football app's login is the
 kind of thing Erik might hand to a friend so they can run research; that password
@@ -189,17 +215,20 @@ must not also open the trip apps.
 - Landing page: `landing-session-secret`, `landing-admin-password`, `resend-api-key`
 - Friction: `friction-app-password`, `friction-session-secret`, `friction-cron-secret`
 - DataViz: `dataviz-session-secret`
+- Challenge Lab: none of its own, on purpose — only the shared
+  `anthropic-api-key` and `identity-session-secret`. A daily drop that needs
+  a secret is the wrong idea for a daily drop (see "The Challenge Lab").
 - Billing, domain-wide and NOT DataViz's own: `stripe-secret-key`,
-  `stripe-webhook-secret`, `stripe-member-price`. Checkout is served from
-  DataViz because that is the service holding the keys and the verified
-  webhook, but what it sells is an account-level membership that spends in
-  every app — see "Billing" below. Renamed off the `dataviz-` prefix on
+  `stripe-webhook-secret`, `stripe-member-price`. The webhook is DataViz's
+  alone; since 2026-09-22 checkout is served by each of the five services
+  that hold the key, and what it sells is an account-level membership that spends
+  in every app — see "Billing" below. Renamed off the `dataviz-` prefix on
   2026-09-21 for exactly that reason.
 
 Don't write the Santa Rosa app's literal `*.run.app` URL into any public file.
 See **Settled decisions**.
 
-### Why two apps have no custom domain
+### Why one app has no custom domain
 
 A Cloud Run domain mapping provisions a certificate for that exact hostname,
 which publishes it to public **Certificate Transparency logs** that bots scrape.
@@ -210,6 +239,11 @@ never appears there.
 rental confirmation numbers. The quieter URL beat the nicer one. That trade has
 since been revisited — see **Settled decisions**. The app keeps its `*.run.app`
 URL; don't add a domain mapping for it.
+
+This heading used to say two apps. Trip Planner was the other, and has been on
+`trip.` since 2026-09-20: its repo is public, it is open to registration and
+its `*.run.app` URL was already linked from this page, so there was no quiet
+URL there to protect.
 
 ## Which model each tier runs on
 
@@ -257,29 +291,40 @@ money or belong to someone need a sign-in. What each shows signed-out:
 | santa-rosa | nothing, deliberately | everything |
 
 The landing page's **Projects** section frames those preview URLs in a
-swipeable strip of phone-shaped frames. Each frame loads only when it
-scrolls near (five cold starts on page load would be silly), the app inside
-renders at 390px and is scaled to fit, and a transparent layer over each
-keeps swipes on the strip and turns a tap into "open the app".
+swipeable strip of phone-shaped frames — six of them, in the same order as
+the cards below: football, Hopscotch (`/?tour=1#trips`), trip-planner,
+DataViz, Friction's `/preview`, and Spellbook's front page. Each frame loads
+only when it scrolls near (six cold starts on page load would be silly), the
+app inside renders at 390px and is scaled to fit, and a transparent layer
+over each keeps swipes on the strip and turns a tap into "open the app", in
+a new tab.
 
-**Tour mode.** Every framed URL carries `?tour=1`, and the app then runs
-a scripted loop on itself so the frame looks used: trip-planner reads the
-example chat, types a question and shows a canned answer arrive, opens a
-day, glances at the watches; football scrolls the card, opens a "why",
-visits the board; DataViz plays one free sample after another; Friction reads
-down the preview. `shared/tour.js` is the helper (copied into each app's
-`public/`; Friction serves it before the gate). Three rules it keeps:
-nothing it does costs money - chat answers are canned and drawn into the
-DOM, DataViz taps only samples marked `free` by `/api/datasets`; it runs
-only with `?tour=1` and never under reduced motion; a failing step restarts
-the loop rather than leaving the page half-animated.
+**A frame is not a visit.** Until 2026-09-25 every frame ran the view beacon,
+so each visitor who scrolled to the strip counted as a view of five apps
+(Friction's `/preview` never carried it). The beacon now stays silent when framed or on `?tour=`, and the counter refuses a
+sender that says it is an embed — see "Previews are not views" under "View
+counts".
+
+**Tour mode.** Every framed URL but Spellbook's carries `?tour=1`, and the
+app then runs a scripted loop on itself so the frame looks used: trip-planner
+reads the example chat, types a question and shows a canned answer arrive,
+opens a day, glances at the watches; football scrolls the card, opens a
+"why", visits the board; Hopscotch plans a crawl (types a city, finds the
+breweries, builds the route) without saving or asking the sommelier; DataViz
+plays one free sample after another; Friction reads down the preview.
+Spellbook has no tour and is simply shown. `shared/tour.js` is the helper
+(copied into each app's `public/`; Friction serves it before the gate). Three
+rules it keeps: nothing it does costs money - chat answers are canned and
+drawn into the DOM, DataViz taps only samples marked `free` by
+`/api/datasets`; it runs only with `?tour=1` and never under reduced motion; a
+failing step restarts the loop rather than leaving the page half-animated.
 
 **`Content-Security-Policy: frame-ancestors`** on football, trip-planner,
-dataviz and friction allows `'self'` plus `strongtechnicalconsulting.com`
-and `www.`. Nothing set X-Frame-Options before, so anyone could frame these
-apps; this narrows it to the landing page. Hopscotch's build cannot run in
-the sandbox so it has no such header yet — it frames because nothing forbids
-it.
+dataviz, friction and the Challenge Lab allows `'self'` plus
+`strongtechnicalconsulting.com` and `www.`. Nothing set X-Frame-Options
+before, so anyone could frame these apps; this narrows it to the landing
+page. Hopscotch's build cannot run in the sandbox so it has no such header
+yet, and Spellbook sets none either — both frame because nothing forbids it.
 
 **Friction's scan is daily** (06:15 ET) as of 2026-09-21. Four-hourly on
 Opus measured ~$0.83/day.
@@ -503,6 +548,8 @@ screenshot should be rolled on principle, even a test one.
   posts, so the editor moved.
 - **`/admin/writing`** is the blog editor, linked from the overview's header
   and reachable by the chart icon in its own nav bar.
+- **`/admin/views`** is the cross-app view dashboard — the whole picture,
+  landing page included (see "View counts").
 - **`/admin/insights`** 301s to `/admin`, so older links still land somewhere
   sensible.
 - Everything under `/admin` answers **404** to a non-admin, not 403, so the
@@ -515,7 +562,8 @@ after the things it reports.
 ## The shared account
 
 One email + password + passkey opens landing, football, friction, trip-planner
-and dataviz. `shared/identity.js` owns the user record, the session cookie and
+and dataviz, and Spellbook and every Challenge Lab app since (each lab app
+mounts it at its own `/<slug>/api/auth`). `shared/identity.js` owns the user record, the session cookie and
 the passkey; copies live in each sibling repo - fix the shared one first, then
 re-copy.
 
@@ -774,7 +822,10 @@ so the landing page can badge the leader without asking Google at render time.
   two read endpoints. It runs on **this** service.
 - `shared/beacon.js` — the browser half, copied into every app by
   `scripts/sync-shared.js`. One `<script src="/beacon.js" data-app="NAME">` tag
-  per app; the `data-app` value must be a key in the `APPS` allowlist.
+  per app; the `data-app` value must be a key in the `APPS` allowlist. It
+  POSTs to `https://www.strongtechnicalconsulting.com/api/beacon` from every
+  app, which is one reason the www redirect leaves `/api/*` alone (see "One
+  canonical host").
 - `site/views.html` at `/admin/views` — the dashboard, admin-gated.
 - `GET /api/stats/public` — counts and shape only, CORS-open to the domain.
   `GET /api/admin/stats` — uniques, top paths, referrer hosts; 404s otherwise.
@@ -816,6 +867,42 @@ surfaces — `/api/stats/public` is public and this repo is public.
   is append-only and there are seven slots; adding a name to the end gives the
   new app the next colour and repaints nothing.
 
+### Previews are not views (2026-09-25)
+
+The landing page frames the apps as live phone previews, and every frame ran
+the beacon: each visitor who scrolled to the strip posted a view for Football,
+Hopscotch, Trip Planner, DataViz and Spellbook, and a unique the first time
+that day (the frames share the landing page's visitor cookie). Friction's
+`/preview` never carried the beacon. So "Most used this week" and the
+Trending badge mostly ranked how far down the page visitors scrolled.
+
+- **The beacon stays silent when framed** (`window.self !== window.top`, and
+  a page that throws on touching `window.top` counts as framed) **or when the
+  URL has a `tour` parameter**, with any value. The frame test is the main
+  rule: Spellbook's preview has no `?tour=1`. A real visit is never framed —
+  a tap on a preview opens the app in a new, top-level tab with no tour
+  parameter, and that still counts (except Friction, whose tap opens its
+  public `/preview`, which carries no beacon: Friction's count is only its
+  own signed-in use).
+- **The server refuses what says it is not a view.** `beaconVerdict()` in
+  `lib/views.js` drops a body with `embed` set, a `path` carrying `tour`, an
+  unknown app or a bot, before any cookie is set — a request that is not a
+  view should not mint a visitor either. It is pure, so `test/views.js`
+  tests the rules without a database.
+- **An old beacon cannot be recognised.** It posts the same body, referrer
+  host and headers as a genuine tap through from the landing page, so each
+  app's numbers are clean only from that app's first deploy carrying the new
+  `beacon.js`. Ship them all on the same day, or the ranking compares clean
+  numbers with inflated ones.
+- **The stored counts were not rewritten** — there is no telling which old
+  views were frames. Counted from the last app's redeploy, the inflation
+  leaves `views7` (the strip and the badge) after 7 days, `views7Prev` and
+  `trendPct` after 14 (in days 8-14 the trend reads as a steep fall that is
+  an artifact, not a drop in use), the 30-day figures after 30 and the admin
+  90-day series after 90. `totalViews`, `totalUniques` and per-path counts are
+  running totals with no window and carry it for good, which is why the
+  landing page no longer shows any of them.
+
 ### On the landing page
 
 Two surfaces, both fed by the same `/api/stats/public` call and both additive:
@@ -828,6 +915,14 @@ Two surfaces, both fed by the same `/api/stats/public` call and both additive:
   keeps the whole picture, landing page included.
 - **Per-card labels**: a "Trending" badge and "N views this week".
 
+Both rank, draw and scale on **one** number, `views7`. An app with no views
+this week is not "most used this week", and one big all-time count would
+shrink every weekly bar beside it. A card gets its label only when it has
+views this week, and the label always reads "N views this week"; the
+all-time fallback is gone, because the all-time totals carry the preview
+inflation above for good, and a card saying "N views" beside others saying
+"N views this week" mixed two different numbers.
+
 It **labels rather than reorders**. Sorting cards by rank would reshuffle the
 page on every visit and fight the staggered `--d` reveal delays baked into the
 markup. The fetch runs after paint and swallows every failure, so no card
@@ -836,6 +931,10 @@ depends on it.
 The badge keys off the busiest **app**, not `rank === 1`. Rank is across
 everything the counter tracks and #1 is always the landing page, which has no
 card — so the original version could never have shown the badge on anything.
+And it goes only to a **clear leader**: more than one app with views this
+week, and the first strictly ahead of the second. The server breaks `views7`
+ties on all-time totals, so first place in a tie is not earned, and a single
+app with views has nothing to lead. No leader, no badge.
 
 ## Analytics
 
@@ -924,12 +1023,185 @@ registrar is Erik's step. Google returns the exact records in the mapping's
 `status.resourceRecords`: an apex takes four A and four AAAA records, a
 subdomain takes `CNAME <name> ghs.googlehosted.com.`
 
-Live mappings: `strongtechnicalconsulting.com` and `www` -> landing-page,
-`acct` -> landing-page (the account page; see "The shared account"), `trip`,
-`footballapp`, `friction`, `dataviz`, `beer` -> their own services.
+Live mappings: `strongtechnicalconsulting.com` and `www` -> landing-page
+(the apex is the canonical address and `www` 301s to it; see "One canonical
+host" below), `acct` -> landing-page (the account page; see "The shared
+account"), `trip`, `footballapp`, `friction`, `dataviz`, `beer`, `spellbook`
+-> their own services, and `challenge` -> the lab's `challenge` service
+(created 2026-09-24 by `gcpdeploy create --domain`; its
+`CNAME challenge -> ghs.googlehosted.com.` is in place as of 2026-09-25, and
+the lab answers on `challenge.strongtechnicalconsulting.com` — see
+`challenge/CLAUDE.md`).
 
 **Before mapping anything, re-read "Settled decisions".** One app must never
 get a mapping.
+
+## One canonical host, and how the site is served (2026-09-25)
+
+The landing service answers on the apex and on `www.`. Two addresses for every
+page split links and search ranking between them and make the canonical tag a
+guess, so **the apex is THE address**: a GET or HEAD on `www.` gets a **301**
+to the same path and query on `https://strongtechnicalconsulting.com`. The
+target is a fixed origin plus the request's own path, so a path like
+`//elsewhere.example` cannot turn it into an open redirect — and only an
+origin-form target (one starting with `/`) is redirected. Node also accepts
+absolute-form (`GET http://evil.example/y HTTP/1.1`, or `GET munity://x/y`,
+which glued onto the origin reads as the host
+`strongtechnicalconsulting.community`); those are served as asked rather than
+redirected. Keep the concatenation: `new URL(path, origin)` would resolve
+`//elsewhere.example` off-host. The redirect is
+cached for a day (`max-age=86400`) rather than left bare: browsers otherwise
+keep a 301 for good, which would make a mistake here one nobody could take
+back.
+
+Deliberately **not** redirected on `www.`:
+
+- **`/api/*`.** Every app's view beacon POSTs to `www./api/beacon`, and pages
+  fetch `/api/stats/public` cross-origin. A CORS preflight that gets a
+  redirect fails outright, and so would the count.
+- **Anything but GET and HEAD.** A 301 turns a POST into a GET in every
+  browser, which would drop a subscribe form, or a one-click unsubscribe from
+  an email that still carries a www link, on the floor.
+- **`/healthz`** is left alone only so it behaves the same locally and in CI.
+  In production Cloud Run's edge answers it (see "Health checks"), and the
+  probe that reaches the app is `/api/health`, already covered by `/api/*`.
+- **`/robots.txt`**, per host by definition (RFC 9309). Answered directly, a
+  crawler that will not follow a redirect for it still reads the rules.
+- **`/.well-known/*`**, per host by definition (RFC 8615) — a certificate
+  challenge for the www mapping bounced to another host would fail renewal.
+
+Only the www host redirects. `acct.`, the `*.run.app` URL, localhost and the
+tests are served exactly as before.
+
+**Every absolute URL names the apex.** The page's canonical link, `og:url`,
+share image (`/assets/og-home.jpg`, 1200×630 — the square portrait lost the
+top of the head in a 2:1 crop) and its JSON-LD (a `Person` and a `WebSite`,
+saying only what the page says) all do. `/challenge` carries its own apex
+canonical and `og:url` and the same share card, which is also the default
+image for the `/writing` pages (with its 1200×630 size stated). So do links this service builds from
+`SITE_ORIGIN` — feed, confirm, unsubscribe and reset links — because a
+`SITE_ORIGIN` of the www host, or none at all, is read as the apex; any other
+value (a staging host, localhost) is taken as meant. **One exception: the
+feed's `<guid>`s stay on www for good** (`GUID_ORIGIN` in `lib/render.js`,
+`isPermaLink="false"`). Feed readers deduplicate on the GUID, and every GUID
+the feed has published was a www URL, so moving them would show every
+subscriber the whole archive again as unread — and moving them back would do
+it a second time. `<link>` moves to the apex; the GUID never does. See "What the service
+needs" for the value production should carry.
+
+**`/sitemap.xml`** lists `/`, `/challenge`, `/writing`, `/privacy` and
+`/terms`, plus every published post from the same query `/writing` uses (so a
+post is listed exactly when it is readable), all on the apex, with a
+`lastmod` on posts and on `/writing`. A store failure still returns the static
+pages: leaving a URL out of a sitemap is not a removal request. Cached ten
+minutes. On `acct.` it is a 404 — a sitemap there listing the apex's pages
+would be a cross-host sitemap.
+
+**`/robots.txt`** disallows `/admin` and lists `sitemap.xml` and `feed.xml` on
+the apex, whichever host asked. On `acct.` it is `Disallow: /`: an account
+page with a sign-in form has no business in a search index.
+
+**Compression.** `compression` gzips or brotli-encodes text (HTML, CSS, JS,
+JSON, SVG, XML) with `Vary: Accept-Encoding`; images are already compressed
+and are left alone. Two exclusions: `text/event-stream`, because a compressor
+holds bytes back until it has a block worth emitting, and 206 partial
+content. Nothing here streams today; a route that ever sends a whitespace
+heartbeat, like trip-planner's `streamedJson`, must set
+`Cache-Control: no-transform` or call `res.flush()` after each write.
+
+**Caching.**
+
+| What | `Cache-Control` |
+|---|---|
+| HTML, CSS, JS from `site/` | 5 minutes |
+| Images and fonts under `/assets` | a week (`max-age=604800`) |
+| `/writing` | 2 minutes |
+| A post | 5 minutes |
+| `/feed.xml`, `/sitemap.xml` | 10 minutes |
+| The www redirect | a day |
+
+None of the asset names are fingerprinted, so an image replaced in place can
+show the old one for up to a week: **give a changed image a new name**
+(`erik-420.jpg` -> `erik-420-v2.jpg`). ETags stay on, so once the week is up a
+browser revalidates with a 304 rather than downloading it again. Express's
+static ETags are weak, which is what makes one ETag right for both the
+compressed and the plain body.
+
+**Unknown paths** still show the landing page, so a mistyped link is never a
+dead end, but with a **404** status: answering 200 told search engines every
+made-up path was a copy of the home page. A path that looks like a file
+(`/favicon.ico`, `/x.png`) gets a plain 404.
+
+`test/canonical.js` holds all of it, including what must not move: the www
+beacon POST and an old email's one-click unsubscribe POST.
+
+**One side effect.** The `ADMIN_PASSWORD` door's session cookie (`esadmin`)
+is host-only, so an admin signed in on `www.` signs in once more on the apex.
+The shared account's cookie is scoped to the whole domain and carries over.
+
+## The Challenge Lab
+
+`challenge.strongtechnicalconsulting.com` — where the "new app every day"
+experiments live while they are being tested. The source is `challenge/` in
+this repo, and `challenge/CLAUDE.md` is the full guide; this is what the
+runbook needs.
+
+**One service, one database, one runtime account, on purpose**: Cloud Run
+`challenge`, Firestore `challenge`, and `challenge-run@`, which holds
+`logging.logWriter`, `datastore.user` on `challenge` and `identity`, and
+`secretAccessor` on `anthropic-api-key` and `identity-session-secret` — the
+standard set `scripts/new-app-accounts.sh` grants, and nothing more. Every
+trial app is an ordinary Express app in `challenge/apps/<slug>/`, mounted by
+`challenge/server.js` at `/<slug>/`; its collections are prefixed `<slug>_`,
+so apps never see each other's data and graduating one is a copy of one
+prefix. An app that fails to load is logged and left unmounted rather than
+taking the lab down. So a new app needs **no new infrastructure at all** — no
+service, no database, no runtime account, no IAM change. Creating accounts
+and binding roles is the one step the deployer cannot do, so one service per
+trial would have put Erik on the critical path of every drop. Same reasoning
+as trip-planner's "one app, many trips": don't let "give each trial its own
+deploy" creep back.
+
+**The daily drop is a Claude Code Routine, not a Scheduler job.** "Challenge
+Lab: new app every day" fires at **07:00 UTC**, picks an idea, builds it in
+`challenge/apps/<slug>/`, adds it to `challenge/lab.js`, runs `npm test` in
+`challenge/`, commits, and ships with `gcpdeploy ship challenge` from `main`
+— two hours before the **09:00 UTC** countdown on the lab and on this site
+turns over. On a holiday the drop is themed for it (the table is in
+`challenge/CLAUDE.md`). **A daily run never creates infrastructure or changes
+IAM**: an idea that needs a new secret, bucket or API is the wrong idea for a
+daily drop.
+
+**`challenge/TOKENS.md`** is the ledger of what each lab app cost to build,
+counted from the builder agents' transcripts by `scripts/token-ledger.py`.
+The daily run appends its drop there, and the Friday LinkedIn draft uses the
+week's rows. Visitors' AI use in the lab is not in it; that is in the
+`identity` database's `usage` collection, by `app`.
+
+**What this site shows of it.** The lab serves `/api/lab` with CORS for the
+apex and `www.` only. The home page's Challenge banner reads it without
+cookies (the lab's CORS does not allow credentials, and the banner has no use
+for a visitor's own votes; the lab mints its vote cookie only on its own page
+or on a vote) and names the latest drop, how many apps are live and the
+countdown; if the lab does not answer within a moment, the banner shows copy
+that carries no numbers, so nothing stale is ever on screen. A tab left open
+past 09:00 UTC asks again, and falls back to that copy if the lab is silent. `/challenge`
+(`site/challenge.html`) is a **teaser**, not a second lab: the latest drop,
+the locked next one with its countdown, and the rest behind "N more waiting
+in the lab". Voting (keep or kill, one per browser) and the private notes to
+Erik live on the lab itself.
+
+**Graduating an app** Erik picks: `git mv challenge/apps/<slug> apps/<slug>`,
+give it its own `apps.json` entry and mark it `graduated` in `lab.js` with
+`home:` its new URL; Erik runs `scripts/new-app-accounts.sh <slug>`; then
+
+```
+gcpdeploy create <slug> --env PASSKEY_RP_ID=strongtechnicalconsulting.com \
+  --domain <slug>.strongtechnicalconsulting.com
+```
+
+and copy its `<slug>_*` collections into its own database, without the
+prefix, if the trial data is worth keeping.
 
 ## Scheduler jobs
 
@@ -941,7 +1213,13 @@ get a mapping.
 | `cfb-weekend-settle` | `0 10 * * 0,1` - grades last week and builds the new board |
 | `trip-planner-check-watches` | `0 * * * *` |
 | `hopscotch-dispatch` | `0 8 * * 4` (America/Chicago) |
-| `friction-scan` | `15 */4 * * *` |
+| `friction-scan` | `15 6 * * *` - daily since 2026-09-21 |
+| `landing-notify` | every 15 minutes - see "Email notifications" |
+| `spellbook-rollup` | not recorded here; `gcpdeploy status` lists it |
+
+The Challenge Lab's daily drop is **not** a Scheduler job. It is a Claude
+Code Routine at 07:00 UTC that builds and ships an app - see "The Challenge
+Lab".
 
 `cfb-weekend-settle` used to point at `batch-submit` and now runs
 `/api/research/weekly-board`: it grades the picks that were on the board
@@ -956,16 +1234,18 @@ Weekday football research runs through the **Anthropic Batch API** (50% cost,
 up to 24h latency) and goes live hourly on Saturdays. Batch supports
 `web_search_20260209`; this was verified with a real test batch, not assumed.
 
-`friction-scan` fires every four hours rather than daily on purpose. It scans
-the single stalest of six lenses per run, so six runs a day gives each lens a
-daily cadence while keeping one invocation inside its request timeout. Do not
-"simplify" it to one daily run that scans everything - that is 144 rate-limited
-requests in one handler.
+`friction-scan` scans the single stalest of six lenses per run, which keeps
+one invocation inside its request timeout. It fired every four hours, giving
+each lens a daily cadence, until 2026-09-21: that measured ~$0.83/day on Opus
+and Erik asked for less. Daily, each lens comes round about once a week. Do
+not "fix" the slower cadence with one run that scans everything - that is 144
+rate-limited requests in one handler.
 
-Friction is also the one app whose source lives in a **subdirectory** of
-another repo (`eriks-projects/apps/friction`), because the installed GitHub App
-cannot create repositories. `apps.json` handles this by setting `repo` to the
-path; nothing else knows or cares.
+Three apps' source lives in a **subdirectory** of this repo rather than a
+repo of its own: Friction (`apps/friction`) and DataViz (`apps/dataviz`),
+because the installed GitHub App cannot create repositories, and the
+Challenge Lab (`challenge/`). `apps.json` handles this by setting `repo` to
+the path; nothing else knows or cares.
 
 ## Known open items
 
@@ -976,6 +1256,24 @@ path; nothing else knows or cares.
   IAM, and do not add an env var that needs a binding before it exists.
 - **Empty `cover-sheet` Firestore database (us-east4) still exists.** Deleting it
   was blocked by a safety classifier. Left in place; harmless but untidy.
+- **`SITE_ORIGIN` on `landing-page` still says www.** It was set when www was
+  the address. The code reads a www value as the apex, so nothing is wrong on
+  the wire, but the setting should say what it means: change it to
+  `https://strongtechnicalconsulting.com` on the next manual service update
+  (`ship` never touches env vars; see "What the service needs").
+- **A few links still name www**, and each now costs its reader a redirect:
+  the fallback origin in `lib/render.js` (unreached while `server.js` sets
+  `SITE_ORIGIN`), the `landing` URL in `lib/views.js`'s allowlist, and the
+  `/reset` links in DataViz (`apps/dataviz/public/index.html`) and
+  trip-planner (`login.html`). The beacon's own `www./api/beacon` target is
+  fine as it is — `/api/*` is not redirected, and neither are the feed's
+  GUIDs, which stay on www on purpose (see "One canonical host").
+- **The 2026-09-25 beacon reaches each app only with that app's next
+  deploy**, and each app's view counts are clean only from then (see
+  "Previews are not views"). Ship them on the same day: `landing` (with
+  `site/assets/og-home.jpg`), `football`, `trip`, `beer` (the beacon reaches
+  Hopscotch through its Vite build), `spellbook`, `dataviz`, and `friction`,
+  whose copy changes no counts and is only there to keep the copies in sync.
 
 ## Settled decisions
 
@@ -1058,9 +1356,13 @@ Plain env vars on the Cloud Run service:
 
 - `FIRESTORE_DATABASE_ID=eriks-projects`
 - `GOOGLE_CLOUD_PROJECT`
-- `SITE_ORIGIN=https://www.strongtechnicalconsulting.com` — used to build the
-  confirm and unsubscribe links, so it must match the real hostname or people
-  get links to the wrong place
+- `SITE_ORIGIN=https://strongtechnicalconsulting.com` — used to build the
+  canonical and feed URLs, the confirm and unsubscribe links and the
+  password-reset links, so it must match the real hostname or people get
+  links to the wrong place. The apex, now that `www.` redirects there (see
+  "One canonical host"). Production still carries the www value from before
+  that; `server.js` reads www, or no value, as the apex, so it is harmless
+  until changed, but change it (see "Known open items")
 - `NEWSLETTER_FROM` — currently `Erik Strong <Erik.Strong@strongtechnicalconsulting.com>`.
   Any address on the verified domain works here with no extra DNS, since
   Resend verifies the domain and not the local part. Note that verifying a

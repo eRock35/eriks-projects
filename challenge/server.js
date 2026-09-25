@@ -94,9 +94,14 @@ const store = (() => {
 // An opaque random visitor id, first-party, so a vote can be changed but not
 // stuffed from one browser. No IP, no user agent, nothing tied to an account.
 const VID = 'lab_vid';
-function visitor(req, res) {
+/** The visitor id the request carried, or null. Never mints one. */
+function visitorId(req) {
   const m = /(?:^|;\s*)lab_vid=([A-Za-z0-9_-]{16,40})/.exec(req.headers.cookie || '');
-  if (m) return m[1];
+  return m ? m[1] : null;
+}
+function visitor(req, res) {
+  const known = visitorId(req);
+  if (known) return known;
   const id = crypto.randomBytes(16).toString('base64url');
   res.append('Set-Cookie', `${VID}=${id}; Path=/; Max-Age=${60 * 60 * 24 * 400}; SameSite=Lax; HttpOnly${req.secure ? '; Secure' : ''}`);
   return id;
@@ -114,13 +119,24 @@ host.get('/api/lab', async (req, res) => {
   try {
     const origin = req.get('origin');
     if (origin && SITE_ORIGINS.has(origin)) { res.set('Access-Control-Allow-Origin', origin); res.set('Vary', 'Origin'); }
-    const vid = visitor(req, res);
-    const apps = [];
-    for (const a of lab.APPS) {
-      const tally = (await store.get('lab_votes', a.slug)) || {};
-      const mine = await store.get('lab_voters', `${a.slug}:${vid}`);
-      apps.push({ ...a, live: mounted.includes(a.slug), votes: { keep: tally.keep || 0, kill: tally.kill || 0 }, myVote: mine ? mine.v : null });
-    }
+    // Two readers. The landing page's banner reads this cross-origin on every
+    // home-page view, with no cookie (credentials: 'omit'), so it is never
+    // handed an id. The lab's own page reads it same-origin (a same-origin GET
+    // carries no Origin header) and is handed one here, before anything can
+    // be tapped: otherwise two votes cast before the first reply would each
+    // mint an id, the second cookie would replace the first, and one browser
+    // would hold two votes. The reads run together rather than one after
+    // another: the list grows by an app a day.
+    const sameOrigin = !origin || req.get('sec-fetch-site') === 'same-origin';
+    const vid = sameOrigin ? visitor(req, res) : visitorId(req);
+    const apps = await Promise.all(lab.APPS.map(async (a) => {
+      const [tally, mine] = await Promise.all([
+        store.get('lab_votes', a.slug),
+        vid ? store.get('lab_voters', `${a.slug}:${vid}`) : null,
+      ]);
+      const t = tally || {};
+      return { ...a, live: mounted.includes(a.slug), votes: { keep: t.keep || 0, kill: t.kill || 0 }, myVote: mine ? mine.v : null };
+    }));
     res.set('Cache-Control', 'no-store');
     res.json({ apps, now: new Date().toISOString() });
   } catch (err) {

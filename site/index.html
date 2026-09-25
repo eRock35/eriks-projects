@@ -3,14 +3,64 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Erik Strong</title>
-<meta name="description" content="Erik Strong: Sr. Director of Sales Intelligence and Customer Insights at Equifax Workforce Solutions, leading AI adoption across the organization." />
+<title>Erik Strong · Sales intelligence, data &amp; AI apps</title>
+<meta name="description" content="Erik Strong leads sales intelligence at Equifax Workforce Solutions and builds AI apps for trips, football, beer and data, plus a new app daily in the Challenge." />
+<meta name="author" content="Erik Strong" />
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
-<meta property="og:title" content="Erik Strong" />
-<meta property="og:description" content="Sales intelligence, customer insights and applied AI at Equifax Workforce Solutions, and builder of small useful apps." />
-<meta property="og:image" content="https://www.strongtechnicalconsulting.com/assets/erik.jpg" />
+<!-- One address for this page: the apex. www answers with a 301 to it, so
+     every absolute URL below (canonical, share tags, structured data) names
+     the apex and never the www host. -->
+<link rel="canonical" href="https://strongtechnicalconsulting.com/" />
 <meta property="og:type" content="website" />
+<meta property="og:site_name" content="Erik Strong" />
+<meta property="og:url" content="https://strongtechnicalconsulting.com/" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:title" content="Erik Strong · Sales intelligence, data &amp; AI apps" />
+<meta property="og:description" content="Sales intelligence and customer insights at Equifax Workforce Solutions by day. Live AI apps on the side, and a new one every day in the Challenge." />
+<!-- 1200x630, the shape every share card crops to. The square portrait
+     (/assets/erik.jpg) lost the top of the head in a 2:1 crop. -->
+<meta property="og:image" content="https://strongtechnicalconsulting.com/assets/og-home.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Erik Strong: sales intelligence, data and AI apps" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@sTechConsulting" />
+<meta name="twitter:title" content="Erik Strong · Sales intelligence, data &amp; AI apps" />
+<meta name="twitter:description" content="Sales intelligence and customer insights at Equifax Workforce Solutions by day. Live AI apps on the side, and a new one every day in the Challenge." />
+<meta name="twitter:image" content="https://strongtechnicalconsulting.com/assets/og-home.jpg" />
+<meta name="twitter:image:alt" content="Erik Strong: sales intelligence, data and AI apps" />
+<!-- Who this page is about, for search engines. Only what the page itself
+     says: the role, the employer, and the two profiles it links to. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://strongtechnicalconsulting.com/#erik",
+      "name": "Erik Strong",
+      "url": "https://strongtechnicalconsulting.com/",
+      "image": "https://strongtechnicalconsulting.com/assets/erik.jpg",
+      "jobTitle": "Sr. Director, Sales Intelligence & Customer Insights",
+      "worksFor": { "@type": "Organization", "name": "Equifax Workforce Solutions" },
+      "homeLocation": { "@type": "Place", "name": "Atlanta, Georgia" },
+      "knowsAbout": ["Sales intelligence", "Customer insights", "Applied AI", "Data engineering", "Fraud detection"],
+      "sameAs": ["https://www.linkedin.com/in/eriksstrong", "https://github.com/eRock35"]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://strongtechnicalconsulting.com/#website",
+      "url": "https://strongtechnicalconsulting.com/",
+      "name": "Erik Strong",
+      "alternateName": "Strong Technical Consulting",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://strongtechnicalconsulting.com/#erik" }
+    }
+  ]
+}
+</script>
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/erik-320.jpg" />
 <!-- Runs before first paint. `js` gates the reveal-on-scroll hidden state, so
@@ -188,30 +238,90 @@
 
   /* ---------- Marquee ---------- */
   .marquee { margin: 22px -20px 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
-  .marquee-track { display: flex; width: max-content; gap: 10px; margin: 0; padding: 0; list-style: none; animation: slide 34s linear infinite; }
+  /* The loop time scales with the number of tags (about 2.8s each), so adding
+     one does not speed the whole row up. 18 tags. */
+  .marquee-track { display: flex; width: max-content; gap: 10px; margin: 0; padding: 0; list-style: none; animation: slide 50s linear infinite; }
   .marquee:hover .marquee-track, .marquee.paused .marquee-track { animation-play-state: paused; }
   @keyframes slide { to { transform: translateX(-50%); } }
   .tag { flex: 0 0 auto; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--label-2); background: var(--fill); border-radius: 999px; padding: 7px 14px; white-space: nowrap; }
 
   /* ---------- Sections ---------- */
   section { padding: 26px 0 8px; scroll-margin-top: calc(var(--sat) + 60px); }
+  /* The Challenge banner. Two links, because links cannot nest: the top row
+     goes to /challenge and its ::after is stretched over the whole banner,
+     and the latest-drop tile sits above that layer as a link of its own. */
   .challenge-banner {
-    display: flex; align-items: center; gap: 16px; margin: 0 0 30px; padding: 18px 20px; border-radius: 22px; color: #fff;
+    position: relative; margin: 0 0 30px; padding: 18px 20px 14px; border-radius: 22px; color: #fff;
     background: radial-gradient(120% 140% at 100% 0%, rgba(255,255,255,.12), transparent 55%), linear-gradient(120deg, #6d28d9, #be185d 60%, #b45309);
     box-shadow: 0 16px 36px -14px rgba(236,72,153,.7); transition: transform .3s var(--ease), box-shadow .3s;
   }
   .challenge-banner:hover { transform: translateY(-3px); box-shadow: 0 22px 44px -14px rgba(236,72,153,.8); }
   .challenge-banner:active { transform: scale(.985); }
+  .cb-main { display: flex; align-items: center; gap: 16px; color: inherit; }
+  .cb-main::after { content: ""; position: absolute; inset: 0; border-radius: 22px; }
+  .cb-main:focus-visible { outline: none; }
+  .cb-main:focus-visible::after { outline: 3px solid var(--tint); outline-offset: 3px; }
   .cb-flask { font-size: 38px; flex: 0 0 auto; width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: rgba(255,255,255,.18); }
   .cb-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .cb-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
   .cb-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,.3); }
-  .cb-title { font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+  .cb-title { font-size: 21px; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; }
   .cb-sub { font-size: 14.5px; line-height: 1.35; }
-  @media (max-width: 480px) { .cb-long { display: none; } }
+  /* On a phone the flask shrinks and the arrow goes (the whole banner is
+     still the tap target, and the tile carries its own), which gives the
+     title one line instead of two. */
+  @media (max-width: 480px) {
+    .cb-long, .cb-go { display: none; }
+    .cb-main { gap: 12px; }
+    .cb-flask { width: 46px; height: 46px; border-radius: 13px; font-size: 28px; }
+  }
   .cb-go { font-size: 24px; font-weight: 700; transition: transform .3s var(--ease); }
-  .challenge-banner:hover .cb-go { transform: translateX(4px); }
-  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
+  .cb-main:hover .cb-go { transform: translateX(4px); }
+  /* The live part: the lab's latest drop, how many apps are live, and the
+     countdown to the next one (09:00 UTC daily). Every line in it has a fixed
+     height - the tagline is one line on a wide screen, exactly two on a
+     phone and three on the narrowest - so the copy in the markup, the live copy that replaces it, and
+     the wait for the lab to answer all take the same space. The tagline's
+     height is counted in lines (lh, after an em fallback), so a reader's own
+     line-height (WCAG 1.4.12 text spacing) grows the box instead of cutting
+     the text inside it. */
+  .cb-live { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.24); }
+  .cb-drop { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 15px; color: #fff;
+             background: rgba(0,0,0,.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); transition: background .2s; }
+  .cb-drop:hover { background: rgba(0,0,0,.3); }
+  .cb-drop:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .cb-em { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; line-height: 1;
+           background: linear-gradient(135deg, var(--c1, rgba(255,255,255,.22)), var(--c2, rgba(255,255,255,.1))); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+  .cb-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .cb-k { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; line-height: 1.4; color: rgba(255,255,255,.9); padding-right: 22px; }
+  .cb-name, .cb-tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cb-name { font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .cb-tag { font-size: 13.5px; line-height: 1.35; height: 1.35em; height: 1lh; }
+  /* Out of the flow, in the corner beside the kicker, so the name and the
+     tagline get the width under it rather than a column the arrow holds for
+     the whole height of the tile. */
+  .cb-arr { position: absolute; top: 10px; right: 12px; font-size: 16px; font-weight: 700; }
+  .cb-drop:hover .cb-arr { transform: translate(2px, -2px); }
+  .cb-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 13px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .cb-count { visibility: hidden; }
+  .cb-live[data-state="live"] .cb-count { visibility: visible; }
+  @media (max-width: 560px) {
+    .cb-tag { white-space: normal; height: 2.7em; height: 2lh; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+  }
+  /* The narrowest phones (320px) get a third line: two cut most taglines. */
+  @media (max-width: 374px) {
+    .cb-tag { -webkit-line-clamp: 3; line-clamp: 3; height: 4.05em; height: 3lh; }
+  }
+  /* Waiting for the lab: the frame holds its place, its contents stay out of
+     sight (never a number that is about to change), then fade in. Only with
+     script on - without it the copy in the markup is simply shown. Opacity
+     only, not visibility: the markup copy carries no numbers, and hiding it
+     would leave the focusable link with no accessible name while it waits. */
+  .cb-drop > *, .cb-meta { transition: opacity .35s var(--ease), transform .3s var(--ease); }
+  .js .cb-live[data-state="wait"] .cb-drop > *, .js .cb-live[data-state="wait"] .cb-meta { opacity: 0; }
+  /* Wraps rather than squeezing: on the narrowest phones the note drops
+     under the heading instead of breaking into a column beside it. */
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 0 0 14px; }
   h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
   .section-head .sub { color: var(--label-2); font-size: 15px; }
 
@@ -281,9 +391,9 @@
   @media (min-width: 620px) { .projects { grid-template-columns: 1fr 1fr; } }
 
   /* Desktop: this page is a 720px column, which is right for the hero and
-     wrong for the two things that are rows. The preview strip is five phone
+     wrong for the two things that are rows. The preview strip is six phone
      frames scroll-snapped side by side - on a phone you swipe it, and on a
-     desktop you cannot, so two of the five were simply unreachable behind a
+     desktop you cannot, so the last few were simply unreachable behind a
      clipped edge. Both rows break out of the column to their own width and
      centre; nothing else moves. */
   @media (min-width: 1180px) {
@@ -331,10 +441,11 @@
     color: #000; background: var(--amber, #ffb020); border-radius: 999px; padding: 2px 7px; }
   .views { display: block; margin-top: 6px; font-size: 12px; color: var(--label-2); font-variant-numeric: tabular-nums; }
 
-  /* The trending strip. A ranked row rather than a chart: there are seven
-     apps and one number each, and a chart of seven bars says nothing a row
-     of seven does not. The bar behind each row is the magnitude, drawn as a
-     background so it can never push the text around. */
+  /* The trending strip. A ranked row rather than a chart: there are six
+     apps and one number each (this page is counted but left out), and a
+     chart of six bars says nothing a row of six does not. The bar behind
+     each row is the magnitude, drawn as a background so it can never push
+     the text around. */
   .trendbar { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px 16px 10px; margin-bottom: 22px; }
   .trendbar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
   .trendbar-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--label-2); }
@@ -526,22 +637,42 @@
 
   <div class="marquee">
     <ul class="marquee-track" id="marquee" role="list" aria-label="Tools and skills">
-      <li class="tag">Applied AI</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">SAS</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">PHP</li><li class="tag">PERL</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Big data</li><li class="tag">Fraud detection</li>
+      <li class="tag">Applied AI</li><li class="tag">Claude API</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">SAS</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">Node.js</li><li class="tag">Express</li><li class="tag">React</li><li class="tag">Google Cloud Run</li><li class="tag">Firestore</li><li class="tag">PHP</li><li class="tag">Perl</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Big data</li><li class="tag">Fraud detection</li>
     </ul>
   </div>
 
   <section id="projects">
-    <!-- The build-in-public challenge. Its own page tells the story and
-         draws the live drops from the lab (challenge/ in this repo). -->
-    <a class="challenge-banner" href="/challenge" data-reveal>
-      <span class="cb-flask" aria-hidden="true">🧪</span>
-      <span class="cb-body">
-        <span class="cb-kicker"><span class="cb-dot"></span>The Challenge<span class="cb-long">&nbsp;· building in public</span></span>
-        <span class="cb-title">A new app every day.</span>
-        <span class="cb-sub">Real business problems, fun apps. Try the latest drops and vote keep or kill.</span>
-      </span>
-      <span class="cb-go" aria-hidden="true">→</span>
-    </a>
+    <!-- The build-in-public challenge. Its own page tells the story; this
+         banner names the lab's latest drop, read live from the lab's
+         /api/lab (challenge/ in this repo) by the script at the bottom. The
+         copy in .cb-live is what shows when the lab does not answer, and it
+         carries no numbers, so nothing stale can ever be on screen. -->
+    <div class="challenge-banner" data-reveal>
+      <a class="cb-main" href="/challenge">
+        <span class="cb-flask" aria-hidden="true">🧪</span>
+        <span class="cb-body">
+          <span class="cb-kicker"><span class="cb-dot"></span>The Challenge<span class="cb-long">·&ensp;building in public</span></span>
+          <span class="cb-title">A new app every day.</span>
+          <span class="cb-sub">Real business problems, fun apps. Try the latest drops and vote keep or kill.</span>
+        </span>
+        <span class="cb-go" aria-hidden="true">→</span>
+      </a>
+      <div class="cb-live" id="cbLive" data-state="wait">
+        <a class="cb-drop" id="cbDrop" href="https://challenge.strongtechnicalconsulting.com/" target="_blank" rel="noopener">
+          <span class="cb-em" id="cbEm" aria-hidden="true">📦</span>
+          <span class="cb-txt">
+            <span class="cb-k" id="cbK">In the lab</span>
+            <span class="cb-name" id="cbName">See today's drop</span>
+            <span class="cb-tag" id="cbTag">Try it free. One account, every app.</span>
+          </span>
+          <span class="cb-arr" aria-hidden="true">↗</span>
+        </a>
+        <div class="cb-meta">
+          <span class="cb-count" id="cbCount"></span>
+          <span id="cbNext">New drop daily, 09:00 UTC</span>
+        </div>
+      </div>
+    </div>
 
     <div class="section-head" data-reveal><h2>Projects</h2><span class="sub">Live apps, built for a phone</span></div>
 
@@ -560,14 +691,21 @@
 
     <!-- Live previews. Each phone is the real app in a frame, running its
          own tour (?tour=1 - see shared/tour.js) so it looks used, loaded only
-         when it scrolls into view (five apps on page load would be five
-         cold starts for nothing). A transparent layer over each frame keeps
-         swipes on the strip rather than inside the app, and a tap opens it. -->
+         when it scrolls into view (six apps on page load would be six cold
+         starts for nothing). A transparent layer over each frame keeps
+         swipes on the strip rather than inside the app, and a tap opens it.
+         Same apps, same order as the cards below: keep the two in step.
+         Friction's board is invite-only, so its frame, tap and card all open
+         the public read-only /preview rather than a sign-in page. -->
     <div class="previews" data-reveal role="region" aria-label="Live previews">
       <div class="preview-strip" id="previewStrip">
         <figure class="preview" data-src="https://footballapp.strongtechnicalconsulting.com/?tour=1" data-href="https://footballapp.strongtechnicalconsulting.com">
           <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open College Football"></a></div>
           <figcaption><b>College Football</b><span>The whole board, live</span></figcaption>
+        </figure>
+        <figure class="preview" data-src="https://beer.strongtechnicalconsulting.com/?tour=1#trips" data-href="https://beer.strongtechnicalconsulting.com">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Hopscotch"></a></div>
+          <figcaption><b>Hopscotch</b><span>Planning a crawl</span></figcaption>
         </figure>
         <figure class="preview" data-src="https://trip.strongtechnicalconsulting.com/?tour=1#/trip/demo" data-href="https://trip.strongtechnicalconsulting.com">
           <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Trip Planner"></a></div>
@@ -577,13 +715,9 @@
           <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open DataViz"></a></div>
           <figcaption><b>DataViz</b><span>Samples that move</span></figcaption>
         </figure>
-        <figure class="preview" data-src="https://friction.strongtechnicalconsulting.com/preview?tour=1" data-href="https://friction.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://friction.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Friction"></a></div>
+        <figure class="preview" data-src="https://friction.strongtechnicalconsulting.com/preview?tour=1" data-href="https://friction.strongtechnicalconsulting.com/preview">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://friction.strongtechnicalconsulting.com/preview" target="_blank" rel="noopener" aria-label="Open the Friction preview"></a></div>
           <figcaption><b>Friction</b><span>The problems that keep coming back</span></figcaption>
-        </figure>
-        <figure class="preview" data-src="https://beer.strongtechnicalconsulting.com/?tour=1#trips" data-href="https://beer.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Hopscotch"></a></div>
-          <figcaption><b>Hopscotch</b><span>Planning a crawl</span></figcaption>
         </figure>
         <!-- Spellbook has no ?tour=1 of its own; it does not need one. Its
              front page IS the library, and it is readable signed out, so the
@@ -603,7 +737,7 @@
         <img src="/assets/football.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>College Football <span class="live">Live</span></h3>
-          <p>Saturday's card, the whole board, and AI-backed research on any game. Build a slip and it syncs across your devices.</p>
+          <p>The week&rsquo;s slate, best bets and Top 25, rebuilt every weekend with last week&rsquo;s picks graded. Follow any FBS team, and your slip syncs across devices.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
@@ -611,7 +745,7 @@
         <img src="/assets/hopscotch.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Hopscotch <span class="live">Live</span></h3>
-          <p>A craft beer passport. Find breweries anywhere, scan a can or a pour, score it like a judge, and plan the crawl before you land.</p>
+          <p>Find breweries anywhere, plan the crawl before you land, and score every pour like a judge. A craft beer passport that remembers what you drank.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
@@ -619,7 +753,7 @@
         <img src="/assets/trips.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Trip Planner <span class="live">Live</span></h3>
-          <p>Research a trip with Claude, draft the itinerary, and have flight and hotel prices watched in the background until you book.</p>
+          <p>The whole trip in one place, shared with whoever&rsquo;s coming: an itinerary Claude drafts with you, weather, bookings, packing and budget, and prices watched until you book.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
@@ -627,23 +761,23 @@
         <img src="/assets/dataviz.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>DataViz <span class="live">Live</span></h3>
-          <p>Point at a link or paste a table. Claude works out which visual fits and it plays &mdash; bars overtaking each other, lines drawing themselves, traffic moving between places.</p>
+          <p>Pick a sample and watch it play: bars overtaking, lines drawing themselves, traffic moving between places. Members bring their own table or link; Claude picks the chart and every number comes from the data.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="friction" data-reveal style="--d:.33s" href="https://friction.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+      <a class="project" data-app="friction" data-reveal style="--d:.33s" href="https://friction.strongtechnicalconsulting.com/preview" target="_blank" rel="noopener">
         <img src="/assets/friction.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Friction <span class="live">Live</span></h3>
-          <p>Reads what people complain about across Hacker News, GitHub and App Store reviews, scores it, and keeps a board of the problems that keep coming back.</p>
-          <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
+          <p>Spot the problems worth building for: a daily scan of complaints across Hacker News, GitHub issues and App Store reviews, scored, and tracked every time they come back.</p>
+          <span class="open">See the preview <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
       <a class="project" data-app="spellbook" data-reveal style="--d:.40s" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
         <img src="/assets/spellbook.svg" alt="" width="56" height="56">
         <div class="project-body">
           <h3>Spellbook <span class="live">Live</span></h3>
-          <p>A shared prompt library — publish the prompts that work, vote on everyone else's, and remix the good ones.</p>
+          <p>A shared prompt library where the blanks become a form, so you copy a finished prompt, not a template. Vote, save, remix, or have Claude draft one.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
@@ -651,7 +785,7 @@
         <div class="placeholder">+</div>
         <div class="project-body">
           <h3>Next up</h3>
-          <p>Something new lands here whenever it's ready. Everything above started as a weekend idea.</p>
+          <p>A new app drops in the Challenge every day, and the keepers earn a card here.</p>
         </div>
       </div>
     </div>
@@ -1157,6 +1291,139 @@
 })();
 </script>
 <script>
+/* The Challenge banner, live: the lab's latest drop, how many apps are live,
+ * and the countdown to the next drop.
+ *
+ * The lab is another service (challenge/ in this repo), so this is additive
+ * and fails quietly. Its /api/lab allows this page's two origins by CORS, and
+ * the request carries no cookies: the lab's CORS does not allow credentials,
+ * and the banner has no use for a visitor's own votes (the lab mints its vote
+ * cookie only on its own page or on a vote). Until it answers the tile keeps
+ * its place with its contents out of sight; after FALLBACK_MS the copy in the
+ * markup is shown, which carries no numbers, and a late answer still replaces
+ * it. Every field is set with textContent, never as markup.
+ *
+ * A tab left open past 09:00 UTC, or brought back from memory the next day,
+ * asks again once a drop has landed since the last answer, so the tile never
+ * names yesterday's drop beside today's countdown. The old tile stays until
+ * the new answer draws; if that answer never comes, the tile goes back to the
+ * copy in the markup rather than keep an old "Latest drop".
+ */
+(function () {
+  'use strict';
+  var LAB = 'https://challenge.strongtechnicalconsulting.com';
+  var FALLBACK_MS = 1500, GIVE_UP_MS = 6000, DAY = 864e5;
+  var live = document.getElementById('cbLive');
+  if (!live) return;
+  function $(id) { return document.getElementById(id); }
+  function show(s) { live.setAttribute('data-state', s); }
+  function state() { return live.getAttribute('data-state'); }
+  var fallback = setTimeout(function () { if (state() === 'wait') show('static'); }, FALLBACK_MS);
+  var FIELDS = ['cbEm', 'cbK', 'cbName', 'cbTag', 'cbCount'], MARKUP = null;
+  // Back to the copy in the markup: no numbers, nothing that can go stale.
+  function plain() {
+    if (!MARKUP) return;
+    $('cbDrop').setAttribute('href', MARKUP.href);
+    FIELDS.forEach(function (id) { $(id).textContent = MARKUP[id]; });
+    $('cbEm').style.removeProperty('--c1'); $('cbEm').style.removeProperty('--c2');
+  }
+  function fail() {
+    clearTimeout(fallback);
+    if (state() === 'live') plain();
+    show('static');
+  }
+
+  try {
+    MARKUP = { href: $('cbDrop').getAttribute('href') };
+    FIELDS.forEach(function (id) { MARKUP[id] = $(id).textContent; });
+
+    // The next drop is 09:00 UTC every day - the lab's own countdown.
+    // lastDrop(t) is the most recent one at or before t: the drop that a
+    // "Latest drop" answer was true under.
+    var lastDrop = function (t) {
+      var d = new Date(t), at = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9);
+      return at > t ? at - DAY : at;
+    };
+    var loadedFor = null, seq = 0, load;
+    var next = $('cbNext');
+    var tick = function () {
+      var now = Date.now(), at = lastDrop(now) + DAY;
+      var mins = Math.max(1, Math.ceil((at - now) / 6e4)), h = Math.floor(mins / 60), m = mins % 60;
+      next.textContent = 'Next drop in ' + (h ? h + 'h ' + (m < 10 ? '0' : '') + m + 'm' : m + 'm');
+      if (loadedFor !== null && lastDrop(now) !== loadedFor) load();
+    };
+
+    var SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/, HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+    var clean = function (v, max) {
+      return Array.from(String(v == null ? '' : v).replace(/\s+/g, ' ').trim()).slice(0, max).join('');
+    };
+    // A graduated app lives on its own subdomain; anything else, or anything
+    // that is not a plain https address on this domain, opens in the lab.
+    var hrefFor = function (a) {
+      if (a.status === 'graduated' && a.home) {
+        try {
+          var u = new URL(a.home);
+          if (u.protocol === 'https:' && /(^|\.)strongtechnicalconsulting\.com$/.test(u.hostname)) return u.href;
+        } catch (e) {}
+      }
+      return SLUG.test(a.slug) ? LAB + '/' + a.slug + '/' : LAB + '/';
+    };
+    // The lab's own rule for "can be opened" (challenge/public/lab.js): an
+    // app whose server failed to mount is listed but not live, and the lab
+    // shows it as "Warming up" rather than a link. The banner neither counts
+    // it nor headlines it.
+    var up = function (a) { return a.live === true || a.status === 'graduated'; };
+    var draw = function (all) {
+      // The list is oldest first. Retired apps are neither counted nor shown,
+      // but keep their place in the numbering, as on /challenge, so killing
+      // one never renumbers the rest.
+      var apps = all.filter(function (a) { return a && typeof a === 'object' && a.status !== 'retired' && clean(a.name, 1); });
+      var live = apps.filter(up);
+      if (!live.length) return false;
+      // The newest app that is up. When today's drop is still warming up, the
+      // one before it takes the tile rather than a link to a 404.
+      var a = live[live.length - 1], n = all.indexOf(a) + 1;
+      var newest = a === apps[apps.length - 1];
+      $('cbDrop').href = hrefFor(a);
+      $('cbEm').textContent = clean(a.emoji, 8) || '\u{1F9EA}';
+      var em = $('cbEm').style;
+      if (HEX.test(a.color) && HEX.test(a.color2)) { em.setProperty('--c1', a.color); em.setProperty('--c2', a.color2); }
+      else { em.removeProperty('--c1'); em.removeProperty('--c2'); }
+      $('cbK').textContent = (newest ? 'Latest drop' : 'In the lab') + ' · #' + (n < 10 ? '0' : '') + n;
+      $('cbName').textContent = clean(a.name, 60);
+      $('cbTag').textContent = clean(a.tagline, 160);
+      $('cbCount').textContent = live.length + (live.length === 1 ? ' app live' : ' apps live');
+      return true;
+    };
+
+    // One question per drop. Only the latest one asked may draw or fail, so a
+    // slow answer from before 09:00 cannot overwrite a newer one.
+    load = function () {
+      var mine = ++seq;
+      loadedFor = lastDrop(Date.now());
+      var ctl = window.AbortController ? new AbortController() : null;
+      var giveUp = setTimeout(function () { if (ctl) ctl.abort(); }, GIVE_UP_MS);
+      fetch(LAB + '/api/lab', { mode: 'cors', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          clearTimeout(giveUp);
+          if (mine !== seq) return;
+          if (d && Array.isArray(d.apps) && draw(d.apps)) { clearTimeout(fallback); show('live'); }
+          else fail();
+        })
+        .catch(function () { clearTimeout(giveUp); if (mine === seq) fail(); });
+    };
+
+    tick();
+    setInterval(tick, 15000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) tick(); });
+    if (!window.fetch) { fail(); return; }
+    load();
+  } catch (e) { fail(); }
+})();
+</script>
+<script>
 /* What's trending, labelled rather than re-sorted.
  *
  * The counts live on this service (see lib/views.js and beacon.js).
@@ -1209,7 +1476,12 @@
           document.getElementById('trendList').innerHTML = seen.map(function (a, i) {
             var v = a.views7;
             var pct = Math.max(6, Math.round((v / top) * 100));
-            return '<li><a href="' + esc(a.url) + '" style="--w:' + pct + '%">'
+            // The row opens what the app's card opens - for Friction, the
+            // public /preview rather than the counter's URL, which is its
+            // signed-in board and a sign-in page to everyone else.
+            var card = document.querySelector('a.project[data-app="' + a.app + '"]');
+            var href = card ? card.getAttribute('href') : a.url;
+            return '<li><a href="' + esc(href) + '" style="--w:' + pct + '%">'
               + '<span class="tl-rank">' + (i + 1) + '</span>'
               + '<span class="tl-name">' + esc(a.icon || '') + ' ' + esc(a.label) + '</span>'
               + '<span class="tl-n">' + n(v) + '</span>'
@@ -1221,15 +1493,21 @@
         // `rank` is the rank across everything the counter tracks, and #1 is
         // always this page - so keying the badge off it meant no app card
         // would ever carry it. The badge belongs to the busiest APP this
-        // week, and to nobody in a week with no views.
-        var leader = seen.length ? seen[0].app : null;
+        // week, and to nobody in a week with no views. Nor to anybody in a tie
+        // or when only one app has views: the server breaks views7 ties on
+        // all-time totals, which carry the old preview-frame inflation for
+        // good (see lib/views.js), so first place in a tie is not earned.
+        var leader = (seen.length > 1 && seen[0].views7 > seen[1].views7) ? seen[0].app : null;
 
         d.apps.forEach(function (a) {
           var card = document.querySelector('a.project[data-app="' + a.app + '"]');
           if (!card) return;
           // A view count nobody has earned yet reads as a dead app. Say
-          // nothing until there is something to say.
-          if (!a.views7 && !a.totalViews) return;
+          // nothing until there is something to say. Weekly only: the
+          // all-time total counted landing-page previews until each app
+          // shipped the 2026-09-25 beacon, and a card saying "N views" beside others saying "N views this
+          // week" mixed two different numbers.
+          if (!a.views7) return;
           var h3 = card.querySelector('h3');
           if (a.app === leader && h3 && !h3.querySelector('.trending')) {
             var b = document.createElement('span');
@@ -1241,7 +1519,7 @@
           if (!body || body.querySelector('.views')) return;
           var v = document.createElement('span');
           v.className = 'views';
-          v.textContent = a.views7 ? n(a.views7) + ' views this week' : n(a.totalViews) + ' views';
+          v.textContent = n(a.views7) + ' views this week';
           body.appendChild(v);
         });
       })
@@ -1249,6 +1527,8 @@
   } catch (e) {}
 })();
 </script>
-<script src="/beacon.js" data-app="landing" async></script>
+<!-- The apex is this page's own origin: without data-to the beacon posts to
+     www, a preflighted cross-origin request on every view. -->
+<script src="/beacon.js" data-app="landing" data-to="https://strongtechnicalconsulting.com" async></script>
 </body>
 </html>
