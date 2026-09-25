@@ -1,0 +1,37 @@
+# Tokens per app
+
+What it cost to build each lab app, counted from the builder agents'
+transcripts with `scripts/token-ledger.py`. "In" is everything the model read
+(fresh input, cache writes and cache reads); most of it is cache reads, the
+agent re-reading its own work each step, which cost about a tenth of fresh
+input. Not counted: the main session's own review and shipping time per app
+(one long conversation, not separable by app), and visitors' AI use, which is
+in the `identity` database's `usage` collection by `app`.
+
+The daily run appends its drop here, and the Friday LinkedIn draft uses the
+week's rows.
+
+## Week 1 (2026-09-24 to 2026-09-25)
+
+| App | Built by | In | of which cached | Out | Exact? |
+|---|---|---|---|---|---|
+| Spar | earlier daily session, with the lab itself | ~25–35M | — | ~200K | estimate (transcript not in this session) |
+| Snapquote | earlier daily session | ~25–35M | — | ~200K | estimate |
+| Chaser | one builder agent | 31.2M | 30.3M | 197K | exact |
+| Rave | one builder agent | 24.4M | 23.9M | 199K | exact |
+| Pop Quiz | one builder agent | 19.6M | 18.9M | 203K | exact |
+| Glowup | one builder agent | 31.0M | 30.5M | 221K | exact |
+| Booth | one builder agent | 24.9M | 24.4M | 198K | exact |
+| Receipt | workflow: 5 pitches, 3 judges, builder, 4 reviewers, 111 skeptic checks, fixer | 202.1M | 194.0M | 936K | exact |
+
+Receipt by stage: ideas and judging 2.7M in / 59K out · build 56.5M / 328K ·
+review 66.9M / 271K · skeptic checks 35.7M / 129K · fixes 40.3M / 149K. The
+idea was about 1% of the tokens; making it good was the rest. Its review found
+32 confirmed problems in the first version (31 fixed).
+
+Week total: about 390M in (roughly 95% cached) and 2.4M out.
+
+Visitors' AI use in the lab this week: 4 calls (Spar 3, Snapquote 1), about
+7K in / 2K out, $0.04.
+
+Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
