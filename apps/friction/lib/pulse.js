@@ -182,8 +182,11 @@ function appHint(signal) {
   let kind = 'a focused tool';
   for (const [re, k] of KINDS) if (re.test(text)) { kind = k; break; }
   const who = oneLine(signal && signal.who, 60).replace(/[.]+$/, '');
-  const what = title ? title.charAt(0).toLowerCase() + title.slice(1) : 'this problem';
-  return oneLine('Could be an app: ' + kind + (who ? ' for ' + who.charAt(0).toLowerCase() + who.slice(1) : '')
+  // Lower-case the first letter to run on from "that takes on", but not an
+  // acronym's: "LLMs making..." must not become "lLMs making...".
+  const lead = (t) => (/^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+  const what = title ? lead(title) : 'this problem';
+  return oneLine('Could be an app: ' + kind + (who ? ' for ' + lead(who) : '')
     + ' that takes on “' + what.replace(/[.]+$/, '') + '”', 200);
 }
 

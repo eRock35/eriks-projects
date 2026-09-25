@@ -65,6 +65,17 @@ from `main`.
 3. `npm test` here runs the host tests and every app's suite.
 4. Commit, push, `gcpdeploy ship challenge`.
 
+### Ideas from Friction (Erik, 2026-09-25)
+
+Before picking, the daily run reads what Friction is hearing:
+`node scripts/friction-spikes.js --text` (read-only; Firestore REST with the
+deploy token, because the sandbox cannot reach Friction's web address). It
+applies Friction's own rules from `apps/friction/lib/pulse.js` and prints the
+spiking problems (3x their usual week), the rising ones and the strongest by
+score, each with a one-line "could be an app" hint. Prefer one of those when it
+fits; a holiday still outranks it. The app's CLAUDE.md names the Friction
+problem by title only, never quoting anyone's complaint.
+
 ### Holiday drops (Erik, 2026-09-24)
 
 On a holiday the day's drop is **themed for it** — "a Halloween, Thanksgiving,
