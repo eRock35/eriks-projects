@@ -1,0 +1,10 @@
+{
+  "name": "Receipt",
+  "short_name": "Receipt",
+  "description": "Every meeting gets a receipt — a live cost meter, a timeboxed agenda, the room's vote and a receipt at the end.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1417",
+  "theme_color": "#0f1417",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

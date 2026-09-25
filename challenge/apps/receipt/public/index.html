@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Receipt — every meeting gets a receipt</title>
+  <meta name="description" content="A live price on every meeting: a cost ticker from role-band rates, a timeboxed agenda that shows overruns in dollars, one-tap decisions and actions, a room vote from everyone's phone, and a thermal receipt at the end — with TIME GIVEN BACK when you finish early.">
+  <meta name="theme-color" content="#101418" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Receipt">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body class="dk">
+  <header class="top" id="top">
+    <a class="brand" href="#/"><span class="mark" aria-hidden="true">🧾</span>Receipt</a>
+    <div class="row" id="topRight"></div>
+  </header>
+
+  <main class="wrap" id="view"></main>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Main">
+    <a class="brand rail-brand" href="#/"><span class="mark" aria-hidden="true">🧾</span>Receipt</a>
+    <button data-tab="meetings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Meetings</span></button>
+    <button data-tab="new" class="tab-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
+    <button data-tab="audit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M8 15l2 2 4-4"/></svg><span>Audit</span></button>
+    <button data-tab="score"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Score</span></button>
+  </nav>
+
+  <script src="rules.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

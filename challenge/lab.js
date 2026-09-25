@@ -107,6 +107,22 @@ const APPS = [
     audience: 'Founders, reps & makers at shows, markets & pop-ups',
     status: 'testing',
   },
+  {
+    slug: 'receipt',
+    name: 'Receipt',
+    emoji: '🧾',
+    // Register teal to receipt-ink crimson. White text holds 9.6:1 or better
+    // at both ends and 5.0:1 at the worst spot, the midpoint under the card's
+    // white highlight.
+    color: '#0f4c45',
+    color2: '#881337',
+    dropped: '2026-09-25',
+    tagline: 'Every meeting gets a receipt.',
+    blurb: 'For anyone who runs or sits in meetings. Receipt prices the meeting live from role bands, rings every agenda item with its overrun in dollars, lets the room vote from their phones, and prints a receipt at the end — with TIME GIVEN BACK when you finish early.',
+    features: ['Live cost ticker & agenda rings', 'Room vote by QR, plus bingo', 'A receipt with time given back', 'Keep / Shrink / Kill the repeats'],
+    audience: 'Team leads, founders, PMs & anyone who books the weekly sync',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
