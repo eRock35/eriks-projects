@@ -92,6 +92,21 @@ const APPS = [
     audience: 'Airbnb & Vrbo hosts, Etsy & eBay sellers, local pros',
     status: 'testing',
   },
+  {
+    slug: 'booth',
+    name: 'Booth',
+    emoji: '🎪',
+    // Tent red to navy. White text holds 4.5:1 at both ends and at the
+    // midpoint under the card's white highlight (4.9:1 there, the worst spot).
+    color: '#991b1b',
+    color2: '#1e3a8a',
+    dropped: '2026-09-25',
+    tagline: 'Trade-show leads that don’t go cold.',
+    blurb: 'For small teams who work trade shows, conferences, markets and pop-ups. Capture a lead in ten seconds — type it or snap the card — tap hot, warm or cold, and every lead gets a follow-up clock. A live booth leaderboard, then a scorecard: did the show pay off?',
+    features: ['10-second capture, or snap the card', 'A going-cold clock on every lead', 'Follow-ups in your voice, or free', 'Booth leaderboard & ROI scorecard'],
+    audience: 'Founders, reps & makers at shows, markets & pop-ups',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

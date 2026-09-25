@@ -1,0 +1,10 @@
+{
+  "name": "Booth",
+  "short_name": "Booth",
+  "description": "Trade-show leads that don't go cold — capture in ten seconds, follow up before the clock runs out, and see whether the show paid off.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e1220",
+  "theme_color": "#0e1220",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
