@@ -89,10 +89,26 @@ creates, not a greeting card. The usual rules all still apply.
 | 2027-06-20 | Father's Day | gift + grill planner |
 | 2027-07-04 | Independence Day | cookout + fireworks-spot planner |
 | 2027-09-06 | Labor Day | end-of-summer party planner |
+| 2027-10-31 | Halloween | as 2026, or build on whichever 2026 holiday drop was kept |
+| 2027-11-25 | Thanksgiving | 〃 |
+| 2027-11-26 | Black Friday | 〃 |
+| 2027-11-27 | Small Business Saturday | 〃 |
+| 2027-12-25 | Christmas | 〃 |
+| 2027-12-31 / 2028-01-01 | New Year's Eve / Day | 〃 |
+| 2028-02-14 | Valentine's Day | 〃 |
+| 2028-03-17 | St. Patrick's Day | 〃 |
+| 2028-04-16 | Easter | 〃 |
+| 2028-05-14 | Mother's Day | 〃 |
+| 2028-05-29 | Memorial Day | 〃 |
+| 2028-06-18 | Father's Day | 〃 |
+| 2028-07-04 | Independence Day | 〃 |
+| 2028-09-04 | Labor Day | 〃 |
 
 Moving holidays were checked against the calendar (Thanksgiving = fourth
-Thursday of November, and so on). Extend the table a year ahead each
-September.
+Thursday of November, Easter by the Gregorian computus, and so on).
+Extend the table a year ahead each September; last extended 2026-09-25,
+through Labor Day 2028. A repeat holiday should not repeat an app: build
+on the kept one, or pick a new job the holiday creates.
 
 ## The landing page
 
