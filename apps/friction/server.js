@@ -6,6 +6,7 @@ const auth = require('./lib/auth');
 const analytics = require('./lib/analytics');
 const scan = require('./lib/scan');
 const score = require('./lib/score');
+const pulse = require('./lib/pulse');
 const webauthn = require('./lib/webauthn');
 const sitepass = require('./lib/sitepass');
 const identityLib = require('./lib/identity');
@@ -100,16 +101,54 @@ app.get('/icon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/preview', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'preview.html')));
 
 const PREVIEW_MAX = 12;
+
+/** The rows the public preview may show: the strongest dozen that Erik has
+ *  not passed on. Every public route below - the board, the pulse, the
+ *  public half of /api/spikes - draws from THIS set and no other, so none of
+ *  them can name a problem the preview does not already show. */
+function publicSelection(all) {
+  return all
+    .filter((r) => (r.status || 'new') !== 'passed')
+    .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.seenCount || 0) - (a.seenCount || 0))
+    .slice(0, PREVIEW_MAX);
+}
+
+/** A short in-process memo for the public reads. Not a timer and not a
+ *  cache anyone has to invalidate: an entry is simply recomputed by the first
+ *  request after it expires. It exists because the pulse strip polls, and a
+ *  full signals read per visitor per poll would be silly for data that
+ *  changes once a day. */
+const memoStore = new Map();
+async function memo(key, ttlMs, fn) {
+  const hit = memoStore.get(key);
+  if (hit && hit.until > Date.now()) return hit.value;
+  const value = await fn();
+  memoStore.set(key, { value, until: Date.now() + ttlMs });
+  return value;
+}
+
+/** Weekly trend and spike for one signal, in the shape both boards draw. */
+function pulseFields(r, now) {
+  const a = pulse.annotate(r, now);
+  return {
+    series: a.series,
+    trend: { dir: a.trend.dir, label: a.trend.label, thisWeek: a.trend.thisWeek, lastWeek: a.trend.lastWeek, pct: a.trend.pct },
+    spike: a.spike.spiking ? { sightingsThisWeek: a.spike.sightingsThisWeek, baseline: a.spike.baseline, ratio: a.spike.ratio } : null,
+  };
+}
+
 app.get('/api/public/board', async (_req, res) => {
   try {
     const [all, lenses] = await Promise.all([db.list('signals'), scan.loadLenses()]);
     const label = {};
     for (const l of lenses) label[l.id] = l.label;
-    const rows = all
-      .filter((r) => (r.status || 'new') !== 'passed')
-      .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.seenCount || 0) - (a.seenCount || 0))
-      .slice(0, PREVIEW_MAX)
+    const now = new Date();
+    const rows = publicSelection(all)
       .map((r) => ({
+        // An identifier, not content: lets the pulse strip and /api/spikes
+        // point at a card. It is `<lens>:<slug>`, both already implied by the
+        // title and lens label shown beside it.
+        id: r.id,
         title: r.title,
         summary: r.summary || '',
         who: r.who || '',
@@ -128,6 +167,9 @@ app.get('/api/public/board', async (_req, res) => {
           feasibility: Number(r.scores.feasibility || 0), whitespace: Number(r.scores.whitespace || 0),
         } : null,
         sources: Array.isArray(r.sources) ? r.sources.slice(0, 6) : [],
+        // Counts per week and what they add up to. Numbers the scans
+        // measured, not anyone's words.
+        pulse: pulseFields(r, now),
       }));
     // Public and unauthenticated, so let it be cached: the landing page frames
     // this and a Firestore read per visitor would be silly.
@@ -136,6 +178,82 @@ app.get('/api/public/board', async (_req, res) => {
   } catch (err) {
     console.error('GET /api/public/board', err);
     res.status(500).json({ error: 'Could not load the preview.' });
+  }
+});
+
+/** The pulse, reduced for the public: WHICH of the preview's problems was
+ *  just heard again, from WHAT kind of source, WHEN. Never the excerpt - that
+ *  is someone else's words, the same reason the preview carries no evidence -
+ *  never a link to the post, and never a problem outside the preview's set. */
+async function publicPulse() {
+  const [all, doc, lenses] = await Promise.all([db.list('signals'), db.get('control', 'pulse'), scan.loadLenses()]);
+  const shown = new Map(publicSelection(all).map((r) => [r.id, r]));
+  const label = {};
+  for (const l of lenses) label[l.id] = l.label;
+  const feed = doc && Array.isArray(doc.items) ? doc.items : pulse.fallbackPulse(all);
+  const items = feed
+    .filter((e) => e && shown.has(e.signalId))
+    .slice(0, 20)
+    .map((e) => {
+      const r = shown.get(e.signalId);
+      return { id: r.id, title: r.title, lens: label[r.lensId] || r.lensId || '', source: String(e.source || 'other'), at: e.at || null };
+    });
+  return { items, updatedAt: (doc && doc.updatedAt) || null };
+}
+
+app.get('/api/public/pulse', async (_req, res) => {
+  try {
+    const out = await memo('public-pulse', 60000, publicPulse);
+    res.set('Cache-Control', 'public, max-age=30');
+    res.json(out);
+  } catch (err) {
+    console.error('GET /api/public/pulse', err);
+    res.status(500).json({ error: 'Could not load the pulse.' });
+  }
+});
+
+/** Problems spiking this week, for people and for the Challenge Lab's daily
+ *  idea step. One shape either way:
+ *    [{id, title, summary, sightingsThisWeek, baseline, ratio, sources,
+ *      firstSeen, url, hint}]
+ *
+ *  Two audiences, one route. Without credentials it answers from the
+ *  preview's own set - titles, summaries and sources the preview already
+ *  shows, plus counts - so it needs no gate. With a session, an entitled
+ *  shared account, or the X-Cron-Key header, it answers from the whole board
+ *  (minus what Erik passed on). `hint` is a template, not a model call. */
+app.get('/api/spikes', async (req, res) => {
+  try {
+    const full = auth.hasSession(req) || identityLib.hasAccess(req.user, APP_KEY) || auth.cronOk(req);
+    const all = await db.list('signals');
+    const pub = new Set(publicSelection(all).map((r) => r.id));
+    const pool = full ? all.filter((r) => (r.status || 'new') !== 'passed') : all.filter((r) => pub.has(r.id));
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const now = new Date();
+    const out = [];
+    for (const r of pool) {
+      const sp = pulse.annotate(r, now).spike;
+      if (!sp.spiking) continue;
+      out.push({
+        id: r.id,
+        title: r.title || '',
+        summary: r.summary || '',
+        sightingsThisWeek: sp.sightingsThisWeek,
+        baseline: sp.baseline,
+        ratio: sp.ratio,
+        sources: Array.isArray(r.sources) ? r.sources.slice(0, 6) : [],
+        firstSeen: r.firstSeenAt || null,
+        url: pub.has(r.id) ? `${origin}/preview#${encodeURIComponent(r.id)}` : `${origin}/#signal=${encodeURIComponent(r.id)}`,
+        hint: pulse.appHint(r),
+      });
+    }
+    out.sort((a, b) => b.ratio - a.ratio || b.sightingsThisWeek - a.sightingsThisWeek);
+    res.set('Vary', 'Cookie, X-Cron-Key');
+    res.set('Cache-Control', full ? 'private, no-store' : 'public, max-age=300');
+    res.json(out);
+  } catch (err) {
+    console.error('GET /api/spikes', err);
+    res.status(500).json({ error: 'Could not load spikes.' });
   }
 });
 
@@ -300,8 +418,20 @@ app.get('/api/signals', async (req, res) => {
       return (b.score || 0) - (a.score || 0);
     });
 
+    // Trend and spike are computed on read from each row's small weekly
+    // rollup: no aggregate to keep in step, and the rows are already here.
+    const now = new Date();
+    for (const r of rows) r.pulse = pulseFields(r, now);
+    const spiking = all
+      .filter((r) => (r.status || 'new') !== 'passed')
+      .map((r) => ({ r, p: r.pulse || pulseFields(r, now) }))
+      .filter((x) => x.p.spike)
+      .sort((a, b) => b.p.spike.ratio - a.p.spike.ratio)
+      .map((x) => ({ id: x.r.id, title: x.r.title, lensLabel: x.r.lensLabel || '', spike: x.p.spike, series: x.p.series, hint: pulse.appHint(x.r) }));
+
     res.json({
       signals: rows,
+      spiking,
       counts: all.reduce((acc, r) => {
         const s = r.status || 'new';
         acc[s] = (acc[s] || 0) + 1;
@@ -333,6 +463,22 @@ app.patch('/api/signals/:id', async (req, res) => {
   } catch (err) {
     console.error('PATCH /api/signals', err);
     res.status(500).json({ error: 'Could not save that.' });
+  }
+});
+
+/** The pulse strip on the board: the newest sightings, with the excerpt and
+ *  a link to the post. One document read per poll. Before the first scan
+ *  that writes it, each problem's newest quote stands in. */
+app.get('/api/pulse', async (_req, res) => {
+  try {
+    const doc = await db.get('control', 'pulse');
+    let items = doc && Array.isArray(doc.items) ? doc.items : null;
+    if (!items) items = pulse.fallbackPulse(await db.list('signals'));
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ items: items.slice(0, 30), updatedAt: (doc && doc.updatedAt) || null, fallback: !doc });
+  } catch (err) {
+    console.error('GET /api/pulse', err);
+    res.status(500).json({ error: 'Could not load the pulse.' });
   }
 });
 

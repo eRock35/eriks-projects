@@ -133,6 +133,25 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
 .count small { font-size: 15px; color: var(--faint); font-weight: 600; margin-right: 12px; margin-left: 2px; }
 
 /* how */
+/* Keep or kill standings */
+.standings { padding: 40px 0 0; max-width: 820px; }
+.standings[hidden] { display: none; }
+.standings-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 16px; }
+.standings h2 { font-size: clamp(30px, 5vw, 44px); }
+#standingsLead { color: var(--muted); font-weight: 600; }
+.board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.board li { display: grid; grid-template-columns: 30px 40px minmax(0, 1fr) 7.2em; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.board li.lead { border-color: color-mix(in srgb, var(--keep) 60%, transparent); }
+.board .r { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 18px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.board .e { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: linear-gradient(135deg, var(--c1, var(--accent)), var(--c2, var(--accent2))); }
+.board .n { min-width: 0; }
+.board .n b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board .bar { display: block; height: 6px; margin-top: 6px; border-radius: 999px; background: var(--chip); overflow: hidden; }
+.board .bar i { display: block; height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--keep); }
+.board .s { text-align: right; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.board .s b { display: block; font-size: 17px; color: var(--ink); }
+.board-note { margin: 12px 2px 0; color: var(--muted); font-size: 14px; }
+
 .how { padding: 50px 0 30px; }
 .how h2 { font-size: clamp(30px, 5vw, 44px); margin-bottom: 22px; }
 .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

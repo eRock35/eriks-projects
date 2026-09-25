@@ -99,6 +99,7 @@
       Array.prototype.forEach.call(fresh.querySelectorAll('.vbtns button'), function (b) { b.onclick = function () { vote(slug, b.dataset.v, b, fresh); }; });
       $('.note-btn', fresh).onclick = function () { note(slug); };
       if (next) toast(next === 'keep' ? 'Noted — you want ' + a.name + ' kept 🔥' : 'Brutal. Noted 💀');
+      loadBoard();
     }).catch(function (e) { toast(e.message); });
   }
 
@@ -117,6 +118,27 @@
     };
   }
 
+  // Keep or kill standings. Counts only, from the lab's own ranking; hidden
+  // until it answers, and left as it was if a refresh fails.
+  var HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+  function loadBoard() {
+    fetch('/api/lab/leaderboard', { credentials: 'omit' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !Array.isArray(d.apps) || !d.apps.length) return;
+      var lead = null;
+      $('#board').innerHTML = d.apps.map(function (a, i) {
+        var v = Math.max(0, Math.floor(Number(a.votes) || 0)), p = a.keepPct == null ? null : Math.min(100, Math.max(0, Math.floor(Number(a.keepPct) || 0)));
+        var isLead = d.leader === a.slug && i === 0;
+        if (isLead) lead = a;
+        var style = HEX.test(a.color) && HEX.test(a.color2) ? ' style="--c1:' + a.color + ';--c2:' + a.color2 + '"' : '';
+        return '<li' + (isLead ? ' class="lead"' : '') + '><span class="r">' + (i + 1) + '</span><span class="e"' + style + ' aria-hidden="true">' + esc(a.emoji) + '</span>' +
+          '<span class="n"><b>' + esc(a.name) + '</b><span class="bar" aria-hidden="true"><i style="--p:' + (p || 0) + '%"></i></span></span>' +
+          '<span class="s">' + (v ? '<b>' + p + '% keep</b>' + v + ' vote' + (v === 1 ? '' : 's') : 'No votes yet') + '</span></li>';
+      }).join('');
+      $('#standingsLead').textContent = lead ? '🔥 ' + lead.name + ' leads' : 'Nobody leads yet';
+      $('#standings').hidden = false;
+    }).catch(function () {});
+  }
+
   function tick() {
     var n = nextDrop(new Date()), ms = n - Date.now();
     var d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60, s = Math.floor(ms / 1e3) % 60;
@@ -125,6 +147,6 @@
     if (c) c.innerHTML = (d ? d + '<small>d</small>' : '') + h + '<small>h</small>' + String(m).padStart(2, '0') + '<small>m</small>' + String(s).padStart(2, '0') + '<small>s</small>';
   }
 
-  api('GET', '/api/lab').then(function (d) { data = d; draw(); tick(); setInterval(tick, 1000); })
+  api('GET', '/api/lab').then(function (d) { data = d; draw(); tick(); setInterval(tick, 1000); loadBoard(); })
     .catch(function () { $('#drops').innerHTML = '<p style="color:var(--muted)">The lab is waking up. Refresh in a moment.</p>'; });
 })();

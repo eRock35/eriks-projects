@@ -58,6 +58,49 @@ const { host, mounted } = require('../server');
   assert.strictEqual((await call('POST', '/api/lab/spar/vote', { v: 'maybe' })).status, 400); ok('only keep or kill');
   assert.strictEqual((await call('POST', '/api/lab/spar/note', { text: 'zebra-note-4471 please' })).status, 200); ok('notes are accepted');
   assert.ok(!JSON.stringify((await call('GET', '/api/lab')).data).includes('zebra-note-4471')); ok('notes are never published');
+
+  // --- the leaderboard: counts only, never a cookie, CORS for the main site ---
+  const { standings } = require('../server');
+  for (const o of ['https://www.strongtechnicalconsulting.com', 'https://strongtechnicalconsulting.com']) {
+    const r = await fetch(base + '/api/lab/leaderboard', { headers: { Origin: o, 'Sec-Fetch-Site': 'same-site' } });
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.headers.get('access-control-allow-origin'), o);
+    assert.strictEqual(r.headers.get('set-cookie'), null);
+  }
+  ok('leaderboard: the apex and www may read it cross-origin, and are handed no cookie');
+  const lbEvil = await fetch(base + '/api/lab/leaderboard', { headers: { Origin: 'https://evil.example' } });
+  assert.strictEqual(lbEvil.headers.get('access-control-allow-origin'), null); ok('leaderboard: no other origin is allowed');
+  const lbSame = await fetch(base + '/api/lab/leaderboard');
+  assert.strictEqual(lbSame.headers.get('set-cookie'), null); ok('leaderboard: even a same-origin read mints no visitor id');
+  assert.match(String(lbSame.headers.get('cache-control')), /max-age=15/); ok('leaderboard: cached for 15 s');
+  const lb = await lbSame.json();
+  assert.ok(Array.isArray(lb.apps) && lb.apps.length >= 1);
+  const allowed = ['slug', 'name', 'emoji', 'color', 'color2', 'drop', 'dropped', 'status', 'live', 'keep', 'kill', 'votes', 'keepPct', 'rank'];
+  lb.apps.forEach((a) => Object.keys(a).forEach((k) => assert.ok(allowed.includes(k), 'unexpected field ' + k)));
+  assert.ok(!/myVote|vid|voter|note|zebra/i.test(JSON.stringify(lb))); ok('leaderboard: counts and names only - no voter, no vote of yours, no notes');
+  assert.deepStrictEqual(lb.apps.map((a) => a.rank), lb.apps.map((_, i) => i + 1)); ok('leaderboard: ranks run 1..n');
+  await call('POST', '/api/lab/spar/vote', { v: 'keep' });
+  const after = await (await fetch(base + '/api/lab/leaderboard')).json();
+  assert.strictEqual(after.apps.find((a) => a.slug === 'spar').keep, 1); ok('leaderboard: a vote shows at once (the vote clears the cache)');
+  assert.strictEqual(after.leader, null); ok('leaderboard: one vote makes nobody the leader');
+
+  const reg = [
+    { slug: 'a', name: 'A', status: 'testing' }, { slug: 'b', name: 'B', status: 'testing' },
+    { slug: 'c', name: 'C', status: 'testing' }, { slug: 'dead', name: 'Dead', status: 'retired' },
+  ];
+  let st = standings(reg, { a: { keep: 1 }, b: { keep: 9, kill: 1 }, c: {}, dead: { keep: 99 } });
+  assert.deepStrictEqual(st.apps.map((a) => a.slug), ['b', 'a', 'c']); ok('standings: 9 of 10 outranks a lone keep (Wilson, not raw %)');
+  assert.strictEqual(st.leader, 'b'); ok('standings: a clear leader with enough votes is named');
+  assert.ok(!st.apps.some((a) => a.slug === 'dead')); ok('standings: retired apps are left out');
+  assert.deepStrictEqual(st.apps.map((a) => a.drop), [2, 1, 3]); ok('standings: each app keeps its drop number, whatever its rank');
+  assert.strictEqual(st.apps.find((a) => a.slug === 'b').keepPct, 90); assert.strictEqual(st.apps.find((a) => a.slug === 'c').keepPct, null);
+  ok('standings: keep % is whole, and null (not 0) with no votes');
+  st = standings(reg, { a: { keep: 3, kill: 1 }, b: { keep: 3, kill: 1 } });
+  assert.strictEqual(st.leader, null); ok('standings: a tie at the top names no leader');
+  st = standings(reg, { a: { kill: 5 }, b: { kill: 2 } });
+  assert.strictEqual(st.leader, null); ok('standings: all kills names no leader');
+  st = standings(reg, { a: { keep: -4, kill: 'x' } });
+  assert.deepStrictEqual([st.apps.find((a) => a.slug === 'a').keep, st.apps.find((a) => a.slug === 'a').kill], [0, 0]); ok('standings: a bad tally reads as zero');
+
   server.close();
   console.log(`\n${n}/${n} passed`);
   process.exit(0);

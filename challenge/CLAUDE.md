@@ -120,6 +120,20 @@ agent), changeable and withdrawable. Notes are stored in `lab_notes` and
 **never displayed** — nothing to moderate, nothing to deface. Read them in
 Firestore.
 
+## The leaderboard
+
+`GET /api/lab/leaderboard` — Keep/Kill standings from `lab_votes`: per app
+`keep`, `kill`, `votes`, `keepPct` (null with no votes), `rank`, `drop`
+number, plus `leader`. Ranked on the lower bound of a 95% Wilson interval on
+the keep share (one keep does not outrank 9 of 10); a leader is named only
+with 2+ votes and a strict lead, else `null`. Retired apps are left out.
+Counts only: it never mints `lab_vid` (it reads nothing per visitor), CORS
+for the apex and `www.` like `/api/lab`, 15 s in memory (a vote clears it)
+and `max-age=15`. Read by the lab's own page (the Leaderboard section), the
+main site's `/api/activity` (the home page's banner and "Live now" feed) and
+the `/challenge` teaser's Leaderboard line. `standings()` is exported and
+tested in `test/lab.js`. A daily drop needs no change here.
+
 ## The teaser on the main site
 
 `site/challenge.html` (www…/challenge) is a **teaser**, not a second lab:

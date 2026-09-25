@@ -145,6 +145,77 @@ host.get('/api/lab', async (req, res) => {
   }
 });
 
+/* ---------------- the leaderboard ---------------- */
+
+// Keep/Kill standings, for the lab's own page and for the main site (the home
+// page's Challenge banner and its "Live now" feed, and the /challenge teaser).
+//
+// Ranked on the lower bound of a 95% Wilson interval on the keep share, not
+// on the raw percentage: one "keep" is 100% and would outrank 40 keeps out of
+// 45. Ties go to more votes, then to the newer drop. A LEADER is named only
+// when it has MIN_LEAD_VOTES or more and is strictly ahead of second place;
+// otherwise `leader` is null and nobody is said to lead.
+//
+// Counts only: no visitor ids, no notes, and it never mints the vote cookie
+// (it reads nothing per visitor), whoever asks. Retired apps are left out.
+const MIN_LEAD_VOTES = 2;
+function wilsonLow(keep, n) {
+  if (!n) return 0;
+  const z = 1.96, p = keep / n, z2 = z * z;
+  return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
+}
+/** Pure: the registry plus a tally per slug -> the ranked standings. */
+function standings(apps, tallies) {
+  const rows = apps
+    .map((a, i) => ({ a, i }))
+    .filter(({ a }) => a.status !== 'retired')
+    .map(({ a, i }) => {
+      const t = (tallies && tallies[a.slug]) || {};
+      const keep = Math.max(0, Math.floor(Number(t.keep) || 0));
+      const kill = Math.max(0, Math.floor(Number(t.kill) || 0));
+      const votes = keep + kill;
+      return {
+        slug: a.slug, name: a.name, emoji: a.emoji, color: a.color, color2: a.color2,
+        drop: i + 1, dropped: a.dropped, status: a.status, live: mounted.includes(a.slug),
+        keep, kill, votes, keepPct: votes ? Math.round((keep / votes) * 100) : null,
+        score: wilsonLow(keep, votes), order: i,
+      };
+    })
+    .sort((x, y) => y.score - x.score || y.votes - x.votes || y.order - x.order);
+  rows.forEach((r, i) => { r.rank = i + 1; });
+  const [first, second] = rows;
+  const leader = first && first.votes >= MIN_LEAD_VOTES && first.score > 0 && (!second || first.score > second.score) ? first.slug : null;
+  return {
+    apps: rows.map(({ score, order, ...r }) => r),
+    leader,
+    rule: 'wilson-lower-bound',
+    minLeadVotes: MIN_LEAD_VOTES,
+  };
+}
+
+// Fifteen seconds of memory, so every home-page poll across the internet is
+// at most one read per app per 15 s. A vote on this instance clears it.
+const BOARD_MS = 15 * 1000;
+let boardCache = { at: 0, body: null };
+
+host.get('/api/lab/leaderboard', async (req, res) => {
+  try {
+    const origin = req.get('origin');
+    if (origin && SITE_ORIGINS.has(origin)) { res.set('Access-Control-Allow-Origin', origin); res.set('Vary', 'Origin'); }
+    if (!boardCache.body || Date.now() - boardCache.at > BOARD_MS) {
+      const tallies = {};
+      await Promise.all(lab.APPS.map(async (a) => { tallies[a.slug] = (await store.get('lab_votes', a.slug)) || {}; }));
+      boardCache = { at: Date.now(), body: standings(lab.APPS, tallies) };
+    }
+    res.set('Cache-Control', 'public, max-age=15');
+    res.json(boardCache.body);
+  } catch (err) {
+    console.error(err);
+    res.set('Cache-Control', 'no-store');
+    res.status(500).json({ error: 'Could not load the leaderboard.' });
+  }
+});
+
 host.post('/api/lab/:slug/vote', lj, async (req, res) => {
   try {
     const a = lab.get(req.params.slug);
@@ -157,7 +228,7 @@ host.post('/api/lab/:slug/vote', lj, async (req, res) => {
     const d = {};
     if (prev && prev.v) d[prev.v] = -1;
     if (v) d[v] = (d[v] || 0) + 1;
-    if (Object.keys(d).length) await store.bump('lab_votes', a.slug, d);
+    if (Object.keys(d).length) { await store.bump('lab_votes', a.slug, d); boardCache = { at: 0, body: null }; }
     await store.set('lab_voters', key, { v, at: new Date().toISOString() });
     const tally = (await store.get('lab_votes', a.slug)) || {};
     res.json({ votes: { keep: Math.max(0, tally.keep || 0), kill: Math.max(0, tally.kill || 0) }, myVote: v });
@@ -196,4 +267,4 @@ if (require.main === module) {
   host.listen(PORT, () => console.log(`[lab] listening on ${PORT}${MEMORY ? ' (memory)' : ''}`));
 }
 
-module.exports = { host, mounted };
+module.exports = { host, mounted, standings };

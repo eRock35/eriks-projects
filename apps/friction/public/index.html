@@ -18,12 +18,19 @@
     --shadow: 0 1px 2px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.05);
     --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom);
     --tabbar-h: 52px; --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    /* Text inks, each >= 4.5:1 on the card and on its own tinted chip in both
+       modes. The system colours above are for fills and dots; as small text
+       on white the red is 3.5:1 and the blue 4:1. */
+    --ink-2: #5A5A5F; --hot-ink: #B42318; --hot-fill: rgba(255,59,48,0.12); --tint-ink: #0058B8; --green-ink: #1F6F32;
+    --src-hn: #A33F00; --src-gh: #1C1C1E; --src-as: #0058B8; --src-se: #1F6F32; --src-rd: #6A3FA0; --src-x: #5A5A5F;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #000000; --card: #1C1C1E; --fill: rgba(118,118,128,0.24);
             --label: #F5F5F7; --label-2: #98989D; --label-3: #6E6E73;
             --sep: rgba(84,84,88,0.5); --bar-bg: rgba(28,28,30,0.82);
-            --shadow: 0 1px 2px rgba(0,0,0,0.5); }
+            --shadow: 0 1px 2px rgba(0,0,0,0.5);
+            --ink-2: #B4B4B9; --hot-ink: #FF6961; --hot-fill: rgba(255,59,48,0.2); --tint-ink: #64A8FF; --green-ink: #5FD47C;
+            --src-hn: #FF9F5A; --src-gh: #F5F5F7; --src-as: #64A8FF; --src-se: #5FD47C; --src-rd: #D39BF0; --src-x: #B4B4B9; }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { -webkit-text-size-adjust: 100%; }
@@ -84,11 +91,11 @@
   .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .tag {
     font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase;
-    padding: 3px 8px; border-radius: 6px; background: var(--fill); color: var(--label-2);
+    padding: 3px 8px; border-radius: 6px; background: var(--fill); color: var(--ink-2);
   }
-  .tag.hot { background: rgba(255,59,48,0.14); color: var(--red); }
-  .tag.dig { background: rgba(0,122,255,0.14); color: var(--tint); }
-  .tag.build { background: rgba(52,199,89,0.16); color: var(--green); }
+  .tag.hot { background: var(--hot-fill); color: var(--hot-ink); }
+  .tag.dig { background: rgba(0,122,255,0.12); color: var(--tint-ink); }
+  .tag.build { background: rgba(52,199,89,0.14); color: var(--green-ink); }
   .tag.pass { opacity: 0.6; }
 
   .empty { text-align: center; color: var(--label-2); padding: 48px 20px; }
@@ -115,7 +122,7 @@
   .bars { display: grid; gap: 7px; margin: 14px 0 4px; }
   .bar-row { display: grid; grid-template-columns: 84px 1fr 26px; gap: 9px; align-items: center; font-size: 12.5px; color: var(--label-2); }
   .track { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
-  .fillbar { height: 100%; border-radius: 3px; background: var(--tint); }
+  .fillbar { display: block; height: 100%; border-radius: 3px; background: var(--tint); }
 
   .ev { background: var(--fill); border-radius: 11px; padding: 10px 12px; margin-bottom: 8px; }
   .ev blockquote { margin: 0 0 7px; font-size: 14.5px; line-height: 1.42; }
@@ -164,6 +171,58 @@
   .toast.in { opacity: 1; transform: translate(-50%, 0); }
   .toast.error { background: rgba(255,59,48,0.95); }
   [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* ---- the pulse: ticker, trend arrows, spikes. The same block sits in
+     index.html and preview.html; keep them in step by hand, like the tokens. */
+  .pulse { margin: 0 0 18px; }
+  .pulse-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+  .pulse-head h2 { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 0; color: var(--label); }
+  .pulse-note { font-size: 13px; color: var(--ink-2); margin-left: auto; text-align: right; }
+  .live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--hot-ink); animation: live 2.2s ease-out infinite; }
+  .live-dot.idle { background: var(--ink-2); animation: none; }
+  @keyframes live { 0% { box-shadow: 0 0 0 0 var(--hot-fill); } 70% { box-shadow: 0 0 0 7px rgba(0,0,0,0); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
+  .pulse-strip { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
+    padding: 2px 16px 8px; margin: 0 -16px; scrollbar-width: none; }
+  .pulse-strip::-webkit-scrollbar { display: none; }
+  .pi { flex: 0 0 min(80%, 290px); scroll-snap-align: start; background: var(--card); border-radius: 13px; box-shadow: var(--shadow);
+    padding: 10px 12px 11px; text-align: left; border: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: none; display: flex; flex-direction: column; justify-content: flex-start; }
+  .pi:focus-visible, .sp-row:focus-visible { outline: 2px solid var(--tint-ink); outline-offset: 2px; }
+  .pi-top { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); margin-bottom: 6px; white-space: nowrap; }
+  .pi-top .when { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .src { flex: none; min-width: 28px; height: 20px; padding: 0 5px; border-radius: 6px; display: inline-grid; place-items: center;
+    font-size: 11px; font-weight: 700; letter-spacing: .02em; background: var(--fill); color: var(--src-x); }
+  .src-hackernews { color: var(--src-hn); } .src-github { color: var(--src-gh); } .src-appstore { color: var(--src-as); }
+  .src-stackex { color: var(--src-se); } .src-reddit { color: var(--src-rd); }
+  .pi-q { margin: 0 0 6px; font-size: 14px; line-height: 1.38; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .pi-t { margin: 0; font-size: 13px; line-height: 1.35; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pi-t b { color: var(--label); font-weight: 600; }
+  .trend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+    padding: 3px 8px; border-radius: 999px; background: var(--fill); color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+  .trend.up { background: var(--hot-fill); color: var(--hot-ink); }
+  .spark { display: block; overflow: visible; }
+  .spark polyline { fill: none; stroke: var(--ink-2); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+  .spark circle { fill: currentColor; }
+  .tag.spike, .spike-badge { background: var(--hot-ink); color: var(--card); }
+  .spiking { background: var(--card); border-radius: 15px; box-shadow: var(--shadow); padding: 12px 14px 2px; margin: 0 0 18px; }
+  .spiking-head { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+  .spiking-head h2 { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 0; color: var(--hot-ink); }
+  .spiking-head span { font-size: 13px; color: var(--ink-2); }
+  .sp-row { display: flex; gap: 12px; align-items: center; width: 100%; padding: 11px 0; border: 0; border-bottom: .5px solid var(--sep);
+    background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: none; }
+  .sp-row:last-child { border-bottom: 0; }
+  .sp-main { flex: 1; min-width: 0; }
+  .sp-title { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .sp-sub { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+  .sp-ratio { flex: none; font-size: 13px; font-weight: 700; padding: 4px 9px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  @media (min-width: 900px) {
+    /* A mouse has no swipe: show a thin scrollbar so the strip can be
+       dragged, instead of a row that looks cut off for no reason. */
+    .pulse-strip { margin: 0; padding: 2px 2px 10px; scroll-padding-inline: 0; scrollbar-width: thin; }
+    .pulse-strip::-webkit-scrollbar { display: block; height: 6px; }
+    .pulse-strip::-webkit-scrollbar-thumb { background: var(--fill); border-radius: 3px; }
+    .pi { flex-basis: 290px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 </style>
   <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
        the service, so local runs and browser tests send nothing. -->
@@ -181,6 +240,14 @@
 <div class="wrap">
   <section id="tab-board" class="tabpanel">
     <h1 class="large-title">Board</h1>
+    <section class="pulse" id="pulse" aria-labelledby="pulseHead" hidden>
+      <div class="pulse-head"><span class="live-dot" id="liveDot" aria-hidden="true"></span><h2 id="pulseHead">Pulse</h2><span class="pulse-note" id="pulseNote"></span></div>
+      <div class="pulse-strip" id="pulseStrip" aria-label="Newest complaints the scans filed"></div>
+    </section>
+    <section class="spiking" id="spiking" aria-labelledby="spikingHead" hidden>
+      <div class="spiking-head"><h2 id="spikingHead">Spiking</h2><span>3&times; their usual week, or more</span></div>
+      <div id="spikeList"></div>
+    </section>
     <div class="chips" id="statusChips"></div>
     <div class="sorter">
       <label for="sortSel">Sort</label>
@@ -235,7 +302,7 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var STATUS_LABEL = { new: "New", digging: "Digging in", building: "Building", passed: "Passed" };
-  var state = { signals: [], counts: {}, weights: {}, status: "all", sort: "score", lenses: [], runs: [], last: null };
+  var state = { signals: [], spiking: [], counts: {}, weights: {}, status: "all", sort: "score", lenses: [], runs: [], last: null };
   var activeTab = "board";
 
   /* ---------- plumbing ---------- */
@@ -280,6 +347,47 @@
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
+  /* ---------- pulse helpers (the same functions sit in preview.html) ---------- */
+  var SRC = { hackernews: ["HN", "Hacker News"], github: ["GH", "GitHub issue"], appstore: ["App", "App Store review"],
+              stackex: ["SE", "Stack Exchange"], reddit: ["r/", "Reddit"] };
+  function srcBadge(src) {
+    var m = SRC[src] || ["•", "Other source"];
+    var key = SRC[src] ? src : "other";
+    return '<span class="src src-' + esc(key) + '" title="' + esc(m[1]) + '"><span aria-hidden="true">' + esc(m[0]) + '</span><span class="sr">' + esc(m[1]) + '</span></span>';
+  }
+  function rel(iso) {
+    var t = Date.parse(iso); if (!iso || isNaN(t)) return "";
+    var m = Math.max(0, (Date.now() - t) / 60000);
+    if (m < 1) return "just now"; if (m < 60) return Math.floor(m) + " min ago";
+    var h = m / 60; if (h < 24) return Math.floor(h) + " h ago";
+    var d = h / 24; if (d < 7) return Math.floor(d) + (Math.floor(d) === 1 ? " day ago" : " days ago");
+    return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function spark(series) {
+    if (!series || series.length < 2) return "";
+    var w = 52, h = 16, n = series.length, max = Math.max.apply(null, series.concat([1]));
+    var pts = series.map(function (v, i) { return [2 + i * (w - 4) / (n - 1), h - 2 - (Number(v) || 0) / max * (h - 4)]; });
+    var last = pts[n - 1];
+    var said = "Sightings per week, oldest to newest: " + series.join(", ");
+    return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" role="img" aria-label="' + esc(said) + '"><title>' + esc(said) + '</title>' +
+      '<polyline points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>' +
+      '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="2.4"/></svg>';
+  }
+  /** "usually under 1 a week", not "against 0.75 a week before". */
+  function usually(b) {
+    b = Number(b) || 0;
+    return "usually " + (b === 0 ? "none" : b < 1 ? "under 1" : "about " + (Math.round(b * 10) / 10)) + " a week";
+  }
+  function trendChip(p) {
+    if (!p || !p.trend || p.trend.dir === "none") return "";
+    var t = p.trend;
+    var arrow = t.dir === "up" ? "▲" : t.dir === "down" ? "▼" : "→";
+    var said = t.dir === "flat" ? "Steady on last week" : (t.label === "new" ? "New this week" : t.label === "back" ? "Back this week after a quiet one"
+      : (t.dir === "up" ? "Up " : "Down ") + t.label.replace(/^[+−]/, "") + " on last week");
+    return '<span class="trend ' + esc(t.dir) + '" title="' + esc(said + " (" + t.thisWeek + " vs " + t.lastWeek + ")") + '">' + spark(p.series) +
+      '<span aria-hidden="true">' + arrow + " " + esc(t.label) + '</span><span class="sr">' + esc(said) + '</span></span>';
+  }
+
   /* ---------- board ---------- */
   function renderChips() {
     var opts = [["all", "All"], ["new", "New"], ["digging", "Digging in"], ["building", "Building"], ["passed", "Passed"]];
@@ -293,6 +401,10 @@
   function cardHtml(s, i) {
     var st = s.status || "new";
     var tags = [];
+    var sp = s.pulse && s.pulse.spike;
+    if (sp) tags.push('<span class="tag spike">Spike &times;' + esc(sp.ratio) + "</span>");
+    var tc = trendChip(s.pulse);
+    if (tc) tags.push(tc);
     if ((s.seenCount || 1) > 1) tags.push('<span class="tag hot">seen ' + s.seenCount + "&times;</span>");
     tags.push('<span class="tag">' + esc(s.lensLabel || s.lensId || "") + "</span>");
     if (st === "digging") tags.push('<span class="tag dig">Digging in</span>');
@@ -311,8 +423,36 @@
       "</button>";
   }
 
+  function renderSpiking() {
+    var box = $("spiking");
+    if (!state.spiking.length) { box.hidden = true; return; }
+    $("spikeList").innerHTML = state.spiking.map(function (x) {
+      var sp = x.spike;
+      return '<button type="button" class="sp-row" data-signal="' + esc(x.id) + '">' +
+        '<span class="sp-main"><span class="sp-title">' + esc(x.title) + "</span>" +
+        '<span class="sp-sub">' + esc(sp.sightingsThisWeek) + " this week, " + esc(usually(sp.baseline)) +
+          (x.lensLabel ? " &middot; " + esc(x.lensLabel) : "") + "</span>" +
+        '<span class="sp-sub">' + esc(x.hint || "") + "</span></span>" +
+        '<span class="sp-ratio spike-badge">&times;' + esc(sp.ratio) + "</span></button>";
+    }).join("");
+    box.hidden = false;
+  }
+
+  /** Open a signal by id, from the pulse strip, the Spiking list or a link.
+   *  If the current filter hides it, widen to All first. */
+  async function openById(id) {
+    var i = state.signals.findIndex(function (s) { return s.id === id; });
+    if (i < 0 && state.status !== "all") {
+      state.status = "all";
+      await loadBoard();
+      i = state.signals.findIndex(function (s) { return s.id === id; });
+    }
+    if (i >= 0) openSignal(i); else toast("That problem is no longer on the board.", "error");
+  }
+
   function renderBoard() {
     renderChips();
+    renderSpiking();
     var list = $("boardList");
     $("boardCount").textContent = state.signals.length + (state.signals.length === 1 ? " signal" : " signals");
     if (!state.signals.length) {
@@ -377,6 +517,11 @@
         '<p style="color:var(--label-2);font-size:13.5px;margin:0">' + esc(s.lensLabel || "") +
         " &middot; seen " + (s.seenCount || 1) + "&times; &middot; " + esc(fmtDate(s.lastSeenAt)) + "</p></span>" +
       "</div>" +
+      (s.pulse && (s.pulse.spike || s.pulse.trend.dir !== "none")
+        ? '<div class="meta" style="margin:0 0 4px">' +
+            (s.pulse.spike ? '<span class="tag spike">Spike &times;' + esc(s.pulse.spike.ratio) + "</span>" : "") + trendChip(s.pulse) +
+            '<span class="tag">' + esc(s.pulse.trend.thisWeek) + " this week &middot; " + esc(s.pulse.trend.lastWeek) + " last</span></div>"
+        : "") +
       "<h4>What goes wrong</h4><p>" + esc(s.summary) + "</p>" +
       "<h4>Who has it</h4><p>" + esc(s.who) + "</p>" +
       "<h4>What they use now</h4><p>" + esc(s.existingTools) + "</p>" +
@@ -463,6 +608,7 @@
   async function loadBoard() {
     var data = await api("/api/signals?status=" + encodeURIComponent(state.status) + "&sort=" + encodeURIComponent(state.sort));
     state.signals = data.signals || [];
+    state.spiking = data.spiking || [];
     state.counts = data.counts || {};
     state.weights = data.weights || {};
     renderBoard();
@@ -495,6 +641,39 @@
     }
   }
 
+  /* ---------- the pulse strip ----------
+     The newest complaints the scans filed, polled every 45 s while the board
+     is on screen and stopped while the tab is hidden or another tab is open.
+     One Firestore document read per poll; the scan is what writes it. */
+  var PULSE_MS = 45000, pulseTimer = null, pulseHtml = "";
+  function paintPulse(d) {
+    var items = (d && d.items) || [];
+    var box = $("pulse");
+    if (!items.length) { box.hidden = true; return; }
+    var html = items.map(function (e) {
+      return '<button type="button" class="pi" data-signal="' + esc(e.signalId) + '">' +
+        '<span class="pi-top">' + srcBadge(e.source) + "<span>" + esc(e.lensLabel || (SRC[e.source] || ["", "Elsewhere"])[1]) + '</span><span class="when">' + esc(rel(e.at)) + "</span></span>" +
+        (e.excerpt ? '<span class="pi-q">&ldquo;' + esc(e.excerpt) + "&rdquo;</span>" : "") +
+        '<span class="pi-t">Filed under <b>' + esc(e.title) + "</b></span></button>";
+    }).join("");
+    if (html !== pulseHtml) { $("pulseStrip").innerHTML = html; pulseHtml = html; }
+    $("pulseNote").textContent = d.updatedAt ? "Last scan " + rel(d.updatedAt) : (d.fallback ? "Latest per problem" : "Newest first");
+    box.hidden = false;
+  }
+  function pollPulse() {
+    if (document.hidden || activeTab !== "board") return;
+    api("/api/pulse").then(paintPulse).catch(function () {});
+  }
+  function startPulse() {
+    stopPulse();
+    pollPulse();
+    pulseTimer = setInterval(pollPulse, PULSE_MS);
+  }
+  function stopPulse() { if (pulseTimer) clearInterval(pulseTimer); pulseTimer = null; }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) stopPulse(); else if (activeTab === "board") startPulse();
+  });
+
   /* ---------- tabs ---------- */
   var TITLES = { board: "Board", lenses: "Lenses", runs: "Runs" };
   function selectTab(name) {
@@ -506,6 +685,7 @@
     $("navTitle").textContent = TITLES[name];
     window.scrollTo(0, 0);
     try { history.replaceState(null, "", "#" + name); } catch (e) {}
+    if (name === "board") startPulse(); else stopPulse();
     if (name === "lenses") loadLenses().catch(function (e) { toast(e.message, "error"); });
     if (name === "runs") loadRuns().catch(function (e) { toast(e.message, "error"); });
   }
@@ -696,6 +876,8 @@
       loadBoard().catch(function (err) { toast(err.message, "error"); });
       return;
     }
+    var hit = e.target.closest("[data-signal]");
+    if (hit) { openById(hit.getAttribute("data-signal")).catch(function (err) { toast(err.message, "error"); }); return; }
     var card = e.target.closest("[data-open]");
     if (card) { openSignal(Number(card.getAttribute("data-open"))); return; }
     var sw = e.target.closest("[data-lens]");
@@ -719,8 +901,12 @@
 
   /* ---------- go ---------- */
   var hash = (location.hash || "").replace("#", "");
+  // /api/spikes links a problem that is not on the preview as #signal=<id>.
+  var deep = hash.indexOf("signal=") === 0 ? decodeURIComponent(hash.slice(7)) : "";
   selectTab(["board", "lenses", "runs"].indexOf(hash) >= 0 ? hash : "board");
-  Promise.all([loadBoard(), loadRuns()]).catch(function (e) { toast(e.message, "error"); });
+  Promise.all([loadBoard(), loadRuns()]).then(function () {
+    if (deep) return openById(deep);
+  }).catch(function (e) { toast(e.message, "error"); });
 
   // Coming back from Stripe, and the link a 402 carries. identity's "out of
   // credit" link is relative now, so ?topup=1 opens this app's own account

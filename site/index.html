@@ -319,6 +319,45 @@
      would leave the focusable link with no accessible name while it waits. */
   .cb-drop > *, .cb-meta { transition: opacity .35s var(--ease), transform .3s var(--ease); }
   .js .cb-live[data-state="wait"] .cb-drop > *, .js .cb-live[data-state="wait"] .cb-meta { opacity: 0; }
+  /* Keep or kill standings: the lab's top three, from /api/activity (which
+     reads the lab's /api/lab/leaderboard). The same box in every state - the
+     three cells are always in the markup and set its height, and the copy for
+     "no numbers" (no answer, or nobody has voted) sits in the same grid cell
+     on top of them - so nothing moves when it fills, empties or refreshes.
+     Under the banner's link layer on purpose: a tap anywhere on it opens
+     /challenge, like the rest of the banner. */
+  .cb-board { margin-top: 12px; }
+  .cb-bk { display: block; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; line-height: 1.4;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cb-bgrid { display: grid; margin-top: 6px; }
+  .cb-bl, .cb-bs { grid-area: 1 / 1; min-width: 0; }
+  .cb-bl { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .cb-bc { position: relative; overflow: hidden; min-width: 0; display: flex; flex-direction: column; padding: 6px 9px 8px; border-radius: 11px;
+           background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+  .cb-bc.lead { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.8); }
+  .cb-bn, .cb-bp { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cb-bn { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+  .cb-bp { font-size: 12.5px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+  .cb-br { font-weight: 800; margin-right: 4px; }
+  /* The keep share, as a hairline under the cell. Decoration: the number
+     above it says the same thing in words. */
+  .cb-bm { position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p, 0%); background: rgba(255,255,255,.75); transition: width .6s var(--ease); }
+  /* No numbers to show: one tile over the same area, so it reads as meant. */
+  .cb-bs { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px 12px; border-radius: 11px;
+           background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+  .cb-board[data-state="live"] .cb-bs, .cb-board[data-state="wait"] .cb-bs, .js .cb-board[data-state="wait"] .cb-bk { visibility: hidden; }
+  .cb-board[data-state="static"] .cb-bl, .cb-board[data-state="wait"] .cb-bl { visibility: hidden; }
+  html:not(.js) .cb-board .cb-bs { visibility: visible; }
+  .cb-bl, .cb-bs, .cb-bk { transition: opacity .35s var(--ease); }
+  .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  /* On a phone, three columns would cut every name; three short rows. */
+  @media (max-width: 480px) {
+    .cb-bl { grid-template-columns: 1fr; gap: 3px; }
+    .cb-bc { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 9px 4px; border-radius: 9px; }
+    .cb-bn { flex: 1 1 auto; min-width: 0; }
+    .cb-bp { flex: 0 0 auto; }
+    .cb-bc .cb-w { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  }
   /* Wraps rather than squeezing: on the narrowest phones the note drops
      under the heading instead of breaking into a column beside it. */
   .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 0 0 14px; }
@@ -461,6 +500,41 @@
                         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trendlist .tl-n { position: relative; font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   @media (min-width: 1180px) { .trendbar { margin-inline: calc((680px - var(--wide-row)) / 2); } }
+
+  /* "Live now": one row of short lines from /api/activity, scrolled sideways
+     rather than wrapped, so the strip is the same height whether it holds one
+     line or six, and a refresh never moves the page. Script-only (it has
+     nothing to say without it). While the first answer is on its way it holds
+     its place with three blank pills; if that answer is empty or does not
+     come, it is removed - see the script for when it may come back. */
+  .livefeed { margin: 0 0 22px; }
+  html:not(.js) .livefeed, .livefeed[data-state="gone"] { display: none; }
+  .lf-card { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 10px 12px; }
+  .lf-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+  .lf-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--label-2); white-space: nowrap; }
+  .lf-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
+  .lf-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green); animation: pulse 2.4s ease-out 3; }
+  .lf-list { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; margin: 0; padding: 0; list-style: none; overflow-x: auto;
+             scrollbar-width: none; overscroll-behavior-x: contain; scroll-padding-inline: 4px; }
+  .lf-list::-webkit-scrollbar { display: none; }
+  .lf-list > li { flex: 0 0 auto; max-width: min(340px, 82vw); display: flex; }
+  .lf-item { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 9px; height: 46px; padding: 0 14px 0 11px; border-radius: 12px;
+             background: var(--fill); color: var(--label); font-size: 13.5px; line-height: 1.25; white-space: nowrap; transition: background .2s; }
+  .lf-body { min-width: 0; display: flex; flex-direction: column; }
+  a.lf-item:hover { background: var(--fill-2); }
+  .lf-item:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
+  .lf-ic { flex: 0 0 auto; font-size: 16px; line-height: 1; }
+  .lf-tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .lf-tx b { font-weight: 600; }
+  .lf-when { color: var(--label-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  .lf-skel { width: 168px; height: 46px; border-radius: 12px; background: var(--fill); }
+  .lf-list, .lf-head { transition: opacity .35s var(--ease); }
+  @media (max-width: 560px) {
+    /* Label on its own line; the row runs to the card's edge so the next
+       line peeks in, which is the cue that it scrolls. */
+    .lf-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0 10px 12px; }
+    .lf-list { padding-right: 12px; }
+  }
   @keyframes pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
   /* Dimmed once revealed (or when there is no script to reveal it); before
      that it is hidden with the others so it fades in with them. */
@@ -671,6 +745,35 @@
           <span class="cb-count" id="cbCount"></span>
           <span id="cbNext">New drop daily, 09:00 UTC</span>
         </div>
+        <!-- Keep or kill standings, the lab's top three. Filled from
+             /api/activity by the "Live now" script; the three cells are
+             placeholders that hold the box's height in every state. -->
+        <div class="cb-board" id="cbBoard" data-state="wait">
+          <span class="cb-bk" id="cbBk">Keep or kill</span>
+          <div class="cb-bgrid">
+            <ol class="cb-bl" id="cbBl" aria-label="Keep or kill standings">
+              <li class="cb-bc" aria-hidden="true"><span class="cb-bn">&nbsp;</span><span class="cb-bp">&nbsp;</span></li>
+              <li class="cb-bc" aria-hidden="true"><span class="cb-bn">&nbsp;</span><span class="cb-bp">&nbsp;</span></li>
+              <li class="cb-bc" aria-hidden="true"><span class="cb-bn">&nbsp;</span><span class="cb-bp">&nbsp;</span></li>
+            </ol>
+            <span class="cb-bs" id="cbBs">🔥 Keep or 💀 kill: vote on every drop in the lab.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live now: what is happening across the apps, from /api/activity
+         (lib/activity.js). App-level counts and events only - never a
+         person, and never a count under two. Polled every 30 s while the tab
+         is visible. -->
+    <div class="livefeed" id="liveFeed" data-state="wait" data-reveal role="region" aria-labelledby="lfTitle">
+      <div class="lf-card">
+        <div class="lf-head"><span class="lf-dot" aria-hidden="true"></span><p class="lf-title" id="lfTitle">Live now</p></div>
+        <ul class="lf-list" id="lfList">
+          <li aria-hidden="true"><span class="lf-skel"></span></li>
+          <li aria-hidden="true"><span class="lf-skel"></span></li>
+          <li aria-hidden="true"><span class="lf-skel"></span></li>
+        </ul>
       </div>
     </div>
 
@@ -1525,6 +1628,188 @@
       })
       .catch(function () {});
   } catch (e) {}
+})();
+</script>
+<script>
+/* Live now, and the Keep or kill standings in the Challenge banner.
+ *
+ * Both come from one same-origin call, /api/activity (lib/activity.js), which
+ * the server answers from a 15-second memory - so this page can ask every 30
+ * seconds and it costs next to nothing. It asks only while the tab is
+ * visible: a hidden tab's timer is cleared, and coming back asks at once if
+ * the last answer is older than the interval.
+ *
+ * Nothing on the page moves because of it:
+ *  - the strip is one sideways-scrolling row, so one line or six are the same
+ *    height, and a refresh keeps where the row was scrolled to;
+ *  - while the first answer is on its way the strip holds its place with
+ *    blank pills; if it is empty or does not come, the strip is removed;
+ *  - after that, the strip appears or goes only while its place is below the
+ *    bottom of the screen, where nothing a reader is looking at can shift;
+ *  - the standings box is the same size whatever it shows.
+ * A failed poll is never shown: the last good lines stay, and after four
+ * misses in a row (two minutes) the strip goes when it is out of sight.
+ * Every string from the server is escaped; links must be https on this
+ * domain or they are not links.
+ */
+(function () {
+  'use strict';
+  var feed = document.getElementById('liveFeed'), list = document.getElementById('lfList');
+  var board = document.getElementById('cbBoard');
+  if (!feed || !list) return;
+  var POLL = 30000, GIVE_UP = 8000, STATIC_AFTER = 2500, MISSES = 4;
+  var timer = null, lastAsk = 0, seq = 0, misses = 0, lastFeed = '', lastBoard = '';
+
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function clean(v, max) { return Array.from(String(v == null ? '' : v).replace(/\s+/g, ' ').trim()).slice(0, max).join(''); }
+  function safeHref(u) {
+    try {
+      var x = new URL(String(u));
+      if (x.protocol === 'https:' && /(^|\.)strongtechnicalconsulting\.com$/.test(x.hostname)) return x.href;
+    } catch (e) {}
+    return null;
+  }
+  function num(v) { var n = Number(v); return isFinite(n) && n >= 0 ? Math.floor(n) : 0; }
+
+  /* ---------- the strip ---------- */
+  function state() { return feed.getAttribute('data-state'); }
+  // Where the strip is (or would be): below the screen means a change there
+  // shifts nothing anyone can see.
+  function outOfSight() {
+    var el = state() === 'gone' ? feed.nextElementSibling : feed;
+    if (!el) return true;
+    return el.getBoundingClientRect().top >= (window.innerHeight || document.documentElement.clientHeight);
+  }
+  function drawFeed(items) {
+    var html = items.map(function (it) {
+      var href = safeHref(it.href);
+      var name = clean(it.name, 40), text = clean(it.text, 110), when = clean(it.when, 24), icon = clean(it.icon, 4);
+      // The when is a second line, so a narrow screen cuts neither.
+      var inner = '<span class="lf-ic" aria-hidden="true">' + esc(icon) + '</span>'
+        + '<span class="lf-body"><span class="lf-tx"><b>' + esc(name) + '</b> ' + esc(text) + '</span>'
+        + (when ? '<span class="lf-when"><span class="sr">, </span>' + esc(when) + '</span>' : '') + '</span>';
+      var title = esc(name + ' ' + text + (when ? ' · ' + when : ''));
+      return '<li>' + (href
+        ? '<a class="lf-item" href="' + esc(href) + '" title="' + title + '" target="_blank" rel="noopener">' + inner + '</a>'
+        : '<span class="lf-item" title="' + title + '">' + inner + '</span>') + '</li>';
+    }).join('');
+    if (html === lastFeed) return;
+    var x = list.scrollLeft;
+    list.innerHTML = html;
+    list.scrollLeft = x;
+    lastFeed = html;
+  }
+  function usable(items) {
+    return Array.isArray(items) ? items.filter(function (it) { return it && typeof it === 'object' && clean(it.name, 1) && clean(it.text, 1); }).slice(0, 6) : [];
+  }
+  function onFeed(items) {
+    var s = state();
+    if (items.length) {
+      misses = 0;
+      if (s === 'gone' && !outOfSight()) return;   // wait for it to be off screen
+      drawFeed(items);
+      feed.setAttribute('data-state', 'live');
+    } else if (s === 'wait') {
+      feed.setAttribute('data-state', 'gone');
+    } else if (s === 'live' && outOfSight()) {
+      feed.setAttribute('data-state', 'gone');
+      lastFeed = '';
+    }
+  }
+  function onFail() {
+    misses += 1;
+    var s = state();
+    if (s === 'wait' || (s === 'live' && misses >= MISSES && outOfSight())) { feed.setAttribute('data-state', 'gone'); lastFeed = ''; }
+    if (board && board.getAttribute('data-state') === 'wait') board.setAttribute('data-state', 'static');
+  }
+
+  /* ---------- the standings ---------- */
+  var HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+  function drawBoard(b) {
+    if (!board) return;
+    var bl = document.getElementById('cbBl'), bk = document.getElementById('cbBk'), bs = document.getElementById('cbBs');
+    var apps = (b && Array.isArray(b.apps) ? b.apps : []).filter(function (a) { return a && typeof a === 'object' && clean(a.name, 1); }).slice(0, 3);
+    var any = b && b.anyVotes === true && apps.some(function (a) { return num(a.votes) > 0; });
+    if (!apps.length || !any) {
+      bs.textContent = apps.length ? 'No votes yet. Be the first to keep or kill a drop.' : '\u{1F525} Keep or \u{1F480} kill: vote on every drop in the lab.';
+      bk.textContent = 'Keep or kill';
+      board.setAttribute('data-state', 'static');
+      return;
+    }
+    var leader = null;
+    var html = apps.map(function (a, i) {
+      var votes = num(a.votes), pct = a.keepPct == null ? null : Math.min(100, num(a.keepPct));
+      var isLead = b.leader && a.slug === b.leader && i === 0;
+      if (isLead) leader = clean(a.name, 30);
+      var line = votes
+        ? '<b>' + pct + '%</b><span class="cb-w"> keep</span> · ' + votes + '<span class="cb-w"> vote' + (votes === 1 ? '' : 's') + '</span>'
+        : 'no votes yet';
+      return '<li class="cb-bc' + (isLead ? ' lead' : '') + '">'
+        + '<span class="cb-bn"><span class="cb-br">' + (i + 1) + '</span>' + esc(clean(a.emoji, 4)) + ' ' + esc(clean(a.name, 30)) + '</span>'
+        + '<span class="cb-bp">' + line + '</span>'
+        + (pct == null ? '' : '<i class="cb-bm" aria-hidden="true" style="--p:' + pct + '%"></i>')
+        + '</li>';
+    });
+    // Always three cells, so the box keeps its height with fewer apps.
+    while (html.length < 3) html.push('<li class="cb-bc" aria-hidden="true"><span class="cb-bn">&nbsp;</span><span class="cb-bp">&nbsp;</span></li>');
+    var joined = html.join('');
+    bk.textContent = leader ? 'Keep or kill · ' + leader + ' leads now' : 'Keep or kill · standings';
+    if (joined !== lastBoard) { bl.innerHTML = joined; lastBoard = joined; }
+    board.setAttribute('data-state', 'live');
+  }
+  if (board) setTimeout(function () { if (board.getAttribute('data-state') === 'wait') board.setAttribute('data-state', 'static'); }, STATIC_AFTER);
+
+  /* ---------- asking ---------- */
+  function schedule(ms) {
+    clearTimeout(timer);
+    if (document.hidden) return;
+    timer = setTimeout(ask, Math.max(0, ms));
+  }
+  function ask() {
+    clearTimeout(timer);
+    if (document.hidden) return;
+    var mine = ++seq;
+    lastAsk = Date.now();
+    var ctl = window.AbortController ? new AbortController() : null;
+    var giveUp = setTimeout(function () { if (ctl) ctl.abort(); }, GIVE_UP);
+    fetch('/api/activity', { credentials: 'omit', cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        clearTimeout(giveUp);
+        if (mine !== seq) return;
+        if (!d || typeof d !== 'object') { onFail(); return; }
+        onFeed(usable(d.items));
+        if (d.board) drawBoard(d.board);
+        else if (board && board.getAttribute('data-state') === 'wait') board.setAttribute('data-state', 'static');
+      })
+      .catch(function () { clearTimeout(giveUp); if (mine === seq) onFail(); })
+      .then(function () { if (mine === seq) schedule(POLL); });
+  }
+  function wake() {
+    if (document.hidden) { clearTimeout(timer); return; }
+    var since = Date.now() - lastAsk;
+    if (since >= POLL) ask(); else schedule(POLL - since);
+  }
+  // Sideways fade on the side that has more, like the nav row.
+  function fade() {
+    var max = list.scrollWidth - list.clientWidth, x = list.scrollLeft;
+    var f = (x > 2 ? 'l' : '') + (x < max - 2 ? 'r' : '');
+    if (f) list.setAttribute('data-fade', f); else list.removeAttribute('data-fade');
+  }
+  list.addEventListener('scroll', fade, { passive: true });
+  window.addEventListener('resize', fade);
+  if (window.MutationObserver) new MutationObserver(fade).observe(list, { childList: true });
+
+  try {
+    if (!window.fetch) { onFail(); return; }
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', function (e) { if (e.persisted) wake(); });
+    ask();
+  } catch (e) { onFail(); }
 })();
 </script>
 <!-- The apex is this page's own origin: without data-to the beacon posts to

@@ -36,6 +36,14 @@
 
     <section id="drops" class="drops" aria-live="polite"></section>
 
+    <!-- Keep or kill standings, from /api/lab/leaderboard. Hidden until it
+         answers; it sits below the drops, so appearing moves nothing above. -->
+    <section class="standings" id="standings" aria-labelledby="standingsTitle" hidden>
+      <div class="standings-head"><h2 id="standingsTitle">Leaderboard</h2><span id="standingsLead"></span></div>
+      <ol class="board" id="board"></ol>
+      <p class="board-note">Ranked by how sure the keep share is, not the raw percentage: one keep is not 100% of anything yet.</p>
+    </section>
+
     <section class="how">
       <h2>How the lab works</h2>
       <ol class="steps">

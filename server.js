@@ -32,6 +32,7 @@ const reset = require('./shared/reset');
 const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
 const views = require('./lib/views');
+const activity = require('./lib/activity');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -779,7 +780,17 @@ app.get('/feed.xml', async (req, res) => {
 
 // Cross-app view counts. The beacon lands here now rather than inside one of
 // the apps it counts - see lib/views.js for why that moved.
-views.createViews({ requireAdmin }).mount(app);
+//
+// And "Live now" on the home page (GET /api/activity), which reads the same
+// counters: told only the app key of each counted view, plus today's totals.
+// One database client for both. See lib/activity.js for what it will and
+// will not say.
+const viewsDb = views.defaultDb();
+let activityFeed = null;
+const viewCounter = views.createViews({ requireAdmin, db: viewsDb, onView: (a) => activityFeed && activityFeed.recordView(a) });
+viewCounter.mount(app);
+activityFeed = activity.createActivity({ todayCounts: () => viewCounter.today(), leaderStore: activity.firestoreLeaderStore(viewsDb) });
+activityFeed.mount(app);
 
 app.get('/robots.txt', (req, res) => {
   // The account subdomain serves this same app, so without a per-host answer

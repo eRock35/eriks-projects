@@ -84,6 +84,24 @@
 
   .stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 22px 0 0; color: var(--label-2); font-size: 15px; font-weight: 600; }
   .stats b { color: var(--label); font-variant-numeric: tabular-nums; }
+  /* The Keep or kill leaderboard, one line (two on a phone), read live from
+     the lab's /api/lab/leaderboard. Its height is held from the start, so it
+     fills in without moving anything; with no answer it says what the vote
+     is, with no numbers. */
+  /* Its own grey, darker than --label-2, which is under 4.5:1 on this page's
+     light background. */
+  .lb { --lb-ink: rgba(60,60,67,0.92); margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--lb-ink);
+        height: 1.5em; height: 1lh; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; }
+  .lb .k { font-weight: 700; color: var(--label); margin-right: 4px; }
+  .lb ol { display: inline; margin: 0; padding: 0; list-style: none; }
+  .lb li { display: inline; }
+  .lb li + li::before { content: " · "; }
+  .lb b { color: var(--label); font-variant-numeric: tabular-nums; }
+  .lb[data-state="wait"] > * { visibility: hidden; }
+  /* Two lines on a phone, then cut: the full list is still in the page for a
+     screen reader, and the lab has the whole table. */
+  @media (prefers-color-scheme: dark) { .lb { --lb-ink: rgba(235,235,245,0.82); } }
+  @media (max-width: 720px) { .lb { height: 3em; height: 2lh; -webkit-line-clamp: 2; line-clamp: 2; } }
 
   .tease { display: grid; gap: 16px; grid-template-columns: 1.35fr 1fr; margin-top: 44px; }
   @media (max-width: 720px) { .tease { grid-template-columns: 1fr; } }
@@ -136,6 +154,7 @@
     <h1>The Challenge:<br><span class="grad">a new app every day.</span></h1>
     <p class="lede">Every morning a new app goes live, each one aimed at <b>a real business headache</b>. You try it and vote <b>keep or kill</b>. The winners get a home of their own.</p>
     <div class="stats" id="stats"><span><b id="sLab">–</b> in the lab</span><span>next drop in <b id="sNext">–</b></span></div>
+    <p class="lb" id="lb" data-state="wait"><span class="k">🏆 Leaderboard:</span><span id="lbList">Vote keep or kill on every drop in the lab.</span></p>
   </header>
 
   <div class="tease" data-reveal>
@@ -217,6 +236,33 @@
   fetch(LAB + '/api/lab', { mode: 'cors' }).then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) { if (d && d.apps && d.apps.length) { drewLive = true; clearTimeout(fallbackTimer); draw(d.apps); } else { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); } })
     .catch(function () { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); });
+
+  // The leaderboard line: the lab's top three by its own ranking (a lone
+  // "keep" does not outrank ten votes at 90%). Counts only; the request
+  // carries no cookie and the lab mints none for it.
+  var lb = document.getElementById('lb'), lbList = document.getElementById('lbList'), lbAt = 0;
+  function lbStatic() { if (lb.getAttribute('data-state') !== 'live') lb.setAttribute('data-state', 'static'); }
+  function loadBoard() {
+    lbAt = Date.now();
+    fetch(LAB + '/api/lab/leaderboard', { mode: 'cors', credentials: 'omit' }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var apps = d && Array.isArray(d.apps) ? d.apps.filter(function (a) { return a && a.name && Number(a.votes) > 0; }).slice(0, 3) : [];
+        if (!apps.length) {
+          if (d && Array.isArray(d.apps)) { lbList.textContent = 'No votes yet. Be the first to keep or kill a drop.'; lb.setAttribute('data-state', 'static'); }
+          else lbStatic();
+          return;
+        }
+        lbList.innerHTML = '<ol>' + apps.map(function (a, i) {
+          var v = Math.max(0, Math.floor(Number(a.votes) || 0)), p = Math.min(100, Math.max(0, Math.floor(Number(a.keepPct) || 0)));
+          return '<li>' + (i + 1) + '. ' + esc(a.emoji) + ' ' + esc(a.name) + (d.leader === a.slug && i === 0 ? ' leads with' : '') + ' <b>' + p + '%</b> keep of ' + v + '</li>';
+        }).join('') + '</ol>';
+        lb.setAttribute('data-state', 'live');
+      })
+      .catch(lbStatic);
+  }
+  setTimeout(lbStatic, 2500);
+  loadBoard();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lbAt > 30000) loadBoard(); });
 
   var io = 'IntersectionObserver' in window ? new IntersectionObserver(function (es) {
     es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });

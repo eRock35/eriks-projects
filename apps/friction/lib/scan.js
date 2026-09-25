@@ -10,6 +10,7 @@
 const db = require('./db');
 const sources = require('./sources');
 const score = require('./score');
+const pulse = require('./pulse');
 
 const EVIDENCE_CAP = 12;
 const STATUSES = ['new', 'digging', 'building', 'passed'];
@@ -68,13 +69,23 @@ async function loadLenses() {
   return [...byId.values()];
 }
 
-/** Fold one freshly-scored problem into whatever is already on the board. */
-async function upsertSignal(lens, problem, runId) {
+/** Fold one freshly-scored problem into whatever is already on the board.
+ *
+ *  Also returns the SIGHTINGS it recorded - one per distinct source item - for
+ *  the pulse ticker, and keeps the signal's weekly rollup (`weekly`, see
+ *  lib/pulse.js) that trend arrows and spikes are read from. `itemsById` is
+ *  optional and only lends each sighting a link back to its source. */
+async function upsertSignal(lens, problem, runId, itemsById) {
   const id = `${lens.id}:${problem.slug}`;
   const existing = await db.get('signals', id);
   const when = nowIso();
 
   const srcs = sourcesOf(problem.evidence);
+  const sightings = pulse.sightingsFrom({
+    signalId: id, title: (existing && existing.title) || problem.title, lensId: lens.id, lensLabel: lens.label,
+    evidence: problem.evidence, when, itemsById,
+  });
+  const n = Math.max(1, sightings.length);
 
   if (!existing) {
     const doc = {
@@ -98,9 +109,10 @@ async function upsertSignal(lens, problem, runId) {
       firstSeenAt: when,
       lastSeenAt: when,
       lastRunId: runId,
+      weekly: pulse.bumpWeekly([], when, n),
     };
     await db.set('signals', id, doc);
-    return { id, created: true, doc };
+    return { id, created: true, doc, sightings };
   }
 
   // Never clobber a decision Erik already made about this row.
@@ -123,9 +135,12 @@ async function upsertSignal(lens, problem, runId) {
     seenCount: Number(existing.seenCount || 1) + 1,
     lastSeenAt: when,
     lastRunId: runId,
+    // A row from before the rollup starts from its reconstructed history
+    // (first and last seen), not from nothing.
+    weekly: pulse.bumpWeekly(pulse.weeklyOf(existing), when, n),
   };
   await db.merge('signals', id, patch);
-  return { id, created: false, doc: Object.assign({}, existing, patch) };
+  return { id, created: false, doc: Object.assign({}, existing, patch), sightings };
 }
 
 /** Which lens is most overdue. One lens per run keeps a single invocation
@@ -151,6 +166,7 @@ async function runScan({ trigger = 'manual', sinceDays = 14, scope = 'next' } = 
   else { const one = pickNext(enabled); lenses = one ? [one] : []; }
 
   const summary = { runId, trigger, scope, startedAt, lenses: [], created: 0, updated: 0, examined: 0, errors: [] };
+  const heard = [];
 
   for (const lens of lenses) {
     const { items, errors, probes } = await sources.harvest(lens, { sinceDays, redditEnabled });
@@ -166,9 +182,11 @@ async function runScan({ trigger = 'manual', sinceDays = 14, scope = 'next' } = 
     if (fresh.length) {
       scored = await score.scoreItems(fresh, lens.label);
       summary.errors.push(...scored.errors);
+      const itemsById = new Map(fresh.map((i) => [i.id, i]));
       for (const problem of scored.problems) {
-        const r = await upsertSignal(lens, problem, runId);
+        const r = await upsertSignal(lens, problem, runId, itemsById);
         if (r.created) created++; else updated++;
+        heard.push(...(r.sightings || []));
       }
       await db.saveSeen(lens.id, [...seen, ...fresh.map((i) => i.id)]);
     }
@@ -184,6 +202,17 @@ async function runScan({ trigger = 'manual', sinceDays = 14, scope = 'next' } = 
     summary.examined += scored.examined;
     await db.merge('lenses', lens.id, { lastScannedAt: nowIso() });
   }
+
+  // The ticker's feed: one small document, rewritten once per run, inside
+  // this request. Nothing polls a source or recomputes this between scans.
+  if (heard.length) {
+    const prev = await db.get('control', 'pulse');
+    await db.set('control', 'pulse', {
+      items: pulse.mergePulse(prev && prev.items, heard),
+      updatedAt: nowIso(),
+    });
+  }
+  summary.sightings = heard.length;
 
   summary.finishedAt = nowIso();
   summary.ok = summary.errors.length === 0;
