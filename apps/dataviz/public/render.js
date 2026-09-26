@@ -187,11 +187,111 @@
     // draw. Canvas throws on a non-finite coordinate, which freezes the frame
     // and leaves nothing on screen to explain it.
     var t = isFinite(this.t) ? clamp(this.t, 0, 1) : 0;
-    if (v.type === 'race') drawRace(ctx, v, t, this.w, this.h);
-    else if (v.type === 'line') drawLine(ctx, v, t, this.w, this.h);
-    else if (v.type === 'flow') drawFlow(ctx, v, t, this.w, this.h);
-    else drawBars(ctx, v, t, this.w, this.h);
+    drawViz(ctx, v, t, this.w, this.h);
   };
+
+  function drawViz(ctx, v, t, W, H) {
+    if (v.type === 'race') drawRace(ctx, v, t, W, H);
+    else if (v.type === 'line') drawLine(ctx, v, t, W, H);
+    else if (v.type === 'flow') drawFlow(ctx, v, t, W, H);
+    else drawBars(ctx, v, t, W, H);
+  }
+
+  /* ---------- the still a share link unfolds into ----------
+   *
+   * One frame, 1200x630 (the size every link preview crops to), with the
+   * title set large because at the 500px a preview is shown at the chart's
+   * own labels are texture and the title is what gets read. Drawn here, in
+   * the browser that is already drawing the chart, rather than on the server:
+   * see the note on PUT /api/projects/:id/still in server.js.
+   *
+   * The frame is the END of the animation for everything that builds to a
+   * result - the race's final order, the lines fully drawn, the bars grown -
+   * and a mid-flight moment for flow, whose particles have no end state. */
+  var STILL_W = 1200, STILL_H = 630;
+  function stillFrame(v) { return v && v.type === 'flow' ? 0.37 : 1; }
+
+  function wrapLines(ctx, text, maxWidth, maxLines) {
+    var words = String(text || '').split(/\s+/).filter(Boolean);
+    var lines = [], cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var next = cur ? cur + ' ' + words[i] : words[i];
+      if (ctx.measureText(next).width <= maxWidth || !cur) cur = next;
+      else { lines.push(cur); cur = words[i]; }
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      lines[maxLines - 1] = truncate(ctx, lines[maxLines - 1] + ' \u2026', maxWidth);
+    }
+    return lines.map(function (l) { return truncate(ctx, l, maxWidth); });
+  }
+
+  function still(viz, opts) {
+    opts = opts || {};
+    var canvas = (opts.document || global.document).createElement('canvas');
+    canvas.width = STILL_W; canvas.height = STILL_H;
+    var ctx = canvas.getContext('2d');
+    var S = 1.6;                         // logical px -> picture px
+    var W = STILL_W / S, H = STILL_H / S; // 750 x 394 logical
+    var sans = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+    ctx.setTransform(S, 0, 0, S, 0, 0);
+    ctx.fillStyle = '#0B0D12';
+    ctx.fillRect(0, 0, W, H);
+    // A band of the brand colours along the top edge, so a preview reads as
+    // this app's even before the title does.
+    var band = ctx.createLinearGradient(0, 0, W, 0);
+    band.addColorStop(0, '#5B8DEF'); band.addColorStop(0.5, '#B57BFF'); band.addColorStop(1, '#3DD68C');
+    ctx.fillStyle = band;
+    ctx.fillRect(0, 0, W, 3);
+
+    var pad = 26;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = '800 28px ' + sans;
+    var titleLines = wrapLines(ctx, opts.title || 'Your data', W - pad * 2, 2);
+    ctx.fillStyle = '#EEF1F7';
+    var y = 48;
+    titleLines.forEach(function (l, i) { ctx.fillText(l, pad, y + i * 33); });
+    y += (titleLines.length - 1) * 33;
+    if (opts.subtitle) {
+      ctx.font = '500 15px ' + sans;
+      ctx.fillStyle = '#9AA3B2';
+      ctx.fillText(truncate(ctx, String(opts.subtitle), W - pad * 2), pad, y + 24);
+      y += 24;
+    }
+
+    var footH = 34;
+    var top = y + 14, bottom = H - footH;
+    if (viz) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, top, W, bottom - top); ctx.clip();
+      ctx.translate(8, top);
+      try { drawViz(ctx, viz, stillFrame(viz), W - 16, bottom - top); } catch (e) { /* a frame that throws leaves the title card */ }
+      ctx.restore();
+    }
+
+    // Footer: the mark and the name, and what tapping does.
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(0, H - footH, W, 1);
+    var fy = H - footH / 2;
+    [['#5B8DEF', 0, 7, 8], ['#B57BFF', 6, 4, 12], ['#3DD68C', 12, 1, 15]].forEach(function (b) {
+      ctx.fillStyle = b[0];
+      roundRect(ctx, pad + b[1], fy - 8 + b[2], 4, b[3], 1.2);
+      ctx.fill();
+    });
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 14px ' + sans;
+    ctx.fillStyle = '#EEF1F7';
+    ctx.fillText('DataViz', pad + 24, fy);
+    ctx.textAlign = 'right';
+    ctx.font = '600 13px ' + sans;
+    ctx.fillStyle = '#9AA3B2';
+    ctx.fillText('\u25B6  Tap to watch it play', W - pad, fy);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return canvas;
+  }
 
   /* ---------- race: bars that overtake ---------- */
 
@@ -312,6 +412,14 @@
 
   function drawLine(ctx, v, t, W, H) {
     var padL = 44, padR = 16, padT = 20, padB = 34;
+    // Room for the series names drawn at the tips. Without it the names ran
+    // off the right edge on the last frame - the one a still is taken from.
+    if (v.series && v.series.length > 1) {
+      ctx.font = '600 11px -apple-system, sans-serif';
+      var widest = 0;
+      v.series.forEach(function (s) { widest = Math.max(widest, ctx.measureText(String(s.name)).width); });
+      padR = Math.min(Math.max(16, W * 0.3), 16 + Math.min(widest, 90));
+    }
     var plotW = W - padL - padR, plotH = H - padT - padB;
     var all = [];
     v.series.forEach(function (s) { s.values.forEach(function (n) { if (n !== null) all.push(n); }); });
@@ -517,5 +625,6 @@
     ctx.closePath();
   }
 
-  global.DataViz = { Player: Player, fmt: fmt, PALETTE: PALETTE, colorFor: colorFor };
+  global.DataViz = { Player: Player, fmt: fmt, PALETTE: PALETTE, colorFor: colorFor,
+    still: still, STILL_W: STILL_W, STILL_H: STILL_H };
 })(window);

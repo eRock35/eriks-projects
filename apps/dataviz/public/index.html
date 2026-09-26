@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- og:start -->
 <title>DataViz</title>
 <meta name="description" content="Point at data or a link. Claude picks the visual and it moves.">
+<!-- og:end -->
 <meta name="theme-color" content="#0B0D12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -66,6 +68,14 @@
   .sample span { display: block; font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
   .sample i { display: inline-block; font-style: normal; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
     text-transform: uppercase; color: var(--accent); margin-top: 7px; }
+  .sample .plays { display: block; float: right; font-style: normal; font-size: 11.5px; font-weight: 600;
+    color: var(--ink-2); margin-top: 7px; letter-spacing: 0; text-transform: none; }
+  .sorter { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 12.5px; color: var(--ink-2); }
+  .sorter span { margin-right: 2px; }
+  .sorter button { font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: none;
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer; min-height: 30px; }
+  .sorter button[aria-pressed="true"] { color: var(--ink); background: var(--panel-2); border-color: rgba(255,255,255,0.22); }
+  .preview { display: block; width: 100%; max-height: 52vh; border-radius: 12px; background: #000; margin: 4px 0 4px; }
   .locked { border: 1px dashed var(--line); border-radius: 13px; padding: 13px; margin-top: 12px; color: var(--ink-2); font-size: 14px; }
   .locked b { color: var(--ink); display: block; margin-bottom: 4px; font-size: 15px; }
   .plan { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
@@ -161,6 +171,11 @@
       <button class="tab" role="tab" id="tabPaste" aria-selected="false">Paste data</button>
     </div>
     <div id="paneSample">
+      <div class="sorter" id="sorter" role="group" aria-label="Sort the samples">
+        <span>Sort</span>
+        <button type="button" data-sort="featured" aria-pressed="true">Featured</button>
+        <button type="button" data-sort="played" aria-pressed="false">Most played</button>
+      </div>
       <div class="samples" id="samples"></div>
     </div>
     <div id="paneLink" hidden>
@@ -198,8 +213,8 @@
     <p class="note" id="vizNote"></p>
     <div class="btnrow">
       <button class="btn sec row" id="saveBtn">Save</button>
-      <button class="btn sec row" id="shareBtn" hidden>Copy link</button>
-      <button class="btn sec row" id="saveVideoBtn">Save video</button>
+      <button class="btn sec row" id="shareBtn" hidden>Share link</button>
+      <button class="btn sec row" id="saveVideoBtn">Share video</button>
       <button class="btn sec row" id="againBtn">New one</button>
     </div>
   </div>
@@ -272,19 +287,66 @@
     }
   }
 
+  /* The gallery, and how often each sample has been played. The counts are
+   * one shared tally per sample (no per-person data); "Most played" sorts by
+   * it, "Featured" keeps the order the samples were written in. */
+  var sampleList = [], sortBy = 'featured';
+  try { if (localStorage.getItem('dv-sort') === 'played') sortBy = 'played'; } catch (e) {}
+  function fmtPlays(n) {
+    n = Math.floor(Number(n) || 0);
+    if (n < 1) return '';
+    if (n === 1) return '1 play';
+    if (n < 1000) return n + ' plays';
+    if (n < 10000) return (Math.floor(n / 100) / 10).toString().replace(/\.0$/, '') + 'k plays';
+    if (n < 1e6) return Math.floor(n / 1000) + 'k plays';
+    return (Math.floor(n / 1e5) / 10).toString().replace(/\.0$/, '') + 'M plays';
+  }
+  function drawSamples() {
+    var list = sampleList.map(function (s2, i) { return { s: s2, i: i }; });
+    if (sortBy === 'played') list.sort(function (a, b) { return (b.s.plays || 0) - (a.s.plays || 0) || a.i - b.i; });
+    $('samples').innerHTML = list.map(function (x) {
+      var s2 = x.s, label = fmtPlays(s2.plays);
+      return '<button type="button" class="sample" data-sample="' + esc(s2.id) + '"' + (s2.free ? ' data-free="1"' : '') + '>' +
+        '<b>' + esc(s2.title) + '</b><span>' + esc(s2.blurb) + '</span><i>' + esc(s2.best) + '</i>' +
+        (label ? '<em class="plays">' + esc(label) + '</em>' : '') + '</button>';
+    }).join('');
+    document.querySelectorAll('#sorter [data-sort]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-sort') === sortBy));
+    });
+  }
   async function loadSamples() {
     try {
       var d = await api('/api/datasets');
-      $('samples').innerHTML = (d.datasets || []).map(function (s2) {
-        return '<button type="button" class="sample" data-sample="' + esc(s2.id) + '"' + (s2.free ? ' data-free="1"' : '') + '>' +
-          '<b>' + esc(s2.title) + '</b><span>' + esc(s2.blurb) + '</span><i>' + esc(s2.best) + '</i></button>';
-      }).join('');
+      sampleList = d.datasets || [];
+      drawSamples();
     } catch (e) { $('samples').innerHTML = '<p style="color:var(--ink-2);font-size:14px">Could not load the samples.</p>'; }
   }
+  $('sorter').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sort]');
+    if (!b) return;
+    sortBy = b.getAttribute('data-sort');
+    try { localStorage.setItem('dv-sort', sortBy); } catch (e2) {}
+    drawSamples();
+  });
   $('samples').addEventListener('click', function (e) {
     var btn = e.target.closest('[data-sample]');
     if (btn) go({ datasetId: btn.getAttribute('data-sample') });
   });
+
+  /* One play per sample per browser session. Never from a framed preview or
+   * the ?tour=1 demo: the landing page's phones tap samples on a loop, and
+   * counting those would rank how far down the page people scrolled. */
+  var counting = (function () {
+    try { if (window.top !== window.self) return false; } catch (e) { return false; }
+    return !/[?&]tour=1/.test(location.search);
+  })();
+  function countPlay(id) {
+    if (!counting || !id) return;
+    var key = 'dv-played-' + id;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) {}
+    fetch('/api/datasets/' + encodeURIComponent(id) + '/play', { method: 'POST', keepalive: true }).catch(function () {});
+    for (var i = 0; i < sampleList.length; i++) if (sampleList[i].id === id) sampleList[i].plays = (sampleList[i].plays || 0) + 1;
+  }
 
   // The upsell on a locked dataset. Points at the membership - there is one
   // paid tier now, and this used to send people to the retired $9 Pro plan.
@@ -311,6 +373,7 @@
       var out = await api('/api/viz', { method: 'POST', body: JSON.stringify(body) });
       show(out);
       say('');
+      if (body.datasetId) { countPlay(body.datasetId); drawSamples(); }
       if (typeof out.remaining === 'number' && out.remaining <= 3) {
         toast(out.remaining + ' more today' + (me.signedIn ? '' : ' — sign in for more'));
       }
@@ -405,16 +468,10 @@
     rec.onerror = function () { toast('Recording failed.', 'error'); btn.disabled = false; btn.textContent = label; };
     rec.onstop = function () {
       var ext = type.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
-      var blob = new Blob(chunks, { type: type });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = ((current && current.title) || 'dataviz').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) + '.' + ext;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      var blob = new Blob(chunks, { type: type.split(';')[0] });
       btn.disabled = false;
       btn.textContent = label;
-      toast('Saved ' + (blob.size / 1048576).toFixed(1) + ' MB');
+      offerVideo(blob, fileBase() + '.' + ext);
     };
 
     // From the top, at normal speed, so the file matches what was on screen.
@@ -428,6 +485,88 @@
   }
 
   $('saveVideoBtn').addEventListener('click', function () { exportVideo(this); });
+
+  function fileBase() {
+    return ((current && current.title) || 'dataviz').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'dataviz';
+  }
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  /* The finished recording, shown before it goes anywhere.
+   *
+   * The share sheet needs a FRESH tap: by the time the recording stops, the
+   * tap that started it is seconds old, and iOS refuses navigator.share()
+   * without a recent user gesture. So the file is previewed here and Share is
+   * a second tap - which is also the moment to see what is about to be sent.
+   * Where the browser cannot share files (most desktops, Firefox) the same
+   * sheet offers the download the button always did. */
+  function offerVideo(blob, name) {
+    var file = null;
+    try { file = new File([blob], name, { type: blob.type }); } catch (e) { file = null; }
+    var canShareFile = !!(file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+    var url = URL.createObjectURL(blob);
+    var el = sheet('<h3>Your video</h3>' +
+      '<p class="hint">' + esc((blob.size / 1048576).toFixed(1)) + ' MB &middot; made on this device, never uploaded.</p>' +
+      '<video class="preview" id="vPrev" src="' + esc(url) + '" autoplay muted loop playsinline></video>' +
+      (canShareFile ? '<button class="btn" id="vShare">Share video</button>' : '') +
+      '<button class="btn' + (canShareFile ? ' sec' : '') + '" id="vSave" style="margin-top:8px">Save to this device</button>');
+    var cleanup = function () { setTimeout(function () { URL.revokeObjectURL(url); }, 60000); };
+    var sh = el.querySelector('#vShare');
+    if (sh) sh.addEventListener('click', async function () {
+      try {
+        await navigator.share({ files: [file], title: (current && current.title) || 'DataViz' });
+        closeSheet();
+      } catch (e) {
+        // AbortError is the person closing the sheet, which is not a failure.
+        if (!e || e.name !== 'AbortError') toast('Could not share that. Save it instead.');
+      }
+    });
+    el.querySelector('#vSave').addEventListener('click', function () {
+      download(blob, name);
+      toast('Saved ' + (blob.size / 1048576).toFixed(1) + ' MB');
+      closeSheet();
+    });
+    cleanup();
+  }
+
+  /* ---------- the still a share link unfolds into ----------
+   * One frame at 1200x630 with the title, drawn by render.js and kept with
+   * the project, so a pasted link shows the chart rather than a blank card.
+   * PNG first (flat colours compress well); JPEG only if that is too big.
+   * Best effort: a still that fails leaves the link working with the app's
+   * own card, so nothing here is allowed to get in the way of saving. */
+  var STILL_MAX = 400 * 1024;
+  function toBlob(canvas, type, q) {
+    return new Promise(function (resolve) { canvas.toBlob(function (b) { resolve(b); }, type, q); });
+  }
+  async function makeStill(out) {
+    var c = window.DataViz.still(out.viz, { title: out.title, subtitle: out.subtitle });
+    var b = await toBlob(c, 'image/png');
+    if (b && b.size <= STILL_MAX) return b;
+    var qs = [0.9, 0.82, 0.72];
+    for (var i = 0; i < qs.length; i++) {
+      b = await toBlob(c, 'image/jpeg', qs[i]);
+      if (b && b.size <= STILL_MAX) return b;
+    }
+    return null;
+  }
+  async function uploadStill(out) {
+    if (!out || !out.projectId || !out.viz) return;
+    try {
+      var b = await makeStill(out);
+      if (!b) return;
+      var res = await fetch('/api/projects/' + encodeURIComponent(out.projectId) + '/still', {
+        method: 'PUT', headers: { 'Content-Type': b.type }, body: b
+      });
+      if (res.ok) out.hasStill = true;
+    } catch (e) { /* the app's own card stands in */ }
+  }
+  window.__dvStill = makeStill;   // for the render checks; harmless otherwise
 
   $('againBtn').addEventListener('click', function () {
     $('result').hidden = true;
@@ -452,18 +591,31 @@
         })
       });
       current.shareId = saved.shareId;
+      current.projectId = saved.id;
       $('shareBtn').hidden = false;
       toast('Saved');
+      uploadStill(current);
     } catch (err) { toast(err.message); }
     finally { this.disabled = false; }
   });
 
+  // A phone gets its own share sheet (straight from this tap, so the gesture
+  // is fresh); a desktop gets the link copied. The link unfolds into the
+  // chart's still wherever it is pasted.
   $('shareBtn').addEventListener('click', function () {
     if (!current || !current.shareId) return;
     var url = location.origin + '/v/' + current.shareId;
-    if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link copied'); },
-      function () { prompt('Copy this link', url); });
-    else prompt('Copy this link', url);
+    var copy = function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link copied'); },
+        function () { prompt('Copy this link', url); });
+      else prompt('Copy this link', url);
+    };
+    var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (touch && navigator.share) {
+      navigator.share({ title: current.title || 'DataViz', url: url }).catch(function (e) {
+        if (!e || e.name !== 'AbortError') copy();
+      });
+    } else copy();
   });
 
   /* ---------- sheets ---------- */
@@ -573,7 +725,11 @@
           closeSheet();
           show({ title: p.title, subtitle: p.subtitle, note: p.note, viz: p.viz, sourceUrl: p.sourceUrl });
           current.shareId = p.shareId;
+          current.projectId = p.id;
           $('shareBtn').hidden = false;
+          // Saved before stills existed: its link unfolds into the app's card
+          // until the owner opens it, and then into the chart.
+          if (!(p.still && p.still.hash)) uploadStill(current);
         } else if (del) {
           await api('/api/projects/' + encodeURIComponent(del.getAttribute('data-del')), { method: 'DELETE' });
           toast('Deleted');

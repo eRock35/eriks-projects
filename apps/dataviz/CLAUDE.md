@@ -129,3 +129,92 @@ exists only so the `customer.subscription.updated` webhook can find an account
 by `stripeCustomerId` - the shared store has no query-by-field. Letting the
 local copy speak is how this app once agreed with itself that someone was a
 member while the other four served them the free tier.
+
+## Share links unfold into the chart, and the samples keep score (2026-09-26)
+
+Erik asked for features that "draw users in ... and make it fun". Three, with
+**no model call in any of them**, so none is metered.
+
+### The still a share link unfolds into
+
+A `/v/<shareId>` link pasted into iMessage, X, LinkedIn or Slack used to
+unfold as a bare "DataViz": every path fell through to the same static
+`index.html`, and scrapers run no script.
+
+- **Drawn by the owner's browser, not the server.** `public/render.js` is
+  Canvas 2D in a page. Running it in Node means a native canvas (node-canvas
+  and a Cairo build in the image) or a second SVG renderer to keep in step
+  with four animations - both large, for one picture per share. The browser
+  already drawing the chart draws one more frame: `DataViz.still(viz, {title,
+  subtitle})`, 1200x630, the END of the animation (the race's final order, the
+  lines fully drawn; flow mid-flight, it has no end state), title set large
+  because at preview size only the title is read.
+- **Sent on Save**, and on opening a saved project that has none (projects
+  saved before this). PNG first; JPEG at falling quality only if it is over
+  400 KB. Best effort: a failed still leaves the link on the app's own card.
+- **`PUT /api/projects/:id/still`**, raw body. `requireUser`, then ownership
+  (404 on someone else's, before the body is read - a stranger's 400 KB is
+  never buffered), then `express.raw` capped at 400 KB (413 as JSON), then
+  `lib/still.js`: a PNG or JPEG **by its own bytes**, dimensions from the PNG
+  IHDR or by walking the JPEG segment chain to its SOF, **exactly** 1200x630,
+  a PNG must end in IEND and a JPEG in EOI (nothing appended), and a declared
+  Content-Type that disagrees with the bytes is refused. 415 / 422 / 413.
+- **Stored in `stills/<projectId>`**, not on the project: `GET /api/projects`
+  reads whole project documents and sixty stills would make "Saved" a 25 MB
+  read. The bytes are a Firestore bytes field (a Buffer), so no base64
+  inflation - at most 400 KB of a 1 MB document. The project gets a pointer
+  `still: {hash, type, ext, bytes, updatedAt}`, written after the picture.
+  Deleting a project deletes its still. There is no Cloud Storage bucket for
+  this app, deliberately not created for this.
+- **Served at `/still/<shareId>/<hash>.<png|jpg>`** with `nosniff`, `default-src
+  'none'` and a year's `immutable` cache - safe because a new picture is a new
+  hash. An old hash still answers, with the current picture and five minutes'
+  cache; no still at all is a 302 to `/og-card.png`. The bytes are sniffed
+  again on the way out.
+- **Tags are injected server-side** (`lib/og.js`) between `<!-- og:start -->`
+  and `<!-- og:end -->` in `index.html`, for `/`, `/v/:shareId` and the
+  catch-all. `express.static` runs with `index: false` so `/` goes through it.
+  Title and subtitle are a user's or a model's text: attribute-escaped,
+  control and bidi characters stripped, cut to length. The absolute origin is
+  `PUBLIC_ORIGIN` if set, else the Host header only when it is hostname-shaped,
+  else the custom domain. An unknown share id is a 404 with the generic tags.
+- `public/og-card.png` is the static card for the front page and for shares
+  with no still. Rendered once in Chromium from HTML; redo it the same way.
+
+**Privacy.** Every saved project already has a `shareId`, and its chart was
+already readable by anyone holding that link. The still makes the same chart
+visible as a picture to anyone with the link, and to every service that
+unfolds it (Apple, X, LinkedIn, Slack fetch and cache the image). Deleting the
+project removes it here; a platform's cached copy is theirs.
+
+### "Most played" samples
+
+`counters/samples` - one document, one field per sample id, moved with
+`FieldValue.increment`. **No per-person data**: no uid, no IP, no cookie. An
+in-memory throttle (HMAC of address + sample, 30 minutes, bounded) stops one
+person moving the ranking alone. The page posts `POST
+/api/datasets/:id/play` once per sample per browser session, and **never from
+a framed preview or `?tour=1`** - the landing page's phones tap samples on a
+loop, beacon.js's lesson. `GET /api/datasets` carries `plays` (read cached for
+a minute); the gallery shows "1.2k plays" and a Featured / Most played sort
+(remembered in localStorage).
+
+### Share video
+
+"Save video" is now "Share video": the recording opens a sheet with the file
+playing, and **Share is a second tap** - iOS refuses `navigator.share` without
+a fresh gesture, and the tap that started a seconds-long recording is stale.
+`navigator.share({files})` is offered only where `canShare({files})` says yes;
+otherwise the sheet offers the download it always did. "Copy link" became
+"Share link": the phone's share sheet on a touch device (straight from the
+tap), the clipboard elsewhere.
+
+### Also
+
+- The line renderer reserves right padding for series names; on the last
+  frame they used to run off the canvas.
+- No composite index: `shareId ==` and `ownerId ==` are single-field.
+- Tests: `test/engagement.js` (81 assertions: hostile uploads, someone else's
+  project, headers, escaping, the Host header, delete, the counter). It uses
+  the repo's shared harness (`../../../test/harness.js`), so run it from this
+  checkout: `npm test` here. The root `test/run.js` does not pick it up.

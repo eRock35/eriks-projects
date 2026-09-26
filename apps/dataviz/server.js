@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 
@@ -17,6 +18,9 @@ const identityLib = require('./lib/identity');
 const identityStore = require('./lib/identity-store');
 const mail = require('./lib/mail');
 const reset = require('./lib/reset');
+const still = require('./lib/still');
+const og = require('./lib/og');
+const playsLib = require('./lib/plays');
 
 const app = express();
 
@@ -371,9 +375,32 @@ app.get('/reset', (_req, res) => res.sendFile(path.join(__dirname, 'public', 're
 // `free` says whether a sample has a baked spec - the ones that render with
 // no model call. The tour only ever taps those, so a landing-page visit
 // costs nothing; the page can use it too.
-app.get('/api/datasets', (_req, res) => res.json({
-  datasets: datasets.list().map((d) => Object.assign({}, d, { free: datasets.isFree(datasets.get(d.id)) })),
-}));
+//
+// `plays` is how many times each has been played (see lib/plays.js): one
+// counters document, no per-person data, a minute stale at most.
+const plays = playsLib.create({ db, datasets });
+app.get('/api/datasets', async (_req, res) => {
+  const counts = await plays.counts();
+  res.json({
+    datasets: datasets.list().map((d) => Object.assign({}, d, {
+      free: datasets.isFree(datasets.get(d.id)),
+      plays: counts[d.id] || 0,
+    })),
+  });
+});
+
+// One play of one sample. Open to anyone, like the samples themselves; the
+// page calls it once per sample per session and never from a preview.
+app.post('/api/datasets/:id/play', async (req, res) => {
+  try {
+    res.json(await plays.record(req.params.id, req.ip));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error('POST /api/datasets/:id/play', err.message);
+    // A counter that failed is not the visitor's problem.
+    res.json({ counted: false });
+  }
+});
 
 // The old $9 Pro checkout stood here. It is gone rather than hidden: a route
 // that still mints a subscription nobody is offered is how a stale button in
@@ -549,6 +576,7 @@ app.get('/api/projects', accounts.requireUser, async (req, res) => {
     rows.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
     res.json({ projects: rows.map((p) => ({
       id: p.id, title: p.title, type: p.viz && p.viz.type, updatedAt: p.updatedAt, shareId: p.shareId,
+      hasStill: Boolean(p.still && p.still.hash),
     })) });
   } catch (err) { fail(res, err, 'Could not load your work.'); }
 });
@@ -590,8 +618,114 @@ app.get('/api/projects/:id', accounts.requireUser, async (req, res) => {
 app.delete('/api/projects/:id', accounts.requireUser, async (req, res) => {
   const p = await db.get('projects', req.params.id);
   if (!p || p.ownerId !== req.user.id) return res.status(404).json({ error: 'Not found.' });
+  // The picture first: a project gone but its still left behind would be a
+  // chart nobody can see any more, still being served to whoever has the link.
+  await db.remove('stills', req.params.id).catch((e) => console.error('[still] delete', e.message));
   await db.remove('projects', req.params.id);
   res.json({ ok: true });
+});
+
+/* ---------- the picture a shared link unfolds into ----------
+ *
+ * Drawn by the OWNER's browser, not here. public/render.js is Canvas 2D in a
+ * page; running it in Node means a native canvas (node-canvas and its Cairo
+ * build) or reimplementing four renderers as SVG, either of which is a large
+ * dependency or a second renderer to keep in step - for one picture per
+ * share. The browser that is already drawing the chart draws one more frame
+ * at 1200x630 and sends it, and this route believes none of it until
+ * lib/still.js has read the bytes.
+ *
+ * Order matters: sign-in, then ownership, THEN the body is read. A stranger's
+ * 400 KB is never buffered, and someone else's project is a 404 before its
+ * bytes arrive.
+ */
+async function ownProject(req, res, next) {
+  try {
+    const p = await db.get('projects', req.params.id);
+    if (!p || p.ownerId !== req.user.id) return res.status(404).json({ error: 'Not found.' });
+    req.project = p;
+    next();
+  } catch (err) { fail(res, err, 'Could not load that.'); }
+}
+
+app.put('/api/projects/:id/still',
+  accounts.requireUser,
+  ownProject,
+  express.raw({ type: () => true, limit: still.MAX_BYTES }),
+  async (req, res) => {
+    try {
+      const info = still.validate(req.body, req.get('content-type'));
+      const hash = crypto.createHash('sha256').update(req.body).digest('hex').slice(0, 16);
+      const now = new Date().toISOString();
+      // Stored in its own document, not on the project: the project list
+      // reads whole project documents, and sixty stills would make opening
+      // "Saved" a 25 MB read. Firestore keeps a Buffer as bytes, so there is
+      // no base64 inflation - 400 KB of picture is 400 KB of a 1 MB document.
+      await db.set('stills', req.project.id, {
+        ownerId: req.user.id,
+        shareId: req.project.shareId,
+        type: info.type,
+        width: info.width,
+        height: info.height,
+        bytes: info.bytes,
+        hash,
+        data: req.body,
+        updatedAt: now,
+      });
+      // The pointer last, so the project never names a picture that is not there.
+      const pointer = { hash, type: info.type, ext: info.ext, bytes: info.bytes, updatedAt: now };
+      await db.merge('projects', req.project.id, { still: pointer });
+      res.json({ ok: true, still: pointer, url: stillPath(req.project.shareId, pointer) });
+    } catch (err) {
+      fail(res, err, 'Could not keep that picture.');
+    }
+  },
+  // The body limit and a bad body arrive here as errors, not as requests.
+  // Answer them in JSON like everything else, never Express's HTML page.
+  (err, _req, res, _next) => {
+    const status = err.type === 'entity.too.large' ? 413 : (err.status || 400);
+    res.status(status).json({ error: status === 413
+      ? `That picture is over ${still.MAX_BYTES / 1024} KB.` : 'Could not read that picture.' });
+  });
+
+const SHARE_ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
+function stillPath(shareId, pointer) {
+  return `/still/${shareId}/${pointer.hash}.${pointer.ext || (pointer.type === 'image/jpeg' ? 'jpg' : 'png')}`;
+}
+async function projectByShare(shareId) {
+  if (!SHARE_ID_RE.test(String(shareId || ''))) return null;
+  const rows = await db.list('projects', { where: [['shareId', '==', String(shareId)]], limit: 1 });
+  return rows[0] || null;
+}
+
+// The hash in the path is what makes a year's cache safe: a new picture is a
+// new URL. An old hash still answers (a preview already posted keeps working)
+// but only for five minutes at a time, with the current picture.
+app.get('/still/:shareId/:file', async (req, res) => {
+  try {
+    const m = /^([a-f0-9]{16})\.(png|jpg)$/.exec(req.params.file);
+    const p = m ? await projectByShare(req.params.shareId) : null;
+    const doc = p && p.still ? await db.get('stills', p.id) : null;
+    const buf = doc ? still.toBuffer(doc.data) : null;
+    // Re-check what is about to be served, not just what was accepted: a
+    // document edited by hand, or a harness round trip, must still be an image.
+    const info = buf ? still.sniff(buf) : null;
+    if (!info) {
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.redirect(302, '/og-card.png');
+    }
+    res.set({
+      'Content-Type': info.type,
+      'Content-Length': String(buf.length),
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+      'Cache-Control': m[1] === doc.hash ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+    });
+    res.end(buf);
+  } catch (err) {
+    console.error('GET /still', err.message);
+    res.status(500).json({ error: 'Could not load that picture.' });
+  }
 });
 
 /** A share link is read-only and needs no account. It is a separate random id
@@ -607,7 +741,45 @@ app.get('/api/shared/:shareId', async (req, res) => {
 // Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set.
 analytics.mount(app, 'dataviz');
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+/* ---------- the page, with link-preview tags ----------
+ * Served by hand rather than by express.static's index, so the front page and
+ * every share link carry og:/twitter: tags a scraper can read without running
+ * any script. See lib/og.js. */
+const INDEX_HTML = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+function sendPage(res, req, meta, status = 200) {
+  res.status(status);
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-cache');
+  res.send(og.inject(INDEX_HTML, og.tags(meta)));
+}
+function homeMeta(req, pathName = '/') {
+  const origin = og.originOf(req);
+  return {
+    title: og.HOME.title, description: og.HOME.description,
+    url: origin + pathName, image: origin + '/og-card.png', imageType: 'image/png',
+    imageAlt: 'DataViz: animated bar, line and flow charts',
+  };
+}
+
+app.get('/v/:shareId', async (req, res) => {
+  let p = null;
+  try { p = await projectByShare(req.params.shareId); } catch (err) { console.error('GET /v', err.message); }
+  if (!p) return sendPage(res, req, homeMeta(req), 404);
+  const origin = og.originOf(req);
+  const has = p.still && p.still.hash;
+  sendPage(res, req, {
+    title: p.title || 'A chart made with DataViz',
+    description: p.subtitle || 'An animated chart made with DataViz. Tap to watch it play.',
+    url: `${origin}/v/${p.shareId}`,
+    image: has ? origin + stillPath(p.shareId, p.still) : origin + '/og-card.png',
+    imageType: has ? p.still.type : 'image/png',
+    imageAlt: `Chart: ${p.title || 'untitled'}`,
+  });
+});
+
+app.get('/', (req, res) => sendPage(res, req, homeMeta(req)));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.get('*', (req, res) => sendPage(res, req, homeMeta(req)));
 
 app.listen(PORT, () => console.log(`DataViz listening on :${PORT}`));
