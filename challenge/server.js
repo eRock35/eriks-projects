@@ -107,6 +107,49 @@ function visitor(req, res) {
   return id;
 }
 
+/* ---------------- build stats: what each app cost to make ---------------- */
+
+// build-stats.json is written by scripts/token-ledger.py --stats from the
+// builder agents' transcripts (TOKENS.md, CLAUDE.md). Read once at startup:
+// it only changes with a deploy. Missing or malformed, the lab simply serves
+// no `build` fields and the page draws no stats; it never stops the lab.
+const BUILD_STATS_FILE = process.env.BUILD_STATS_FILE || path.join(__dirname, 'build-stats.json');
+const COUNT = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+/** Pure: the file's parsed JSON -> {apps: {slug: row}, totals, updated} or null. */
+function readBuildStats(raw) {
+  if (!raw || typeof raw !== 'object' || !raw.apps || typeof raw.apps !== 'object' || Array.isArray(raw.apps)) return null;
+  const apps = {};
+  for (const [slug, r] of Object.entries(raw.apps)) {
+    if (!/^[a-z0-9-]{1,40}$/.test(slug) || !r || typeof r !== 'object') continue;
+    const row = {
+      in: COUNT(r.in), cached: COUNT(r.cached), out: COUNT(r.out),
+      agents: COUNT(r.agents), agentMs: COUNT(r.agentMs), wallMs: COUNT(r.wallMs),
+      exact: r.exact === true,
+      note: typeof r.note === 'string' ? r.note.replace(/[<>]/g, '').slice(0, 300) : '',
+    };
+    if (row.in === null || row.out === null) continue;
+    apps[slug] = row;
+  }
+  const rows = Object.values(apps);
+  if (!rows.length) return null;
+  const sum = (k) => rows.reduce((n, r) => n + (r[k] || 0), 0);
+  const knownIn = rows.filter((r) => r.cached !== null).reduce((n, r) => n + r.in, 0);
+  const totals = {
+    in: sum('in'), cached: sum('cached'), out: sum('out'), agents: sum('agents'),
+    agentMs: sum('agentMs'), wallMs: sum('wallMs'), apps: rows.length,
+    estimated: rows.filter((r) => !r.exact).length,
+    cachedShare: knownIn ? Math.round((sum('cached') / knownIn) * 1e4) / 1e4 : null,
+  };
+  const updated = typeof raw.updated === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.updated) ? raw.updated : null;
+  return { apps, totals, updated };
+}
+const buildStats = (() => {
+  try { return readBuildStats(JSON.parse(fs.readFileSync(BUILD_STATS_FILE, 'utf8'))); } catch (err) {
+    if (err.code !== 'ENOENT') console.warn('[lab] build-stats.json unreadable:', err.message);
+    return null;
+  }
+})();
+
 const lj = express.json({ limit: '8kb' });
 
 host.get('/api/health', (_req, res) => res.json({ ok: true, apps: mounted }));
@@ -135,10 +178,11 @@ host.get('/api/lab', async (req, res) => {
         vid ? store.get('lab_voters', `${a.slug}:${vid}`) : null,
       ]);
       const t = tally || {};
-      return { ...a, live: mounted.includes(a.slug), votes: { keep: t.keep || 0, kill: t.kill || 0 }, myVote: mine ? mine.v : null };
+      const build = buildStats && buildStats.apps[a.slug];
+      return { ...a, live: mounted.includes(a.slug), votes: { keep: t.keep || 0, kill: t.kill || 0 }, myVote: mine ? mine.v : null, ...(build ? { build } : {}) };
     }));
     res.set('Cache-Control', 'no-store');
-    res.json({ apps, now: new Date().toISOString() });
+    res.json({ apps, now: new Date().toISOString(), ...(buildStats ? { buildTotals: { ...buildStats.totals, updated: buildStats.updated } } : {}) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not load the lab.' });
@@ -267,4 +311,4 @@ if (require.main === module) {
   host.listen(PORT, () => console.log(`[lab] listening on ${PORT}${MEMORY ? ' (memory)' : ''}`));
 }
 
-module.exports = { host, mounted, standings };
+module.exports = { host, mounted, standings, readBuildStats };

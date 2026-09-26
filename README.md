@@ -51,6 +51,11 @@ It is no longer only a landing page:
   `DEPLOY.md` for what it needs to run.
 - `/admin` is Erik's overview — access requests, app health, spend and
   accounts — and `/admin/views` has the view counts behind the cards.
+- `/admin/inbox` is Erik's private ideas inbox: ideas typed there or sent by
+  "Hey Siri, Idea" (a Shortcut posting to `/api/inbox` with a token the page
+  generates), kept for the daily Claude run to read and annotate with
+  `node scripts/inbox.js`. No reminders, no model calls. See "The ideas inbox"
+  in `DEPLOY.md`.
 - `acct.strongtechnicalconsulting.com` is the page for the shared account
   every app signs in with, a domain mapping onto this same service.
 - `/challenge` is a teaser for the Challenge Lab. The lab itself is

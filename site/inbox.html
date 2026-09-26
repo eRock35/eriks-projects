@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Inbox &middot; Admin</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Inbox">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/erik-320.jpg">
+<link rel="stylesheet" href="/assets/admin.css">
+<style>
+  /* Every text colour here is measured against the surface it sits on at
+     4.5:1 or better, light and dark - including the chips, whose tinted
+     backgrounds are what usually quietly fail. */
+  :root {
+    color-scheme: light;
+    --bg: #f2f2f7;
+    --card: #ffffff;
+    --fill: rgba(120,120,128,.14);
+    --label: #0b0b0b;
+    --label-2: #55545a;
+    --sep: rgba(60,60,67,.18);
+    --tint: #1d63b8;
+    --tint-ink: #ffffff;
+    --danger: #b3261e;
+    --note-bg: #f1effa;
+    --note-edge: #6a4fc4;
+    --st-new-bg: #e2edfb;   --st-new-fg: #174f93;
+    --st-seen-bg: #ece8f8;  --st-seen-fg: #52389f;
+    --st-doing-bg: #fbeed3; --st-doing-fg: #7a4a00;
+    --st-done-bg: #dcf1e1;  --st-done-fg: #1a5e2a;
+    --st-parked-bg: #ebeae7; --st-parked-fg: #4a4945;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05);
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #000000;
+      --card: #1c1c1e;
+      --fill: rgba(120,120,128,.26);
+      --label: #ffffff;
+      --label-2: #b9b8bf;
+      --sep: rgba(84,84,88,.6);
+      --tint: #5ea3f5;
+      --tint-ink: #04111f;
+      --danger: #ff8a80;
+      --note-bg: #25213a;
+      --note-edge: #a895f0;
+      --st-new-bg: #16304f;   --st-new-fg: #a9cdfa;
+      --st-seen-bg: #2a2346;  --st-seen-fg: #c8b9ff;
+      --st-doing-bg: #3a2a0b; --st-doing-fg: #f3c56c;
+      --st-done-bg: #143220;  --st-done-fg: #8ddca5;
+      --st-parked-bg: #2c2c2e; --st-parked-fg: #c9c8c2;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #000000; --card: #1c1c1e; --fill: rgba(120,120,128,.26);
+    --label: #ffffff; --label-2: #b9b8bf; --sep: rgba(84,84,88,.6);
+    --tint: #5ea3f5; --tint-ink: #04111f; --danger: #ff8a80;
+    --note-bg: #25213a; --note-edge: #a895f0;
+    --st-new-bg: #16304f;   --st-new-fg: #a9cdfa;
+    --st-seen-bg: #2a2346;  --st-seen-fg: #c8b9ff;
+    --st-doing-bg: #3a2a0b; --st-doing-fg: #f3c56c;
+    --st-done-bg: #143220;  --st-done-fg: #8ddca5;
+    --st-parked-bg: #2c2c2e; --st-parked-fg: #c9c8c2;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--label);
+    font-family: var(--font); font-size: 16px; line-height: 1.45;
+    padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 56px);
+    -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  a { color: var(--tint); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--label-2); margin: 26px 2px 10px; font-weight: 650; }
+  .card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 14px; }
+  :root[data-theme="dark"] .card { border: 1px solid var(--sep); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .card { border: 1px solid var(--sep); } }
+
+  /* The composer. 17px so iOS does not zoom the page when it takes focus. */
+  .compose textarea {
+    width: 100%; min-height: 104px; resize: vertical; display: block;
+    font: inherit; font-size: 17px; line-height: 1.4; color: var(--label);
+    background: transparent; border: 0; outline: none; padding: 2px 2px 8px;
+  }
+  .compose textarea::placeholder { color: var(--label-2); }
+  .compose .bar { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--sep); padding-top: 12px; }
+  .compose label { font-size: 14px; color: var(--label-2); display: flex; align-items: center; gap: 8px; }
+  select.plain {
+    font: inherit; font-size: 15px; color: var(--label); background: var(--fill);
+    border: 0; border-radius: 10px; min-height: 40px; padding: 0 10px;
+  }
+  .btn {
+    font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 12px;
+    min-height: 44px; padding: 0 18px; cursor: pointer;
+    background: var(--tint); color: var(--tint-ink);
+  }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.ghost { background: var(--fill); color: var(--label); }
+  .btn.warn { background: var(--fill); color: var(--danger); }
+  .compose .btn { margin-left: auto; min-width: 104px; }
+  .hint { font-size: 13px; color: var(--label-2); margin: 8px 2px 0; }
+
+  /* Filters wrap rather than scroll: six short words fit two rows on the
+     narrowest phone, and nothing hides off the edge. */
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .filter {
+    font: inherit; font-size: 14.5px; font-weight: 600; min-height: 36px; padding: 0 13px;
+    border-radius: 999px; border: 1px solid var(--sep); background: var(--card); color: var(--label-2); cursor: pointer;
+  }
+  .filter[aria-pressed="true"] { background: var(--label); border-color: var(--label); color: var(--bg); }
+  .filter .count { font-weight: 500; opacity: .9; margin-left: 2px; font-variant-numeric: tabular-nums; }
+
+  .list { display: grid; gap: 10px; }
+  .item { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 14px 14px 10px; }
+  :root[data-theme="dark"] .item { border: 1px solid var(--sep); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .item { border: 1px solid var(--sep); } }
+  .item .text { margin: 0 0 10px; font-size: 16.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note { background: var(--note-bg); border-left: 3px solid var(--note-edge); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; }
+  .note-by { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--label-2); }
+  .note p { margin: 2px 0 0; font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .tag { font-size: 13px; color: var(--label-2); }
+  .row { display: flex; align-items: center; gap: 8px; }
+
+  /* Status and kind are chips you can tap to change - native selects, so a
+     phone shows its own picker. */
+  .pill {
+    font: inherit; font-size: 13.5px; font-weight: 650; border: 0; border-radius: 999px;
+    min-height: 32px; padding: 0 26px 0 11px; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 9px 6px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 3.5L8 1' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+  .pill.kd { background-color: var(--fill); color: var(--label); }
+  .st-new    { background-color: var(--st-new-bg);    color: var(--st-new-fg); }
+  .st-seen   { background-color: var(--st-seen-bg);   color: var(--st-seen-fg); }
+  .st-doing  { background-color: var(--st-doing-bg);  color: var(--st-doing-fg); }
+  .st-done   { background-color: var(--st-done-bg);   color: var(--st-done-fg); }
+  .st-parked { background-color: var(--st-parked-bg); color: var(--st-parked-fg); }
+  /* The meta line gives way (ellipsis) before the delete button wraps. */
+  .meta { flex: 1 1 0; min-width: 0; font-size: 13.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .del {
+    flex: none; background: none; border: 0; color: var(--label-2); cursor: pointer;
+    width: 40px; height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .del:hover, .del:focus-visible { color: var(--danger); background: var(--fill); }
+  .empty { color: var(--label-2); font-size: 15px; padding: 18px 4px; margin: 0; }
+  .empty.err { color: var(--danger); }
+
+  /* Set up Siri */
+  details.siri > summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    font-size: 17px; font-weight: 650; min-height: 32px;
+  }
+  details.siri > summary::-webkit-details-marker { display: none; }
+  details.siri > summary::after { content: "Show"; font-size: 15px; font-weight: 600; color: var(--tint); }
+  details.siri[open] > summary::after { content: "Hide"; }
+  .siri .lede { color: var(--label-2); font-size: 14.5px; margin: 6px 0 0; }
+  .siri .state { font-size: 15px; margin: 14px 0 10px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .reveal { margin: 14px 0 0; padding: 12px; border-radius: 12px; background: var(--fill); }
+  .reveal strong { display: block; font-size: 14px; margin-bottom: 6px; }
+  .secret, .endpoint {
+    font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; word-break: break-all;
+    background: var(--card); border: 1px solid var(--sep); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px;
+    -webkit-user-select: all; user-select: all;
+  }
+  .field { margin: 16px 0 0; }
+  .field .k { font-size: 13px; color: var(--label-2); margin: 0 0 4px; }
+  ol.steps { margin: 18px 0 0; padding-left: 22px; }
+  ol.steps li { margin: 0 0 10px; font-size: 15px; }
+  ol.steps li::marker { color: var(--label-2); font-weight: 600; }
+  code { font-family: var(--mono); font-size: 13.5px; background: var(--fill); border-radius: 5px; padding: 1px 5px; }
+  .tip { font-size: 14px; color: var(--label-2); margin: 6px 0 0; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translate(-50%, 16px);
+    background: var(--label); color: var(--bg); border-radius: 999px; padding: 10px 18px; font-size: 15px; font-weight: 550;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); text-align: center; z-index: 9;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap" id="inboxApp">
+  <!-- The same section bar as /admin and /admin/writing; keep them identical. -->
+  <div class="adminbar">
+    <h1>Admin</h1>
+    <p class="where">Ideas you have sent, and what Claude did with them.</p>
+    <nav class="adminseg" aria-label="Admin sections">
+      <a href="/admin">Overview</a>
+      <a href="/admin/writing">Writing</a>
+      <a href="/admin/views">Trending</a>
+      <a href="/admin/inbox" aria-current="page">Inbox</a>
+    </nav>
+  </div>
+
+  <section class="card compose" aria-label="Add an idea">
+    <label class="vh" for="text">Your idea</label>
+    <textarea id="text" maxlength="2000" autofocus placeholder="An idea, a bug, a feature for one of the apps&hellip;" enterkeyhint="done"></textarea>
+    <div class="bar">
+      <label for="kind">Kind
+        <select id="kind" class="plain">
+          <option value="">Auto</option>
+          <option value="idea">Idea</option>
+          <option value="app idea">App idea</option>
+          <option value="feature">Feature</option>
+          <option value="bug">Bug</option>
+          <option value="note">Note</option>
+        </select>
+      </label>
+      <button type="button" class="btn" id="save">Save</button>
+    </div>
+  </section>
+  <p class="hint">Start with &ldquo;Bug:&rdquo;, &ldquo;Feature:&rdquo; or &ldquo;App idea:&rdquo; to file it there. The daily Claude run reads what is new and leaves a note.</p>
+
+  <h2 id="listHead">Inbox</h2>
+  <div class="filters" id="filters" role="group" aria-labelledby="listHead"></div>
+  <div class="list" id="list" aria-live="polite"><p class="empty">Loading&hellip;</p></div>
+
+  <h2>Siri</h2>
+  <details class="card siri" id="siri">
+    <summary>Set up Siri</summary>
+    <p class="lede">Say &ldquo;Hey Siri, Idea&rdquo;, speak it, and it lands here. A Shortcut on your iPhone does the sending, with a token only it holds.</p>
+
+    <p class="state" id="tokenState">Checking&hellip;</p>
+    <div class="actions">
+      <button type="button" class="btn" id="genToken">Generate token</button>
+      <button type="button" class="btn warn" id="revokeToken" hidden>Turn off</button>
+    </div>
+
+    <div class="reveal" id="tokenBox" hidden>
+      <strong>Header value &mdash; shown once. Copy it into the Shortcut now.</strong>
+      <p class="secret" id="tokenValue"></p>
+      <button type="button" class="btn ghost" id="copyHeader">Copy header value</button>
+    </div>
+
+    <div class="field">
+      <p class="k">URL</p>
+      <p class="endpoint" id="endpoint"></p>
+      <button type="button" class="btn ghost" id="copyUrl">Copy URL</button>
+    </div>
+
+    <ol class="steps">
+      <li>Open the <strong>Shortcuts</strong> app and tap <strong>+</strong>.</li>
+      <li>Tap the name at the top and call it <strong>Idea</strong> &mdash; that is what you will say to Siri.</li>
+      <li>Add the action <strong>Dictate Text</strong>.</li>
+      <li>Add <strong>Get Contents of URL</strong>. Paste the URL above. Tap the arrow to show more, then set <strong>Method</strong> to <code>POST</code>.</li>
+      <li>Under <strong>Headers</strong>, add one: key <code>Authorization</code>, value the header value above (it starts <code>Bearer&nbsp;ibx_</code>).</li>
+      <li>Set <strong>Request Body</strong> to <strong>JSON</strong> and add a Text field: key <code>text</code>, value the <strong>Dictated Text</strong> variable.</li>
+      <li>Add <strong>Get Dictionary Value</strong>: get the value for key <code>message</code> in <strong>Contents of URL</strong>.</li>
+      <li>Add <strong>Speak Text</strong> (or <strong>Show Result</strong>) with that <strong>Dictionary Value</strong>.</li>
+      <li>Done. Say <strong>&ldquo;Hey Siri, Idea&rdquo;</strong>, speak, and Siri answers &ldquo;Saved: &hellip;&rdquo;.</li>
+    </ol>
+    <p class="tip">Lost the phone, or pasted the token somewhere it should not be? Replace it here and the old one stops working at once.</p>
+  </details>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/assets/inbox.js"></script>
+</body>
+</html>

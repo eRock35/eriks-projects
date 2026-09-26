@@ -33,6 +33,7 @@ const identityStore = require('./lib/identity-store');
 const analytics = require('./shared/analytics');
 const views = require('./lib/views');
 const activity = require('./lib/activity');
+const inbox = require('./lib/inbox');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -143,8 +144,14 @@ app.use(function canonicalHost(req, res, next) {
   return res.redirect(301, CANONICAL_ORIGIN + req.originalUrl);
 });
 
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: false }));
+// The ideas inbox reads its own body, capped at 128 KB and only AFTER its
+// token or session has been checked (see "Ideas inbox" below), so a stranger
+// cannot make this service read a megabyte by knocking on it.
+const INBOX_API = /^\/api\/inbox(?:\/|$)/;
+const jsonBody = express.json({ limit: '1mb' });
+const formBody = express.urlencoded({ extended: false });
+app.use((req, res, next) => (INBOX_API.test(req.path) ? next() : jsonBody(req, res, next)));
+app.use((req, res, next) => (INBOX_API.test(req.path) ? next() : formBody(req, res, next)));
 
 // Analytics. The public site only - the admin pages are one person, and
 // their paths describe this site's own private structure. Serves an inert
@@ -205,7 +212,26 @@ function isAdmin(req) {
 // original ADMIN_PASSWORD session stays working so a fault in the identity
 // service cannot lock Erik out of the surface he would use to diagnose it.
 // Retire the old door only once the new one has been used in anger.
+// A change made with the admin cookie must come from this site's own pages.
+// The cookie is sent by the browser to every subdomain's requests too (the
+// lab is "same-site"), so a page elsewhere on the domain could otherwise post
+// to /api/posts/:slug/send in Erik's signed-in browser. Browsers say where a
+// request came from (Sec-Fetch-Site, Origin); anything not same-origin is
+// refused. Requests with neither header (curl, tests, old browsers) pass, as
+// they cannot carry someone else's cookie anyway.
+function crossSiteWrite(req) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return false;
+  const site = req.get('sec-fetch-site');
+  if (site && site !== 'same-origin' && site !== 'none') return true;
+  const origin = req.get('origin');
+  if (!origin) return false;
+  try { return new URL(origin).host !== req.get('host'); } catch (e) { return true; }
+}
+
 function requireAdmin(req, res, next) {
+  if ((isAdmin(req) || isIdentityAdmin(req)) && crossSiteWrite(req)) {
+    return res.status(403).json({ error: 'Admin changes must come from this site.' });
+  }
   if (isAdmin(req) || isIdentityAdmin(req)) return next();
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
   return res.status(404).send(view.notice({
@@ -875,6 +901,169 @@ app.get('/admin/writing', adminGate, (_req, res) => res.sendFile(path.join(SITE_
 // adminGate is defined just above - the routes it gates cannot be registered
 // before it exists.
 app.get('/admin/views', adminGate, (_req, res) => res.sendFile(path.join(SITE_DIR, 'views.html')));
+
+/* ------------------------------------------------------------------ *
+ * Ideas inbox
+ * ------------------------------------------------------------------ */
+
+// Erik's private inbox: ideas texted in by "Hey Siri, Idea" or typed at
+// /admin/inbox, kept for the daily Claude run to read and annotate. The logic
+// is lib/inbox.js; these are the doors. No model call, no timer, nothing after
+// the response. Never log an item's text or a token.
+//
+// Two ways in: the admin session (the page) or the bearer token the page
+// generates (the Shortcut, the daily run). A missing or wrong token is a 401
+// with a sentence Siri can read out, not the admin surface's 404 - the
+// Shortcut needs to be able to say "make a new token", and the route's
+// existence is no secret (it is in this public repo).
+const inboxBook = inbox.createInbox(() => store());
+const inboxPerToken = inbox.createLimiter({ max: 30, windowMs: 60 * 1000 });
+// Failed tokens per address: each costs a Firestore read, so junk is capped.
+const inboxBadTokens = inbox.createLimiter({ max: 20, windowMs: 60 * 1000 });
+
+/** A write made with the admin COOKIE must come from the inbox page itself.
+ *  The custom header forces a CORS preflight from any other origin - and
+ *  challenge.<domain> hosts generated apps on the same site, where SameSite
+ *  cookies are still sent - and this route answers no preflight. A bearer
+ *  token needs none of this: browsers never attach one on their own. */
+function inboxPageWrite(req) {
+  const site = String(req.get('Sec-Fetch-Site') || '');
+  return req.get('X-Inbox-Page') === '1' && (!site || site === 'same-origin' || site === 'none');
+}
+
+function inboxRefuse(res, status, error) {
+  // `message` as well as `error`, because the Shortcut speaks `message`.
+  return res.status(status).json({ ok: false, error, message: error });
+}
+
+async function inboxAuth(req, res, next) {
+  res.set('Cache-Control', 'no-store');
+  if (isAdmin(req) || isIdentityAdmin(req)) {
+    if (req.method !== 'GET' && !inboxPageWrite(req)) return inboxRefuse(res, 403, 'Use the inbox page for that.');
+    req.inboxVia = 'admin';
+    return next();
+  }
+  const presented = inbox.bearer(req);
+  if (!presented) return inboxRefuse(res, 401, 'No inbox token. Make one on the inbox page under Set up Siri.');
+  const ip = req.ip || 'unknown';
+  if (inboxBadTokens.blocked(ip)) return inboxRefuse(res, 429, 'Too many wrong tokens. Wait a minute.');
+  let hash = null;
+  try {
+    hash = await inboxBook.checkToken(presented);
+  } catch (err) {
+    console.error('inbox token check failed', err.code || 'error');
+    return inboxRefuse(res, 503, 'The inbox is unavailable right now. Try again shortly.');
+  }
+  if (!hash) {
+    inboxBadTokens.hit(ip);
+    return inboxRefuse(res, 401, 'That inbox token did not work. Make a new one on the inbox page.');
+  }
+  if (!inboxPerToken.hit(hash)) return inboxRefuse(res, 429, 'Slow down - that is 30 in a minute.');
+  req.inboxVia = 'token';
+  return next();
+}
+
+// JSON (the Shortcut's "Request Body: JSON"), a form, or bare text/plain.
+// Read only after inboxAuth, and never more than 128 KB of it.
+const inboxParsers = [
+  express.json({ limit: inbox.BODY_LIMIT }),
+  express.urlencoded({ extended: false, limit: inbox.BODY_LIMIT }),
+  express.text({ limit: inbox.BODY_LIMIT, type: 'text/plain' }),
+];
+function inboxBody(req, res, next) {
+  let i = 0;
+  const step = (err) => {
+    if (err) {
+      return err.type === 'entity.too.large'
+        ? inboxRefuse(res, 413, 'That is too long for the inbox.')
+        : inboxRefuse(res, 400, 'That body could not be read.');
+    }
+    if (i >= inboxParsers.length) return next();
+    return inboxParsers[i++](req, res, step);
+  };
+  step();
+}
+
+function inboxError(res, err, where) {
+  if (err && err.status) return inboxRefuse(res, err.status, err.message);
+  console.error(where, (err && err.code) || 'error');
+  return inboxRefuse(res, 500, 'The inbox could not do that. Try again.');
+}
+
+// The page. Its script is a file of its own so the page can carry a CSP with
+// no inline script at all - the list draws text other people's Shortcuts
+// could have sent, if a token ever leaked.
+app.get('/admin/inbox', adminGate, (_req, res) => {
+  res.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(SITE_DIR, 'inbox.html'));
+});
+// The static middleware would otherwise serve the page's bare shell here.
+app.get(['/inbox', '/inbox.html'], (_req, res) => res.redirect('/admin/inbox'));
+
+// The token. Admin only, and 404 to anyone else like the rest of /admin.
+app.get('/api/inbox/token', requireAdmin, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await inboxBook.tokenInfo()); } catch (err) { inboxError(res, err, 'GET /api/inbox/token'); }
+});
+app.post('/api/inbox/token', requireAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!inboxPageWrite(req)) return inboxRefuse(res, 403, 'Use the inbox page for that.');
+  // Shown once: the response is the only place the plaintext ever exists.
+  try { res.json({ ok: true, ...(await inboxBook.issueToken()) }); } catch (err) { inboxError(res, err, 'POST /api/inbox/token'); }
+});
+app.delete('/api/inbox/token', requireAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!inboxPageWrite(req)) return inboxRefuse(res, 403, 'Use the inbox page for that.');
+  try { await inboxBook.revokeToken(); res.json({ ok: true }); } catch (err) { inboxError(res, err, 'DELETE /api/inbox/token'); }
+});
+
+app.post('/api/inbox', inboxAuth, inboxBody, async (req, res) => {
+  const input = inbox.readInput(req.body);
+  if (!input.text) return inboxRefuse(res, 400, 'Nothing to save - I did not catch any words.');
+  try {
+    const item = await inboxBook.add({ ...input, source: req.inboxVia === 'token' ? 'siri' : 'page' });
+    if (req.inboxVia === 'token') await inboxBook.touchToken();
+    res.json({ ok: true, id: item.id, message: inbox.savedMessage(item.text), item });
+  } catch (err) {
+    inboxError(res, err, 'POST /api/inbox');
+  }
+});
+
+// ?status=new|seen|doing|done|parked|all. Counts ride along for the filters.
+app.get('/api/inbox', inboxAuth, async (req, res) => {
+  try {
+    const status = String(req.query.status || 'all');
+    const [items, counts] = await Promise.all([
+      inboxBook.list({ status, limit: req.query.limit }),
+      inboxBook.counts(),
+    ]);
+    res.json({ items, counts });
+  } catch (err) {
+    inboxError(res, err, 'GET /api/inbox');
+  }
+});
+
+// {status, claudeNote, kind, tags} - the daily run's note, or a tap on the page.
+app.patch('/api/inbox/:id', inboxAuth, inboxBody, async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    res.json({ ok: true, item: await inboxBook.patch(req.params.id, body) });
+  } catch (err) {
+    inboxError(res, err, 'PATCH /api/inbox/:id');
+  }
+});
+
+// Deleting is the page's alone; the token can annotate but not erase.
+app.delete('/api/inbox/:id', inboxAuth, async (req, res) => {
+  if (req.inboxVia !== 'admin') return inboxRefuse(res, 403, 'Delete from the inbox page.');
+  try {
+    await inboxBook.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    inboxError(res, err, 'DELETE /api/inbox/:id');
+  }
+});
 
 // The dashboard: who is using the apps, what happened, what it cost, what is
 // broken. Its own page rather than another tab inside admin.html, which is

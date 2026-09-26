@@ -43,7 +43,109 @@
     return new Date(iso + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   }
 
-  var data = null;
+  var data = null, drewBuilt = false;
+
+  // ---- build stats: human numbers ----
+  function num(v) { v = Number(v); return isFinite(v) && v >= 0 ? v : 0; }
+  // 393122130 -> "393M", 2353623 -> "2.4M", 196855 -> "197K"
+  function tokens(v) {
+    v = num(v);
+    if (v >= 1e9) return (v / 1e9).toFixed(v >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+    if (v >= 1e3) return Math.round(v / 1e3) + 'K';
+    return String(Math.round(v));
+  }
+  function tokenWords(v) {
+    v = num(v);
+    if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + ' billion';
+    if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1).replace(/\.0$/, '') + ' million';
+    if (v >= 1e3) return Math.round(v / 1e3) + ' thousand';
+    return String(Math.round(v));
+  }
+  // 2862069 -> "48 min", 29104934 -> "8 h 5 m"
+  function span(ms) {
+    var m = Math.round(num(ms) / 6e4);
+    if (m < 60) return m + ' min';
+    return Math.floor(m / 60) + ' h ' + (m % 60) + ' m';
+  }
+  function spanWords(ms) {
+    var m = Math.round(num(ms) / 6e4), h = Math.floor(m / 60);
+    return (h ? h + ' hour' + (h === 1 ? '' : 's') + ' ' : '') + (m % 60) + ' minute' + (m % 60 === 1 ? '' : 's');
+  }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+
+  function madeLine(b) {
+    if (!b) return '';
+    var agents = Math.round(num(b.agents));
+    // Each part holds together (no-break spaces), so a narrow card wraps
+    // between parts, never inside "45 min".
+    var text = [tokens(b.in) + ' in', tokens(b.out) + ' out', plural(agents, 'agent'), span(b.agentMs)]
+      .map(function (x) { return esc(x).replace(/ /g, '&nbsp;'); }).join(' · ');
+    var tip = (b.exact ? '' : 'Estimate. ') + (b.note || '') + (agents > 1 && b.wallMs ? ' ' + span(b.wallMs) + ' start to finish.' : '');
+    // The chip links to the "How it's built" strip, which says what in and
+    // out mean; a tooltip alone would never reach a phone.
+    return '<div class="made" title="' + esc(tip.trim()) + '"><a class="est" href="#built">Build' + (b.exact ? '' : ' est.') + '</a>' +
+      '<span class="sr">' + (b.exact ? '' : 'estimated: ') + '</span>' + text + '</div>';
+  }
+
+  // Count up from zero once, when the strip is on screen; never with
+  // reduced motion, where the final numbers are simply there.
+  function countUp(els) {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !window.requestAnimationFrame) return;
+    els.forEach(function (el) { el.textContent = el.getAttribute('data-fmt') === 'span' ? span(0) : tokens(0); });
+    function run() {
+      var t0 = null, D = 1100;
+      function frame(t) {
+        if (t0 === null) t0 = t;
+        var k = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - k, 3);
+        els.forEach(function (el) {
+          var to = Number(el.getAttribute('data-to')), f = el.getAttribute('data-fmt');
+          el.textContent = k >= 1 ? el.getAttribute('data-final') : f === 'span' ? span(to * e) : f === 'int' ? String(Math.round(to * e)) : tokens(to * e);
+        });
+        if (k < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+    var host = $('#built');
+    if (!('IntersectionObserver' in window)) return run();
+    var io = new IntersectionObserver(function (es) {
+      if (es.some(function (e) { return e.isIntersecting; })) { io.disconnect(); run(); }
+    }, { threshold: 0.35 });
+    io.observe(host);
+  }
+
+  // "Spar and Snapquote are estimates (marked est.):", or "2 apps are ..."
+  // when the names are not known.
+  function estNames(n) {
+    var names = (data && data.apps || []).filter(function (a) { return a.build && !a.build.exact; }).map(function (a) { return esc(a.name); });
+    var est = ' (marked <span class="est-inline">est.</span>),';
+    if (names.length !== n || n > 3) return (n === 1 ? 'One app is an estimate' : n + ' apps are estimates') + est;
+    return (n === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[n - 1]) + (n === 1 ? ' is an estimate' : ' are estimates') + est;
+  }
+
+  function drawBuilt(t) {
+    if (!t || !(num(t.in) > 0)) return;
+    var tiles = [
+      { to: num(t.in), fmt: 'tok', label: 'tokens in', words: tokenWords(t.in) + ' tokens in' },
+      { to: num(t.out), fmt: 'tok', label: 'tokens out', words: tokenWords(t.out) + ' tokens out' },
+      { to: Math.round(num(t.agents)), fmt: 'int', label: 'agents run', words: Math.round(num(t.agents)) + ' agents run' },
+      { to: num(t.agentMs), fmt: 'span', label: 'of agent time', words: spanWords(t.agentMs) + ' of agent time' },
+    ];
+    $('#builtGrid').innerHTML = tiles.map(function (x) {
+      var fin = x.fmt === 'span' ? span(x.to) : x.fmt === 'int' ? String(x.to) : tokens(x.to);
+      return '<div class="bt"><b aria-hidden="true" data-to="' + x.to + '" data-fmt="' + x.fmt + '" data-final="' + esc(fin) + '">' + esc(fin) + '</b>' +
+        '<span aria-hidden="true">' + esc(x.label) + '</span><span class="sr">' + esc(x.words) + '</span></div>';
+    }).join('');
+    var apps = Math.round(num(t.apps)), est = Math.round(num(t.estimated));
+    $('#builtLead').innerHTML = 'Every drop is built by Claude agents. <b>' + esc(plural(apps, 'app')) + ' shipped</b> so far.';
+    var share = t.cachedShare == null ? null : Math.round(num(t.cachedShare) * 100);
+    $('#builtNote').innerHTML = '<b>Why so much in?</b> “In” is everything the agents read, “out” everything they wrote. ' +
+      (share ? 'About ' + share + '% of what they read is their own work, re-read at every step, which is the cheap part.' : 'Most of what they read is their own work, re-read at every step, which is the cheap part.') +
+      (est ? ' ' + estNames(est) + ' built in a session whose transcripts are not kept here.' : '');
+    $('#built').hidden = false;
+    countUp(Array.prototype.slice.call(document.querySelectorAll('#builtGrid b')));
+  }
 
   function card(a, i) {
     var total = a.votes.keep + a.votes.kill;
@@ -54,7 +156,7 @@
       '<h3>' + esc(a.name) + '</h3><div class="date">' + esc(fmtDate(a.dropped)) + '</div><div class="emoji">' + esc(a.emoji) + '</div></div>' +
       '<div class="body"><p class="tagline">' + esc(a.tagline) + '</p><p class="blurb">' + esc(a.blurb) + '</p>' +
       '<div class="feats">' + a.features.map(function (f) { return '<span>' + esc(f) + '</span>'; }).join('') + '</div>' +
-      '<div class="who">For: ' + esc(a.audience) + '</div>' +
+      '<div class="who">For: ' + esc(a.audience) + '</div>' + madeLine(a.build) +
       (a.live || a.status === 'graduated' ? '<a class="try" href="' + esc(href) + '">Try ' + esc(a.name) + ' <span class="arr">→</span></a>' : '<span class="try off">Warming up…</span>') +
       '<div class="vote"><div class="q"><span>Keep it or kill it?</span><span>' + total + ' vote' + (total === 1 ? '' : 's') + '</span></div>' +
       '<div class="vbtns"><button class="keep' + (a.myVote === 'keep' ? ' on' : '') + '" data-v="keep">🔥 Keep <span class="c">' + a.votes.keep + '</span></button>' +
@@ -73,6 +175,7 @@
   function draw() {
     var el = $('#drops');
     el.innerHTML = data.apps.map(card).join('') + nextCard();
+    if (!drewBuilt) { drewBuilt = true; drawBuilt(data.buildTotals); }
     Array.prototype.forEach.call(el.querySelectorAll('.app[data-slug]'), function (c) {
       var slug = c.dataset.slug;
       Array.prototype.forEach.call(c.querySelectorAll('.vbtns button'), function (b) {

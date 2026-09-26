@@ -550,6 +550,7 @@ screenshot should be rolled on principle, even a test one.
   and reachable by the chart icon in its own nav bar.
 - **`/admin/views`** is the cross-app view dashboard — the whole picture,
   landing page included (see "View counts").
+- **`/admin/inbox`** is the ideas inbox (see "The ideas inbox" below).
 - **`/admin/insights`** 301s to `/admin`, so older links still land somewhere
   sensible.
 - Everything under `/admin` answers **404** to a non-admin, not 403, so the
@@ -558,6 +559,41 @@ screenshot should be rolled on principle, even a test one.
 Ordering on the overview is deliberate: the two "something needs you" sections
 (requests, then health) sit together, and the control that emails them comes
 after the things it reports.
+
+### The ideas inbox (2026-09-26)
+
+Erik asked for "something where I can just text you ideas you can store and
+maybe act on", and chose Siri plus a private page. **No reminders** - he
+dropped them: nothing here has a due date or pings anyone.
+
+- **Storage:** collection `inbox` in this service's own database
+  (`eriks-projects`), one document per item: `text` (cleaned, <= 2000),
+  `kind` (idea / app idea / feature / bug / note - guessed from keywords or a
+  spoken "Bug:" prefix, editable), `source` (siri / page), `status` (new /
+  seen / doing / done / parked), `claudeNote` (<= 1000), `tags` (from
+  #hashtags), `createdAt`, `updatedAt`, `day`. Caps: 2,000 in all, 100 a day.
+  No composite index: a status filter is an equality query sorted in memory.
+- **Doors:** the admin session, or a bearer token generated on the page's
+  "Set up Siri" section. The token (`ibx_` + 32 random bytes) is shown once;
+  only its SHA-256 is kept, at `control/inbox-token`. Generating a new one
+  replaces the old; "Turn off" deletes it. 30 requests a minute per token,
+  20 wrong tokens a minute per address, 128 KB bodies, read only after the
+  token or session is checked (the global JSON parser skips `/api/inbox*`).
+  Cookie-authenticated writes need the page's `X-Inbox-Page` header, because
+  `challenge.` is same-site and SameSite cookies do not stop it.
+- **Routes:** `POST /api/inbox` (`{text, kind?}` JSON, a form, or bare
+  text/plain; answers `{ok, id, message: "Saved: ..."}` for Siri to speak),
+  `GET /api/inbox?status=`, `PATCH /api/inbox/:id` (`status`, `claudeNote`,
+  `kind`, `tags` - never the text), `DELETE /api/inbox/:id` (page only),
+  `GET|POST|DELETE /api/inbox/token` (admin only, 404 otherwise). Missing or
+  bad tokens are a 401 with a sentence Siri can read out.
+- **The daily run** cannot reach the site, so it uses Firestore REST with the
+  deploy token: `node scripts/inbox.js list [--status new]` and
+  `node scripts/inbox.js note <id> --status seen|doing|done|parked --note "..."`.
+  It needs the deployer's existing access to `eriks-projects`; nothing new to
+  bind.
+- The page runs under a CSP with no inline script (`site/assets/inbox.js`
+  holds all of it, and `test/inbox.js` renders hostile items through it).
 
 ## The shared account
 

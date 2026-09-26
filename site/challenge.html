@@ -103,6 +103,20 @@
   @media (prefers-color-scheme: dark) { .lb { --lb-ink: rgba(235,235,245,0.82); } }
   @media (max-width: 720px) { .lb { height: 3em; height: 2lh; -webkit-line-clamp: 2; line-clamp: 2; } }
 
+  /* What the drops cost to build, one line (two on a phone), from /api/lab's
+     buildTotals. Same held-height trick as the leaderboard line: the space is
+     there from the start and the line is invisible until the lab answers, so
+     it fills in without moving anything, and stays invisible if it never
+     does. */
+  .built { --b-ink: rgba(60,60,67,0.92); margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: var(--b-ink);
+           height: 1.5em; height: 1lh; overflow: hidden; }
+  .built .k { font-weight: 700; color: var(--label); margin-right: 4px; text-decoration: underline; text-decoration-color: var(--sep); text-underline-offset: 3px; }
+  .built .k:hover { text-decoration-color: currentColor; }
+  .built b { color: var(--label); font-variant-numeric: tabular-nums; }
+  .built[data-state="wait"] { visibility: hidden; }
+  @media (prefers-color-scheme: dark) { .built { --b-ink: rgba(235,235,245,0.82); } }
+  @media (max-width: 720px) { .built { height: 3em; height: 2lh; } }
+
   .tease { display: grid; gap: 16px; grid-template-columns: 1.35fr 1fr; margin-top: 44px; }
   @media (max-width: 720px) { .tease { grid-template-columns: 1fr; } }
   .card { position: relative; display: flex; flex-direction: column; border-radius: 26px; overflow: hidden; box-shadow: var(--shadow); color: var(--label); background: var(--card); transition: transform .3s var(--ease), box-shadow .3s; }
@@ -155,6 +169,7 @@
     <p class="lede">Every morning a new app goes live, each one aimed at <b>a real business headache</b>. You try it and vote <b>keep or kill</b>. The winners get a home of their own.</p>
     <div class="stats" id="stats"><span><b id="sLab">–</b> in the lab</span><span>next drop in <b id="sNext">–</b></span></div>
     <p class="lb" id="lb" data-state="wait"><span class="k">🏆 Leaderboard:</span><span id="lbList">Vote keep or kill on every drop in the lab.</span></p>
+    <p class="built" id="built" data-state="wait" aria-hidden="true"><a class="k" href="https://challenge.strongtechnicalconsulting.com/#built" title="Tokens the agents read (in) and wrote (out). Most of what they read is their own work, re-read at every step.">🛠 Built so far:</a><span id="builtList"></span></p>
   </header>
 
   <div class="tease" data-reveal>
@@ -230,11 +245,39 @@
     document.getElementById('count').textContent = h + 'h ' + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
   }
 
+  // What the drops cost to build: the lab's buildTotals, the sum of every
+  // app's builder agents. Invisible (height held) until it answers.
+  function big(v) { v = Math.max(0, Number(v) || 0); return v >= 1e7 ? Math.round(v / 1e6) + 'M' : v >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'K' : String(Math.round(v)); }
+  function span(ms) { var m = Math.round(Math.max(0, Number(ms) || 0) / 6e4); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' m'; }
+  function drawBuilt(t) {
+    var el = document.getElementById('built');
+    if (!t || !(Number(t.in) > 0) || el.getAttribute('data-state') === 'live') return;
+    var parts = [[Number(t.in), big, ' tokens in'], [Number(t.out), big, ' out'], [Math.round(Number(t.agents) || 0), String, ' agents'], [Number(t.agentMs), span, ' of agent time']];
+    function paint(k) {
+      document.getElementById('builtList').innerHTML = parts.map(function (p) {
+        var v = k >= 1 ? p[0] : p[1] === String ? Math.round(p[0] * k) : p[0] * k;
+        return '<b>' + esc(p[1](v)) + '</b>' + esc(p[2]);
+      }).join(' · ');
+    }
+    paint(1);
+    el.removeAttribute('aria-hidden');
+    el.setAttribute('data-state', 'live');
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches || !window.requestAnimationFrame) return;
+    var t0 = null;
+    paint(0);
+    requestAnimationFrame(function f(now) {
+      if (t0 === null) t0 = now;
+      var k = Math.min(1, (now - t0) / 1100);
+      paint(k >= 1 ? 1 : 1 - Math.pow(1 - k, 3));
+      if (k < 1) requestAnimationFrame(f);
+    });
+  }
+
   tick(); setInterval(tick, 1000);
   var drewLive = false;
   var fallbackTimer = setTimeout(function () { if (!drewLive) draw(FALLBACK); }, 1200);
   fetch(LAB + '/api/lab', { mode: 'cors' }).then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) { if (d && d.apps && d.apps.length) { drewLive = true; clearTimeout(fallbackTimer); draw(d.apps); } else { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); } })
+    .then(function (d) { if (d && d.apps && d.apps.length) { drewLive = true; clearTimeout(fallbackTimer); draw(d.apps); drawBuilt(d.buildTotals); } else { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); } })
     .catch(function () { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); });
 
   // The leaderboard line: the lab's top three by its own ranking (a lone

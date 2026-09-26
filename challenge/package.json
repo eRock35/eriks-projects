@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "LAB_MEMORY=1 PORT=8095 node server.js",
-    "test": "node test/lab.js && for d in apps/*/; do (cd \"$d\" && npm test) || exit 1; done"
+    "test": "node test/lab.js && node test/build-stats.js && for d in apps/*/; do (cd \"$d\" && npm test) || exit 1; done"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.10.0",

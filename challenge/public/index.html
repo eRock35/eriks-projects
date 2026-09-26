@@ -34,6 +34,15 @@
       <a class="cta" href="#drops">See the drops ↓</a>
     </section>
 
+    <!-- What the drops cost to build, from /api/lab's buildTotals. Hidden
+         until it answers; it appears in the same draw as the cards below
+         (still empty until then), so nothing already on screen moves. -->
+    <section class="built" id="built" aria-labelledby="builtTitle" hidden>
+      <div class="built-head"><h2 id="builtTitle">How it’s built</h2><p id="builtLead"></p></div>
+      <div class="built-grid" id="builtGrid"></div>
+      <p class="built-note" id="builtNote"></p>
+    </section>
+
     <section id="drops" class="drops" aria-live="polite"></section>
 
     <!-- Keep or kill standings, from /api/lab/leaderboard. Hidden until it

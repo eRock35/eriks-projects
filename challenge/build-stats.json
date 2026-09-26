@@ -1,0 +1,97 @@
+{
+  "_about": "Written by scripts/token-ledger.py --stats. Apps only; totals are the sum of the apps. See challenge/TOKENS.md.",
+  "updated": "2026-09-26",
+  "apps": {
+    "spar": {
+      "in": 30000000,
+      "cached": null,
+      "out": 200000,
+      "agents": 1,
+      "agentMs": 2700000,
+      "wallMs": 2700000,
+      "exact": false,
+      "note": "Estimate: built in an earlier session together with the lab itself; its transcript is not here. Tokens are the midpoint of ~25-35M in / ~200K out, time is a guess."
+    },
+    "snapquote": {
+      "in": 30000000,
+      "cached": null,
+      "out": 200000,
+      "agents": 1,
+      "agentMs": 2700000,
+      "wallMs": 2700000,
+      "exact": false,
+      "note": "Estimate: built in an earlier session; its transcript is not here. Tokens are the midpoint of ~25-35M in / ~200K out, time is a guess."
+    },
+    "chaser": {
+      "in": 31194437,
+      "cached": 30339986,
+      "out": 196855,
+      "agents": 1,
+      "agentMs": 2862069,
+      "wallMs": 2862069,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "rave": {
+      "in": 24412948,
+      "cached": 23945129,
+      "out": 199113,
+      "agents": 1,
+      "agentMs": 2130493,
+      "wallMs": 2130493,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "popquiz": {
+      "in": 19582867,
+      "cached": 18875313,
+      "out": 202716,
+      "agents": 1,
+      "agentMs": 1979077,
+      "wallMs": 1979077,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "glowup": {
+      "in": 30987616,
+      "cached": 30501830,
+      "out": 220744,
+      "agents": 1,
+      "agentMs": 2640210,
+      "wallMs": 2640210,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "booth": {
+      "in": 24857984,
+      "cached": 24398601,
+      "out": 198094,
+      "agents": 1,
+      "agentMs": 2015965,
+      "wallMs": 2015965,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "receipt": {
+      "in": 202086278,
+      "cached": 192046131,
+      "out": 936101,
+      "agents": 130,
+      "agentMs": 12077120,
+      "wallMs": 9220824,
+      "exact": true,
+      "note": "Workflow: 5 pitches, 3 judges, a builder, 4 reviewers, 111 skeptic checks and a fixer. Agents overlap, so wall time is shorter than agent time."
+    }
+  },
+  "totals": {
+    "in": 393122130,
+    "cached": 320106990,
+    "out": 2353623,
+    "agents": 137,
+    "agentMs": 29104934,
+    "wallMs": 26248638,
+    "apps": 8,
+    "estimated": 2,
+    "cachedShare": 0.9609
+  }
+}

@@ -62,8 +62,13 @@ from `main`.
    `<SLUG>_MEMORY` / `<SLUG>_FAKE_AI` / `<SLUG>_COLLECTION_PREFIX`.
 2. Add its entry to `lab.js` (name, emoji, two colours, drop date, tagline,
    blurb, four features, audience, `status: 'testing'`).
-3. `npm test` here runs the host tests and every app's suite.
-4. Commit, push, `gcpdeploy ship challenge`.
+3. Record what it cost to build (see "Build stats" below):
+   `python3 scripts/token-ledger.py --stats <slug> <builder agent.jsonl>`
+   (or `--workflow <dir>` for a workflow build), then add its row to
+   `TOKENS.md`. Both are committed; the lab serves the JSON.
+4. `npm test` here runs the host tests, the build-stats tests and every app's
+   suite.
+5. Commit, push, `gcpdeploy ship challenge`.
 
 ### Ideas from Friction (Erik, 2026-09-25)
 
@@ -144,6 +149,45 @@ and `max-age=15`. Read by the lab's own page (the Leaderboard section), the
 main site's `/api/activity` (the home page's banner and "Live now" feed) and
 the `/challenge` teaser's Leaderboard line. `standings()` is exported and
 tested in `test/lab.js`. A daily drop needs no change here.
+
+## Build stats: tokens, agents and time per app (2026-09-26)
+
+Erik asked for "how many tokens input output on the challenge page and also
+how many agents have run and time it's used". The truth source is the builder
+agents' own transcripts; the page never estimates anything itself.
+
+- **`build-stats.json`** (committed, here) — `{updated, apps: {<slug>: {in,
+  cached, out, agents, agentMs, wallMs, exact, note}}, totals}`. `in` is fresh
+  input + cache writes + cache reads; `cached` is the cache reads alone (null
+  when an estimate has no split); `agentMs` sums each agent's active span (last
+  minus first timestamp in its transcript); `wallMs` is first to last across
+  the agents (shorter than `agentMs` for a workflow, whose agents overlap).
+  **Apps only**: totals are the sum of the app rows, nothing else. If the lab's
+  own setup or other non-app work is ever counted, it goes in as a clearly
+  labelled row, not folded into an app.
+- **Written only by `scripts/token-ledger.py --stats`**, idempotent (re-running
+  a slug replaces its row and recomputes totals):
+  - one agent: `python3 scripts/token-ledger.py --stats <slug> <agent.jsonl> --note "One builder agent."`
+  - a workflow: `python3 scripts/token-ledger.py --stats <slug> --workflow <dir> --note "..."`
+    (counts every `agent-*.jsonl` in it; `journal.jsonl` is not an agent)
+  - no transcript: `--estimate --in 30e6 --out 200e3 --agents 1 --agent-min 45 --note "..."`,
+    which marks the row `exact: false`; the page labels it "est.".
+  `--dry-run` prints the row without writing. Builder transcripts are under
+  `~/.claude/projects/<project>/<session>/subagents/` in the session that ran
+  them, so the ledger has to run in that session, before it ends.
+- **Served** on `GET /api/lab`: `build` on each app that has a row, and
+  `buildTotals` (the sums, `apps`, `estimated`, `cachedShare` over the rows
+  that know their split, `updated`). Read once at startup; missing or
+  malformed, the fields are simply absent. `readBuildStats()` cleans every
+  row (whole non-negative counts, `exact` only when `true`, no `<>` in notes).
+  Tests: `test/build-stats.js`, which also runs the ledger on a fixture.
+- **Drawn** on the lab page as "How it's built" (tokens in, tokens out,
+  agents run, agent time, apps shipped, and one plain line on why most input
+  is cached) plus a "Build" line on each card; and on the main site's
+  `/challenge` teaser as one "Built so far" line in held space. Numbers count
+  up once, only without reduced motion.
+- Spar and Snapquote were built in a session whose transcripts are gone: they
+  are estimates at the midpoint of TOKENS.md's range, 45 minutes each.
 
 ## The teaser on the main site
 
