@@ -158,6 +158,60 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
   .built-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 }
 
+/* The crowd reveal: hidden until you vote, then the split grows in */
+.rv { margin-top: 10px; }
+.locked { margin: 0; font-size: 14px; font-weight: 600; color: var(--muted); padding: 9px 12px; border-radius: 12px; border: 1px dashed var(--line); text-align: center; }
+.reveal { font-size: 15px; }
+.rv-line { font-weight: 600; color: var(--muted); display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+.rv-line b { color: var(--ink); font-family: "Space Grotesk", sans-serif; font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.reveal.thin .rv-line { display: block; }
+.reveal.thin .rv-line b { font-family: inherit; font-size: inherit; letter-spacing: 0; }
+.prog-line a { white-space: nowrap; }
+.unlocked { margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); animation: pop .7s cubic-bezier(.2,.8,.2,1.4); }
+.unlocked a { color: inherit; }
+.rv-side { color: var(--ink); font-weight: 700; }
+.tag { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: var(--chip); color: var(--ink); align-self: center; }
+.tag.contra { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.split { display: flex; height: 12px; gap: 3px; margin-top: 8px; border-radius: 99px; overflow: hidden; }
+.split i { display: block; height: 100%; width: var(--w); min-width: 0; transition: width .9s cubic-bezier(.2,.8,.2,1); }
+.split .k { background: linear-gradient(90deg, var(--accent3), var(--keep)); border-radius: 99px 0 0 99px; }
+.split .x { background: var(--kill); border-radius: 0 99px 99px 0; margin-left: auto; }
+.reveal.pre .split i { width: 0; }
+.is-keep .split .x, .is-kill .split .k { opacity: .45; }
+.split-legend { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.prog-line { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+.prog-line b { color: var(--ink); }
+.prog-line a { color: var(--ink); font-weight: 700; }
+
+/* Your lab: streak, progress, badges */
+.me { margin: 34px 0 0; padding: 20px 22px; border-radius: 26px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); max-width: 820px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px 22px; align-items: center; }
+.me[hidden] { display: none; }
+.me-streak { display: flex; gap: 14px; align-items: center; min-width: 0; }
+.me-streak b { display: block; font-family: "Space Grotesk", sans-serif; font-size: 26px; letter-spacing: -.02em; line-height: 1.1; }
+.me-streak p { margin: 4px 0 0; color: var(--muted); font-size: 14px; font-weight: 600; }
+.me-streak p a { color: var(--ink); }
+.me-streak p b { display: inline; font-family: inherit; font-size: inherit; letter-spacing: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.flame { flex: none; width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; font-size: 30px; background: var(--chip); filter: grayscale(1); opacity: .6; }
+.flame.lit { filter: none; opacity: 1; background: linear-gradient(135deg, color-mix(in srgb, var(--accent3) 30%, transparent), color-mix(in srgb, var(--keep) 30%, transparent)); animation: flicker 2.6s ease-in-out infinite; }
+@keyframes flicker { 50% { transform: scale(1.06) rotate(-3deg); } }
+.mp-top { display: flex; align-items: baseline; gap: 8px; }
+.mp-top b { font-family: "Space Grotesk", sans-serif; font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.mp-top span { font-size: 14px; font-weight: 600; color: var(--muted); }
+.mp-bar { height: 10px; border-radius: 99px; background: var(--chip); overflow: hidden; margin-top: 8px; }
+.mp-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.me-badges { grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 14px; }
+.mb-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+.me-badges ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.bdg button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 7px 12px 7px 9px; border-radius: 12px; border: 1px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.bdg .bi { font-size: 18px; filter: grayscale(1); opacity: .55; }
+.bdg.got button { border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--ink); }
+.bdg.got .bi { filter: none; opacity: 1; }
+.bdg.new button { animation: pop .7s cubic-bezier(.2,.8,.2,1.4) 2; }
+@keyframes pop { 40% { transform: scale(1.14) rotate(-3deg); } }
+@media (max-width: 640px) {
+  .me { grid-template-columns: 1fr; padding: 18px; }
+}
+
 /* how */
 /* Keep or kill standings */
 .standings { padding: 40px 0 0; max-width: 820px; }
@@ -176,6 +230,8 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
 .board .bar i { display: block; height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--keep); }
 .board .s { text-align: right; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .board .s b { display: block; font-size: 17px; color: var(--ink); }
+.board .s b.dim { font-size: 14px; color: var(--muted); }
+.board .bar.hid { background: repeating-linear-gradient(90deg, var(--chip) 0 6px, transparent 6px 10px); }
 .board-note { margin: 12px 2px 0; color: var(--muted); font-size: 14px; }
 
 .how { padding: 50px 0 30px; }

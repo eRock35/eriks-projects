@@ -66,9 +66,17 @@ from `main`.
    `python3 scripts/token-ledger.py --stats <slug> <builder agent.jsonl>`
    (or `--workflow <dir>` for a workflow build), then add its row to
    `TOKENS.md`. Both are committed; the lab serves the JSON.
-4. `npm test` here runs the host tests, the build-stats tests and every app's
-   suite.
-5. Commit, push, `gcpdeploy ship challenge`.
+4. Draw its link preview: `npm run og` (here, in `challenge/`; `npm install`
+   first so the devDependencies are there). It writes `public/og/<slug>.png`,
+   redraws `public/og/lab.png` (the app count and the newest nine tiles
+   change every drop), writes the `<!-- lab:og -->` tags into the new app's
+   `public/index.html` and the landing's, and updates `og-manifest.json`.
+   Look at the new PNG before committing it. Commit all of it. See "Link
+   previews" below.
+5. `npm test` here runs the host tests, the build-stats tests, the
+   engagement and link-preview tests and every app's suite. `test/og.js`
+   **fails if step 4 was skipped** or `lab.js` changed after it.
+6. Commit, push, `gcpdeploy ship challenge`.
 
 ### Ideas from Friction (Erik, 2026-09-25)
 
@@ -132,8 +140,9 @@ on the kept one, or pick a new job the holiday creates.
 💀 Kill, a private "tell Erik" note, a mystery card with a countdown to the
 next drop (09:00 UTC daily, matching the routine), and "how the lab
 works". Votes are one per browser (an opaque `lab_vid` cookie; no IP, no user
-agent), changeable and withdrawable. Notes are stored in `lab_notes` and
-**never displayed** — nothing to moderate, nothing to deface. Read them in
+agent), changeable and withdrawable. A card shows how many voted but not
+which way until this browser has voted on it (see "Crowd reveal" below).
+Notes are stored in `lab_notes` and **never displayed** — nothing to moderate, nothing to deface. Read them in
 Firestore.
 
 ## The leaderboard
@@ -209,10 +218,125 @@ input and an estimated output with `--estimate ... --note`, as Tally's row does.
 When Erik picks a keeper:
 1. `git mv challenge/apps/<slug> apps/<slug>` and give it a normal `apps.json`
    entry; drop its `lab.js` status to `graduated` with `home:` its new URL.
+   Its `index.html` still carries the lab's `<!-- lab:og -->` block, pointing
+   at `challenge.…/og/<slug>.png` and `og:url` on the lab: rewrite it for the
+   new address (the PNG can move with it), then `npm run og` here to redraw
+   the landing card without it.
 2. Erik runs `scripts/new-app-accounts.sh <slug>` in Cloud Shell.
 3. `gcpdeploy create <slug> --env PASSKEY_RP_ID=strongtechnicalconsulting.com --domain <slug>.strongtechnicalconsulting.com`.
 4. Copy its `<slug>_*` collections from `challenge` into its own database
    without the prefix, if its trial data is worth keeping.
+
+## Crowd reveal, voting streaks and badges (2026-09-26)
+
+Erik asked for features that "draw users in, feature rich, and make it fun".
+No model call in any of it, and nothing scheduled: all of it is worked out
+inside the request.
+
+**The crowd reveal.** Before this browser votes on an app, `/api/lab` sends
+`votes: {total}` and `split: null` for it: how many voted, never which way,
+so the crowd cannot steer the first tap. After a vote, and only with
+`MIN_SPLIT` (5) votes behind it, `split: {keep, kill, keepPct}`; the card
+grows the bar in and counts up "You sided with 71% (Keep)", tags a side
+under 35% "Contrarian" and 80%+ "With the crowd", and says "You've voted on 6
+of 9 drops · Next: Booth →" (the newest drop you have not voted on). Under 5
+it says so ("Only 3 votes so far — the split shows at 5"). Withdrawing hides
+it again. `reveal()` is the one rule; the vote route answers with it.
+
+- **The public leaderboard is unchanged** — it still carries `keepPct`,
+  because the main site's banner, "Live now" feed and `/challenge` teaser
+  read it. That makes the reveal a nudge, not a secret: anyone can read the
+  numbers there. The lab's own Leaderboard section draws the rank for every
+  app but the % and bar only for apps this browser has voted on with 5+
+  votes ("🔒 Vote to see", "Split at 5" otherwise).
+
+**The streak.** Consecutive **drop days** on which this browser voted on
+that day's drop *while it was the newest*. "Newest" comes from the registry
+the running instance was deployed with, not the clock: a drop is today's
+from the deploy that ships it to the deploy that ships the next, in every
+time zone. So a vote on an older drop is a vote but not a streak day,
+yesterday's drop cannot be voted on today to backfill a miss, and a day the
+routine missed is not a drop day at all, so it neither counts nor breaks
+anyone's streak. A streak is `pending` (alive) until the next drop lands
+without a vote; missing one drop day resets it. `streakOf()` does the sums.
+
+- **Stored** in `lab_streaks/<lab_vid>`: `{days: [drop dates credited],
+  earned: [badge ids]}` — array-unioned (`store.merge`, `arrayUnion`), so two
+  votes at once cannot drop a day, and written only when something is new
+  (most votes write nothing there). No time, no IP, no device. The streak
+  is computed on read from `days` against `dropDays()`.
+- **Badges** (`BADGES`): First vote; 3-day and 7-day streak (from the best
+  run, so they stay once earned); Full week (a vote on every drop dropped in
+  the seven days ending at the newest drop — at least two of them; the vote
+  route reads only those `lab_voters` docs, never every drop the lab has
+  had); Contrarian (sided with under 35% of 5+ votes at the moment you
+  voted). Earned badges stay when the vote is withdrawn. Only the known set
+  is ever returned, whatever a record holds. The vote route returns
+  `newBadges` and the card says "Badge unlocked" under the reveal — not a
+  toast, which sat on top of the split on a phone.
+- `/api/lab` adds `me: {streak, best, pending, voted, of, today, badges}` for
+  a request that carries (or is minted) a `lab_vid`; the main site's
+  cross-origin read carries no cookie and gets no `me`. The page draws it as
+  the strip under the hero: streak and what to do next ("Vote on today's
+  drop, Tally, to make it 4 →"), N of M drops voted, and all five badges,
+  locked ones greyed with their hint on tap.
+- **Per browser, not per account.** The lab's own page has no sign-in: the
+  shared account is mounted inside each app (`/<slug>/api/auth`), not by the
+  host, so a streak cannot follow someone to another device. Doing that would
+  mean the host reading the identity session (and `identity-session-secret`,
+  which `challenge-run@` already holds) and folding the `lab_vid` record into
+  a uid-keyed one on sign-in — the football app's `adoptAnon` shape. Not done.
+
+Tests: `test/engage.js` (reveal hidden before a vote and under 5, shown at
+5; the streak across simulated drop deploys, a missed day resetting it, no
+backfill, the day with no drop; every badge; what is stored; hostile input).
+
+## Link previews: og:image cards (2026-09-26)
+
+The daily LinkedIn and Typefully posts link to the lab and to each app, and
+those links unfolded into nothing. Now every live app and the landing page
+carry `og:*` and `twitter:*` (`summary_large_image`) tags with **absolute**
+`https://challenge.strongtechnicalconsulting.com/...` URLs, and a 1200x630
+card each.
+
+- **Static, drawn at build time** by `scripts/og.js` (`npm run og`), not in
+  the runtime image. It uses the football app's renderer (`@resvg/resvg-js`
+  2.6.2, SVG -> PNG) with its Inter TTFs copied to `scripts/fonts/` (SIL OFL,
+  licence beside them). Both it and the emoji set are **devDependencies**,
+  and the Dockerfile installs `--omit=dev`; `.dockerignore` leaves out
+  `scripts/` and `og-manifest.json`. A card only changes when `lab.js` does,
+  which only changes with a deploy, so a live renderer would buy nothing but
+  a native binary in the image. The live keep % is deliberately not on the
+  card: unfurlers cache for days, so it would be wrong by the time it was
+  seen.
+- **The emoji.** Inter's Latin subset has none, and resvg does not draw a
+  colour emoji font (tried: NotoColorEmoji draws blank). Each emoji is drawn
+  from Noto Emoji's own SVGs (`@iconify-json/noto`, Apache-2.0), looked up by
+  code point, ids prefixed so two emoji on one card cannot share a gradient.
+  An emoji the set lacks becomes the app's initial on a white tile. The card
+  is the app's two colours, darkened only as far as white text needs for
+  4.5:1 (Spar's orange and Snapquote's teal needed it; the test checks every
+  app), its name, tagline, drop number and address.
+- **The landing card** (`public/og/lab.png`) shows how many apps have
+  shipped and the newest nine as tiles, the newest ringed "NEW", so it is
+  redrawn by every drop.
+- **Tags** live between `<!-- lab:og ... -->` and `<!-- /lab:og -->` in
+  `public/index.html` and each `apps/<slug>/public/index.html`, written by the
+  script (never by hand), just before `</head>`. Every value is escaped.
+  `og:image` carries `?v=<first 10 hex of the PNG's sha256>`, so a redrawn
+  card is a new URL and LinkedIn's cache cannot serve the old one. Served
+  from `public/og/` by the host's static handler, so no app may be called
+  `og` (tested).
+- **`og-manifest.json`** records, per card, a hash of the `lab.js` fields it
+  was drawn from and the PNG's version. `test/og.js` recomputes both and
+  compares every tag block byte for byte, so a new app without a card, an
+  edited tagline without a redraw, or a hand-edited tag fails `npm test`.
+  `npm run og -- --check` says what is stale without writing;
+  `npm run og -- --redraw` redraws every card (after changing the drawing
+  code, which the input hash does not cover).
+- Unfurlers read the landing's and the apps' own HTML. An app's share pages
+  (Booth's `s/<token>`) reuse its `index.html`, so they show the app's card —
+  never the shared record.
 
 ## Deploy
 

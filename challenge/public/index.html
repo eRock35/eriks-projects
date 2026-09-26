@@ -12,6 +12,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/lab.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="The Challenge Lab — a new app every day">
+  <meta property="og:description" content="9 apps so far, each trying to fix a real business headache in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=76cd60f6cc">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Challenge Lab: a new app every day. 9 apps shipped so far.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Challenge Lab — a new app every day">
+  <meta name="twitter:description" content="9 apps so far, each trying to fix a real business headache in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=76cd60f6cc">
+  <meta name="twitter:image:alt" content="The Challenge Lab: a new app every day. 9 apps shipped so far.">
+  <!-- /lab:og -->
 </head>
 <body>
   <div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -34,6 +51,15 @@
       <a class="cta" href="#drops">See the drops ↓</a>
     </section>
 
+    <!-- This browser's streak, progress and badges, from /api/lab's `me`.
+         Hidden until it answers, drawn in the same pass as the cards. -->
+    <section class="me" id="me" aria-labelledby="meTitle" hidden>
+      <h2 id="meTitle" class="sr">Your lab</h2>
+      <div class="me-streak" id="meStreak"></div>
+      <div class="me-prog" id="meProg"></div>
+      <div class="me-badges"><div class="mb-head"><span>Badges</span><span id="meBadgeCount"></span></div><ul id="meBadges"></ul></div>
+    </section>
+
     <!-- What the drops cost to build, from /api/lab's buildTotals. Hidden
          until it answers; it appears in the same draw as the cards below
          (still empty until then), so nothing already on screen moves. -->
@@ -50,7 +76,7 @@
     <section class="standings" id="standings" aria-labelledby="standingsTitle" hidden>
       <div class="standings-head"><h2 id="standingsTitle">Leaderboard</h2><span id="standingsLead"></span></div>
       <ol class="board" id="board"></ol>
-      <p class="board-note">Ranked by how sure the keep share is, not the raw percentage: one keep is not 100% of anything yet.</p>
+      <p class="board-note">Ranked by how sure the keep share is, not the raw percentage: one keep is not 100% of anything yet. A drop’s split shows once you’ve voted on it.</p>
     </section>
 
     <section class="how">
@@ -58,7 +84,7 @@
       <ol class="steps">
         <li><span class="n">1</span><b>It drops.</b><p>A new app lands here every morning, built around a real problem someone has at work.</p></li>
         <li><span class="n">2</span><b>You play.</b><p>One free account works across every app on the site, with $2 of AI credit to spend however you like.</p></li>
-        <li><span class="n">3</span><b>You vote.</b><p>🔥 Keep it or 💀 kill it. Tell Erik what you’d change. Nothing here is precious yet.</p></li>
+        <li><span class="n">3</span><b>You vote.</b><p>🔥 Keep it or 💀 kill it, then see how the crowd split. Vote on each new drop to keep a streak going. Tell Erik what you’d change.</p></li>
         <li><span class="n">4</span><b>Winners graduate.</b><p>The ones people love get their own address, a proper launch and maybe an iPhone app.</p></li>
       </ol>
     </section>

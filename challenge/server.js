@@ -71,6 +71,11 @@ const store = (() => {
       async set(c, id, v) { m.set(`${c}/${id}`, v); },
       async bump(c, id, d) { const cur = m.get(`${c}/${id}`) || {}; for (const [k, v] of Object.entries(d)) cur[k] = (cur[k] || 0) + v; m.set(`${c}/${id}`, cur); },
       async add(c, v) { m.set(`${c}/${Date.now()}${Math.random()}`, v); },
+      async merge(c, id, unions) {
+        const cur = { ...(m.get(`${c}/${id}`) || {}) };
+        for (const [k, vals] of Object.entries(unions)) cur[k] = [...new Set([...(Array.isArray(cur[k]) ? cur[k] : []), ...vals])];
+        m.set(`${c}/${id}`, cur);
+      },
     };
   }
   const { Firestore, FieldValue } = require('@google-cloud/firestore');
@@ -88,6 +93,12 @@ const store = (() => {
       await db.collection(c).doc(id).set(patch, { merge: true });
     },
     async add(c, v) { await db.collection(c).add(v); },
+    // Set-union into array fields, so two votes at once cannot drop a day.
+    async merge(c, id, unions) {
+      const patch = {};
+      for (const [k, vals] of Object.entries(unions)) if (vals.length) patch[k] = FieldValue.arrayUnion(...vals);
+      if (Object.keys(patch).length) await db.collection(c).doc(id).set(patch, { merge: true });
+    },
   };
 })();
 
@@ -150,6 +161,87 @@ const buildStats = (() => {
   }
 })();
 
+/* ---------------- the crowd reveal and the voting streak ---------------- */
+
+// A split is shown only to someone who has voted on that app, and only with
+// MIN_SPLIT votes behind it. Before the first tap the page says how many
+// voted, never which way: the crowd must not steer the first vote. (The
+// public leaderboard still carries keep %: the main site's banner reads it.
+// The lab's own page draws it only for apps this browser has voted on.)
+const MIN_SPLIT = 5;
+/** Pure: a tally and this visitor's vote -> {votes: {total}, split|null}. */
+function reveal(tally, myVote) {
+  const t = tally || {};
+  const keep = Math.max(0, Math.floor(Number(t.keep) || 0));
+  const kill = Math.max(0, Math.floor(Number(t.kill) || 0));
+  const total = keep + kill;
+  const split = (myVote === 'keep' || myVote === 'kill') && total >= MIN_SPLIT
+    ? { keep, kill, keepPct: Math.round((keep / total) * 100) }
+    : null;
+  return { votes: { total }, split, splitAt: MIN_SPLIT };
+}
+
+// The streak: consecutive DROP days on which this browser voted on that
+// day's drop while it was the newest one. "Newest" is read from the
+// registry this instance is running, not the clock: a drop is today's from
+// the deploy that ships it until the deploy that ships the next, whatever
+// time zone the voter is in. A day with no drop (a missed routine) is not a
+// drop day, so it neither counts nor breaks a streak. Stored per lab_vid in
+// lab_streaks/<vid> as {days: [drop dates], earned: [badge ids]} - dates of
+// drops, never a time, an IP or anything about the device. Computed inside
+// the request, nothing scheduled.
+const BADGES = [
+  { id: 'first', label: 'First vote', hint: 'Vote keep or kill on any drop.' },
+  { id: 'streak3', label: '3-day streak', hint: 'Vote on the new drop three drop days running.' },
+  { id: 'streak7', label: '7-day streak', hint: 'Vote on the new drop seven drop days running.' },
+  { id: 'fullweek', label: 'Full week', hint: 'Vote on every drop from the past seven days.' },
+  { id: 'contrarian', label: 'Contrarian', hint: 'Side with under 35% of at least 5 votes.' },
+];
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Pure: every drop date in the registry, newest first. */
+function dropDays(apps) {
+  return [...new Set(apps.map((a) => a.dropped).filter((d) => DAY_RE.test(d || '')))].sort().reverse();
+}
+/** Pure: the drops of the seven days ending at the newest drop date. */
+function weekDrops(apps) {
+  const [newest] = dropDays(apps);
+  if (!newest) return [];
+  const from = new Date(Date.parse(`${newest}T00:00:00Z`) - 6 * 864e5).toISOString().slice(0, 10);
+  return apps.filter((a) => a.status !== 'retired' && a.dropped >= from && a.dropped <= newest);
+}
+/** Pure: credited drop dates + the registry -> {current, best, pending}. */
+function streakOf(days, apps) {
+  const D = dropDays(apps);
+  const S = new Set((Array.isArray(days) ? days : []).filter((d) => typeof d === 'string'));
+  if (!D.length) return { current: 0, best: 0, pending: false };
+  // Not yet voted on today's drop: yesterday's streak is still alive.
+  const pending = !S.has(D[0]);
+  let current = 0;
+  for (let i = pending ? 1 : 0; i < D.length && S.has(D[i]); i++) current++;
+  let best = 0, run = 0;
+  for (const d of [...D].reverse()) { run = S.has(d) ? run + 1 : 0; best = Math.max(best, run); }
+  // pending: a streak is alive and waits on today's vote.
+  return { current, best, pending: pending && current > 0 };
+}
+/** Pure: the stored record, the registry and this browser's votes -> `me`. */
+function progress(rec, apps, myVotes) {
+  const r = rec || {};
+  const st = streakOf(r.days, apps);
+  const earned = new Set(Array.isArray(r.earned) ? r.earned : []);
+  const week = weekDrops(apps);
+  if (st.best >= 3) earned.add('streak3');
+  if (st.best >= 7) earned.add('streak7');
+  if (week.length >= 2 && week.every((a) => myVotes[a.slug])) earned.add('fullweek');
+  const open = apps.filter((a) => a.status !== 'retired');
+  const [newest] = dropDays(apps);
+  return {
+    streak: st.current, best: st.best, pending: st.pending,
+    voted: open.filter((a) => myVotes[a.slug]).length, of: open.length,
+    today: apps.filter((a) => a.dropped === newest && a.status === 'testing').map((a) => a.slug),
+    badges: BADGES.map((b) => ({ ...b, earned: earned.has(b.id) })),
+  };
+}
+
 const lj = express.json({ limit: '8kb' });
 
 host.get('/api/health', (_req, res) => res.json({ ok: true, apps: mounted }));
@@ -172,17 +264,25 @@ host.get('/api/lab', async (req, res) => {
     // another: the list grows by an app a day.
     const sameOrigin = !origin || req.get('sec-fetch-site') === 'same-origin';
     const vid = sameOrigin ? visitor(req, res) : visitorId(req);
-    const apps = await Promise.all(lab.APPS.map(async (a) => {
-      const [tally, mine] = await Promise.all([
-        store.get('lab_votes', a.slug),
-        vid ? store.get('lab_voters', `${a.slug}:${vid}`) : null,
-      ]);
-      const t = tally || {};
-      const build = buildStats && buildStats.apps[a.slug];
-      return { ...a, live: mounted.includes(a.slug), votes: { keep: t.keep || 0, kill: t.kill || 0 }, myVote: mine ? mine.v : null, ...(build ? { build } : {}) };
-    }));
+    const [apps, rec] = await Promise.all([
+      Promise.all(lab.APPS.map(async (a) => {
+        const [tally, mine] = await Promise.all([
+          store.get('lab_votes', a.slug),
+          vid ? store.get('lab_voters', `${a.slug}:${vid}`) : null,
+        ]);
+        const myVote = mine && (mine.v === 'keep' || mine.v === 'kill') ? mine.v : null;
+        const build = buildStats && buildStats.apps[a.slug];
+        return { ...a, live: mounted.includes(a.slug), ...reveal(tally, myVote), myVote, ...(build ? { build } : {}) };
+      })),
+      vid ? store.get('lab_streaks', vid) : null,
+    ]);
+    const myVotes = Object.fromEntries(apps.map((a) => [a.slug, a.myVote]));
     res.set('Cache-Control', 'no-store');
-    res.json({ apps, now: new Date().toISOString(), ...(buildStats ? { buildTotals: { ...buildStats.totals, updated: buildStats.updated } } : {}) });
+    res.json({
+      apps, now: new Date().toISOString(),
+      ...(vid ? { me: progress(rec, lab.APPS, myVotes) } : {}),
+      ...(buildStats ? { buildTotals: { ...buildStats.totals, updated: buildStats.updated } } : {}),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not load the lab.' });
@@ -274,8 +374,37 @@ host.post('/api/lab/:slug/vote', lj, async (req, res) => {
     if (v) d[v] = (d[v] || 0) + 1;
     if (Object.keys(d).length) { await store.bump('lab_votes', a.slug, d); boardCache = { at: 0, body: null }; }
     await store.set('lab_voters', key, { v, at: new Date().toISOString() });
-    const tally = (await store.get('lab_votes', a.slug)) || {};
-    res.json({ votes: { keep: Math.max(0, tally.keep || 0), kill: Math.max(0, tally.kill || 0) }, myVote: v });
+    const [tally, before] = await Promise.all([store.get('lab_votes', a.slug), store.get('lab_streaks', vid)]);
+    const shown = reveal(tally, v);
+    // This browser's other votes, for the badges: only this week's drops are
+    // read (a handful), not every drop the lab has ever had.
+    const week = weekDrops(lab.APPS);
+    const myVotes = { [a.slug]: v };
+    await Promise.all(week.filter((w) => w.slug !== a.slug).map(async (w) => {
+      const m = await store.get('lab_voters', `${w.slug}:${vid}`);
+      myVotes[w.slug] = m && (m.v === 'keep' || m.v === 'kill') ? m.v : null;
+    }));
+    const was = progress(before, lab.APPS, { ...myVotes, [a.slug]: prev && (prev.v === 'keep' || prev.v === 'kill') ? prev.v : null });
+    const add = { days: [], earned: [] };
+    if (v) {
+      add.earned.push('first');
+      if (a.dropped === dropDays(lab.APPS)[0]) add.days.push(a.dropped);
+      if (shown.split && (v === 'keep' ? shown.split.keepPct : 100 - shown.split.keepPct) < 35) add.earned.push('contrarian');
+      if (week.length >= 2 && week.every((w) => myVotes[w.slug])) add.earned.push('fullweek');
+    }
+    const r = before || {};
+    const rec = {
+      days: [...new Set([...(Array.isArray(r.days) ? r.days : []), ...add.days])],
+      earned: [...new Set([...(Array.isArray(r.earned) ? r.earned : []), ...add.earned])],
+    };
+    if (add.days.some((d) => !(r.days || []).includes(d)) || add.earned.some((e) => !(r.earned || []).includes(e))) {
+      await store.merge('lab_streaks', vid, add);
+    }
+    const me = progress(rec, lab.APPS, myVotes);
+    const had = new Set(was.badges.filter((b) => b.earned).map((b) => b.id));
+    // voted/of counted over this week only here; the page counts every drop itself.
+    delete me.voted; delete me.of;
+    res.json({ ...shown, myVote: v, me, newBadges: me.badges.filter((b) => b.earned && !had.has(b.id)).map((b) => b.id) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not record that.' });
@@ -311,4 +440,4 @@ if (require.main === module) {
   host.listen(PORT, () => console.log(`[lab] listening on ${PORT}${MEMORY ? ' (memory)' : ''}`));
 }
 
-module.exports = { host, mounted, standings, readBuildStats };
+module.exports = { host, mounted, store, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };

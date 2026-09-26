@@ -1,0 +1,45 @@
+{
+  "note": "Written by scripts/og.js. inputs = hash of the lab.js fields a card is drawn from; v = hash of the PNG (its ?v=).",
+  "cards": {
+    "spar": {
+      "inputs": "2bbf71a7c71d1b71",
+      "v": "cf630fc934"
+    },
+    "snapquote": {
+      "inputs": "3374d6c3da708e78",
+      "v": "867d314b98"
+    },
+    "chaser": {
+      "inputs": "6601f86192ed5583",
+      "v": "a1940bf38c"
+    },
+    "rave": {
+      "inputs": "ae1ed6d9eeeaff9b",
+      "v": "04f15d1680"
+    },
+    "popquiz": {
+      "inputs": "9836271789068aeb",
+      "v": "df9bf57869"
+    },
+    "glowup": {
+      "inputs": "9a1353b3e45f6c42",
+      "v": "4bbb082e53"
+    },
+    "booth": {
+      "inputs": "6db31537856c796b",
+      "v": "c111e4a9d1"
+    },
+    "receipt": {
+      "inputs": "ef375d9f897266bf",
+      "v": "801d6dffe2"
+    },
+    "tally": {
+      "inputs": "f0772c6f4f966e3a",
+      "v": "8d996995a4"
+    },
+    "lab": {
+      "inputs": "f7d58fdc339df055",
+      "v": "76cd60f6cc"
+    }
+  }
+}

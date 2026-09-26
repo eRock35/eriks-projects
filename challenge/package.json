@@ -6,10 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "dev": "LAB_MEMORY=1 PORT=8095 node server.js",
-    "test": "node test/lab.js && node test/build-stats.js && for d in apps/*/; do (cd \"$d\" && npm test) || exit 1; done"
+    "og": "node scripts/og.js",
+    "test": "node test/lab.js && node test/build-stats.js && node test/engage.js && node test/og.js && for d in apps/*/; do (cd \"$d\" && npm test) || exit 1; done"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.10.0",
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@iconify-json/noto": "^1.2.9",
+    "@resvg/resvg-js": "2.6.2"
   }
 }
