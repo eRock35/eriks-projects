@@ -45,3 +45,17 @@ Visitors' AI use in the lab this week: 4 calls (Spar 3, Snapquote 1), about
 7K in / 2K out, $0.04.
 
 Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
+
+## Week 2 (2026-09-26 to 2026-10-02)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Tally | one builder agent | 33.1M | 32.6M | ~210K | 1 | 36 min | in exact; out estimated |
+
+Tally's transcript records only the start of each streamed reply's output
+(about 5K in total), a logging change since week 1's builds, so its output is
+estimated from comparable single-agent builds (197K–221K). **If a future
+transcript's output comes out under ~20K for a whole build, treat it the same
+way**: keep the exact input, estimate the output, and label it.
+
+Visitors' AI use in the lab on 2026-09-26: none.

@@ -81,17 +81,27 @@
       "wallMs": 9220824,
       "exact": true,
       "note": "Workflow: 5 pitches, 3 judges, a builder, 4 reviewers, 111 skeptic checks and a fixer. Agents overlap, so wall time is shorter than agent time."
+    },
+    "tally": {
+      "in": 33121068,
+      "cached": 32648521,
+      "out": 210000,
+      "agents": 1,
+      "agentMs": 2160000,
+      "wallMs": 2160000,
+      "exact": false,
+      "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~5K)."
     }
   },
   "totals": {
-    "in": 393122130,
-    "cached": 320106990,
-    "out": 2353623,
-    "agents": 137,
-    "agentMs": 29104934,
-    "wallMs": 26248638,
-    "apps": 8,
-    "estimated": 2,
-    "cachedShare": 0.9609
+    "in": 426243198,
+    "cached": 352755511,
+    "out": 2563623,
+    "agents": 138,
+    "agentMs": 31264934,
+    "wallMs": 28408638,
+    "apps": 9,
+    "estimated": 3,
+    "cachedShare": 0.9632
   }
 }

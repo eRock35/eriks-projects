@@ -1,0 +1,10 @@
+{
+  "name": "Tally",
+  "short_name": "Tally",
+  "description": "Close the day in a minute. Know every card sale got paid.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1411",
+  "theme_color": "#0d1411",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -199,6 +199,11 @@ It reads `/api/lab` live, so a daily drop needs no change there; its
 "how it works" stay here. Erik asked for it that way on 2026-09-24 because
 the two pages were showing the same thing twice.
 
+**Transcripts can under-report output** (found 2026-09-26): newer builder
+transcripts record only the start of each streamed reply, so a whole build can
+read ~5K tokens out. If a ledger run shows under ~20K out, record the exact
+input and an estimated output with `--estimate ... --note`, as Tally's row does.
+
 ## Graduating an app
 
 When Erik picks a keeper:

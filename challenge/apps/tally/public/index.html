@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tally — close the day, know every card sale got paid</title>
+  <meta name="description" content="For cafés, shops, salons and restaurants: type or snap the day's card totals, paste your bank's CSV, and Tally matches every day to its deposit — matched, short, pending or missing, in plain words. No bank login, ever.">
+  <meta name="theme-color" content="#0d1411" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tally">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body class="dk">
+  <header class="top" id="top">
+    <a class="brand" href="#/"><span class="mark" aria-hidden="true">🧮</span>Tally</a>
+    <div class="row" id="topRight"></div>
+  </header>
+
+  <main class="wrap" id="view"></main>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Main">
+    <a class="brand rail-brand" href="#/"><span class="mark" aria-hidden="true">🧮</span>Tally</a>
+    <button data-tab="books"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M8 15l2 2 4-4"/></svg><span>Books</span></button>
+    <button data-tab="close" class="tab-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Close the day</span></button>
+    <button data-tab="deposits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/></svg><span>Deposits</span></button>
+    <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg><span>Settings</span></button>
+  </nav>
+
+  <script src="rules.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

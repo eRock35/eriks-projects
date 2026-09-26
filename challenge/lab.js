@@ -123,6 +123,22 @@ const APPS = [
     audience: 'Team leads, founders, PMs & anyone who books the weekly sync',
     status: 'testing',
   },
+  {
+    slug: 'tally',
+    name: 'Tally',
+    emoji: '🧮',
+    // Ledger green to copper. White text holds 10:1 or better at both ends
+    // and 5.0:1 at the worst spot, the midpoint under the card's white
+    // highlight.
+    color: '#0e4526',
+    color2: '#72290c',
+    dropped: '2026-09-26',
+    tagline: 'Close the day in a minute. Know every card sale got paid.',
+    blurb: 'For cafés, shops, salons and restaurants. Type or snap the day’s card totals, drop in your bank’s CSV, and Tally matches every day to its deposit: matched, short, pending or missing, in plain words. A short payout, a lost batch or fee creep can’t slip by.',
+    features: ['Close the day in 4 numbers, or snap it', 'Bank CSV in, card payouts picked out', 'Matched · short · pending · missing', 'Month heatmap, fee creep & export'],
+    audience: 'Cafés, shops, salons & restaurants that take cards',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
