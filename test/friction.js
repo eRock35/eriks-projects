@@ -177,6 +177,40 @@ const get = (p, cookie, accept = 'text/html') => fetch(B + p, { headers: cookie 
   ok('the board page has the pulse strip and Spiking section', /id="pulseStrip"/.test(page) && /id="spiking"/.test(page));
   ok('it stops polling while hidden', /visibilitychange/.test(page) && /stopPulse/.test(page));
 
+  // ---- who pays for a scan (2026-09-27) ----
+  // requireBudget now refuses a request with no shared account, so the
+  // scheduler's key and the app password are let through before it, on
+  // purpose, and a shared account is metered with the daily cap as well.
+  const scanMod = require('../apps/friction/lib/scan.js');
+  const origRun = scanMod.runScan;
+  let scans = 0;
+  scanMod.runScan = async () => { scans++; return { ok: true }; };
+  process.env.CRON_SECRET = 'friction-cron-key-123456';
+  const scanPost = (headers) => fetch(B + '/api/cron/scan', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: '{}' });
+  r = await scanPost({ 'X-Cron-Key': 'friction-cron-key-123456' });
+  ok('the daily scan (cron key) still runs', r.status === 200 && scans === 1, String(r.status));
+  r = await scanPost({ cookie: appCookie });
+  ok('the app password can still start a scan', r.status === 200 && scans === 2, String(r.status));
+  r = await scanPost({});
+  ok('nobody at all cannot', r.status === 401 && scans === 2, String(r.status));
+  users.set('users/' + uid, { ...users.get('users/' + uid), access: { friction: 'member' }, spentUsd: 99 });
+  r = await scanPost({ cookie: plain });
+  ok('a shared account with no credit is stopped by the budget', r.status === 402 && scans === 2, String(r.status));
+  users.set('users/' + uid, { ...users.get('users/' + uid), spentUsd: 0 });
+  r = await scanPost({ cookie: plain });
+  ok('...and one with credit is let through', r.status === 200 && scans === 3, String(r.status));
+  scanMod.runScan = origRun;
+
+  // ---- the app password cannot be guessed at speed (2026-09-27) ----
+  const loginFrom = (ip, password) => fetch(B + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip }, body: JSON.stringify({ password }) });
+  await Promise.all(Array.from({ length: 10 }, () => loginFrom('203.0.113.9', 'wrong-password-x')));
+  r = await loginFrom('203.0.113.9', 'friction-password-1');
+  ok('ten failures from one address stop it for a while', r.status === 429, String(r.status));
+  r = await loginFrom('203.0.113.10', 'friction-password-1');
+  ok('...while another address signs in', r.status === 200, String(r.status));
+  r = await fetch(B + '/api/auth/password/change', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: appCookie }, body: 'current=friction-password-1&next=hijacked-password-1' });
+  ok('the app password cannot be changed by a form from a sibling', r.status === 403, String(r.status));
+
   console.log('\n' + pass + '/' + (pass + fail) + ' assertions passed');
   process.exit(fail ? 1 : 0);
 })();

@@ -114,6 +114,22 @@ const DONE = 'Check your inbox to confirm.';
   for (let i = 0; i < 5; i++) await subscribe({ email: `same-ip-${i}@example.com`, t: later() }, ip);
   r = await subscribe({ email: 'same-ip-6@example.com', t: later() }, ip);
   ok('one IP sending many signups is still limited', r.status === 429);
+  // `trust proxy` is one hop (2026-09-27): the address is the RIGHTMOST
+  // X-Forwarded-For entry, the one Cloud Run's front end appends. Writing a
+  // different address in front of it used to reset the limit every time.
+  r = await subscribe({ email: 'same-ip-7@example.com', t: later() }, `10.9.8.7, ${ip}`);
+  ok('...and a forged address in front of it does not get round the limit', r.status === 429, String(r.status));
+
+  /* ---------- the admin probe route carries no address ---------- */
+  const probe = await realFetch(base + '/api/admin/me');
+  const probeText = await probe.text();
+  ok('/api/admin/me answers signed out', probe.status === 200, String(probe.status));
+  ok('...without the sending address', !(probeText.match(ADDRESS) || []).length && !/"from"/.test(probeText), probeText);
+  const adminCookie = (await realFetch(base + '/api/admin/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: 'admin-password-here-1' }),
+  })).headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+  const asAdmin = await (await realFetch(base + '/api/admin/me', { headers: { cookie: adminCookie } })).json();
+  ok('...while the admin still sees it', asAdmin.signedIn === true && asAdmin.email && asAdmin.email.from === 'Test <news@example.com>', JSON.stringify(asAdmin.email));
 
   // The hourly cap across all addresses: 40 confirmations, then a refusal
   // that sends nothing.

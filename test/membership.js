@@ -159,7 +159,7 @@ async function webhook(event) {
   // would agree with itself either way.
   const uid = Buffer.from('member@example.com').toString('base64url');
   let hook = await webhook({ id: 'evt_1', type: 'checkout.session.completed',
-    data: { object: { mode: 'subscription', customer: 'cus_test_1', subscription: 'sub_test_1',
+    data: { object: { mode: 'subscription', payment_status: 'paid', customer: 'cus_test_1', subscription: 'sub_test_1',
                       metadata: { uid, kind: 'membership' } } } });
   ok('a signed webhook is accepted', hook.status === 200, String(hook.status));
 
@@ -177,7 +177,7 @@ async function webhook(event) {
   // generously is how someone ends up with unlimited spend for $5.
   const proUid = Buffer.from('pro@example.com').toString('base64url');
   await webhook({ id: 'evt_2', type: 'checkout.session.completed',
-    data: { object: { mode: 'subscription', customer: 'cus_test_2', subscription: 'sub_test_2',
+    data: { object: { mode: 'subscription', payment_status: 'paid', customer: 'cus_test_2', subscription: 'sub_test_2',
                       metadata: { uid: proUid, kind: 'pro' } } } });
   const proShared = h.bag('identity').get('users/' + proUid);
   ok('a retired-Pro subscription lands as a member, not as unlimited',
@@ -230,6 +230,48 @@ async function webhook(event) {
 
   // --- an unauthenticated stranger cannot start either ----------------------
   ok('membership checkout needs an account', (await post('/api/auth/billing/membership', {})).status === 401);
+
+  // --- completed is not paid (2026-09-27) -----------------------------------
+  // A delayed payment method completes the session `unpaid`; the money comes
+  // (or does not) days later as its own event.
+  const slowUid = uidOfEmail('slow@example.com');
+  const toppedUp = () => Number((h.bag('identity').get('users/' + slowUid) || {}).toppedUpUsd || 0);
+  const planOfSlow = () => (h.bag('identity').get('users/' + slowUid) || {}).plan;
+  hook = await webhook({ id: 'evt_slow_1', type: 'checkout.session.completed',
+    data: { object: { id: 'cs_slow_1', mode: 'payment', payment_status: 'unpaid',
+                      metadata: { uid: slowUid, kind: 'credit', creditUsd: '10' } } } });
+  ok('an unpaid completed checkout is acknowledged', hook.status === 200, String(hook.status));
+  ok('...and grants no credit', toppedUp() === 0, String(toppedUp()));
+  hook = await webhook({ id: 'evt_slow_2', type: 'checkout.session.async_payment_failed',
+    data: { object: { id: 'cs_slow_1', mode: 'payment', payment_status: 'unpaid',
+                      metadata: { uid: slowUid, kind: 'credit', creditUsd: '10' } } } });
+  ok('a failed delayed payment is acknowledged and grants nothing', hook.status === 200 && toppedUp() === 0, `${hook.status} ${toppedUp()}`);
+  hook = await webhook({ id: 'evt_slow_3', type: 'checkout.session.async_payment_succeeded',
+    data: { object: { id: 'cs_slow_2', mode: 'payment', payment_status: 'paid',
+                      metadata: { uid: slowUid, kind: 'credit', creditUsd: '10' } } } });
+  ok('a delayed payment that succeeds grants the credit', hook.status === 200 && toppedUp() === 10, `${hook.status} ${toppedUp()}`);
+  await webhook({ id: 'evt_slow_4', type: 'checkout.session.completed',
+    data: { object: { mode: 'subscription', payment_status: 'unpaid', customer: 'cus_slow', subscription: 'sub_slow',
+                      metadata: { uid: slowUid, kind: 'membership' } } } });
+  ok('an unpaid membership checkout is not a membership', planOfSlow() !== 'member', String(planOfSlow()));
+  await webhook({ id: 'evt_slow_5', type: 'checkout.session.async_payment_succeeded',
+    data: { object: { mode: 'subscription', payment_status: 'paid', customer: 'cus_slow', subscription: 'sub_slow',
+                      metadata: { uid: slowUid, kind: 'membership' } } } });
+  ok('...until its payment succeeds', planOfSlow() === 'member', String(planOfSlow()));
+
+  // --- one event, applied once, however it arrives (2026-09-27) --------------
+  const dupUid = uidOfEmail('dup@example.com');
+  const dupEvent = { id: 'evt_dup_1', type: 'checkout.session.completed',
+    data: { object: { id: 'cs_dup', mode: 'payment', payment_status: 'paid',
+                      metadata: { uid: dupUid, kind: 'credit', creditUsd: '25' } } } };
+  const hooks = await Promise.all([webhook(dupEvent), webhook(dupEvent), webhook(dupEvent), webhook(dupEvent)]);
+  const dupCredit = Number((h.bag('identity').get('users/' + dupUid) || {}).toppedUpUsd || 0);
+  ok('four simultaneous deliveries of one event grant it once', dupCredit === 25, String(dupCredit));
+  ok('...and none of them is an error Stripe would retry', hooks.every((x) => x.status === 200 || x.status === 409), hooks.map((x) => x.status).join(','));
+  const again = await webhook(dupEvent);
+  ok('a later redelivery is a duplicate', again.status === 200 && (await again.json()).duplicate === true);
+  const marker = h.bag('dataviz').get('billing-events/evt_dup_1');
+  ok('...recorded as applied', marker && marker.state === 'applied' && !!marker.appliedAt, JSON.stringify(marker));
 
   // An unsigned webhook is how someone would grant themselves a plan for free.
   const forged = await fetch(B + '/api/stripe/webhook', {

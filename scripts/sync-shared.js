@@ -35,8 +35,12 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/tally/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/tipout/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/tells/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
-  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js', 'receipts.js', 'statement.js', 'photostore.js']],
-  ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
+  // `webauthn.js:identity-webauthn.js` copies shared/webauthn.js in under
+  // the name identity.js requires there (see RENAME_WEBAUTHN). Those copies
+  // were made by hand and never synced, so a change to the passkey module
+  // could reach every app but the two that renamed it (fixed 2026-09-27).
+  ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js', 'receipts.js', 'statement.js', 'photostore.js', 'webauthn.js:identity-webauthn.js']],
+  ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js', 'webauthn.js:identity-webauthn.js']],
   // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
   // own to collide with, unlike trip-planner and football. It does not take
   // shared/analytics.js - not because of a name collision any more (its own
@@ -96,18 +100,20 @@ let copied = 0;
 let missingSource = [];
 
 for (const [dir, files] of TARGETS) {
-  for (const file of files) {
+  for (const entry of files) {
+    // 'source.js:dest.js' copies a shared file in under another name.
+    const [file, destName = file] = entry.split(':');
     const srcPath = sourceOf(file);
     if (!fs.existsSync(srcPath)) { missingSource.push(file); continue; }
     const destDir = path.join(ROOT, dir);
     if (!fs.existsSync(destDir)) continue;           // repo not checked out here
-    const dest = path.join(destDir, file);
+    const dest = path.join(destDir, destName);
     const want = render(file, dir);
     const have = fs.existsSync(dest) ? fs.readFileSync(dest, 'utf8') : null;
     if (have === want) continue;
-    if (check) { drifted.push(`${dir}/${file}`); continue; }
+    if (check) { drifted.push(`${dir}/${destName}`); continue; }
     fs.writeFileSync(dest, want);
-    console.log(`  updated  ${dir}/${file}`);
+    console.log(`  updated  ${dir}/${destName}`);
     copied++;
   }
 }

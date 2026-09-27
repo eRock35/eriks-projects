@@ -38,6 +38,16 @@ public hostname can redirect to a private one.
 Redirects are followed BY HAND for exactly that reason. Never replace this
 with `redirect: 'follow'`, and never skip the per-hop check.
 
+Since 2026-09-27 (ported from Tells' `linkfetch.js`): IPv6 spellings of an
+IPv4 address - `[::ffff:a9fe:a9fe]` (what the URL parser makes of
+`::ffff:169.254.169.254`), NAT64 `64:ff9b::`, IPv4-compatible `::a.b.c.d`,
+6to4 - are unwrapped and judged as the IPv4 inside, and **the socket is
+pinned to the address that was checked** (a `lookup` hook on
+`http(s).request`), so a DNS answer that changes between the check and the
+connection cannot slip a private address in. That is why the fetch is not
+global `fetch()` any more; do not put it back. `test/dataviz-fetchsafe.js`
+(root suite) holds the literals.
+
 ## Samples cost nothing, and must stay that way
 
 Each sample in `lib/datasets.js` carries a baked `spec` - the column mapping
@@ -56,6 +66,10 @@ nothing only teaches people the free tier is stingy.
 
 ## Cost ceilings
 
+`/api/viz` runs a model only for an account (2026-09-27): the samples with a
+baked spec are open to anyone and never reach the gate, and everything else
+goes through `requireBudget` AND `requireDailyCap` (`vizSpend`), which refuse
+a visitor with no account. Beyond that,
 `/api/viz` is open to the public and costs Anthropic tokens on every call, so
 `lib/quota.js` enforces a per-visitor cap, a higher per-user cap and a global
 daily cap. The visitor key is an HMAC of the IP salted with the session secret
@@ -121,6 +135,16 @@ itself away.
 It went live on 2026-09-21: live price, live webhook endpoint with its own
 signing secret, live secret key. None of the code changed, which was the
 point.
+
+**Completed is not paid (2026-09-27).** `checkout.session.completed` grants
+only when `payment_status` is `paid` (or, for a subscription,
+`no_payment_required`: a trial or full coupon, nothing owed). A delayed
+method completes `unpaid`; its money is `async_payment_succeeded` (granted)
+or `async_payment_failed` (logged, nothing granted). Each event is claimed
+**atomically** with `create()` on `billing-events/<event id>` before it is
+applied, released if applying fails (so Stripe's retry applies it), and a
+second delivery meeting a claim still being applied gets a 409 (Stripe
+retries) rather than a 200. Subscribe the endpoint to both async events.
 
 Who has paid is decided by the **shared identity record**, never by this
 app's own `users` row. `attachProfile` strips `plan` and the rest of the

@@ -48,22 +48,48 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
     console.error('stripe webhook rejected:', err.message);
     return res.status(err.status || 400).json({ error: err.message });
   }
+  // Stripe's own guidance: an endpoint can receive the same event more than
+  // once, and in some cases two distinct Event objects for one change. Both
+  // handlers here are writes, so replaying one would re-grant or re-revoke
+  // access - and a credit top-up is an increment, so a replay is money.
+  //
+  // The claim is ATOMIC (2026-09-27): create() on billing-events/<event id>
+  // succeeds for exactly one delivery. It used to be a read then a write, and
+  // two deliveries arriving together both read "not seen" and both granted.
+  // A claim whose apply then fails is released, so Stripe's retry can apply
+  // it; a delivery that meets a claim still being applied is told to retry
+  // rather than told "done", so a failure in the first cannot be hidden by
+  // the second's 200. A claim left by a crashed instance is taken over after
+  // two minutes - by one taker, since that too goes through create().
+  const claim = { type: event.type, state: 'applying', claimedAt: new Date().toISOString() };
   try {
-    // Stripe's own guidance: an endpoint can receive the same event more than
-    // once, and in some cases two distinct Event objects for one change. Both
-    // handlers here are writes, so replaying one would re-grant or re-revoke
-    // access. Record the id first and skip anything already applied.
-    const seen = await db.get('billing-events', event.id);
-    if (seen) return res.json({ received: true, duplicate: true });
+    let claimed = await db.create('billing-events', event.id, claim);
+    if (!claimed) {
+      const seen = await db.get('billing-events', event.id);
+      const stale = seen && seen.state === 'applying'
+        && Date.now() - Date.parse(seen.claimedAt || 0) > 2 * 60 * 1000;
+      if (seen && seen.state === 'applying' && !stale) {
+        return res.status(409).json({ error: 'That event is being applied; try again.' });
+      }
+      if (!stale) return res.json({ received: true, duplicate: true });
+      await db.remove('billing-events', event.id);
+      claimed = await db.create('billing-events', event.id, claim);
+      if (!claimed) return res.status(409).json({ error: 'That event is being applied; try again.' });
+    }
+  } catch (err) {
+    console.error('stripe webhook claim failed:', event.type, err.message);
+    return res.status(500).json({ error: 'Could not record that event.' });
+  }
+  try {
     await applyBillingEvent(event);
-    await db.set('billing-events', event.id, {
-      type: event.type, appliedAt: new Date().toISOString(),
-    });
+    await db.merge('billing-events', event.id, { state: 'applied', appliedAt: new Date().toISOString() });
     res.json({ received: true });
   } catch (err) {
     // A 500 makes Stripe retry, which is what we want when our own write
-    // failed. Never 200 an event that was not applied.
+    // failed. Never 200 an event that was not applied - and release the claim
+    // so the retry is not mistaken for a duplicate.
     console.error('stripe webhook handling failed:', event.type, err.message);
+    await db.remove('billing-events', event.id).catch(() => {});
     res.status(500).json({ error: 'Could not apply that event.' });
   }
 });
@@ -73,7 +99,9 @@ app.use((req, _res, next) => {
   req.cookies = {};
   for (const part of (req.headers.cookie || '').split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) req.cookies[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i <= 0) continue;
+    // A malformed value is skipped rather than failing the request.
+    try { req.cookies[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim()); } catch (e) { /* skip it */ }
   }
   next();
 });
@@ -209,8 +237,32 @@ async function applyBillingEvent(event) {
   const obj = (event.data && event.data.object) || {};
   const uid = (obj.metadata && obj.metadata.uid) || obj.client_reference_id || null;
 
-  if (event.type === 'checkout.session.completed') {
+  // A Checkout Session COMPLETES when the buyer finishes the form, which is
+  // not the same as paying (2026-09-27). With a delayed method (a bank debit)
+  // it completes `unpaid`, and the money arrives - or does not - days later
+  // as async_payment_succeeded / async_payment_failed. Granting on
+  // `completed` alone handed out credit and membership for payments that
+  // could still fail.
+  //
+  // So: grant on completed only when payment_status is `paid`, or, for a
+  // subscription, `no_payment_required` (a trial or a 100% coupon Erik set
+  // up - nothing is owed, and the subscription events keep it honest);
+  // grant on async_payment_succeeded; never grant on async_payment_failed.
+  if (event.type === 'checkout.session.async_payment_failed') {
+    await identity.log('checkout.payment_failed', null, { uid, detail: obj.id || null, ok: false });
+    console.warn('[billing] delayed payment failed; nothing granted', obj.id || '', uid || '');
+    return;
+  }
+
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     if (!uid) return;
+    const status = obj.payment_status;
+    const settled = status === 'paid'
+      || (status === 'no_payment_required' && obj.mode === 'subscription');
+    if (!settled) {
+      await identity.log('checkout.awaiting_payment', null, { uid, detail: `${event.type} ${status || 'no status'}`, ok: false });
+      return;
+    }
 
     // A credit top-up is NOT a subscription. Without this branch it would fall
     // into the code below and hand someone Pro for a one-off $5 payment.
@@ -312,7 +364,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 /* ---------- forgotten passwords ---------- */
 
-app.post('/api/auth/reset/request', async (req, res) => {
+app.post('/api/auth/reset/request', identityLib.sameOriginOnly, async (req, res) => {
   const address = String((req.body || {}).email || '').trim().toLowerCase();
   // One answer for every input. Anything else turns this into a way of
   // asking which addresses have accounts here.
@@ -339,7 +391,7 @@ app.post('/api/auth/reset/request', async (req, res) => {
   res.json(same);
 });
 
-app.post('/api/auth/reset/complete', async (req, res) => {
+app.post('/api/auth/reset/complete', identityLib.sameOriginOnly, async (req, res) => {
   try {
     const { token, password } = req.body || {};
     const raw = String(token || '');
@@ -352,12 +404,12 @@ app.post('/api/auth/reset/complete', async (req, res) => {
     if (next.length < identityLib.MIN_PASSWORD) {
       return res.status(400).json({ error: `Use at least ${identityLib.MIN_PASSWORD} characters.` });
     }
-    await identityStore.store.set('users', uid, {
-      ...user,
-      password: identityLib.makeHash(next),
-      passwordChangedAt: new Date().toISOString(),
-    });
-    identity.issueSession(res, req, uid, 'password');
+    // Only the two fields that change - a whole-record write would carry the
+    // balance read above over any charge made since - and the new hash ends
+    // every session issued against the old password, in every app.
+    const fields = { password: identityLib.makeHash(next), passwordChangedAt: new Date().toISOString() };
+    await identity.patchUser(uid, fields);
+    identity.issueSession(res, req, uid, 'password', { ...user, ...fields });
     await identity.log('password.reset', req, { uid, email: user.email });
     res.json({ ok: true });
   } catch (err) {
@@ -466,7 +518,25 @@ app.get('/api/stripe/health', accounts.requireUser, async (req, res) => {
 // anyone on their own key still get Opus, which is what they are paying for.
 const MODEL_TIERS = { free: 'claude-haiku-4-5', paid: shape.MODEL };
 
-app.post('/api/viz', identity.requireBudget, async (req, res) => {
+/** The spend gate for /api/viz (2026-09-27): requireBudget AND
+ *  requireDailyCap, like every model call on the domain - except for a sample
+ *  with a baked spec, which makes no model call and must stay open to anyone
+ *  without an account. requireBudget now refuses a request with no account;
+ *  this says the same thing in words that fit a page open to strangers. */
+function vizSpend(req, res, next) {
+  const id = (req.body || {}).datasetId;
+  const ds = id ? datasets.get(String(id)) : null;
+  if (ds && datasets.isFree(ds)) return next();
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Make an account to use your own data. The samples are free without one.',
+      signUp: true,
+    });
+  }
+  return identity.requireBudget(req, res, () => identity.requireDailyCap(req, res, next));
+}
+
+app.post('/api/viz', vizSpend, async (req, res) => {
   try {
     const { url, text, hint, datasetId } = req.body || {};
     let source, usedHint = hint;

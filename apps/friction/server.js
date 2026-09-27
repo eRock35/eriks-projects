@@ -32,7 +32,9 @@ app.use((req, _res, next) => {
   req.cookies = {};
   for (const part of (req.headers.cookie || '').split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) req.cookies[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i <= 0) continue;
+    // A malformed value is skipped rather than failing the request.
+    try { req.cookies[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim()); } catch (e) { /* skip it */ }
   }
   next();
 });
@@ -287,13 +289,32 @@ webauthn.create({
   canEnrol: async (req) => (await password.verify((req.body || {}).password) ? 'site' : null),
 }).mount(app);
 
+// Failed sign-ins per address: 10 in 15 minutes, then 429 until the window
+// moves (2026-09-27). There was no limit and no pause at all. req.ip is the
+// address Cloud Run's front end saw (`trust proxy` is 1). Only failures count.
+const LOGIN_FAIL_LIMIT = 10;
+const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+const loginFailures = new Map(); // ip -> [times]
+const recentFailures = (ip) => (loginFailures.get(ip) || []).filter((t) => Date.now() - t < LOGIN_FAIL_WINDOW_MS);
+
 app.post('/api/auth/login', async (req, res) => {
   if (!process.env.APP_PASSWORD || !process.env.SESSION_SECRET) {
     return res.status(500).json({ error: 'Sign-in is not configured on this deployment.' });
   }
+  const ip = req.ip || 'unknown';
+  if (recentFailures(ip).length >= LOGIN_FAIL_LIMIT) {
+    res.set('Retry-After', String(LOGIN_FAIL_WINDOW_MS / 1000));
+    return res.status(429).json({ error: 'Too many attempts. Wait a few minutes and try again.' });
+  }
   if (!(await password.verify((req.body || {}).password))) {
+    const list = recentFailures(ip);
+    list.push(Date.now());
+    loginFailures.set(ip, list);
+    if (loginFailures.size > 5000) loginFailures.clear();
+    await new Promise((r) => setTimeout(r, 400));
     return res.status(401).json({ error: 'That password is not right.' });
   }
+  loginFailures.delete(ip);
   auth.issue(res, 'password');
   res.json({ ok: true });
 });
@@ -321,9 +342,22 @@ function requireScan(req, res, next) {
   return res.status(401).json({ error: 'not signed in' });
 }
 
+/** Who pays for a scan (2026-09-27).
+ *
+ *  A shared-account user is charged like everywhere else: requireBudget AND
+ *  requireDailyCap. The scheduler's key and this app's own password (Erik's
+ *  fallback door, which no shared account stands behind) are the owner's
+ *  own runs on his own key, as the daily scan always was - they go through
+ *  unmetered. requireBudget now refuses a request with no shared account, so
+ *  without this split the daily scan would have been a 401 every morning. */
+function scanSpend(req, res, next) {
+  if (auth.cronOk(req) || (!req.user && auth.hasSession(req))) return next();
+  return identity.requireBudget(req, res, () => identity.requireDailyCap(req, res, next));
+}
+
 // The one route Cloud Scheduler calls. A person OR the cron key - never
 // neither, because everything past here spends Anthropic tokens.
-app.post('/api/cron/scan', requireScan, identity.requireBudget, async (req, res) => {
+app.post('/api/cron/scan', requireScan, scanSpend, async (req, res) => {
   try {
     const summary = await scan.runScan({
       trigger: mayScan(req) ? 'manual' : 'cron',

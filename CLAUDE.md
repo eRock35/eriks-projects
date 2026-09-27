@@ -25,6 +25,35 @@ Erik asked that bots never scrape his address. So:
   40 an hour, on top of the per-IP limit. Every trap answers like a real
   signup. See `handleSubscribe()`.
 
+## The shared account's security rules (2026-09-27)
+
+`shared/identity.js` (synced into every app) and its neighbours now hold
+these. Keep them when editing any of it:
+
+- **Writes come from the app's own page.** Every identity, passkey and
+  sitepass write refuses a request whose `Sec-Fetch-Site` is not
+  same-origin/none, whose `Origin` names another host, or whose body is not
+  JSON (`sameOriginOnly` / `crossSiteWrite`). All apps are subdomains of one
+  site, so SameSite=Lax alone let any sibling's hidden form post to them.
+- **A new password ends every other session.** Tokens carry `pwv`, a keyed
+  fingerprint of the stored hash; any rewrite of the hash (self-service,
+  reset link, admin reset, any app) signs every other browser out. The
+  changing browser is re-issued a session. Tokens minted before this carry
+  no `pwv` and stand until a password change after they were issued.
+- **User records are written field by field** (`patchUser`, which uses the
+  store's `patch`), never read-and-written whole: the spend ledger moves by
+  increment on the same record, and a whole-record write erased charges.
+- **Guessing is counted**: identity sign-in 10 failures per account / 30 per
+  address in 15 minutes; the landing admin, Friction and every sitepass
+  change route 10 per address; reset emails 3 per address / 20 per IP an
+  hour. In memory, per instance. IPs are the rightmost X-Forwarded-For entry
+  (`trust proxy` is 1 here).
+- **`requireBudget` refuses a request with no shared account (401).** A
+  scheduled job that must spend (Friction's scan) decides that before it,
+  explicitly.
+
+`test/identity-security.js` holds all of it.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

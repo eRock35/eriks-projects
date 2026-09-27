@@ -16,6 +16,18 @@ async function set(col, id, data) {
 async function merge(col, id, patch) {
   await db.collection(col).doc(String(id)).set(patch, { merge: true });
 }
+/** Write only if absent. True when this call created it, false when the
+ *  document already existed - Firestore's own test-and-set, used where two
+ *  concurrent requests must not both proceed (the webhook's event claim). */
+async function create(col, id, data) {
+  try {
+    await db.collection(col).doc(String(id)).create(data);
+    return true;
+  } catch (err) {
+    if (err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message)))) return false;
+    throw err;
+  }
+}
 async function remove(col, id) {
   await db.collection(col).doc(String(id)).delete();
 }
@@ -28,4 +40,4 @@ async function list(col, { where, orderBy, dir = 'desc', limit } = {}) {
   return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
 }
 
-module.exports = { db, get, set, merge, remove, list };
+module.exports = { db, get, set, merge, create, remove, list };

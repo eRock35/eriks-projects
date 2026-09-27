@@ -11,6 +11,7 @@
 // load balancer would have been a standing ~$18-25/month. Do not add a
 // min-instance count, a warmup, or anything else that keeps an instance alive.
 
+const crypto = require('crypto');
 const express = require('express');
 const compression = require('compression');
 const path = require('path');
@@ -74,7 +75,41 @@ const SITE_ORIGIN = (() => {
 process.env.SITE_ORIGIN = SITE_ORIGIN;
 
 const app = express();
-app.set('trust proxy', true);
+// One hop: Cloud Run's front end, which APPENDS the address it saw to
+// X-Forwarded-For. `true` trusted every hop, so req.ip was the leftmost entry
+// - whatever the client chose to write - which walked straight past the
+// per-IP limits (newsletter signups, the inbox's bad-token count, sign-in)
+// and let anyone put any address in the audit log (2026-09-27).
+app.set('trust proxy', 1);
+
+// Two headers on every response (2026-09-27). nosniff stops a browser
+// guessing a script or a page out of something served as another type.
+// frame-ancestors 'self' stops another site framing the admin, account and
+// reset pages to click on them; the landing frames the apps, never the other
+// way round, so nothing legitimate is lost. Routes that set their own, like
+// /admin/inbox's stricter policy, replace this one.
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Content-Security-Policy', "frame-ancestors 'self'");
+  next();
+});
+
+// Express does not parse cookies, and the shared passkey module reads its
+// signed challenge from req.cookies (pk_reg, pk_who, pk_auth). Without this
+// every Face ID enrolment and sign-in on the apex and acct. failed with
+// "That took too long" however fast it was (found 2026-09-27). The same
+// ten lines Friction and DataViz use; lib/tokens reads its own admin cookie
+// from the header and is unaffected.
+app.use((req, _res, next) => {
+  if (req.cookies) return next();
+  req.cookies = {};
+  for (const part of (req.headers.cookie || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i <= 0) continue;
+    try { req.cookies[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim()); } catch (e) { /* skip a malformed one */ }
+  }
+  next();
+});
 
 // gzip or brotli for text (HTML, CSS, JS, JSON, SVG, XML); images are already
 // compressed and are left alone by the default filter. Two exclusions on top
@@ -239,12 +274,22 @@ function requireAdmin(req, res, next) {
   }));
 }
 
+// Failed admin sign-ins per address: 10 in 15 minutes, then a 429 until the
+// window moves (2026-09-27). The 400 ms pause alone still allowed ~200,000
+// guesses a day from one machine. Only failures count.
+const adminLoginFailures = inbox.createLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
+
 app.post('/api/admin/login', async (req, res) => {
   const supplied = String((req.body && req.body.password) || '');
   if (!adminPassword() && !(await sitePassword.isCustom())) {
     return res.status(503).json({ error: 'Admin access is not configured on this deployment.' });
   }
+  if (adminLoginFailures.blocked(req.ip)) {
+    res.set('Retry-After', '900');
+    return res.status(429).json({ error: 'Too many attempts. Wait a few minutes and try again.' });
+  }
   if (!(await adminPasswordOk(supplied))) {
+    adminLoginFailures.hit(req.ip);
     // A deliberate pause: this is the only password on the service, and it
     // makes a scripted guessing run expensive without affecting a real login.
     await new Promise((r) => setTimeout(r, 400));
@@ -335,13 +380,17 @@ app.get('/api/admin/email-check', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/me', async (req, res) => {
   const session = adminSession(req);
+  const admin = !!session || isIdentityAdmin(req);
   res.json({
     signedIn: !!session,
     // How this session was proved, so the page knows whether to ask for the
     // current password before changing it.
     via: session ? session.via : null,
     password: { custom: await sitePassword.isCustom(), minLength: sitePassword.MIN_LENGTH },
-    email: { enabled: email.enabled(), from: email.from() },
+    // The sending address is Erik's, and this route answers anyone: it goes
+    // only to the admin (2026-09-27). See "Erik's email address stays out of
+    // pages" in CLAUDE.md.
+    email: admin ? { enabled: email.enabled(), from: email.from() } : { enabled: email.enabled() },
     ai: { enabled: ai.enabled(), model: ai.MODEL },
     store: store().kind,
   });
@@ -1198,11 +1247,24 @@ app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GR
 // is scoped to the parent domain, so the signed-in state reaches every app.
 const RESET_ORIGIN = SITE_ORIGIN;
 
-app.post('/api/id/reset/request', async (req, res) => {
+// A reset mails whoever owns the address, so an open form is a way to fill
+// someone's inbox from this domain. Three per address an hour and twenty per
+// IP an hour (2026-09-27); past either, the answer is the same one a real
+// request gets and nothing is sent, so the limit tells nobody anything.
+const resetByAddress = inbox.createLimiter({ max: 3, windowMs: 60 * 60 * 1000 });
+const resetByIp = inbox.createLimiter({ max: 20, windowMs: 60 * 60 * 1000 });
+
+app.post('/api/id/reset/request', identityLib.sameOriginOnly, async (req, res) => {
   const address = String((req.body || {}).email || '').trim().toLowerCase();
   // One answer for every input. Anything else turns this into a way of asking
   // which addresses have accounts.
   const same = { ok: true, message: 'If that address has an account, a reset link is on its way.' };
+  const byIp = resetByIp.hit(req.ip);
+  const byAddress = resetByAddress.hit(identityLib.uidFor(address));
+  if (!byIp || !byAddress) {
+    await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 250)));
+    return res.json(same);
+  }
   try {
     const uid = identityLib.uidFor(address);
     const user = await identityStore.store.get('users', uid);
@@ -1220,7 +1282,7 @@ app.post('/api/id/reset/request', async (req, res) => {
   res.json(same);
 });
 
-app.post('/api/id/reset/complete', async (req, res) => {
+app.post('/api/id/reset/complete', identityLib.sameOriginOnly, async (req, res) => {
   try {
     const { token, password } = req.body || {};
     const raw = String(token || '');
@@ -1235,12 +1297,12 @@ app.post('/api/id/reset/complete', async (req, res) => {
     if (next.length < identityLib.MIN_PASSWORD) {
       return res.status(400).json({ error: `Use at least ${identityLib.MIN_PASSWORD} characters.` });
     }
-    await identityStore.store.set('users', uid, {
-      ...user,
-      password: identityLib.makeHash(next),
-      passwordChangedAt: new Date().toISOString(),
-    });
-    identity.issueSession(res, req, uid, 'password');
+    // Only the two fields that change: a whole-record write would carry the
+    // balance read above over any charge made since. The new hash ends every
+    // session issued against the old password, in every app.
+    const fields = { password: identityLib.makeHash(next), passwordChangedAt: new Date().toISOString() };
+    await identity.patchUser(uid, fields);
+    identity.issueSession(res, req, uid, 'password', { ...user, ...fields });
     await identity.log('password.reset', req, { uid, email: user.email });
     res.json({ ok: true, email: user.email });
   } catch (err) {
@@ -1288,9 +1350,18 @@ app.get('/', (req, res, next) => {
   return next();
 });
 
+/** The scheduler's key, compared in constant time like Friction's cronOk,
+ *  so the comparison does not leak how much of a guess was right. */
+function cronKeyOk(req) {
+  const sent = String(req.get('X-Cron-Key') || '');
+  if (!CRON_SECRET || !sent) return false;
+  const a = crypto.createHash('sha256').update(sent).digest();
+  const b = crypto.createHash('sha256').update(CRON_SECRET).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 app.post('/api/cron/notify', async (req, res) => {
-  const key = req.get('X-Cron-Key');
-  const viaCron = CRON_SECRET && key && key === CRON_SECRET;
+  const viaCron = cronKeyOk(req);
   if (!viaCron && !isAdmin(req) && !isIdentityAdmin(req)) {
     return res.status(404).json({ error: 'Not found.' });
   }
