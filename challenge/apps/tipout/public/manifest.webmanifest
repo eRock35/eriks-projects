@@ -1,0 +1,10 @@
+{
+  "name": "Tipout",
+  "short_name": "Tipout",
+  "description": "Split the tip pool at close, to the cent — with the arithmetic shown and cash envelopes built from the drawer.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c1411",
+  "theme_color": "#0c1411",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

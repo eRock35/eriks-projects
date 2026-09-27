@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tipout — split the tip pool at close, to the cent</title>
+  <meta name="description" content="For shift leads, bar managers and owners: pick who worked, tap in hours, type card and cash tips — every share to the cent with the arithmetic shown, cash envelopes built from the bills in the drawer, and a receipt link each person can check.">
+  <meta name="theme-color" content="#0c1411" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tipout">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Tipout — Split the tip pool in a minute. Show everyone the working.">
+  <meta property="og:description" content="For bars, restaurants and coffee shops that pool tips. Pick who worked, set their hours, enter card and cash tips, and Tipout splits the pool by hours, points or tip-outs, down to the cent. It builds each person’s cash envelope from the bills in the drawer, and a receipt link sho">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/tipout/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/tipout.png?v=4ba75c4c6d">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Tipout, drop #10 in the Challenge Lab: Split the tip pool in a minute. Show everyone the working.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Tipout — Split the tip pool in a minute. Show everyone the working.">
+  <meta name="twitter:description" content="For bars, restaurants and coffee shops that pool tips. Pick who worked, set their hours, enter card and cash tips, and Tipout splits the pool by hours, points or tip-outs, down to the cent. It builds each person’s cash envelope from the bills in the drawer, and a receipt link sho">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/tipout.png?v=4ba75c4c6d">
+  <meta name="twitter:image:alt" content="Tipout, drop #10 in the Challenge Lab: Split the tip pool in a minute. Show everyone the working.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <header class="top" id="top">
+    <a class="brand" href="#/"><span class="mark" aria-hidden="true">🫙</span>Tipout</a>
+    <div class="row" id="topRight"></div>
+  </header>
+
+  <main class="wrap" id="view"></main>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Main">
+    <a class="brand rail-brand" href="#/"><span class="mark" aria-hidden="true">🫙</span>Tipout</a>
+    <button data-tab="split"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10M8 4v2.5a3 3 0 0 1-1 2.2C5.8 9.8 5 11.3 5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5c0-1.7-.8-3.2-2-4.3a3 3 0 0 1-1-2.2V4"/><path d="M12 11.5v6M14 12.6c-.5-.6-1.2-.9-2-.9-1.1 0-2 .6-2 1.5s.9 1.3 2 1.5 2 .6 2 1.5-.9 1.5-2 1.5c-.8 0-1.5-.3-2-.9"/></svg><span>Split</span></button>
+    <button data-tab="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.3c2.3.1 4 1.6 4.5 4.2"/></svg><span>Team &amp; rules</span></button>
+    <button data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/></svg><span>History</span></button>
+  </nav>
+
+  <script src="rules.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

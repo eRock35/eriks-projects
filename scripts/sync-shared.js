@@ -33,6 +33,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/booth/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/receipt/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/tally/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
+  ['eriks-projects/challenge/apps/tipout/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['trip-planner',                     ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'analytics.js', 'gmail.js', 'receipts.js', 'statement.js', 'photostore.js']],
   ['college-football-app',             ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'sitepass.js', 'analytics.js']],
   // Spellbook takes identity's webauthn plainly: it has no webauthn.js of its
@@ -63,6 +64,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/booth/public',['desktop.css', 'passkey-client.js']],
   ['eriks-projects/challenge/apps/receipt/public',['desktop.css', 'passkey-client.js']],
   ['eriks-projects/challenge/apps/tally/public',['desktop.css', 'passkey-client.js']],
+  ['eriks-projects/challenge/apps/tipout/public',['desktop.css', 'passkey-client.js']],
   ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js']],
   ['beer-app/web/public',                 ['tour.js', 'beacon.js']],

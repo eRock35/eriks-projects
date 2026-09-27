@@ -139,6 +139,21 @@ const APPS = [
     audience: 'Cafés, shops, salons & restaurants that take cards',
     status: 'testing',
   },
+  {
+    slug: 'tipout',
+    name: 'Tipout',
+    emoji: '💵',
+    // Bar-room burgundy to dollar green. White text needs 4.5:1 across the
+    // gradient; npm run og darkens further if it does not hold.
+    color: '#6b1530',
+    color2: '#14532d',
+    dropped: '2026-09-27',
+    tagline: 'Split the tip pool in a minute. Show everyone the working.',
+    blurb: 'For bars, restaurants and coffee shops that pool tips. Pick who worked, set their hours, enter card and cash tips, and Tipout splits the pool by hours, points or tip-outs, down to the cent. It builds each person\u2019s cash envelope from the bills in the drawer, and a receipt link shows staff exactly how their share was worked out.',
+    features: ['Hours, points or tip-out rules', 'Split to the cent, every cent paid out', 'Cash envelopes from the bills you have', 'A receipt link that shows the working'],
+    audience: 'Bars, restaurants & coffee shops that pool tips',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
