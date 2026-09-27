@@ -19,7 +19,7 @@ const R = require('../public/rules');
 function pick(res, name) {
   const block = (res && res.content || []).find((b) => b.type === 'tool_use' && b.name === name);
   if (!block || !block.input || typeof block.input !== 'object') {
-    throw Object.assign(new Error('The model did not answer in the expected shape. Try again, or use a template.'), { status: 502 });
+    throw Object.assign(new Error('The model did not answer in the expected shape. Try again, or use a template.'), { status: 502, expose: true });
   }
   return block.input;
 }
@@ -149,7 +149,7 @@ async function reply(client, model, review, triage, settings) {
 function validateReply(raw) {
   const out = { text: V.cleanText(raw.reply, V.LIMITS.reply), note: V.clean(raw.note, 160) };
   if (!out.text || out.text.length < 20) {
-    throw Object.assign(new Error('The reply came back empty. Try again, or use a template.'), { status: 502 });
+    throw Object.assign(new Error('The reply came back empty. Try again, or use a template.'), { status: 502, expose: true });
   }
   return out;
 }
@@ -212,7 +212,7 @@ async function coolDown(client, model, angry, review, triage, settings) {
 function validateCool(raw) {
   const calm = V.cleanText(raw.calm, V.LIMITS.reply);
   if (!calm || calm.length < 20) {
-    throw Object.assign(new Error('The calm version came back empty. Try again.'), { status: 502 });
+    throw Object.assign(new Error('The calm version came back empty. Try again.'), { status: 502, expose: true });
   }
   const seen = new Set();
   const removed = (Array.isArray(raw.removed) ? raw.removed : [])

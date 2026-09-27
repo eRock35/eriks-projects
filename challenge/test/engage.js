@@ -69,11 +69,15 @@ assert.deepStrictEqual([progress(null, reg, { ...none, a4: 'kill', a1: 'keep' })
   const base = `http://127.0.0.1:${server.address().port}`;
   const visitor = () => {
     let cookie = '';
-    return async (m, p, b) => {
+    const go = async (m, p, b) => {
+      // The page reads /api/lab (which mints the id) before anything can be
+      // tapped; a vote never mints one (2026-09-27).
+      if (!cookie && m === 'POST') await go('GET', '/api/lab');
       const r = await fetch(base + p, { method: m, headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) }, body: b ? JSON.stringify(b) : undefined });
       const sc = r.headers.get('set-cookie'); if (sc && sc.startsWith('lab_vid')) cookie = sc.split(';')[0];
       return { status: r.status, data: await r.json().catch(() => null), vid: () => cookie.split('=')[1] };
     };
+    return go;
   };
   const appIn = (d, slug) => d.apps.find((a) => a.slug === slug);
 

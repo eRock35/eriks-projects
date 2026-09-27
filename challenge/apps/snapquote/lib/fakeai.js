@@ -150,6 +150,10 @@ function create() {
   return {
     messages: {
       async create(params) {
+        // A stand-in provider failure, for the tests: UPSTREAM401 anywhere in
+        // the messages throws what the SDK would, raw JSON and all.
+        const up = JSON.stringify(params.messages || '').match(/UPSTREAM(\d{3})/);
+        if (up) throw Object.assign(new Error(`${up[1]} {"type":"error","error":{"type":"fake_upstream_error","message":"stand-in provider failure"}}`), { status: Number(up[1]) });
         const name = params.tool_choice && params.tool_choice.name;
         if (!params.tool_choice || params.tool_choice.type !== 'tool') throw new Error('fake ai: every call must force a tool');
         await new Promise((r) => setTimeout(r, Number(process.env.SNAPQUOTE_FAKE_DELAY_MS || 0)));

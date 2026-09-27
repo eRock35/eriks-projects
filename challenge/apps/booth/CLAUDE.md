@@ -233,7 +233,7 @@ Public: `GET /api/health`, `/api/meta`, `/api/demo`, `/api/shared/:token`,
 page `s/:token`, and `rules.js` (static). Signed in: `GET /api/me`,
 `POST /api/events`, `POST /api/join`, `GET|PUT|DELETE /api/events/:id` (PUT and
 DELETE owner), `PUT /api/events/:id/me`, `POST /api/events/:id/code` (owner),
-`DELETE /api/events/:id/members/:uid|me`, `GET|POST /api/events/:id/leads`,
+`DELETE /api/events/:id/members/:memberId|me`, `GET|POST /api/events/:id/leads`,
 `GET|PUT|DELETE /api/events/:id/leads/:lid`, `POST …/leads/:lid/status`,
 `POST …/leads/:lid/merge`, `GET …/leads/:lid/template`,
 `GET /api/events/:id/leaderboard`, `GET /api/events/:id/scorecard`,
@@ -254,6 +254,32 @@ DELETE owner), `PUT /api/events/:id/me`, `POST /api/events/:id/code` (owner),
 - **A QR code at the booth** that lets a visitor type their own details into
   the team's list (a public capture form, rate-limited).
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
+
+## Security fixes (2026-09-27)
+
+- **No teammate is sent another's uid.** A uid is base64url(email), and
+  `GET /api/events/:id` sent every member `people[{uid}]`, leads carried
+  `capturedBy`/`sentBy` and leaderboard rows `uid`. Now people carry `id`, an
+  HMAC of the event id and uid under a key derived from
+  `IDENTITY_SESSION_SECRET` (`lib/memberkey.js`: per event, so not joinable
+  across events, and not testable against a guessed email); `DELETE
+  /members/:id` takes that id (or `me`) and maps it back on the server - a raw
+  uid names nobody. Leads carry `mine` instead of `capturedBy`/`sentBy` (both
+  are still stored); leaderboard rows carry `you`, not `uid`. The sample's
+  leads carry `rep` (an invented teammate) for their drafts. Tested: no
+  response to any member contains another member's uid or email.
+- **Provider errors never reach the page.** `fail()` is Receipt's: only
+  errors the app made (`httpError`, marked `expose`) keep their status and
+  words; an Anthropic error (which carries a `.status` and the provider's raw
+  JSON) is logged and answered 502 with the route's own sentence, 503 when
+  the provider is overloaded or rate-limited. Before, an upstream 401 told a
+  signed-in person to sign in. The fake model throws a provider error when
+  `UPSTREAM<nnn>` appears in its messages; the tests use it.
+- **A script CSP.** Every page now sends `script-src 'self'; object-src
+  'none'; base-uri 'self'` with the existing `frame-ancestors`. Every app on
+  the lab shares one origin, so injected script in one would run as all of
+  them. The pages have no inline `<script>` or `on*=` handler; keep it that
+  way (`challenge/test/lab.js` checks every `index.html`).
 
 ## Commit and PR conventions
 

@@ -32,7 +32,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  // No inline script anywhere in these pages (2026-09-27): every app shares
+  // one origin, so one app's injection must not run script as the others.
+  res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   res.set('X-Content-Type-Options', 'nosniff');
   // A quote link IS the credential for that quote. It must not ride out to
   // another site in a Referer header, and it must not be indexed.
@@ -46,10 +48,14 @@ app.use((req, res, next) => {
 });
 
 // Photos ride in the draft request as base64: four at 1.5 MB is ~8 MB of JSON.
-// Only that one route gets the big limit; everything else stays small.
+// Only that one route gets the big limit, and it mounts its own parser AFTER
+// the sign-in, budget and daily-cap checks (2026-09-27, Chaser's shape): a
+// signed-out 9 MB body is refused without being read. Everything else stays
+// small.
+const DRAFT_ROUTE = '/api/quotes/draft';
 const bigJson = express.json({ limit: '9mb' });
 const smallJson = express.json({ limit: '128kb' });
-app.use((req, res, next) => (req.path === '/api/quotes/draft' ? bigJson : smallJson)(req, res, next));
+app.use((req, res, next) => (req.path === DRAFT_ROUTE ? next() : smallJson(req, res, next)));
 
 /* ------------------------------------------------------------------ *
  * The shared account
@@ -88,11 +94,23 @@ const spend = [identity.requireUser, identity.requireBudget, identity.requireDai
  * ------------------------------------------------------------------ */
 
 const now = () => new Date().toISOString();
+// Only the app's own errors (httpError, marked `expose`) reach the client
+// with their status and words (2026-09-27). Anything else is logged and
+// answered with the route's fallback - including the Anthropic SDK's errors,
+// which carry a `.status` and the provider's raw JSON: passed through, an
+// upstream 401 told a signed-in person to sign in, and a 529 showed them the
+// provider's error body. An upstream failure is a 502 (503 when it is
+// overloaded or rate-limited, so "try again" is the honest advice). Receipt's
+// pattern. Never a request body in the log.
 const fail = (res, err, fallback = 'Something went wrong.') => {
-  if (!err.status) console.error(err);
-  res.status(err.status || 500).json({ error: err.status ? err.message : fallback });
+  const mine = Boolean(err && err.expose && err.status);
+  if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
+  const upstream = !mine && err && Number.isInteger(err.status);
+  const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
+  const body = { error: mine ? err.message : fallback };
+  res.status(status).json(body);
 };
-const httpError = (status, message) => Object.assign(new Error(message), { status });
+const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
 
 /** 22 url-safe characters from 16 random bytes: 128 bits. A quote link is the
  *  only thing standing between a stranger and someone's address and price, so
@@ -276,7 +294,7 @@ app.get('/api/quotes', identity.requireUser, async (req, res) => {
  * Photos are validated before anything is spent, handed to the model as image
  * blocks, and never written anywhere: only the quote is stored.
  */
-app.post('/api/quotes/draft', ...spend, async (req, res) => {
+app.post(DRAFT_ROUTE, ...spend, bigJson, async (req, res) => {
   try {
     const b = req.body || {};
     const pics = photos.validate(b.photos);

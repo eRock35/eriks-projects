@@ -391,6 +391,38 @@ card each.
 - Billed per request (`cpuIdle: true`) like everything else — never keep
   working after a response.
 
+## Security fixes (2026-09-27)
+
+A review of the lab found these; all fixed the same day.
+
+- **Vote stuffing.** `POST /api/lab/:slug/vote` minted a `lab_vid` for any
+  cookieless request, so a curl loop added a vote (and a `lab_voters` and a
+  `lab_streaks` write) per request. A vote now needs an id the request already
+  carries (the page's own `GET /api/lab` mints it before anything can be
+  tapped; a bare request is a 400 "Reload the page to vote."), and an address
+  may bring at most `LIMITS.votersPerIp` (20) different ids to the vote route
+  an hour, 2,000 across the instance; the rest are 429 and count nothing.
+  IPv6 counts by its /64. Withdrawing a vote never cast writes nothing. Notes
+  need an id too and are capped at 10 an hour per address and 300 across the
+  instance. In memory, per instance, like Receipt's `newVotersPerIp`. The id
+  is still random rather than signed, so this slows stuffing rather than
+  stopping it: someone with many addresses can still vote many times.
+- **A script CSP on the host and every app** (`script-src 'self';
+  object-src 'none'; base-uri 'self'` plus `frame-ancestors`). All the apps
+  share this origin, so one app's injection would run as every app. No page
+  has an inline `<script>` or `on*=` handler, which `test/lab.js` checks on
+  every `index.html`; every page was rendered in headless Chromium at 390 and
+  1280 px with no CSP violation. **A new app must not add inline script.**
+- **Teammates' uids.** Booth and Pop Quiz sent members each other's uids
+  (base64url of the email). Now a per-event (per-team) opaque HMAC id, `mine`
+  and `you`; see those apps' notes.
+- **Spar's public names.** New players are "Player 4821" until they pick a
+  name; an old handle made from the email is shown neutral on public surfaces.
+- **Snapquote** reads its 9 MB draft body only after the sign-in and budget
+  checks; **Spar** team codes have Booth's wrong-guess limiter; **Spar,
+  Snapquote, Chaser, Glowup, Rave, Booth and Pop Quiz** no longer pass a
+  model provider's error to the page (Receipt's `fail()`).
+
 ## Commit and PR conventions
 
 Never put a Claude session link in anything pushed to GitHub. See the repo

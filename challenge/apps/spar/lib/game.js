@@ -3,6 +3,8 @@
 // Pure functions over a player record, so the rules can be tested without a
 // database and so the server applies them in exactly one place (`award`).
 
+const crypto = require('crypto');
+
 const scenarios = require('./scenarios');
 
 const LEVELS = [
@@ -154,11 +156,45 @@ function cleanHandle(v) {
     .slice(0, 24);
 }
 
-/** A default handle from an email: the part before @, tidied, never the domain. */
+/**
+ * The handle an email would have made: the part before @, tidied, never the
+ * domain. No longer given to anyone (2026-09-27) - the daily board is public,
+ * and "Jane doe" is half of jane.doe@... It is kept to recognise the handles
+ * made this way before, which publicHandle() hides until they are changed.
+ */
 function handleFromEmail(email) {
   const local = String(email || '').split('@')[0].replace(/[._-]+/g, ' ');
   const h = cleanHandle(local);
   return h ? h.charAt(0).toUpperCase() + h.slice(1) : 'Player';
 }
 
-module.exports = { LEVELS, BADGES, levelFor, award, xpFor, skillProfile, blankPlayer, cleanHandle, handleFromEmail, prevDay };
+/** A new player's handle until they pick one: "Player 4821". Random, so it
+ *  says nothing about the account. */
+function neutralHandle(rand = crypto.randomInt) {
+  return `Player ${rand(1000, 10000)}`;
+}
+
+/** The neutral form of an old email-made handle: the same "Player NNNN" for
+ *  one account on every surface, keyed so it cannot be matched to a guess. */
+function neutralFor(uid, key) {
+  const n = crypto.createHmac('sha256', key || 'spar handle').update(`handle\n${uid}`).digest().readUInt32BE(0) % 9000 + 1000;
+  return `Player ${n}`;
+}
+
+/**
+ * The name other people see. A handle someone chose is theirs; one that is
+ * still what their email made (handleFromEmail, before 2026-09-27) is shown
+ * as neutralFor(uid) on every public surface until they change it. A uid is
+ * base64url(lowercased email), so the email is recovered from it here and
+ * never leaves the server.
+ */
+function publicHandle(handle, uid, { chosen = false, key } = {}) {
+  const h = handle || 'Player';
+  if (chosen || !uid) return h;
+  let email = '';
+  try { email = Buffer.from(String(uid), 'base64url').toString('utf8'); } catch (_) { email = ''; }
+  if (!email.includes('@')) return h;
+  return h === handleFromEmail(email) ? neutralFor(uid, key) : h;
+}
+
+module.exports = { LEVELS, BADGES, levelFor, award, xpFor, skillProfile, blankPlayer, cleanHandle, handleFromEmail, neutralHandle, neutralFor, publicHandle, prevDay };

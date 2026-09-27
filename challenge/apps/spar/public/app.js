@@ -210,6 +210,7 @@
       '<p class="small muted" style="margin:10px 0 0">Starting a round is free. Each line you say costs a fraction of a cent; a scorecard about a cent.</p>' +
       '<div id="billing" style="margin-top:12px"></div></div>' +
       '<label class="field"><span>Display name (shown on leaderboards)</span><div class="row"><input class="input" id="handleIn" maxlength="24" value="' + esc(me.player.handle) + '"><button class="btn small" id="handleSave">Save</button></div></label>' +
+      (me.player.publicHandle && me.player.publicHandle !== me.player.handle ? '<p class="small muted" style="margin:-4px 2px 12px">Leaderboards show you as <b>' + esc(me.player.publicHandle) + '</b> until you save a name.</p>' : '') +
       (pkOk() ? '<button class="btn ghost block" id="pkEnrol">Set up Face ID for this device</button>' : '') +
       '<button class="btn ghost block" id="signOut" style="margin-top:10px">Sign out</button>',
       function (root) {

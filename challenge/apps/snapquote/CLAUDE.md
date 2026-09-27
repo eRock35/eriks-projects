@@ -92,7 +92,8 @@ paths.
   anything is spent (`lib/photos.js`), handed to the model as image blocks, and
   dropped with the request. Only `photoCount` is kept. They are pictures of the
   inside of a customer's house; nothing here needs them kept. The draft route
-  alone gets a 9 MB body limit; every other route stays at 128 KB.
+  alone gets a 9 MB body limit, read only after the sign-in and budget
+  checks; every other route stays at 128 KB.
 - **The public link is the credential.** `q/<token>` is 16 random bytes
   (22 url-safe characters). Responses on `/q/*` and `/api/public/*` carry
   `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex`, and are
@@ -220,6 +221,26 @@ After that, `gcpdeploy ship snapquote` handles every later deploy.
 - Voice is browser-only (Web Speech API); Safari on iOS supports it, Firefox
   does not, and the mic button hides where it is missing.
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
+
+## Security fixes (2026-09-27)
+
+- **The 9 MB parser mounts after the gates.** It was app-wide for the draft
+  path, so a signed-out 9 MB body was read before the 401. The global parser
+  now skips `/api/quotes/draft` and the route mounts its own after `spend`
+  (Chaser's shape). Tested: a signed-out 8 MB non-JSON body and a 10 MB one
+  are both 401, not 400 and 413.
+- **Provider errors never reach the page.** `fail()` is Receipt's: only
+  errors the app made (`httpError`, marked `expose`) keep their status and
+  words; an Anthropic error (which carries a `.status` and the provider's raw
+  JSON) is logged and answered 502 with the route's own sentence, 503 when
+  the provider is overloaded or rate-limited. Before, an upstream 401 told a
+  signed-in person to sign in. The fake model throws a provider error when
+  `UPSTREAM<nnn>` appears in its messages; the tests use it.
+- **A script CSP.** Every page now sends `script-src 'self'; object-src
+  'none'; base-uri 'self'` with the existing `frame-ancestors`. Every app on
+  the lab shares one origin, so injected script in one would run as all of
+  them. The pages have no inline `<script>` or `on*=` handler; keep it that
+  way (`challenge/test/lab.js` checks every `index.html`).
 
 ## Commit and PR conventions
 

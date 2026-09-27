@@ -173,6 +173,19 @@ test('signed-out visitors cannot draft, list, save a profile or read stats', asy
   assert.strictEqual((await anon('GET', '/api/me')).data.signedIn, false);
 });
 
+test('a signed-out 9 MB draft body is refused before it is read (2026-09-27)', async () => {
+  const raw = (body) => fetch(`${base}/api/quotes/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+  // Not even JSON: parsed first, this would be a 400. Gated first, a 401.
+  const junk = await raw('{' + 'x'.repeat(8 * 1024 * 1024));
+  assert.strictEqual(junk.status, 401);
+  // Over the limit: parsed first, a 413. Gated first, a 401.
+  const huge = await raw(JSON.stringify({ description: 'x'.repeat(10 * 1024 * 1024) }));
+  assert.strictEqual(huge.status, 401);
+  // Every other route keeps its small parser.
+  const other = await fetch(`${base}/api/quotes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x: 'y'.repeat(200 * 1024) }) });
+  assert.strictEqual(other.status, 413);
+});
+
 let alice, bob, quoteId, token;
 
 test('register and set up the business profile', async () => {
@@ -190,6 +203,18 @@ test('register and set up the business profile', async () => {
   assert.strictEqual(p.data.name, 'Alpine Painting');
   assert.strictEqual(p.data.color, '#1e88e5');
   assert.strictEqual((await alice('GET', '/api/me')).data.profile.setUp, true);
+});
+
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words', async () => {
+  const quiet = console.error; console.error = () => {};
+  let a, b;
+  try {
+    a = await alice('POST', '/api/quotes/draft', { description: 'Paint the hallway UPSTREAM401' });
+    b = await alice('POST', '/api/quotes/draft', { description: 'Paint the hallway UPSTREAM529' });
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([a.status, b.status], [502, 503]);
+  assert.strictEqual(a.data.error, 'Could not draft that quote. Try again.');
+  assert.ok(!JSON.stringify([a.data, b.data]).includes('fake_upstream_error'));
 });
 
 test('a bad photo is refused before anything is spent', async () => {

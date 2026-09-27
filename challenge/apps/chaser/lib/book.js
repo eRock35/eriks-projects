@@ -192,7 +192,7 @@ function cleanSettings(raw, prev = SETTINGS_DEFAULTS) {
  * ------------------------------------------------------------------ */
 
 function httpError(status, message) {
-  return Object.assign(new Error(message), { status });
+  return Object.assign(new Error(message), { status, expose: true });
 }
 
 function cleanClient(raw, prev = {}) {

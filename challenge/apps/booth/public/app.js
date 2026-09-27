@@ -735,7 +735,7 @@
       var l = res.lead;
       ctx.leads.unshift(l);
       state.lastSaved = { ctx: ctx.key, id: l.id, name: leadName(l), temp: l.temp };
-      var mine = ctx.leads.filter(function (x) { return x.capturedBy === l.capturedBy; });
+      var mine = ctx.leads.filter(function (x) { return x.mine; });
       var streak = R.hotStreak(mine).current;
       var msg = (secs ? (secs <= 10 ? '⚡ Qualified in ' + secs + 's. ' : 'Saved in ' + secs + 's. ') : 'Saved. ') +
         (l.temp === 'hot' ? (streak >= 2 ? '🔥 Hot streak: ' + streak + ' in a row!' : '🔥 Clock’s ticking: 48h.') : R.tempInfo(l.temp).emoji + ' Follow up within ' + R.tempInfo(l.temp).window + '.');
@@ -921,7 +921,7 @@
   function drawFollow(ctx, l) {
     var el = $('#follow');
     var mode = state.drafts[l.id] || (ctx.demo && ctx.drafts[l.id]) ? 'draft' : 'template';
-    var rep = ctx.demo ? (ctx.reps[l.capturedBy] || ctx.me) : ctx.me;
+    var rep = ctx.demo ? (ctx.reps[l.rep] || ctx.me) : ctx.me;
     function current() {
       if (mode === 'draft') return state.drafts[l.id] || (ctx.demo && ctx.drafts[l.id]) || null;
       return R.template(l, ctx.event, rep);
@@ -1143,7 +1143,7 @@
           '<p class="hint">Staff see every lead and the leaderboard; only you can edit the event, export, share the scorecard or remove people. <button class="link-btn" id="resetCode">Reset the code</button> if it leaked — the old one stops at once.</p>' +
           '<div class="members" style="margin-top:10px">' + (ev.people || []).map(function (p) {
             return '<div class="mrow"><span class="grow"><b>' + esc(p.name) + '</b>' + (p.you ? ' <span class="tag">you</span>' : '') + ' <span class="tag">' + (p.role === 'owner' ? 'owner' : 'staff') + '</span></span>' +
-              (p.role !== 'owner' ? '<button class="btn small danger" data-remove="' + esc(p.uid) + '" data-name="' + esc(p.name) + '">Remove</button>' : '') + '</div>';
+              (p.role !== 'owner' ? '<button class="btn small danger" data-remove="' + esc(p.id) + '" data-name="' + esc(p.name) + '">Remove</button>' : '') + '</div>';
           }).join('') + '</div></div>';
         h += '<form class="card" id="evForm"><h3 style="margin-bottom:12px">Event details</h3>' + eventFields(ev) + '<div id="evErr"></div><button class="btn block" type="submit">Save event</button></form>';
       }

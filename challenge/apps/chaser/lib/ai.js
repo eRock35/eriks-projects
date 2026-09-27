@@ -18,7 +18,7 @@ const B = require('./book');
 function pick(res, name) {
   const block = (res && res.content || []).find((b) => b.type === 'tool_use' && b.name === name);
   if (!block || !block.input || typeof block.input !== 'object') {
-    throw Object.assign(new Error('The model did not answer in the expected shape. Try again, or use the template.'), { status: 502 });
+    throw Object.assign(new Error('The model did not answer in the expected shape. Try again, or use the template.'), { status: 502, expose: true });
   }
   return block.input;
 }
@@ -106,7 +106,7 @@ function validateChase(raw) {
     sms: B.clean(raw.sms, 320),
   };
   if (!out.body || out.body.length < 20) {
-    throw Object.assign(new Error('The draft came back empty. Try again, or use the template.'), { status: 502 });
+    throw Object.assign(new Error('The draft came back empty. Try again, or use the template.'), { status: 502, expose: true });
   }
   if (!out.subject) out.subject = 'Invoice reminder';
   return out;

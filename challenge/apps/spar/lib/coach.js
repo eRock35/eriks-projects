@@ -33,7 +33,7 @@ function clampInt(v, lo, hi, dflt) {
 function pick(res, name) {
   const block = (res && res.content || []).find((b) => b.type === 'tool_use' && b.name === name);
   if (!block || !block.input || typeof block.input !== 'object') {
-    throw Object.assign(new Error('The model did not answer in the expected shape. Try again.'), { status: 502 });
+    throw Object.assign(new Error('The model did not answer in the expected shape. Try again.'), { status: 502, expose: true });
   }
   return block.input;
 }
@@ -121,7 +121,7 @@ async function turn(client, model, s, session) {
     ? [...new Set(out.revealed.map((n) => clampInt(n, 1, hiddenCount, 0)).filter((n) => n > 0))]
     : [];
   const reply = clean(out.reply, 900);
-  if (!reply) throw Object.assign(new Error('The other side went quiet. Try that again.'), { status: 502 });
+  if (!reply) throw Object.assign(new Error('The other side went quiet. Try that again.'), { status: 502, expose: true });
   return {
     reply,
     mood: clampInt(out.mood, -5, 5, session.mood || 0),
@@ -364,7 +364,7 @@ function validateScenario(raw) {
   if (!s.them.name) missing.push('name');
   if (s.hidden.length < 2) missing.push('hidden motivations');
   if (missing.length) {
-    throw Object.assign(new Error(`That scenario came back incomplete (${missing.join(', ')}). Try describing it again.`), { status: 502 });
+    throw Object.assign(new Error(`That scenario came back incomplete (${missing.join(', ')}). Try describing it again.`), { status: 502, expose: true });
   }
   return s;
 }

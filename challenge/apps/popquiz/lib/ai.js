@@ -22,7 +22,7 @@ const T = require('./teams');
 function pick(res, name) {
   const block = (res && res.content || []).find((b) => b.type === 'tool_use' && b.name === name);
   if (!block || !block.input || typeof block.input !== 'object') {
-    throw Object.assign(new Error('The model did not answer in the expected shape. Try again, or write the questions by hand.'), { status: 502 });
+    throw Object.assign(new Error('The model did not answer in the expected shape. Try again, or write the questions by hand.'), { status: 502, expose: true });
   }
   return block.input;
 }

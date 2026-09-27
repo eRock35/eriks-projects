@@ -69,7 +69,7 @@ function cleanText(v, max = 2000) {
 }
 
 function httpError(status, message) {
-  return Object.assign(new Error(message), { status });
+  return Object.assign(new Error(message), { status, expose: true });
 }
 
 function isoDay(v) {

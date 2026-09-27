@@ -433,6 +433,24 @@ test('promises: a promise waits; a broken one ranks up and the next draft says s
   ids.promised = id;
 });
 
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words (2026-09-27)', async () => {
+  const c = await alice('POST', '/api/clients', { name: 'UPSTREAM401 Ltd', email: 'up@upstream.example' });
+  const inv = await alice('POST', '/api/invoices', { clientId: c.data.id, amount: 100, issued: day(-50), due: day(-20) });
+  const c2 = await alice('POST', '/api/clients', { name: 'UPSTREAM529 Ltd', email: 'up2@upstream.example' });
+  const inv2 = await alice('POST', '/api/invoices', { clientId: c2.data.id, amount: 100, issued: day(-50), due: day(-20) });
+  const quiet = console.error; console.error = () => {};
+  let a, b;
+  try {
+    a = await alice('POST', `/api/invoices/${inv.data.id}/draft`, {});
+    b = await alice('POST', `/api/invoices/${inv2.data.id}/draft`, {});
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([a.status, b.status], [502, 503], 'an upstream 401 is not "sign in"');
+  assert.strictEqual(a.data.error, 'Could not write that chase. Try again, or use the template.');
+  assert.ok(!JSON.stringify([a.data, b.data]).includes('fake_upstream_error'), 'no provider body reaches the page');
+  for (const x of [inv, inv2]) assert.strictEqual((await alice('DELETE', `/api/invoices/${x.data.id}`)).status, 200);
+  for (const x of [c, c2]) await alice('DELETE', `/api/clients/${x.data.id}`);
+});
+
 test('a chase draft: metered, forced tool, markup stripped, fee only when ticked', async () => {
   const c = await alice('POST', '/api/clients', { name: 'INJECT Holdings', email: 'x@inject.example' });
   const inv = await alice('POST', '/api/invoices', { clientId: c.data.id, amount: 2000, issued: day(-50), due: day(-20) });

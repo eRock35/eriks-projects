@@ -13,7 +13,7 @@ if (process.env.SPAR_MEMORY !== '1' || process.env.SPAR_FAKE_AI !== '1') {
   process.exit(1);
 }
 
-const { app, identityStore } = require('../server');
+const { app, identityStore, store, JOIN } = require('../server');
 const game = require('../lib/game');
 const scenarios = require('../lib/scenarios');
 const coach = require('../lib/coach');
@@ -81,6 +81,21 @@ test('handles never expose an email domain', () => {
   assert.strictEqual(game.handleFromEmail('jane.doe@bigcorp.com'), 'Jane doe');
 });
 
+const uidOf = (email) => Buffer.from(email).toString('base64url');
+test('handles: a new player is a neutral "Player NNNN"; an old email-made handle is shown neutral until changed', () => {
+  const seen = new Set(Array.from({ length: 50 }, () => game.neutralHandle()));
+  assert.ok([...seen].every((h) => /^Player \d{4}$/.test(h)));
+  assert.ok(seen.size > 10, 'random, not one name for everyone');
+  const uid = uidOf('jane.doe@bigcorp.com');
+  const pub = game.publicHandle('Jane doe', uid, { key: 'k' });
+  assert.match(pub, /^Player \d{4}$/);
+  assert.strictEqual(game.publicHandle('Jane doe', uid, { key: 'k' }), pub, 'stable per account');
+  assert.notStrictEqual(game.neutralFor(uid, 'k'), game.neutralFor(uid, 'other key'), 'keyed: not matchable to a guessed email without the secret');
+  assert.strictEqual(game.publicHandle('Jane doe', uid, { chosen: true, key: 'k' }), 'Jane doe', 'a name chosen on purpose stands');
+  assert.strictEqual(game.publicHandle('Ace Closer', uid, { key: 'k' }), 'Ace Closer', 'any other handle is theirs');
+  assert.strictEqual(game.publicHandle('Jane doe', 'not-an-email', { key: 'k' }), 'Jane doe');
+});
+
 /* ---------------- over HTTP ---------------- */
 
 test('library is public and never carries the hidden motivations', async () => {
@@ -100,7 +115,7 @@ test('signed-out visitors can browse and watch the demo, but nothing that spends
   assert.strictEqual((await anon('POST', '/api/custom', { description: 'x'.repeat(40) })).status, 401);
 });
 
-let alice, bob, aliceRound;
+let alice, bob, aliceRound, aliceHandle;
 
 test('register, start a round for free, and the opening line is authored', async () => {
   alice = client();
@@ -108,7 +123,9 @@ test('register, start a round for free, and the opening line is authored', async
   assert.strictEqual(reg.status, 200, JSON.stringify(reg.data));
   const me = await alice('GET', '/api/me');
   assert.strictEqual(me.data.signedIn, true);
-  assert.strictEqual(me.data.player.handle, 'Alice');
+  assert.match(me.data.player.handle, /^Player \d{4}$/, 'a neutral name, not one made from the email');
+  assert.strictEqual(me.data.player.publicHandle, me.data.player.handle);
+  aliceHandle = me.data.player.handle;
   const r = await alice('POST', '/api/rounds', { scenarioId: 'cold-call-cfo', difficulty: 'realistic' });
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.data.transcript.length, 1);
@@ -194,7 +211,8 @@ test('the daily challenge puts your best score on the public board', async () =>
   await alice('POST', `/api/rounds/${r.data.id}/finish`);
   const d = await client()('GET', '/api/daily');
   assert.strictEqual(d.data.board.length, 1);
-  assert.strictEqual(d.data.board[0].handle, 'Alice');
+  assert.strictEqual(d.data.board[0].handle, aliceHandle);
+  assert.ok(!JSON.stringify(d.data).includes('Alice') && !JSON.stringify(d.data).includes('alice'), 'nothing from the email on the public board');
   assert.strictEqual(d.data.board[0].you, false, 'an anonymous reader is nobody on the board');
 });
 
@@ -253,11 +271,76 @@ test('teams: create, join by code, assign a drill, and see the result', async ()
   await bob('POST', `/api/rounds/${r.data.id}/say`, { text: 'What is making this hard for you right now?' });
   await bob('POST', `/api/rounds/${r.data.id}/finish`);
   const dash = await alice('GET', `/api/teams/${team.id}`);
-  const b = dash.data.members.find((m) => m.handle === 'Bob');
+  const bobHandle = (await bob('GET', '/api/me')).data.player.handle;
+  const b = dash.data.members.find((m) => m.handle === bobHandle);
   assert.ok(b.drills[a.data.id] != null);
   assert.strictEqual(dash.data.assignments[0].done, 1);
   assert.strictEqual(dash.data.feed.length, 1);
   assert.ok(!JSON.stringify(dash.data).includes('What is making this hard'), 'teams see scores, never transcripts');
+});
+
+test('old email-made handles: neutral on the daily board, shares and the team, until changed (2026-09-27)', async () => {
+  // Carol played before the change: her handle is what her email made.
+  const carol = client();
+  await carol('POST', '/api/auth/register', { email: 'carol.king@example.com', password: 'yet another long password' });
+  await carol('GET', '/api/me');
+  const cuid = uidOf('carol.king@example.com');
+  await store.merge('players', cuid, { handle: game.handleFromEmail('carol.king@example.com') });
+  const me = (await carol('GET', '/api/me')).data.player;
+  assert.strictEqual(me.handle, 'Carol king');
+  assert.match(me.publicHandle, /^Player \d{4}$/, 'she is told what others see');
+  // A board row written before the change (no `pv`), and one of Dave's.
+  const day = (await client()('GET', '/api/daily')).data.challenge.day;
+  await store.set(`daily/${day}/scores`, uidOf('dave@example.com'), { handle: 'Dave', score: 99, grade: 'A', status: 'won', at: new Date().toISOString() });
+  await store.set(`daily/${day}/scores`, uidOf('erin@example.com'), { handle: 'Erin the Great', score: 98, grade: 'A', status: 'won', at: new Date().toISOString() });
+  // A new daily result of Carol's, a share of it, and a team she is on.
+  const r = await carol('POST', '/api/rounds', { daily: true });
+  await carol('POST', `/api/rounds/${r.data.id}/say`, { text: 'What would make this worth your time?' });
+  await carol('POST', `/api/rounds/${r.data.id}/finish`);
+  const sh = await carol('POST', `/api/rounds/${r.data.id}/share`, {});
+  assert.strictEqual((await carol('POST', '/api/teams/join', { code: team.code })).status, 200);
+  await store.add(`teams/${team.id}/results`, { uid: uidOf('dave@example.com'), handle: 'Dave', title: 'Old round', emoji: 'x', score: 10, grade: 'F', status: 'lost', at: new Date(0).toISOString() });
+  const board = (await client()('GET', '/api/daily')).data.board;
+  const pub = (await client()('GET', `/api/share/${sh.data.shareId}`)).data;
+  const tv = (await alice('GET', `/api/teams/${team.id}`)).data;
+  const all = JSON.stringify([board, pub, tv]);
+  for (const leak of ['Carol', 'carol', '"Dave"', 'dave@']) assert.ok(!all.includes(leak), `leaked ${leak}`);
+  assert.ok(board.some((x) => x.handle === me.publicHandle), 'Carol is on the board as her neutral name');
+  assert.ok(board.some((x) => /^Player \d{4}$/.test(x.handle) && x.score === 99), 'an old row is read neutral too');
+  assert.ok(board.some((x) => x.handle === 'Erin the Great'), 'a handle someone picked is untouched');
+  assert.strictEqual(pub.handle, me.publicHandle);
+  assert.ok(tv.members.some((m) => m.handle === me.publicHandle) && tv.feed.some((f) => /^Player \d{4}$/.test(f.handle) && f.title === 'Old round'));
+  // Choosing a name - even the same one - makes it hers to show.
+  await carol('POST', '/api/me/handle', { handle: 'Carol king' });
+  assert.strictEqual((await carol('GET', '/api/me')).data.player.publicHandle, 'Carol king');
+  assert.ok((await alice('GET', `/api/teams/${team.id}`)).data.members.some((m) => m.handle === 'Carol king'));
+  await carol('POST', `/api/teams/${team.id}/leave`);
+});
+
+test('team codes: wrong guesses are limited per person, and once blocked even the right code is refused', async () => {
+  const guesser = client();
+  await guesser('POST', '/api/auth/register', { email: 'guesser@example.com', password: 'a guessing long password' });
+  const wrong = [];
+  for (let i = 0; i < JOIN.tries; i++) wrong.push((await guesser('POST', '/api/teams/join', { code: `QQQQQ${'ABCDEFGHJK'[i]}` })).status);
+  assert.ok(wrong.every((x) => x === 404));
+  const blocked = await guesser('POST', '/api/teams/join', { code: team.code });
+  assert.strictEqual(blocked.status, 429, 'no oracle: the right code is refused too');
+  assert.strictEqual((await guesser('GET', '/api/teams')).data.teams.length, 0);
+  assert.strictEqual((await store.get('joinfails', uidOf('guesser@example.com'))).count, JOIN.tries);
+});
+
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words', async () => {
+  const r = await alice('POST', '/api/rounds', { scenarioId: 'angry-customer' });
+  const quiet = console.error; console.error = () => {};
+  let up401, up529;
+  try {
+    up401 = await alice('POST', `/api/rounds/${r.data.id}/say`, { text: 'Sorry about that UPSTREAM401' });
+    up529 = await alice('POST', `/api/rounds/${r.data.id}/say`, { text: 'Sorry about that UPSTREAM529' });
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([up401.status, up529.status], [502, 503], 'an upstream 401 is not "sign in"');
+  assert.strictEqual(up401.data.error, 'The other side did not answer. Try again.');
+  assert.ok(!JSON.stringify([up401.data, up529.data]).includes('fake_upstream_error'));
+  assert.strictEqual((await alice('POST', `/api/rounds/${r.data.id}/say`, { text: '' })).status, 400, 'our own errors keep their status and words');
 });
 
 test('leaving a team, and the owner deleting it', async () => {

@@ -85,6 +85,7 @@ lines would look fine and be broken.
 - `daily/<YYYY-MM-DD>/scores/<uid>` — best daily score. Public board.
 - `shares/<id>` — a published scorecard snapshot.
 - `teams/<id>`, `teamcodes/<CODE>`, `teams/<id>/results/<auto>`.
+- `joinfails/<uid>` — `{count, since}`: wrong team codes in the window.
 
 Accounts are the shared identity (`identity` database), mounted at `/api/auth`.
 
@@ -102,6 +103,38 @@ graduation or deleted.)
   out. A real-time voice mode would be the iOS app's headline feature.
 - Team owners cannot yet see a member's scorecard detail — only scores.
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
+
+## Security fixes (2026-09-27)
+
+- **Public names say nothing about the email.** A new player was named
+  `handleFromEmail` ("Jane doe" for jane.doe@...), and the daily board is
+  public. Now a new player is `neutralHandle()` ("Player 4821", random) until
+  they pick a name, and an old handle that still equals what their email made
+  is shown as `neutralFor(uid)` - stable per account, HMAC-keyed from
+  `IDENTITY_SESSION_SECRET` - on the daily board, shared scorecards, team
+  members, feed and owner line (`game.publicHandle`). Saving a name sets
+  `handleChosen`, and a chosen name is shown as typed, even the same one.
+  Rows written since carry `pv: 1` (their handle is already the public one);
+  older board and feed rows are checked on read, the email recovered from the
+  uid on the server. The account sheet says "Leaderboards show you as Player
+  NNNN until you save a name." Not fixable: a scorecard shared before this
+  keeps the handle it was frozen with (share documents hold no uid).
+- **Team codes have a guessing limit** - Booth's: 8 wrong per person per 15
+  minutes (stored in `joinfails/<uid>`) and 30 per address (memory); once
+  blocked even the right code is refused, and every wrong code gets the same
+  404.
+- **Provider errors never reach the page.** `fail()` is Receipt's: only
+  errors the app made (`httpError`, marked `expose`) keep their status and
+  words; an Anthropic error (which carries a `.status` and the provider's raw
+  JSON) is logged and answered 502 with the route's own sentence, 503 when
+  the provider is overloaded or rate-limited. Before, an upstream 401 told a
+  signed-in person to sign in. The fake model throws a provider error when
+  `UPSTREAM<nnn>` appears in its messages; the tests use it.
+- **A script CSP.** Every page now sends `script-src 'self'; object-src
+  'none'; base-uri 'self'` with the existing `frame-ancestors`. Every app on
+  the lab shares one origin, so injected script in one would run as all of
+  them. The pages have no inline `<script>` or `on*=` handler; keep it that
+  way (`challenge/test/lab.js` checks every `index.html`).
 
 ## Commit and PR conventions
 

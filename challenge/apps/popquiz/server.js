@@ -23,6 +23,7 @@ const ai = require('./lib/ai');
 const photo = require('./lib/photo');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
+const memberKey = require('./lib/memberkey');
 
 const PORT = process.env.PORT || 8080;
 const FAKE_AI = process.env.POPQUIZ_FAKE_AI === '1';
@@ -36,7 +37,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  // No inline script anywhere in these pages (2026-09-27): every app shares
+  // one origin, so one app's injection must not run script as the others.
+  res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
@@ -86,16 +89,31 @@ const user = identity.requireUser;
 
 const now = () => new Date().toISOString();
 const httpError = T.httpError;
+// Only the app's own errors (httpError, marked `expose`) reach the client
+// with their status and words (2026-09-27). Anything else is logged and
+// answered with the route's fallback - including the Anthropic SDK's errors,
+// which carry a `.status` and the provider's raw JSON: passed through, an
+// upstream 401 told a signed-in person to sign in, and a 529 showed them the
+// provider's error body. An upstream failure is a 502 (503 when it is
+// overloaded or rate-limited, so "try again" is the honest advice). Receipt's
+// pattern. Never a request body in the log.
 const fail = (res, err, fallback = 'Something went wrong.') => {
-  if (!err.status) console.error(err);
-  const body = { error: err.status ? err.message : fallback };
-  if (err.index !== undefined) body.index = err.index;
-  if (err.retryAfterMin) body.retryAfterMin = err.retryAfterMin;
-  res.status(err.status || 500).json(body);
+  const mine = Boolean(err && err.expose && err.status);
+  if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
+  const upstream = !mine && err && Number.isInteger(err.status);
+  const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
+  const body = { error: mine ? err.message : fallback };
+  if (mine) for (const k of ['index', 'retryAfterMin']) if (err[k] !== undefined) body[k] = err[k];
+  res.status(status).json(body);
 };
 const todayOf = (req) => T.todayFrom(req.get('x-local-date') || req.query.today);
 
 const ID_RE = /^[A-Za-z0-9_-]{4,40}$/;
+// A uid is the person's email in base64url, so a manager's people list and
+// dashboard name teammates by a per-team opaque id instead (lib/memberkey.js);
+// removal maps it back on the server.
+const memberId = memberKey.create(() => process.env.IDENTITY_SESSION_SECRET || (MEMORY ? 'local-dev-secret' : ''), 'popquiz member id v1');
+const publicPerson = (tid, viewer) => ({ uid, ...p }) => ({ id: memberId(tid, uid), ...p, you: uid === viewer });
 const membersOf = (tid) => `teams/${tid}/members`;
 const decksOf = (tid) => `teams/${tid}/decks`;
 const progressOf = (tid) => `teams/${tid}/progress`;
@@ -304,7 +322,7 @@ app.get('/api/teams/:id', user, async (req, res) => {
     res.json(teamView(t, {
       decks: decks.map(T.deckSummary).sort((a, b) => String(a.publishedAt).localeCompare(String(b.publishedAt))),
       questions: decks.reduce((s, d) => s + (d.questions || []).length, 0),
-      people: t.role === 'manager' ? await loadMembers(t.id) : undefined,
+      people: t.role === 'manager' ? (await loadMembers(t.id)).map(publicPerson(t.id, req.user.id)) : undefined,
     }));
   } catch (err) { fail(res, err); }
 });
@@ -350,7 +368,14 @@ app.post('/api/teams/:id/code', user, async (req, res) => {
 app.delete('/api/teams/:id/members/:uid', user, async (req, res) => {
   try {
     const t = await loadTeam(req);
-    const uid = req.params.uid === 'me' ? req.user.id : String(req.params.uid);
+    // `me`, or the opaque id a manager's list gave the page - never a uid.
+    const param = String(req.params.uid || '');
+    let uid = req.user.id;
+    if (param !== 'me') {
+      const hit = t.role === 'manager' && memberKey.MEMBER_ID_RE.test(param) ? (await loadMembers(t.id)).find((m) => memberId(t.id, m.uid) === param) : null;
+      if (!hit) throw httpError(t.role === 'manager' ? 404 : 403, t.role === 'manager' ? 'They are not on this team.' : 'Only a manager can do that.');
+      uid = hit.uid;
+    }
     if (uid === t.ownerId) throw httpError(400, uid === req.user.id ? 'You made this team - delete it instead of leaving.' : 'The team’s owner cannot be removed.');
     if (uid !== req.user.id) {
       if (t.role !== 'manager') throw httpError(403, 'Only a manager can do that.');
@@ -651,7 +676,7 @@ app.get('/api/teams/:id/dashboard', user, async (req, res) => {
     const progress = await allProgress(t.id);
     res.set('Cache-Control', 'no-store');
     const d = T.dashboard(members, progress, questions, decks, today);
-    d.people = d.people.map((x) => ({ ...x, you: x.uid === req.user.id }));
+    d.people = d.people.map(publicPerson(t.id, req.user.id));
     res.json({ team: teamView(t), ...d });
   } catch (err) { fail(res, err); }
 });

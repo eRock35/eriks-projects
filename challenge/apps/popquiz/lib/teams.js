@@ -33,7 +33,7 @@ const LIMITS = {
 const EMOJIS = ['🍕', '☕', '🍔', '🌮', '🍣', '🥗', '🍰', '🍺', '🛍️', '👗', '💇', '💅', '🦷', '🩺', '🏋️', '🧘', '🏨', '🧰', '🚗', '🐾', '🌿', '📚', '🎬', '🧠'];
 
 function httpError(status, message, extra) {
-  return Object.assign(new Error(message), { status }, extra || {});
+  return Object.assign(new Error(message), { status, expose: true }, extra || {});
 }
 
 const clean = Q.clean;

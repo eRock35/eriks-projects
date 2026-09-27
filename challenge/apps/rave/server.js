@@ -36,7 +36,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  // No inline script anywhere in these pages (2026-09-27): every app shares
+  // one origin, so one app's injection must not run script as the others.
+  res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   res.set('X-Content-Type-Options', 'nosniff');
   // A wall link is the credential for that wall. It must not ride out in a
   // Referer header, and it must not be indexed under Rave's name.
@@ -92,9 +94,21 @@ const user = identity.requireUser;
 
 const now = () => new Date().toISOString();
 const httpError = V.httpError;
+// Only the app's own errors (httpError, marked `expose`) reach the client
+// with their status and words (2026-09-27). Anything else is logged and
+// answered with the route's fallback - including the Anthropic SDK's errors,
+// which carry a `.status` and the provider's raw JSON: passed through, an
+// upstream 401 told a signed-in person to sign in, and a 529 showed them the
+// provider's error body. An upstream failure is a 502 (503 when it is
+// overloaded or rate-limited, so "try again" is the honest advice). Receipt's
+// pattern. Never a request body in the log.
 const fail = (res, err, fallback = 'Something went wrong.') => {
-  if (!err.status) console.error(err);
-  res.status(err.status || 500).json({ error: err.status ? err.message : fallback });
+  const mine = Boolean(err && err.expose && err.status);
+  if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
+  const upstream = !mine && err && Number.isInteger(err.status);
+  const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
+  const body = { error: mine ? err.message : fallback };
+  res.status(status).json(body);
 };
 
 /** The page sends its own local date, so "today" and the streak mean the

@@ -118,6 +118,56 @@ function visitor(req, res) {
   return id;
 }
 
+// Stuffing and flooding (2026-09-27). The id is random, not signed, so a
+// script can invent one per request; what bounds it is counting, in memory,
+// per address. A vote needs an id the request already carries (the page's
+// own GET /api/lab mints it before anything can be tapped), and an address
+// may bring at most LIMITS.votersPerIp different ids to the vote route in a
+// window - one browser voting on every drop is one. Notes are capped per
+// address and across the instance. IPv6 addresses count by their /64, the
+// block one customer is usually given. This slows stuffing; one vote per
+// browser can still be gamed by someone with many addresses, and CLAUDE.md
+// says so. Per instance, like Receipt's newVotersPerIp.
+const LIMITS = {
+  windowMs: 60 * 60 * 1000,
+  votersPerIp: Number(process.env.LAB_VOTERS_PER_IP) || 20,
+  votersPerWindow: 2000,
+  notesPerIp: Number(process.env.LAB_NOTES_PER_IP) || 10,
+  notesPerWindow: 300,
+};
+/** Pure: the address an allowance is counted against (an IPv6 /64). */
+function ipKey(ip) {
+  const a = String(ip || '').replace(/^::ffff:/, '');
+  if (!a.includes(':')) return a;
+  const [head, tail = ''] = a.split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const full = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+  return full.slice(0, 4).map((x) => (x || '0').toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
+const book = new Map();
+/** Count `distinct` (or one more, with no key) against `kind` for this
+ *  address and for the instance. Synchronous, so parallel requests cannot all
+ *  pass one check. Returns false, counting nothing, when either is full. */
+function allow(kind, ip, perIp, perWindow, distinct) {
+  const t = Date.now();
+  const entry = (key) => {
+    const e = book.get(key);
+    if (e && t - e.since <= LIMITS.windowMs) return e;
+    const fresh = { since: t, n: 0, seen: new Set() };
+    book.set(key, fresh);
+    if (book.size > 20000) book.delete(book.keys().next().value);
+    return fresh;
+  };
+  const mine = entry(`${kind}:${ipKey(ip)}`);
+  const all = entry(`${kind}:*`);
+  if (distinct !== undefined && mine.seen.has(distinct)) return true;
+  if (mine.n >= perIp || all.n >= perWindow) return false;
+  mine.n++; all.n++;
+  if (distinct !== undefined) mine.seen.add(distinct);
+  return true;
+}
+
 /* ---------------- build stats: what each app cost to make ---------------- */
 
 // build-stats.json is written by scripts/token-ledger.py --stats from the
@@ -370,9 +420,16 @@ host.post('/api/lab/:slug/vote', lj, async (req, res) => {
     if (!a) return res.status(404).json({ error: 'No such app.' });
     const v = (req.body || {}).v;
     if (!['keep', 'kill', null].includes(v)) return res.status(400).json({ error: 'Vote keep or kill.' });
-    const vid = visitor(req, res);
+    // Never minted here: a cookieless request is a script or a stale page.
+    const vid = visitorId(req);
+    if (!vid) return res.status(400).json({ error: 'Reload the page to vote.' });
+    if (!allow('voter', req.ip, LIMITS.votersPerIp, LIMITS.votersPerWindow, vid)) {
+      return res.status(429).json({ error: 'Too many votes from here. Try again later.' });
+    }
     const key = `${a.slug}:${vid}`;
     const prev = await store.get('lab_voters', key);
+    // Withdrawing a vote that was never cast writes nothing.
+    if (!prev && v === null) return res.json({ ...reveal(await store.get('lab_votes', a.slug), null), myVote: null, newBadges: [] });
     const d = {};
     if (prev && prev.v) d[prev.v] = -1;
     if (v) d[v] = (d[v] || 0) + 1;
@@ -423,7 +480,12 @@ host.post('/api/lab/:slug/note', lj, async (req, res) => {
     if (!a) return res.status(404).json({ error: 'No such app.' });
     const text = String((req.body || {}).text || '').replace(/[<>]/g, '').trim().slice(0, 600);
     if (text.length < 3) return res.status(400).json({ error: 'Say a little more.' });
-    await store.add('lab_notes', { slug: a.slug, text, vid: visitor(req, res), at: new Date().toISOString() });
+    const vid = visitorId(req);
+    if (!vid) return res.status(400).json({ error: 'Reload the page to send a note.' });
+    if (!allow('note', req.ip, LIMITS.notesPerIp, LIMITS.notesPerWindow)) {
+      return res.status(429).json({ error: 'That’s a lot of notes. Try again in an hour.' });
+    }
+    await store.add('lab_notes', { slug: a.slug, text, vid, at: new Date().toISOString() });
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -433,7 +495,9 @@ host.post('/api/lab/:slug/note', lj, async (req, res) => {
 
 host.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
-  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  // No inline script anywhere in these pages (2026-09-27): every app shares
+  // one origin, so one app's injection must not run script as the others.
+  res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   next();
 });
 host.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
@@ -444,4 +508,4 @@ if (require.main === module) {
   host.listen(PORT, () => console.log(`[lab] listening on ${PORT}${MEMORY ? ' (memory)' : ''}`));
 }
 
-module.exports = { host, mounted, store, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };
+module.exports = { host, mounted, store, LIMITS, ipKey, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };

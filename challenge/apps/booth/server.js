@@ -26,6 +26,7 @@ const ai = require('./lib/ai');
 const photo = require('./lib/photo');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
+const memberKey = require('./lib/memberkey');
 
 const PORT = process.env.PORT || 8080;
 const FAKE_AI = process.env.BOOTH_FAKE_AI === '1';
@@ -39,7 +40,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  // No inline script anywhere in these pages (2026-09-27): every app shares
+  // one origin, so one app's injection must not run script as the others.
+  res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   res.set('X-Content-Type-Options', 'nosniff');
   // A share link is the credential for that scorecard. It must not ride out
   // in a Referer header, and it must not be indexed under Booth's name.
@@ -91,19 +94,33 @@ const modelFor = (req) => identityLib.planFor(req.user, MODELS).model;
 const spend = [identity.requireUser, identity.requireBudget, identity.requireDailyCap];
 const user = identity.requireUser;
 
+// A uid is the person's email in base64url, so no page is ever sent anyone's
+// uid but its own viewer's (and not even that: `you` and `mine` say it).
+// Teammates are named to the page by this per-event opaque id (lib/memberkey.js).
+const memberId = memberKey.create(() => process.env.IDENTITY_SESSION_SECRET || (MEMORY ? 'local-dev-secret' : ''), 'booth member id v1');
+
 /* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
 
 const now = () => new Date().toISOString();
 const httpError = E.httpError;
-// Errors are logged only when they are ours (no status). Never a request
-// body: a lead is somebody's name, email and phone.
+// Only the app's own errors (httpError, marked `expose`) reach the client
+// with their status and words (2026-09-27). Anything else is logged and
+// answered with the route's fallback - including the Anthropic SDK's errors,
+// which carry a `.status` and the provider's raw JSON: passed through, an
+// upstream 401 told a signed-in person to sign in, and a 529 showed them the
+// provider's error body. An upstream failure is a 502 (503 when it is
+// overloaded or rate-limited, so "try again" is the honest advice). Receipt's
+// pattern. Never a request body in the log.
 const fail = (res, err, fallback = 'Something went wrong.') => {
-  if (!err.status) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error');
-  const body = { error: err.status ? err.message : fallback };
-  for (const k of ['field', 'duplicate', 'retryAfterMin']) if (err[k] !== undefined) body[k] = err[k];
-  res.status(err.status || 500).json(body);
+  const mine = Boolean(err && err.expose && err.status);
+  if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
+  const upstream = !mine && err && Number.isInteger(err.status);
+  const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
+  const body = { error: mine ? err.message : fallback };
+  if (mine) for (const k of ['field', 'duplicate', 'retryAfterMin']) if (err[k] !== undefined) body[k] = err[k];
+  res.status(status).json(body);
 };
 
 const membersOf = (eid) => `events/${eid}/members`;
@@ -322,7 +339,7 @@ app.get('/api/events/:id', user, async (req, res) => {
   try {
     const ev = await loadEvent(req);
     res.set('Cache-Control', 'no-store');
-    const people = (await loadMembers(ev.id)).map(({ uid, name, role }) => ({ uid, name, role, you: uid === req.user.id }));
+    const people = (await loadMembers(ev.id)).map(({ uid, name, role }) => ({ id: memberId(ev.id, uid), name, role, you: uid === req.user.id }));
     res.json(eventView(ev, { people }));
   } catch (err) { fail(res, err); }
 });
@@ -368,7 +385,14 @@ app.post('/api/events/:id/code', user, async (req, res) => {
 app.delete('/api/events/:id/members/:uid', user, async (req, res) => {
   try {
     const ev = await loadEvent(req);
-    const uid = req.params.uid === 'me' ? req.user.id : String(req.params.uid);
+    // `me`, or the opaque id the people list gave the page - never a uid.
+    const param = String(req.params.uid || '');
+    let uid = req.user.id;
+    if (param !== 'me') {
+      const hit = memberKey.MEMBER_ID_RE.test(param) ? (await loadMembers(ev.id)).find((m) => memberId(ev.id, m.uid) === param) : null;
+      if (!hit) throw httpError(ev.role === 'owner' ? 404 : 403, ev.role === 'owner' ? 'They are not on this team.' : 'Only the event’s owner can do that.');
+      uid = hit.uid;
+    }
     if (uid === ev.ownerId) throw httpError(400, uid === req.user.id ? 'You run this event - delete it instead of leaving.' : 'The owner cannot be removed.');
     if (uid !== req.user.id) {
       if (ev.role !== 'owner') throw httpError(403, 'Only the event’s owner can do that.');
@@ -398,7 +422,8 @@ app.delete('/api/events/:id', user, async (req, res) => {
  * ------------------------------------------------------------------ */
 
 /** A lead for the page, plus whether this viewer may delete it. */
-const viewOf = (ev, l, t = Date.now()) => ({ ...E.leadView(l, t), canDelete: ev.role === 'owner' || l.capturedBy === ev.viewer });
+// `mine` instead of capturedBy/sentBy: those are uids, and a uid is an email.
+const viewOf = (ev, l, t = Date.now()) => ({ ...E.leadView(l, t), mine: l.capturedBy === ev.viewer, canDelete: ev.role === 'owner' || l.capturedBy === ev.viewer });
 
 function dupError(d) {
   const l = d.lead;
@@ -610,7 +635,7 @@ app.get('/api/events/:id/leaderboard', user, async (req, res) => {
     const t = Date.now();
     const members = await loadMembers(ev.id);
     const rows = B.leaderboard(members, await loadLeads(ev.id), t, { boothCost: ev.boothCost })
-      .map((r) => ({ ...r, you: r.uid === req.user.id }));
+      .map(({ uid, ...r }) => ({ ...r, you: uid === req.user.id }));
     res.set('Cache-Control', 'no-store');
     res.json({ event: eventView(ev), now: new Date(t).toISOString(), rows });
   } catch (err) { fail(res, err); }

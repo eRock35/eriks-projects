@@ -44,6 +44,11 @@ function client() {
 }
 
 const uidOf = (email) => Buffer.from(email).toString('base64url');
+/** The opaque id the people list gives a teammate. */
+async function idOf(who, name) {
+  const r = await who('GET', `/api/events/${EV.id}`);
+  return r.data.people.find((p) => p.name === name).id;
+}
 const modelCalls = async () => (await identityStore.list('usage')).length;
 const settle = () => new Promise((r) => setTimeout(r, 15)); // the meter writes usage rows fire-and-forget
 
@@ -454,7 +459,9 @@ test('capture: validated, recorded who and how, and a 10-second qualify saved in
   assert.strictEqual(r.status, 200, JSON.stringify(r.data));
   const l = r.data.lead;
   EV.dana = l.id;
-  assert.deepStrictEqual([l.email, l.chips, l.next, l.source, l.status, l.value, l.capturedByName, l.capturedBy], ['dana@example.com', ['Wholesale'], 'quote', 'card', 'new', null, 'Theo', uidOf('theo@example.com')], 'status, value and capturer are the server’s, not the body’s');
+  assert.deepStrictEqual([l.email, l.chips, l.next, l.source, l.status, l.value, l.capturedByName, l.capturedBy], ['dana@example.com', ['Wholesale'], 'quote', 'card', 'new', null, 'Theo', undefined], 'status, value and capturer are the server’s, not the body’s');
+  assert.deepStrictEqual([l.mine, l.sentBy], [true, undefined], 'mine, never a uid');
+  assert.strictEqual((await store.get(`events/${EV.id}/leads`, l.id)).capturedBy, uidOf('theo@example.com'), 'the server still knows who');
   assert.strictEqual(l.clock.state, 'fresh');
   assert.strictEqual(l.clock.hours, 48);
 });
@@ -487,7 +494,8 @@ test('follow-up status: sent stops the clock; won takes a deal value; the free t
   assert.strictEqual((await maya('POST', `/api/events/${EV.id}/leads/${EV.dana}/status`, { status: 'maybe' })).status, 400);
   assert.strictEqual((await maya('POST', `/api/events/${EV.id}/leads/${EV.dana}/status`, { status: 'won', value: 'lots' })).status, 400);
   const sent = await maya('POST', `/api/events/${EV.id}/leads/${EV.dana}/status`, { status: 'sent' });
-  assert.deepStrictEqual([sent.data.lead.status, sent.data.lead.clock.state, sent.data.lead.clock.onTime, sent.data.lead.sentBy], ['sent', 'done', true, uidOf('maya@example.com')]);
+  assert.deepStrictEqual([sent.data.lead.status, sent.data.lead.clock.state, sent.data.lead.clock.onTime, sent.data.lead.sentBy], ['sent', 'done', true, undefined]);
+  assert.strictEqual((await store.get(`events/${EV.id}/leads`, EV.dana)).sentBy, uidOf('maya@example.com'));
   const won = await maya('POST', `/api/events/${EV.id}/leads/${EV.dana}/status`, { status: 'won', value: '$4,800' });
   assert.deepStrictEqual([won.data.lead.status, won.data.lead.value, Boolean(won.data.lead.repliedAt), Boolean(won.data.lead.bookedAt)], ['won', 4800, true, true]);
   const sc = (await theo('GET', `/api/events/${EV.id}/scorecard`)).data.scorecard;
@@ -517,6 +525,21 @@ test('draft a follow-up: metered, forced tool, markup stripped, no invented fact
   const empty = await theo('POST', `/api/events/${EV.id}/leads`, { name: 'Em Tee', email: 'em@example.com', temp: 'warm', note: 'EMPTY' });
   assert.strictEqual((await theo('POST', `/api/events/${EV.id}/leads/${empty.data.lead.id}/draft`)).status, 422);
   EV.ivy = inj.data.lead.id;
+});
+
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words (2026-09-27)', async () => {
+  const l1 = await theo('POST', `/api/events/${EV.id}/leads`, { name: 'Up Stream', email: 'up1@example.com', temp: 'warm', note: 'UPSTREAM401' });
+  const l2 = await theo('POST', `/api/events/${EV.id}/leads`, { name: 'Up Stream Two', email: 'up2@example.com', temp: 'warm', note: 'UPSTREAM529' });
+  const quiet = console.error; console.error = () => {};
+  let a, b;
+  try {
+    a = await theo('POST', `/api/events/${EV.id}/leads/${l1.data.lead.id}/draft`);
+    b = await theo('POST', `/api/events/${EV.id}/leads/${l2.data.lead.id}/draft`);
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([a.status, b.status], [502, 503], 'an upstream 401 is not "sign in"');
+  assert.strictEqual(a.data.error, 'Could not draft that. Try again, or use the free template.');
+  assert.ok(!JSON.stringify([a.data, b.data]).includes('fake_upstream_error'), 'no provider body reaches the page');
+  for (const x of [l1, l2]) assert.strictEqual((await theo('DELETE', `/api/events/${EV.id}/leads/${x.data.lead.id}`)).status, 200);
 });
 
 test('snap a card: non-image 400 before the model, unreadable 422, a proposal and nothing stored', async () => {
@@ -611,9 +634,42 @@ async function cookieOf(email) {
   return c.headers.get('set-cookie').split(';')[0];
 }
 
+test('no teammate is sent anyone else’s uid or email (2026-09-27)', async () => {
+  const others = { maya: ['theo', 'priya'], theo: ['maya', 'priya'], priya: ['maya', 'theo'] };
+  const who = { maya, theo, priya };
+  for (const [me, them] of Object.entries(others)) {
+    const c = who[me];
+    const bodies = [];
+    for (const p of [`/api/events/${EV.id}`, `/api/events/${EV.id}/leads`, `/api/events/${EV.id}/leads/${EV.dana}`, `/api/events/${EV.id}/leaderboard`,
+      `/api/events/${EV.id}/scorecard`, `/api/events/${EV.id}/leads/${EV.dana}/template`, '/api/me']) {
+      const r = await c('GET', p);
+      assert.strictEqual(r.status, 200, p);
+      bodies.push(JSON.stringify(r.data));
+    }
+    bodies.push(JSON.stringify((await c('POST', `/api/events/${EV.id}/leads/${EV.dana}/status`, { status: 'won', value: 4800 })).data));
+    const text = bodies.join('\n');
+    for (const o of them) {
+      for (const needle of [uidOf(`${o}@example.com`), `${o}@example.com`]) assert.ok(!text.includes(needle), `${me} was sent ${needle}`);
+    }
+    // Not even their own uid: `you` and `mine` say it.
+    assert.ok(!text.includes(uidOf(`${me}@example.com`)), `${me} was sent their own uid`);
+  }
+  const ev = (await theo('GET', `/api/events/${EV.id}`)).data;
+  assert.ok(ev.people.every((p) => /^[A-Za-z0-9_-]{22}$/.test(p.id) && p.uid === undefined));
+  assert.deepStrictEqual(ev.people.filter((p) => p.you).map((p) => p.name), ['Theo']);
+  const lb = (await theo('GET', `/api/events/${EV.id}/leaderboard`)).data.rows;
+  assert.ok(lb.every((r) => r.uid === undefined)); assert.deepStrictEqual(lb.filter((r) => r.you).map((r) => r.name), ['Theo']);
+  // The id is per event: the same person has another one on another event.
+  const other = await maya('POST', '/api/events', { name: 'Id Check Market', startDate: '2026-10-10' });
+  const mayaHere = ev.people.find((p) => p.name === 'Maya').id;
+  const mayaThere = (await maya('GET', `/api/events/${other.data.id}`)).data.people[0].id;
+  assert.notStrictEqual(mayaHere, mayaThere, 'not joinable across events');
+  assert.strictEqual((await maya('DELETE', `/api/events/${other.data.id}`)).status, 200);
+});
+
 test('staff get 403 on owner-only routes - and can still do the booth work', async () => {
   for (const [m, p, b] of [['PUT', `/api/events/${EV.id}`, { name: 'Mine now' }], ['DELETE', `/api/events/${EV.id}`], ['POST', `/api/events/${EV.id}/code`],
-    ['DELETE', `/api/events/${EV.id}/members/${uidOf('priya@example.com')}`], ['GET', `/api/events/${EV.id}/export.csv`],
+    ['DELETE', `/api/events/${EV.id}/members/${uidOf('priya@example.com')}`], ['DELETE', `/api/events/${EV.id}/members/${(await idOf(theo, 'Priya'))}`], ['GET', `/api/events/${EV.id}/export.csv`],
     ['POST', `/api/events/${EV.id}/share`], ['DELETE', `/api/events/${EV.id}/share`]]) {
     assert.strictEqual((await theo(m, p, b)).status, 403, `${m} ${p}`);
   }
@@ -689,7 +745,8 @@ test('leaving and removal: leads stay with the team; a removed member is a stran
   assert.strictEqual((await maya('DELETE', `/api/events/${EV.id}/members/me`)).status, 400, 'the owner deletes instead of leaving');
   assert.strictEqual((await priya('DELETE', `/api/events/${EV.id}/members/me`)).data.left, true);
   assert.strictEqual((await priya('GET', `/api/events/${EV.id}/leads`)).status, 404);
-  assert.strictEqual((await maya('DELETE', `/api/events/${EV.id}/members/${uidOf('theo@example.com')}`)).status, 200);
+  assert.strictEqual((await maya('DELETE', `/api/events/${EV.id}/members/${uidOf('theo@example.com')}`)).status, 404, 'a raw uid names nobody');
+  assert.strictEqual((await maya('DELETE', `/api/events/${EV.id}/members/${await idOf(maya, 'Theo')}`)).status, 200);
   assert.strictEqual((await theo('GET', `/api/events/${EV.id}`)).status, 404);
   assert.strictEqual((await store.list(`events/${EV.id}/leads`)).length, before, 'their leads are the team’s');
 });

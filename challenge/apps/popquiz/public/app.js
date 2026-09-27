@@ -675,7 +675,7 @@
       '<div class="dk-2">' +
       '<div><div class="section-title"><h2>Who’s done today</h2><span class="count">' + d.done + ' of ' + d.total + '</span></div>' +
       '<div class="list">' + people.map(function (p) {
-        return '<div class="lrow' + (real ? ' tap' : '') + '"' + (real ? ' role="button" tabindex="0" data-person="' + esc(p.uid) + '"' : '') + '>' + av(p.name) +
+        return '<div class="lrow' + (real ? ' tap' : '') + '"' + (real ? ' role="button" tabindex="0" data-person="' + esc(p.id) + '"' : '') + '>' + av(p.name) +
           '<div class="grow"><div class="nm ellip">' + esc(p.name) + (p.role === 'manager' ? ' <span class="tag">Manager</span>' : '') + '</div>' +
           '<div class="sub">' + (p.streak ? '🔥 ' + p.streak + ' · ' : '') + (p.started ? (p.accuracy != null ? p.accuracy + '% right · ' : '') + p.mastery + '% known' : 'Not started') + '</div>' +
           '<div class="bar mbar" style="margin-top:6px" aria-hidden="true"><i style="width:' + p.mastery + '%"></i></div></div>' +
@@ -701,7 +701,7 @@
     wireInvite(t.code, o.demo);
     if (real) {
       $$('[data-person]').forEach(function (el) {
-        var go = function () { openPerson(people.filter(function (p) { return p.uid === el.dataset.person; })[0], t); };
+        var go = function () { openPerson(people.filter(function (p) { return p.id === el.dataset.person; })[0], t); };
         el.onclick = go;
         el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
       });
@@ -741,7 +741,7 @@
       var rm = $('#rmBtn', root);
       if (rm) rm.onclick = function () {
         if (!window.confirm('Remove ' + p.name + '? Their streak and progress on this team are deleted.')) return;
-        api('DELETE', teamPath('/members/' + encodeURIComponent(p.uid))).then(function () { closeSheet(); toast(p.name + ' removed.'); route(); }).catch(function (e) { showError(e); });
+        api('DELETE', teamPath('/members/' + encodeURIComponent(p.id))).then(function () { closeSheet(); toast(p.name + ' removed.'); route(); }).catch(function (e) { showError(e); });
       };
     });
   }

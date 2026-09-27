@@ -11,7 +11,7 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 function httpError(status, message) {
-  return Object.assign(new Error(message), { status });
+  return Object.assign(new Error(message), { status, expose: true });
 }
 
 /** The real type from the first bytes. A declared type is a claim. */

@@ -17,7 +17,7 @@ const Q = require('./quote');
 function pick(res, name) {
   const block = (res && res.content || []).find((b) => b.type === 'tool_use' && b.name === name);
   if (!block || !block.input || typeof block.input !== 'object') {
-    throw Object.assign(new Error('The model did not answer in the expected shape. Try again.'), { status: 502 });
+    throw Object.assign(new Error('The model did not answer in the expected shape. Try again.'), { status: 502, expose: true });
   }
   return block.input;
 }
@@ -122,7 +122,7 @@ function validateDraft(raw, wantTiers) {
   const items = Q.cleanItems(raw.items);
   const tiers = wantTiers ? Q.cleanTiers(raw.tiers) : null;
   if (!items.length && !(tiers && tiers.some((t) => t.items.length))) {
-    throw Object.assign(new Error('The draft came back without any line items. Add a sentence about the job and try again.'), { status: 502 });
+    throw Object.assign(new Error('The draft came back without any line items. Add a sentence about the job and try again.'), { status: 502, expose: true });
   }
   return {
     title: Q.clean(raw.title, 90),
@@ -169,7 +169,7 @@ async function polish(client, model, q, tone) {
     }],
   });
   const scope = Q.cleanText(pick(res, 'polish_scope').scope, 1500);
-  if (!scope) throw Object.assign(new Error('The rewrite came back empty. Try again.'), { status: 502 });
+  if (!scope) throw Object.assign(new Error('The rewrite came back empty. Try again.'), { status: 502, expose: true });
   return { scope, tone: TONES[tone] ? tone : 'professional' };
 }
 
@@ -212,7 +212,7 @@ async function followUp(client, model, q, profile, { daysSince, viewed, total })
   });
   const out = pick(res, 'follow_up');
   const sms = Q.clean(out.sms, 320);
-  if (!sms) throw Object.assign(new Error('The follow-up came back empty. Try again.'), { status: 502 });
+  if (!sms) throw Object.assign(new Error('The follow-up came back empty. Try again.'), { status: 502, expose: true });
   return {
     sms,
     emailSubject: Q.clean(out.emailSubject, 90),

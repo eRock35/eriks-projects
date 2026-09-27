@@ -227,6 +227,21 @@ page `s/:token`, and `rules.js` (static). Signed in: `GET /api/me`,
   with the copy-paste check keeping them varied.
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
 
+## Security fixes (2026-09-27)
+
+- **Provider errors never reach the page.** `fail()` is Receipt's: only
+  errors the app made (`httpError`, marked `expose`) keep their status and
+  words; an Anthropic error (which carries a `.status` and the provider's raw
+  JSON) is logged and answered 502 with the route's own sentence, 503 when
+  the provider is overloaded or rate-limited. Before, an upstream 401 told a
+  signed-in person to sign in. The fake model throws a provider error when
+  `UPSTREAM<nnn>` appears in its messages; the tests use it.
+- **A script CSP.** Every page now sends `script-src 'self'; object-src
+  'none'; base-uri 'self'` with the existing `frame-ancestors`. Every app on
+  the lab shares one origin, so injected script in one would run as all of
+  them. The pages have no inline `<script>` or `on*=` handler; keep it that
+  way (`challenge/test/lab.js` checks every `index.html`).
+
 ## Commit and PR conventions
 
 Never put a Claude session link in anything pushed to GitHub. See the repo

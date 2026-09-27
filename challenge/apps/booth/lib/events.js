@@ -21,7 +21,7 @@ const LIMITS = {
 };
 
 function httpError(status, message, extra) {
-  return Object.assign(new Error(message), { status }, extra || {});
+  return Object.assign(new Error(message), { status, expose: true }, extra || {});
 }
 
 const ID_RE = /^[A-Za-z0-9_-]{4,40}$/;
@@ -113,7 +113,9 @@ function cleanMember(b, prev = {}) {
 }
 
 /** The fields a lead document carries, for the page. Everything the team
- *  captured is visible to the whole team - it is the team's pipeline. */
+ *  captured is visible to the whole team - it is the team's pipeline. Not
+ *  who captured or sent it by uid (a uid is an email): the name, and the
+ *  server's `mine`. */
 function leadView(l, now) {
   return {
     id: l.id,
@@ -129,11 +131,9 @@ function leadView(l, now) {
     source: l.source || 'typed',
     status: l.status || 'new',
     value: l.value == null ? null : l.value,
-    capturedBy: l.capturedBy,
     capturedByName: l.capturedByName || '',
     capturedAt: l.capturedAt,
     sentAt: l.sentAt || null,
-    sentBy: l.sentBy || null,
     repliedAt: l.repliedAt || null,
     bookedAt: l.bookedAt || null,
     wonAt: l.wonAt || null,

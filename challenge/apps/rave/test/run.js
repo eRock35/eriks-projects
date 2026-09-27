@@ -479,6 +479,18 @@ test('a reply in your voice: metered, forced tool, markup stripped, linted', asy
   assert.strictEqual((await alice('GET', `/api/reviews/${ids.angry}`)).data.status, 'waiting', 'drafting is not replying');
 });
 
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words (2026-09-27)', async () => {
+  const quiet = console.error; console.error = () => {};
+  let a, b;
+  try {
+    a = await alice('POST', '/api/cooldown', { text: 'You were late and rude to us. UPSTREAM401' });
+    b = await alice('POST', '/api/cooldown', { text: 'You were late and rude to us. UPSTREAM529' });
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([a.status, b.status], [502, 503], 'an upstream 401 is not "sign in"');
+  assert.strictEqual(a.data.error, 'Could not cool that down. Try again.');
+  assert.ok(!JSON.stringify([a.data, b.data]).includes('fake_upstream_error'), 'no provider body reaches the page');
+});
+
 test('cool down: metered, measured by the rules on both sides, and the vent is never stored', async () => {
   const calls = await modelCalls();
   const dump = store._dump();

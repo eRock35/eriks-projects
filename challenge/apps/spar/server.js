@@ -36,7 +36,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set('Content-Security-Policy', "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
+  // No inline script anywhere in these pages (2026-09-27): every app shares
+  // one origin, so one app's injection must not run script as the others.
+  res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
@@ -80,27 +82,50 @@ const spend = [identity.requireUser, identity.requireBudget, identity.requireDai
  * ------------------------------------------------------------------ */
 
 const now = () => new Date().toISOString();
+// Only the app's own errors (httpError, marked `expose`) reach the client
+// with their status and words (2026-09-27). Anything else is logged and
+// answered with the route's fallback - including the Anthropic SDK's errors,
+// which carry a `.status` and the provider's raw JSON: passed through, an
+// upstream 401 told a signed-in person to sign in, and a 529 showed them the
+// provider's error body. An upstream failure is a 502 (503 when it is
+// overloaded or rate-limited, so "try again" is the honest advice). Receipt's
+// pattern. Never a request body in the log.
 const fail = (res, err, fallback = 'Something went wrong.') => {
-  if (!err.status) console.error(err);
-  res.status(err.status || 500).json({ error: err.status ? err.message : fallback });
+  const mine = Boolean(err && err.expose && err.status);
+  if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
+  const upstream = !mine && err && Number.isInteger(err.status);
+  const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
+  const body = { error: mine ? err.message : fallback };
+  res.status(status).json(body);
 };
-const httpError = (status, message) => Object.assign(new Error(message), { status });
+const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
 const newId = (n = 12) => crypto.randomBytes(n).toString('base64url').slice(0, n);
 
 const sessionsOf = (uid) => `players/${uid}/sessions`;
 const customOf = (uid) => `players/${uid}/custom`;
 
+// Handles on public surfaces (the daily board, shared scorecards, team
+// feeds): a new player is "Player 4821" until they pick a name, and an old
+// handle that is still what their email made is shown in that neutral form
+// (game.publicHandle). Rows written since carry `pv: 1` - their handle is
+// already the public one; older rows are checked as they are read.
+const handleKey = () => process.env.IDENTITY_SESSION_SECRET || (MEMORY ? 'local-dev-secret' : '');
+const shownHandle = (handle, uid, chosen) => game.publicHandle(handle, uid, { chosen, key: handleKey() });
+const shownFor = (p, uid) => shownHandle(p && p.handle, uid, Boolean(p && p.handleChosen));
+const shownRow = (r, uid) => (r.pv ? r.handle : shownHandle(r.handle, uid, false));
+
 async function loadPlayer(user) {
   const p = await store.get('players', user.id);
   if (p) return p;
-  const fresh = { ...game.blankPlayer(game.handleFromEmail(user.email)), createdAt: now() };
+  const fresh = { ...game.blankPlayer(game.neutralHandle()), createdAt: now() };
   await store.set('players', user.id, fresh);
   return { id: user.id, ...fresh };
 }
 
-function playerSummary(p) {
+function playerSummary(p, uid) {
   return {
     handle: p.handle,
+    publicHandle: shownFor(p, uid),
     level: game.levelFor(p.xp || 0),
     rounds: p.rounds || 0,
     wins: p.wins || 0,
@@ -197,7 +222,7 @@ app.get('/api/daily', async (req, res) => {
     const uid = req.user && req.user.id;
     res.json({
       challenge: { ...d, scenario: scenarios.publicView(scenarios.get(d.scenarioId)) },
-      board: rows.map((r, i) => ({ rank: i + 1, handle: r.handle, score: r.score, grade: r.grade, status: r.status, you: r.id === uid })),
+      board: rows.map((r, i) => ({ rank: i + 1, handle: shownRow(r, r.id), score: r.score, grade: r.grade, status: r.status, you: r.id === uid })),
       mine: uid ? (await store.get(`daily/${d.day}/scores`, uid)) : null,
       players: rows.length,
     });
@@ -226,7 +251,7 @@ app.get('/api/me', async (req, res) => {
       email: req.user.email,
       budget: identityLib.budgetFor(req.user),
       tier: identityLib.planFor(req.user, MODELS).tier,
-      player: playerSummary(p),
+      player: playerSummary(p, req.user.id),
       recent: recent.map((s) => ({
         id: s.id, title: s.scenario && s.scenario.title, emoji: s.scenario && s.scenario.emoji,
         status: s.status, difficulty: s.difficulty, daily: s.daily || null,
@@ -242,7 +267,7 @@ app.post('/api/me/handle', identity.requireUser, async (req, res) => {
     const handle = game.cleanHandle((req.body || {}).handle);
     if (handle.length < 2) throw httpError(400, 'Pick a name with at least two letters.');
     await loadPlayer(req.user);
-    await store.merge('players', req.user.id, { handle });
+    await store.merge('players', req.user.id, { handle, handleChosen: true });
     res.json({ ok: true, handle });
   } catch (err) { fail(res, err); }
 });
@@ -401,12 +426,12 @@ app.post('/api/rounds/:id/finish', ...spend, async (req, res) => {
         const path_ = `daily/${s.daily}/scores`;
         const prev = await store.get(path_, req.user.id);
         if (!prev || card.overall > prev.score) {
-          await store.set(path_, req.user.id, { handle: pdata.handle, score: card.overall, grade: card.grade, status: s.status, at: now() });
+          await store.set(path_, req.user.id, { handle: shownFor(pdata, req.user.id), pv: 1, score: card.overall, grade: card.grade, status: s.status, at: now() });
         }
       }
       if (s.teamId) {
         await store.add(`teams/${s.teamId}/results`, {
-          uid: req.user.id, handle: pdata.handle, assignmentId: s.assignmentId || null,
+          uid: req.user.id, handle: shownFor(pdata, req.user.id), pv: 1, assignmentId: s.assignmentId || null,
           title: s.scenario.title, emoji: s.scenario.emoji, score: card.overall, grade: card.grade,
           status: s.status, difficulty: s.difficulty, at: now(),
         });
@@ -435,7 +460,7 @@ app.post('/api/rounds/:id/share', identity.requireUser, async (req, res) => {
     const player = await loadPlayer(req.user);
     const shareId = s.shareId || newId(10);
     await store.set('shares', shareId, {
-      handle: player.handle,
+      handle: shownFor(player, req.user.id),
       scenario: scenarios.publicView(s.scenario),
       difficulty: s.difficulty,
       status: s.status,
@@ -530,9 +555,9 @@ app.post('/api/teams', identity.requireUser, async (req, res) => {
     let code = teamCode();
     for (let i = 0; i < 5 && (await store.get('teamcodes', code)); i++) code = teamCode();
     const team = {
-      name, code, ownerId: req.user.id, ownerHandle: p.handle,
+      name, code, ownerId: req.user.id, ownerHandle: shownFor(p, req.user.id),
       memberIds: [req.user.id],
-      members: { [req.user.id]: { handle: p.handle, joinedAt: now() } },
+      members: { [req.user.id]: { handle: shownFor(p, req.user.id), joinedAt: now() } },
       assignments: [], createdAt: now(),
     };
     const id = await store.add('teams', team);
@@ -542,18 +567,56 @@ app.post('/api/teams', identity.requireUser, async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+/**
+ * Wrong codes are counted per person (in the store, so it holds across
+ * instances) and per address (in memory, for someone with many accounts) -
+ * Booth's limiter (2026-09-27). A code is 6 of 32 characters, about a
+ * billion; without a limit a script could walk them. Every wrong code gets
+ * the same answer, and once blocked even the right code is refused, so the
+ * limit is not an oracle.
+ */
+const JOIN = { tries: 8, triesPerIp: 30, windowMs: 15 * 60 * 1000 };
+const ipTries = new Map();
+function ipBlocked(ip) {
+  const e = ipTries.get(ip);
+  if (!e) return false;
+  if (Date.now() - e.since > JOIN.windowMs) { ipTries.delete(ip); return false; }
+  return e.count >= JOIN.triesPerIp;
+}
+function ipMiss(ip) {
+  const e = ipTries.get(ip);
+  if (!e || Date.now() - e.since > JOIN.windowMs) ipTries.set(ip, { count: 1, since: Date.now() });
+  else e.count++;
+  if (ipTries.size > 5000) ipTries.delete(ipTries.keys().next().value);
+}
+async function userTries(uid) {
+  const r = await store.get('joinfails', uid);
+  if (!r || Date.now() - Date.parse(r.since) > JOIN.windowMs) return { count: 0, since: null };
+  return r;
+}
+function tooMany(since) {
+  const left = since ? Math.max(1, Math.ceil((Date.parse(since) + JOIN.windowMs - Date.now()) / 60000)) : 15;
+  return httpError(429, `Too many wrong codes. Try again in ${left} minute${left === 1 ? '' : 's'}, and check the code with whoever sent it.`);
+}
+
 app.post('/api/teams/join', identity.requireUser, async (req, res) => {
   try {
+    const tries = await userTries(req.user.id);
+    if (tries.count >= JOIN.tries || ipBlocked(req.ip)) throw tooMany(tries.since);
     const code = String((req.body || {}).code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
     const link = code.length === 6 ? await store.get('teamcodes', code) : null;
     const t = link && await store.get('teams', link.teamId);
-    if (!t) throw httpError(404, 'No team has that code. Check it with whoever sent it.');
+    if (!t) {
+      await store.set('joinfails', req.user.id, { count: tries.count + 1, since: tries.since || now() });
+      ipMiss(req.ip);
+      throw httpError(404, 'No team has that code. Check it with whoever sent it.');
+    }
     const p = await loadPlayer(req.user);
     if (!(t.memberIds || []).includes(req.user.id)) {
       if ((t.memberIds || []).length >= MAX_TEAM_MEMBERS) throw httpError(409, 'That team is full.');
       await store.merge('teams', t.id, {
         memberIds: [...(t.memberIds || []), req.user.id],
-        members: { [req.user.id]: { handle: p.handle, joinedAt: now() } },
+        members: { [req.user.id]: { handle: shownFor(p, req.user.id), joinedAt: now() } },
       });
     }
     await store.merge('players', req.user.id, { teamIds: [...new Set([...(p.teamIds || []), t.id])] });
@@ -570,7 +633,7 @@ app.get('/api/teams/:id', identity.requireUser, async (req, res) => {
       const p = await store.get('players', uid);
       const mine = results.filter((r) => r.uid === uid);
       members.push({
-        handle: (p && p.handle) || (t.members[uid] || {}).handle || 'Player',
+        handle: p ? shownFor(p, uid) : shownHandle((t.members[uid] || {}).handle || 'Player', uid, false),
         you: uid === req.user.id,
         owner: uid === t.ownerId,
         level: game.levelFor((p && p.xp) || 0),
@@ -588,14 +651,15 @@ app.get('/api/teams/:id', identity.requireUser, async (req, res) => {
     }
     members.sort((a, b) => (b.teamAvg ?? -1) - (a.teamAvg ?? -1) || b.level.xp - a.level.xp);
     res.json({
-      id: t.id, name: t.name, code: t.code, owner: t.ownerId === req.user.id, ownerHandle: t.ownerHandle,
+      id: t.id, name: t.name, code: t.code, owner: t.ownerId === req.user.id,
+      ownerHandle: ((members.find((m) => m.owner) || {}).handle) || shownHandle(t.ownerHandle, t.ownerId, false),
       assignments: (t.assignments || []).map((a) => ({
         id: a.id, note: a.note, createdAt: a.createdAt, difficulty: a.difficulty || 'realistic',
         scenario: scenarios.publicView(a.scenario),
         done: members.filter((m) => m.drills[a.id] != null).length,
       })),
       members,
-      feed: results.slice(0, 30).map((r) => ({ handle: r.handle, title: r.title, emoji: r.emoji, score: r.score, grade: r.grade, status: r.status, at: r.at })),
+      feed: results.slice(0, 30).map((r) => ({ handle: shownRow(r, r.uid), title: r.title, emoji: r.emoji, score: r.score, grade: r.grade, status: r.status, at: r.at })),
     });
   } catch (err) { fail(res, err); }
 });
@@ -671,4 +735,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`spar listening on ${PORT}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore };
+module.exports = { app, identity, identityStore, store, JOIN };

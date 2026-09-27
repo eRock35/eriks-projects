@@ -26,7 +26,7 @@ const LIMITS = {
 };
 
 function httpError(status, message, extra = {}) {
-  return Object.assign(new Error(message), { status }, extra);
+  return Object.assign(new Error(message), { status, expose: true }, extra);
 }
 
 /** One line of text: tags and stray angle brackets out, control characters

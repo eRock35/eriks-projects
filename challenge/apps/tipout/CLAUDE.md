@@ -256,6 +256,14 @@ Public: `GET /api/health`, `/api/meta`, `/api/demo`, `/api/shared/:token`, page
 - **Payroll export formats** (Gusto, ADP) beyond the plain CSV.
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
 
+## Security fixes (2026-09-27)
+
+- **A script CSP.** Every page now sends `script-src 'self'; object-src
+  'none'; base-uri 'self'` with the existing `frame-ancestors`. Every app on
+  the lab shares one origin, so injected script in one would run as all of
+  them. The pages have no inline `<script>` or `on*=` handler; keep it that
+  way (`challenge/test/lab.js` checks every `index.html`).
+
 ## Commit and PR conventions
 
 Never put a Claude session link in anything pushed to GitHub. See the repo

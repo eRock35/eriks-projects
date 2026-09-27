@@ -440,6 +440,21 @@ test('glow it up: metered, forced tool, a proposal scored by the rules - and not
   assert.strictEqual(put.data.result.score, r.data.after.score);
 });
 
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words (2026-09-27)', async () => {
+  const l1 = await ana('POST', '/api/listings', { ...LOON_V1, description: `${LOON_V1.description} UPSTREAM401` });
+  const l2 = await ana('POST', '/api/listings', { ...LOON_V1, description: `${LOON_V1.description} UPSTREAM529` });
+  const quiet = console.error; console.error = () => {};
+  let a, b;
+  try {
+    a = await ana('POST', `/api/listings/${l1.data.id}/glowup`);
+    b = await ana('POST', `/api/listings/${l2.data.id}/glowup`);
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([a.status, b.status], [502, 503], 'an upstream 401 is not "sign in"');
+  assert.strictEqual(a.data.error, 'Could not glow that up. Try again.');
+  assert.ok(!JSON.stringify([a.data, b.data]).includes('fake_upstream_error'), 'no provider body reaches the page');
+  for (const x of [l1, l2]) assert.strictEqual((await ana('DELETE', `/api/listings/${x.data.id}`)).status, 200);
+});
+
 test('glow it up: markup, over-length titles and invented facts never reach the page', async () => {
   const inj = await ana('POST', '/api/listings', { ...LOON_V1, title: 'INJECT lake cabin', description: `${LOON_V1.description} INJECT` });
   const r = await ana('POST', `/api/listings/${inj.data.id}/glowup`);

@@ -342,6 +342,18 @@ test('a manager signs up and makes a team; the code is theirs to share', async (
   assert.strictEqual(quiz.data.empty, true, 'no decks yet, nothing to play');
 });
 
+test('a provider failure is a plain sentence: 502, or 503 when it is overloaded - never the provider’s words (2026-09-27)', async () => {
+  const quiet = console.error; console.error = () => {};
+  let a, b;
+  try {
+    a = await gio('POST', `/api/teams/${team.id}/generate`, { text: `${MATERIAL} UPSTREAM401` });
+    b = await gio('POST', `/api/teams/${team.id}/generate`, { text: `${MATERIAL} UPSTREAM529` });
+  } finally { console.error = quiet; }
+  assert.deepStrictEqual([a.status, b.status], [502, 503], 'an upstream 401 is not "sign in"');
+  assert.strictEqual(a.data.error, 'Could not write questions from that. Try again, or write them by hand.');
+  assert.ok(!JSON.stringify([a.data, b.data]).includes('fake_upstream_error'), 'no provider body reaches the page');
+});
+
 test('generate a deck: a proposal comes back and NOTHING is stored until the manager publishes', async () => {
   const calls = await modelCalls();
   assert.strictEqual((await gio('POST', `/api/teams/${team.id}/generate`, { text: 'too short' })).status, 400);
@@ -580,6 +592,28 @@ test('the manager’s dashboard: who is done, mastery, and the blind spot everyo
   assert.strictEqual(d.data.decks.length, 2);
 });
 
+test('a manager is never sent a teammate’s uid or email - an opaque per-team id instead (2026-09-27)', async () => {
+  const bodies = [];
+  for (const p of [`/api/teams/${team.id}`, `/api/teams/${team.id}/dashboard`, `/api/teams/${team.id}/leaderboard`]) {
+    const r = await gio('GET', p);
+    assert.strictEqual(r.status, 200, p);
+    bodies.push(JSON.stringify(r.data));
+  }
+  const text = bodies.join('\n');
+  for (const who of ['gio', 'priya', 'marcus', 'jess']) {
+    assert.ok(!text.includes(uidOf(`${who}@example.com`)), `uid of ${who}`);
+    assert.ok(!text.includes(`${who}@example.com`), `email of ${who}`);
+  }
+  const people = JSON.parse(bodies[0]).people;
+  assert.ok(people.length >= 4 && people.every((p) => /^[A-Za-z0-9_-]{22}$/.test(p.id) && p.uid === undefined));
+  assert.deepStrictEqual(people.filter((p) => p.you).map((p) => p.name), ['Gio M.']);
+  const dash = JSON.parse(bodies[1]).people;
+  assert.deepStrictEqual(dash.map((p) => p.id).sort(), people.map((p) => p.id).sort(), 'one id per person on both');
+  assert.ok(dash.every((p) => p.uid === undefined));
+  // Staff see neither list.
+  assert.strictEqual((await priya('GET', `/api/teams/${team.id}`)).data.people, undefined);
+});
+
 test('tomorrow: the missed question comes back, and the streak grows', async () => {
   const missed = team.priyaIds[1];
   const q = await priya('GET', `/api/teams/${team.id}/quiz`, undefined, { 'X-Local-Date': TOMORROW });
@@ -662,7 +696,9 @@ test('managing the team: rename, a fresh code kills the old one, remove and leav
   assert.strictEqual((await priya('PUT', `/api/teams/${team.id}/me`, { name: 'Priya N.' })).data.name, 'Priya N.');
   // The manager removes Marcus; his progress goes with him.
   const marcusUid = uidOf('marcus@example.com');
-  assert.strictEqual((await gio('DELETE', `/api/teams/${team.id}/members/${marcusUid}`)).status, 200);
+  assert.strictEqual((await gio('DELETE', `/api/teams/${team.id}/members/${marcusUid}`)).status, 404, 'a raw uid names nobody');
+  const marcusId = (await gio('GET', `/api/teams/${team.id}`)).data.people.find((p) => p.name === 'Marcus').id;
+  assert.strictEqual((await gio('DELETE', `/api/teams/${team.id}/members/${marcusId}`)).status, 200);
   assert.strictEqual((await marcus('GET', `/api/teams/${team.id}/quiz`)).status, 404);
   assert.strictEqual(await store.get(`teams/${team.id}/progress`, marcusUid), null);
   assert.deepStrictEqual((await marcus('GET', '/api/me')).data.teams, []);

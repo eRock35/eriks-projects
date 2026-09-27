@@ -55,12 +55,26 @@ const { host, mounted, store } = require('../server');
   assert.deepStrictEqual(await tallyOf('spar'), { keep: 0, kill: 1 }); ok('changing a vote moves it');
   v = await call('POST', '/api/lab/spar/vote', { v: null });
   assert.deepStrictEqual(v.data.votes, { total: 0 }); assert.deepStrictEqual(await tallyOf('spar'), { keep: 0, kill: 0 }); ok('a vote can be withdrawn');
-  const fresh = await fetch(base + '/api/lab/spar/vote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ v: null }) });
-  assert.ok(String(fresh.headers.get('set-cookie')).startsWith('lab_vid=')); ok('a vote with no id still mints one');
   assert.strictEqual((await call('POST', '/api/lab/nope/vote', { v: 'keep' })).status, 404); ok('unknown apps 404');
   assert.strictEqual((await call('POST', '/api/lab/spar/vote', { v: 'maybe' })).status, 400); ok('only keep or kill');
   assert.strictEqual((await call('POST', '/api/lab/spar/note', { text: 'zebra-note-4471 please' })).status, 200); ok('notes are accepted');
   assert.ok(!JSON.stringify((await call('GET', '/api/lab')).data).includes('zebra-note-4471')); ok('notes are never published');
+  // Every app shares this origin, so every page carries a script CSP (2026-09-27).
+  for (const p of ['/', ...mounted.map((s) => `/${s}/`)]) {
+    const csp = String((await fetch(base + p)).headers.get('content-security-policy'));
+    assert.match(csp, /script-src 'self'/, p); assert.match(csp, /object-src 'none'/, p); assert.match(csp, /base-uri 'self'/, p);
+    assert.match(csp, /frame-ancestors 'self' https:\/\/strongtechnicalconsulting\.com/, p);
+    assert.ok(!/script-src[^;]*unsafe/.test(csp), `${p}: no unsafe script source`);
+  }
+  ok(`the lab and all ${mounted.length} apps send script-src 'self', object-src 'none' and base-uri 'self'`);
+  // ...and none of their pages has an inline script or handler for it to block.
+  const fs = require('fs'); const path = require('path');
+  for (const f of [path.join(__dirname, '..', 'public', 'index.html'), ...mounted.map((s) => path.join(__dirname, '..', 'apps', s, 'public', 'index.html'))]) {
+    const html = fs.readFileSync(f, 'utf8');
+    assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), `${f}: inline <script>`);
+    assert.ok(!/\son[a-z]+\s*=/i.test(html), `${f}: inline event handler`);
+  }
+  ok('no page has an inline <script> or an on*= handler');
 
   // --- the leaderboard: counts only, never a cookie, CORS for the main site ---
   const { standings } = require('../server');
@@ -105,6 +119,51 @@ const { host, mounted, store } = require('../server');
   assert.strictEqual(st.leader, null); ok('standings: all kills names no leader');
   st = standings(reg, { a: { keep: -4, kill: 'x' } });
   assert.strictEqual(st.apps.find((a) => a.slug === 'a').votes, 0); ok('standings: a bad tally reads as zero');
+
+  // --- stuffing (2026-09-27): a vote needs an id the page's own read minted ---
+  const { LIMITS, ipKey } = require('../server');
+  const raw = (p, b, h = {}) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(b) });
+  const before = await tallyOf('spar');
+  const fresh = await raw('/api/lab/spar/vote', { v: 'keep' });
+  assert.strictEqual(fresh.status, 400); assert.strictEqual(fresh.headers.get('set-cookie'), null);
+  assert.deepStrictEqual(await tallyOf('spar'), before); ok('a vote with no id is refused, counts nothing and mints no id');
+  const noteBare = await raw('/api/lab/spar/note', { text: 'no cookie here' });
+  assert.strictEqual(noteBare.status, 400); ok('a note with no id is refused too');
+  // A script inventing a new id per request, from one address.
+  const from = { 'X-Forwarded-For': '203.0.113.7' };
+  const invented = () => ({ Cookie: `lab_vid=${require('crypto').randomBytes(16).toString('base64url')}`, ...from });
+  const loop = [];
+  for (let i = 0; i < LIMITS.votersPerIp + 5; i++) loop.push((await raw('/api/lab/tally/vote', { v: 'keep' }, invented())).status);
+  assert.strictEqual(loop.filter((x) => x === 200).length, LIMITS.votersPerIp);
+  assert.ok(loop.slice(LIMITS.votersPerIp).every((x) => x === 429));
+  assert.deepStrictEqual(await tallyOf('tally'), { keep: LIMITS.votersPerIp, kill: 0 });
+  ok(`an address brings at most ${LIMITS.votersPerIp} ids to the vote route an hour; the rest are 429 and count nothing`);
+  const par = await Promise.all([1, 2, 3, 4].map(() => raw('/api/lab/tally/vote', { v: 'kill' }, { ...invented(), 'X-Forwarded-For': '203.0.113.8' })));
+  assert.ok(par.every((x) => x.status === 200)); ok('another address is not held up by it');
+  // One browser that is already counted keeps voting, on any drop.
+  const known = invented();
+  const seed = await raw('/api/lab/spar/vote', { v: 'keep' }, { ...known, 'X-Forwarded-For': '203.0.113.9' });
+  assert.strictEqual(seed.status, 200);
+  for (let i = 0; i < LIMITS.votersPerIp - 1; i++) await raw('/api/lab/spar/vote', { v: 'keep' }, { ...invented(), 'X-Forwarded-For': '203.0.113.9' });
+  assert.strictEqual((await raw('/api/lab/rave/vote', { v: 'keep' }, { ...known, 'X-Forwarded-For': '203.0.113.9' })).status, 200);
+  assert.strictEqual((await raw('/api/lab/rave/vote', { v: 'keep' }, { ...invented(), 'X-Forwarded-For': '203.0.113.9' })).status, 429);
+  ok('a browser already counted from a full address still votes and changes votes; a new one does not');
+  // IPv6: one customer's /64 is one address.
+  assert.strictEqual(ipKey('2001:db8:1:2:aaaa::1'), ipKey('2001:db8:1:2:bbbb:cccc:dddd:eeee'));
+  assert.notStrictEqual(ipKey('2001:db8:1:2::1'), ipKey('2001:db8:1:3::1'));
+  assert.strictEqual(ipKey('::ffff:192.0.2.1'), '192.0.2.1'); ok('IPv6 addresses count by their /64');
+  const v6 = []; for (let i = 0; i < LIMITS.votersPerIp + 2; i++) v6.push((await raw('/api/lab/tally/vote', { v: 'kill' }, { ...invented(), 'X-Forwarded-For': `2001:db8:9:9:${i.toString(16)}::1` })).status);
+  assert.strictEqual(v6.filter((x) => x === 429).length, 2); ok('...so rotating inside a /64 does not buy more votes');
+  // Withdrawing a vote never cast writes nothing.
+  const ghost = invented();
+  const w = await raw('/api/lab/spar/vote', { v: null }, { ...ghost, 'X-Forwarded-For': '203.0.113.10' });
+  assert.strictEqual(w.status, 200); assert.strictEqual(await store.get('lab_voters', `spar:${ghost.Cookie.split('=')[1]}`), null);
+  ok('withdrawing a vote that was never cast stores nothing');
+  const nf = { ...invented(), 'X-Forwarded-For': '203.0.113.20' };
+  const notes = [];
+  for (let i = 0; i < LIMITS.notesPerIp + 3; i++) notes.push((await raw('/api/lab/spar/note', { text: `flood ${i} `.padEnd(600, 'x') }, nf)).status);
+  assert.strictEqual(notes.filter((x) => x === 200).length, LIMITS.notesPerIp); assert.ok(notes.slice(LIMITS.notesPerIp).every((x) => x === 429));
+  ok(`notes: at most ${LIMITS.notesPerIp} an hour from one address`);
 
   server.close();
   console.log(`\n${n}/${n} passed`);

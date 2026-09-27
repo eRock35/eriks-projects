@@ -110,7 +110,8 @@ function build(now) {
 
 function demo(now) {
   const { event, leads, nowMs } = build(now);
-  const views = leads.map((l) => E.leadView(l, nowMs));
+  // `rep` names the invented teammate whose voice a sample draft uses.
+  const views = leads.map((l) => ({ ...E.leadView(l, nowMs), rep: l.capturedBy }));
   const members = MEMBERS.map(({ uid, name, role }) => ({ uid, name, role }));
   const sc = B.scorecard(event, leads, nowMs);
   const drafts = {};
@@ -127,7 +128,7 @@ function demo(now) {
     members,
     reps: Object.fromEntries(MEMBERS.map((m) => [m.uid, { name: m.name, signoff: m.signoff, tone: m.tone }])),
     leads: views,
-    leaderboard: B.leaderboard(members, leads, nowMs, { boothCost: event.boothCost }),
+    leaderboard: B.leaderboard(members, leads, nowMs, { boothCost: event.boothCost }).map(({ uid, ...r }) => r),
     scorecard: sc,
     goingCold: B.goingCold(leads, nowMs).map((r) => ({ id: r.lead.id, name: r.lead.name, company: r.lead.company, temp: r.lead.temp, capturedByName: r.lead.capturedByName, clock: r.clock })),
     drafts,

@@ -191,7 +191,7 @@ Public: `GET /api/health`, `/api/meta`, `/api/demo`, and `quiz.js` (static).
 Signed in: `GET /api/me`, `POST /api/teams`, `POST /api/join`,
 `GET|PUT|DELETE /api/teams/:id` (PUT manager, DELETE owner),
 `PUT /api/teams/:id/me` (your name), `POST /api/teams/:id/code` (manager),
-`DELETE /api/teams/:id/members/:uid|me`, `GET /api/teams/:id/quiz`,
+`DELETE /api/teams/:id/members/:memberId|me`, `GET /api/teams/:id/quiz`,
 `POST /api/teams/:id/quiz/answer`, `GET /api/teams/:id/leaderboard`,
 `GET /api/teams/:id/dashboard` (manager), `GET|PUT|DELETE
 /api/teams/:id/decks/:deckId` and `POST /api/teams/:id/decks` (manager).
@@ -209,6 +209,28 @@ Metered (manager): `POST /api/teams/:id/generate`,
   next quiz, or to open it in the editor to reword.
 - **Printable certificate** when someone masters a deck (for inspections).
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
+
+## Security fixes (2026-09-27)
+
+- **Managers are not sent staff uids.** A uid is base64url(email); the
+  people list and the dashboard sent it to every manager. Now each person has
+  `id`, an HMAC of the team id and uid under a key derived from
+  `IDENTITY_SESSION_SECRET` (`lib/memberkey.js`), plus `you`; `DELETE
+  /members/:id` takes that id (or `me`) and maps it back on the server - a
+  raw uid names nobody. Tested: no manager response contains a teammate's
+  uid or email.
+- **Provider errors never reach the page.** `fail()` is Receipt's: only
+  errors the app made (`httpError`, marked `expose`) keep their status and
+  words; an Anthropic error (which carries a `.status` and the provider's raw
+  JSON) is logged and answered 502 with the route's own sentence, 503 when
+  the provider is overloaded or rate-limited. Before, an upstream 401 told a
+  signed-in person to sign in. The fake model throws a provider error when
+  `UPSTREAM<nnn>` appears in its messages; the tests use it.
+- **A script CSP.** Every page now sends `script-src 'self'; object-src
+  'none'; base-uri 'self'` with the existing `frame-ancestors`. Every app on
+  the lab shares one origin, so injected script in one would run as all of
+  them. The pages have no inline `<script>` or `on*=` handler; keep it that
+  way (`challenge/test/lab.js` checks every `index.html`).
 
 ## Commit and PR conventions
 
