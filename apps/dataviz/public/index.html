@@ -222,6 +222,7 @@
 
 <div class="toast" id="toast"></div>
 <script src="/render.js"></script>
+<script src="/backfill.js"></script>
 <script src="/passkey.js"></script>
 <script>
 (function () {
@@ -556,15 +557,61 @@
     return null;
   }
   async function uploadStill(out) {
-    if (!out || !out.projectId || !out.viz) return;
+    if (!out || !out.projectId || !out.viz) return false;
     try {
       var b = await makeStill(out);
-      if (!b) return;
+      if (!b) return false;
       var res = await fetch('/api/projects/' + encodeURIComponent(out.projectId) + '/still', {
         method: 'PUT', headers: { 'Content-Type': b.type }, body: b
       });
       if (res.ok) out.hasStill = true;
-    } catch (e) { /* the app's own card stands in */ }
+      return res.ok;
+    } catch (e) { return false; /* the app's own card stands in */ }
+  }
+
+  /* Stills for projects saved before stills existed - see public/backfill.js
+   * for the rules. Once per page load, signed in only, after the page is
+   * idle, a few at a time, and never on Save-Data or in a background tab. */
+  var backfillStarted = false;
+  function whenIdle() {
+    return new Promise(function (resolve) {
+      var go = function () { setTimeout(resolve, 0); };
+      if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 4000 });
+      else setTimeout(go, 1500);
+    });
+  }
+  function backfillStills() {
+    if (backfillStarted || !me.signedIn || !window.StillBackfill) return;
+    var conn = navigator.connection || {};
+    var framed = true;
+    try { framed = window.top !== window.self; } catch (e) { framed = true; }
+    var env = {
+      hidden: document.hidden,
+      saveData: !!conn.saveData,
+      reducedData: !!(window.matchMedia && window.matchMedia('(prefers-reduced-data: reduce)').matches),
+      framed: framed,
+      tour: /[?&]tour=1/.test(location.search)
+    };
+    if (!StillBackfill.allowed(env)) return;
+    backfillStarted = true;
+    var tried = {};
+    try { tried = JSON.parse(sessionStorage.getItem('dv-still-tried') || '{}') || {}; } catch (e) { tried = {}; }
+    StillBackfill.run({
+      list: function () { return api('/api/projects').then(function (d) { return d.projects || []; }); },
+      load: function (id) { return api('/api/projects/' + encodeURIComponent(id)); },
+      upload: function (p) {
+        return uploadStill({ projectId: p.id, viz: p.viz, title: p.title, subtitle: p.subtitle }).then(function (ok) {
+          // Remembered as each one finishes, so leaving mid-run does not retry it.
+          try { sessionStorage.setItem('dv-still-tried', JSON.stringify(tried)); } catch (e) {}
+          return ok;
+        });
+      },
+      idle: whenIdle,
+      hidden: function () { return document.hidden; },
+      tried: tried
+    }).then(function () {
+      try { sessionStorage.setItem('dv-still-tried', JSON.stringify(tried)); } catch (e) {}
+    });
   }
   window.__dvStill = makeStill;   // for the render checks; harmless otherwise
 
@@ -953,6 +1000,7 @@
     $('authBtn').textContent = me.signedIn ? 'Account' : 'Sign in';
     $('libBtn').hidden = !me.signedIn;
     renderLocks();
+    backfillStills();
   }
 
   /* ---------- shared view ---------- */

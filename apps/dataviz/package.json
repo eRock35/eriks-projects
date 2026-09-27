@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/engagement.js"
+    "test": "node test/engagement.js && node test/backfill.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

@@ -149,8 +149,8 @@ unfold as a bare "DataViz": every path fell through to the same static
   subtitle})`, 1200x630, the END of the animation (the race's final order, the
   lines fully drawn; flow mid-flight, it has no end state), title set large
   because at preview size only the title is read.
-- **Sent on Save**, and on opening a saved project that has none (projects
-  saved before this). PNG first; JPEG at falling quality only if it is over
+- **Sent on Save**, on opening a saved project that has none, and by the
+  backfill below. PNG first; JPEG at falling quality only if it is over
   400 KB. Best effort: a failed still leaves the link on the app's own card.
 - **`PUT /api/projects/:id/still`**, raw body. `requireUser`, then ownership
   (404 on someone else's, before the body is read - a stranger's 400 KB is
@@ -218,3 +218,36 @@ tap), the clipboard elsewhere.
   project, headers, escaping, the Host header, delete, the counter). It uses
   the repo's shared harness (`../../../test/harness.js`), so run it from this
   checkout: `npm test` here. The root `test/run.js` does not pick it up.
+
+### Stills for projects saved before stills existed (2026-09-27)
+
+Shares made before 2026-09-26 kept the generic card until their owner reopened
+that one project. Now a signed-in owner's browser fills them in quietly
+whenever the app is opened. The code is `public/backfill.js`: `pick`, `allowed`
+and `run`, loaded as `window.StillBackfill`. It is started from `refreshMe()`
+once per page load.
+
+- **The owner's own projects only.** It reads `GET /api/projects` (which
+  carries `hasStill`), then `GET /api/projects/:id` for the viz, and uploads
+  through the same `PUT /api/projects/:id/still`, so every server check
+  applies. It has no route of its own and no server change.
+- **Gentle on the owner's device.** Projects go one at a time, each after
+  `requestIdleCallback` (or a 1.5 s timeout where that does not exist). The
+  cap is `MAX_PER_VISIT` (6) per visit, newest first. A person with sixty old
+  charts is caught up over ten visits, not on one.
+- **When it does not run:**
+  - on Save-Data (`navigator.connection.saveData`) or
+    `prefers-reduced-data`;
+  - in a hidden tab, in a framed preview or in the `?tour=1` demo.
+  - It checks `document.hidden` before every project and after each load, and
+    stops as soon as the tab goes to the background.
+- **One try per session.** A project that failed once (it cannot draw, or the
+  server refused it) is kept in `sessionStorage` under `dv-still-tried` and is
+  not retried until the next browser session. That stops a bad project from
+  eating the cap on every reload.
+- Tests: `test/backfill.js` (30 assertions): the pick, the cap, what counts as
+  tried, prototype-named ids, one upload in flight at a time, stopping when
+  hidden, and failures not stopping the rest. Checked in Chromium against nine
+  seeded old projects: nothing ran with Save-Data or a hidden tab; the first
+  visit made 6 stills, the next made the other 3, and the one after made none.
+  Another owner's project kept the generic card.
