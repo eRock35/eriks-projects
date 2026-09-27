@@ -1,5 +1,5 @@
 {
-  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here \u2014 gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
+  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here — gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
   "project": "metal-celerity-236019",
   "region": "us-central1",
   "registry": "erik-projects",
@@ -25,7 +25,8 @@
       "service": "santa-rosa-beach-trip",
       "db": "santa-rosa-beach-trip",
       "verify_job": null,
-      "verify_doc": null
+      "verify_doc": null,
+      "unsupported": "Retired 2026-09-27 at Erik's request: the Cloud Run service was deleted. Its image is still in Artifact Registry and its database, photo bucket, secrets and vacation-run@ account were kept. Bringing it back is a `gcpdeploy create`, not a ship: see santa-rosa-beach-trip's CLAUDE.md."
     },
     "beer": {
       "repo": "beer-app",

@@ -44,11 +44,8 @@ const TARGETS = [
   // 2026-09-22), but because GA was never wired into its pages. Adding it is
   // a page change as well as a copy; don't list it here until that is done.
   ['spellbook',                        ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
-  // Santa Rosa is single-account on purpose. It takes gmail.js and byok.js
-  // (the token vault) and nothing from identity: reading booking mail does
-  // not need the shared account, and joining it would put a private app on
-  // the domain-wide sign-in it deliberately stays off.
-  ['santa-rosa-beach-trip',            ['sitepass.js', 'analytics.js', 'gmail.js', 'byok.js', 'receipts.js', 'statement.js', 'photostore.js']],
+  // Santa Rosa (santa-rosa-beach-trip) was retired on 2026-09-27 and takes
+  // no more copies. Put its line back if it is ever redeployed.
   // The browser-side tour helper.
   // The view beacon rides along with the browser helpers: every app that
   // appears in the trending ranking has to report itself, or the ranking is
