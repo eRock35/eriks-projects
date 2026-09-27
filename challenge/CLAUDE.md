@@ -60,6 +60,14 @@ from `main`.
 1. Build it in `challenge/apps/<slug>/` following Spar (`apps/spar/CLAUDE.md`):
    exports `{ app }`, listens only when run directly, BASE-relative URLs,
    `<SLUG>_MEMORY` / `<SLUG>_FAKE_AI` / `<SLUG>_COLLECTION_PREFIX`.
+   Since 2026-09-27 (email verification, root CLAUDE.md) that also means:
+   `<script src="verify-banner.js" data-mount="api/auth" defer>` in
+   `public/index.html`, the app's `public/` line in
+   `eriks-projects/scripts/sync-shared.js` listing `verify-banner.js`, and
+   `REQUIRE_VERIFIED_FOR_FREE_AI=0` in its `npm test` script (its suite
+   registers fresh, unconfirmed accounts and spends; the gate itself is held
+   by the root suite and `test/lab.js`). `test/lab.js` fails if a mounted
+   app does not load the banner.
 2. Add its entry to `lab.js` (name, emoji, two colours, drop date, tagline,
    blurb, four features, audience, `status: 'testing'`).
 3. Record what it cost to build (see "Build stats" below):

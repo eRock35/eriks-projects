@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "TALLY_DEV_MOUNT=/tally TALLY_MEMORY=1 TALLY_FAKE_AI=1 TALLY_FAKE_DELAY_MS=900 PORT=8110 node server.js",
-    "test": "TALLY_MEMORY=1 TALLY_FAKE_AI=1 node test/run.js"
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 TALLY_MEMORY=1 TALLY_FAKE_AI=1 node test/run.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

@@ -147,8 +147,12 @@ async function attachProfile(req, _res, next) {
     if (own) {
       const local = { ...own };
       for (const key of ENTITLEMENT_FIELDS) delete local[key];
+      // createdAt and emailVerifiedAt are pinned too (2026-09-27): whether an
+      // address is confirmed - or old enough to be grandfathered - is the
+      // shared record's to say, and an old local row must not vouch for it.
       Object.assign(req.user, local, {
         id: req.user.id, email: req.user.email, admin: req.user.admin, access: req.user.access,
+        createdAt: req.user.createdAt, emailVerifiedAt: req.user.emailVerifiedAt,
       });
     }
   }
@@ -160,6 +164,9 @@ app.get('/api/auth/me', identity.attachUser, attachProfile, async (req, res) => 
     signedIn: Boolean(req.user),
     email: req.user ? req.user.email : null,
     via: req.user ? req.user.via : null,
+    // For the shared "confirm your email" banner (2026-09-27): this route
+    // shadows identity's own /me, so what the banner needs is repeated here.
+    emailVerified: req.user ? identityLib.isVerified(req.user) : null,
     plan: planOf(req.user),
     paid: isPaid(req.user),
     billing: stripe.enabled(),

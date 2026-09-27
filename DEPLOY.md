@@ -1409,6 +1409,21 @@ Plain env vars on the Cloud Run service:
   address that does not exist is worse than leaving it off, because the reply
   bounces silently instead of never being offered.
 - `ANTHROPIC_API_KEY` — the shared secret, same as the other apps
+- `ACCOUNT_MAIL_FROM` — optional (2026-09-27). The From on account mail:
+  email-confirmation links and password resets. Defaults to
+  `Strong Technical Consulting <accounts@strongtechnicalconsulting.com>`,
+  on the domain Resend already verifies. Never NEWSLETTER_FROM, which is
+  Erik's own address: account mail goes to every sign-up, bots included. No
+  reply-to is set on account mail. See CLAUDE.md, "Email verification".
+
+Every OTHER service can set, but normally leaves unset:
+
+- `IDENTITY_MAIL_URL` — where identity forwards a verification send
+  (`POST <url>/api/id/verify/dispatch`, signed). Unset means the landing's
+  public origin; a local dev host with it unset sends nothing.
+- `REQUIRE_VERIFIED_FOR_FREE_AI` — `0` lets unconfirmed accounts spend the
+  free AI allowance again, without a code deploy. Unset (or anything else)
+  keeps the gate on.
 
 `gcpdeploy ship` deliberately swaps only the image digest and never
 reconstructs env vars, so **adding these is a one-time manual update** to the
@@ -1453,7 +1468,7 @@ Each dependency is optional and the service says so rather than failing:
 | Missing | What happens |
 |---|---|
 | `FIRESTORE_DATABASE_ID` | In-memory store, nothing persisted. The admin UI shows a warning pill. Fine for local work, never for production. |
-| `RESEND_API_KEY` / `NEWSLETTER_FROM` | Signups are recorded as pending, no mail goes out, sending returns 503 with a clear message. |
+| `RESEND_API_KEY` / `NEWSLETTER_FROM` | Signups are recorded as pending, no mail goes out, sending returns 503 with a clear message. Without `RESEND_API_KEY`, no confirmation or reset mail goes out either (registration still works; the account stays unconfirmed). |
 | `ANTHROPIC_API_KEY` | The Claude tab reports itself off. Writing and sending are unaffected. |
 | `ADMIN_PASSWORD` | `/admin` cannot be entered *unless a password has been stored* (see above). The public site is unaffected. |
 

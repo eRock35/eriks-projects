@@ -54,6 +54,83 @@ these. Keep them when editing any of it:
 
 `test/identity-security.js` holds all of it.
 
+## Email verification (2026-09-27)
+
+A security review found that nothing proved a person owns the address they
+register, while several features trusted it: a trip shared to an address,
+football's research allowlist, the owner flag, and the free AI allowance
+(one per address, so every throwaway address was another $2). Erik approved
+verification. `shared/identity.js` holds it; `test/verify.js` holds it here.
+
+- **The record.** `emailVerifiedAt` (ISO) on `users/<uid>`, written by
+  `patchUser` alone. `isVerified(user)`: that field, OR the account was
+  created before `VERIFY_CUTOFF` (`2026-09-27T23:00:00Z`), OR `admin === true`.
+  **Everyone who existed before the cutoff is grandfathered** - nobody is
+  locked out; those accounts were made by their owners (the hole was found
+  and closed that day). A missing or unreadable `createdAt` fails closed:
+  register always writes one. `/me` reports `emailVerified`; the two routes
+  that shadow it (Trip Planner's and DataViz's `/api/auth/me`) repeat it.
+  The cutoff passed before this shipped: an account made between it and the
+  deploy got no mail and is unconfirmed - the banner's "Send again" fixes it.
+- **The token.** `makeVerifyToken`: uid, the address at send time and a
+  48-hour expiry, HMAC under a key DERIVED from `IDENTITY_SESSION_SECRET`
+  ("identity email verify v1"), so it can never pass as a session. Checking
+  it also checks the record still exists and still has that address.
+  Already confirmed is a no-op success; nothing else makes it single-use.
+- **Sending: the mail key stays in one place.** Only the landing holds
+  `RESEND_API_KEY`, and passes identity a `sendMail` hook. Every other app's
+  identity forwards: `POST ${IDENTITY_MAIL_URL || https://strongtechnicalconsulting.com}/api/id/verify/dispatch`,
+  body `{uid, ts, next}`, header `X-Identity-Signature` = HMAC over
+  `uid + '.' + ts` under a key derived from the same secret ("identity mail
+  dispatch v1"). The landing checks it in constant time, refuses a `ts` more
+  than five minutes off, limits five a uid an hour, loads the record and mails
+  **the record's** address - a caller can never choose the To. `next` is not
+  signed; it only ever becomes a link on this domain (below). A local dev
+  host with `IDENTITY_MAIL_URL` unset sends nothing.
+- **Routes.** `POST <mount>/verify/send` (signed in, same-origin, JSON): 3 an
+  hour per account and 20 per address, and always `{ok:true}` - verified,
+  limited, sent or failed all read the same. Register calls the same path,
+  awaited with a 4-second timeout; a failed mail never fails a registration
+  (billed per request: nothing runs after the response).
+- **The link** is always `https://strongtechnicalconsulting.com/verify?t=…&next=…`.
+  `/verify` (server.js) confirms and says "Email confirmed", with a button to
+  `next` or home; any failure is one plain page ("That link has expired -
+  sign in and ask for a new one") that never says whether an account exists.
+  `next` is honoured only as an https URL on this domain or a subdomain, no
+  port, no userinfo (`safeNext`) - otherwise ignored, so it is no open
+  redirect. The page sends `no-store` and `Referrer-Policy: no-referrer`.
+- **The owner flag** moved from registration to confirmation: `ADMIN_EMAIL`
+  confirmed while no owner exists. The existing owner is untouched.
+- **What waits on a confirmed address:**
+  - the FREE AI allowance: `requireBudget` answers 403 `{error: 'Confirm your
+    email to use the free AI credit. We sent a link to <email>.', code:
+    'verify-email', resend: '<baseUrl><mount>/verify/send'}`. Members, credit
+    buyers, own-key members and the owner are not asked
+    (`mustVerifyForFreeAi`). **`REQUIRE_VERIFIED_FOR_FREE_AI=0` switches it
+    off** without a code deploy. Trip Planner's hourly sweep asks the same;
+  - Trip Planner: trips shared TO an address (the owner is never gated);
+  - football: allowlisted research on a shared account (with its own,
+    earlier 21:00 grandfathering).
+  Everything else works the moment an account exists. Hopscotch is left
+  alone: it links shared accounts by uid and has its own accounts.
+- **Mail From.** `lib/email.js` `sendAccount()` sends From `ACCOUNT_MAIL_FROM`
+  (default `Strong Technical Consulting` at the accounts address on this
+  domain), with no reply-to. The password reset moved to it as well: it
+  used to go From `NEWSLETTER_FROM`, Erik's own address, to anyone who reset.
+  **Never send account mail From NEWSLETTER_FROM** - verification goes to
+  every sign-up, bots included.
+- **The banner.** `shared/verify-banner.js`, synced into every app with a
+  shared-account UI (not Hopscotch) and loaded as `<script
+  src="…verify-banner.js" data-mount="<identity mount>" defer>` (lab apps:
+  `data-mount="api/auth"`, relative to their base). It asks `<mount>/me` and
+  shows a slim dismissible bar only when `emailVerified === false`, with the
+  address masked (`e***@example.com`). No inline script; styles by
+  constructed stylesheet. It stays out of frames (the landing's previews).
+- **Tests elsewhere.** Trip Planner and football's harnesses store a newly
+  registered account confirmed unless a suite calls `h.autoVerify(false)`;
+  each lab app's suite runs with `REQUIRE_VERIFIED_FOR_FREE_AI=0`, and the
+  lab host test holds the gate for a real lab app under its mount.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

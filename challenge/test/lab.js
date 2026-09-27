@@ -165,6 +165,33 @@ const { host, mounted, store } = require('../server');
   assert.strictEqual(notes.filter((x) => x === 200).length, LIMITS.notesPerIp); assert.ok(notes.slice(LIMITS.notesPerIp).every((x) => x === 429));
   ok(`notes: at most ${LIMITS.notesPerIp} an hour from one address`);
 
+  // Email verification (2026-09-27). Each app's own suite runs with
+  // REQUIRE_VERIFIED_FOR_FREE_AI=0 (the gate itself is tested at the root,
+  // test/verify.js); this holds it once for a real lab app under its mount.
+  {
+    let c = '';
+    const u = async (m, p, b) => {
+      const r = await fetch(base + p, { method: m, headers: { 'Content-Type': 'application/json', ...(c ? { Cookie: c } : {}) }, body: b ? JSON.stringify(b) : undefined });
+      const sc = r.headers.get('set-cookie'); if (sc && sc.startsWith('stc_session=')) c = sc.split(';')[0];
+      return { status: r.status, data: await r.json().catch(() => null) };
+    };
+    assert.strictEqual((await u('POST', '/spar/api/auth/register', { email: 'lab-verify@example.com', password: 'a-long-password-1' })).status, 200);
+    assert.strictEqual((await u('GET', '/spar/api/auth/me')).data.emailVerified, false); ok('a new account reads emailVerified: false in a lab app');
+    const refused = await u('POST', '/spar/api/custom', { text: 'anything' });
+    assert.strictEqual(refused.status, 403);
+    assert.strictEqual(refused.data.code, 'verify-email');
+    assert.strictEqual(refused.data.resend, '/spar/api/auth/verify/send');
+    ok('...its free credit waits on a confirmed address, and the refusal points at the app\'s own mount');
+    assert.strictEqual((await u('POST', '/spar/api/auth/verify/send', {})).status, 200); ok('...where "send again" answers');
+    for (const slug of mounted) {
+      const page = await (await fetch(`${base}/${slug}/`)).text();
+      assert.ok(page.includes('<script src="verify-banner.js" data-mount="api/auth" defer></script>'), slug + ' page lacks the banner');
+      const js = await fetch(`${base}/${slug}/verify-banner.js`);
+      assert.strictEqual(js.status, 200, slug + ' does not serve verify-banner.js');
+    }
+    ok(`every mounted app (${mounted.length}) loads the shared banner from its own base`);
+  }
+
   server.close();
   console.log(`\n${n}/${n} passed`);
   process.exit(0);

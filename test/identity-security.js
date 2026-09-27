@@ -315,18 +315,20 @@ async function register(email, password = 'a-long-password-1') {
 
   // Reset requests: three per address per hour, twenty per IP. Same answer.
   await register('inbox@example.com');
-  const sentBefore = sent.length;
+  // Registering mails a confirmation link too (2026-09-27); count resets only.
+  const resets = () => sent.filter((m) => /reset/i.test(m.subject || '')).length;
+  const sentBefore = resets();
   const answers = [];
   for (let i = 0; i < 5; i++) answers.push(await (await post('/api/id/reset/request', { email: 'inbox@example.com' })).json());
-  ok('only three reset emails go to one address in an hour', sent.length - sentBefore === 3, String(sent.length - sentBefore));
+  ok('only three reset emails go to one address in an hour', resets() - sentBefore === 3, String(resets() - sentBefore));
   ok('...and every answer is the same', answers.every((x) => x.ok === true && x.message === answers[0].message));
   const resetIp = '203.0.113.90';
-  const before2 = sent.length;
+  const before2 = resets();
   for (let i = 0; i < 22; i++) {
     await register(`many${i}@example.com`);
     await post('/api/id/reset/request', { email: `many${i}@example.com` }, { ip: resetIp });
   }
-  ok('twenty per address per hour from one IP', sent.length - before2 === 20, String(sent.length - before2));
+  ok('twenty per address per hour from one IP', resets() - before2 === 20, String(resets() - before2));
 
   // The landing admin: ten failures from one address.
   const adminIp = '203.0.113.120';
@@ -360,6 +362,8 @@ async function register(email, password = 'a-long-password-1') {
     ok('requireBudget refuses a request with no account', x.status === 401, String(x.status));
     x = await realFetch(U + '/api/id/register', { method: 'POST', headers: J, body: JSON.stringify({ email: 'b@example.com', password: 'budget-password' }) });
     const c = jar(x);
+    // A confirmed address (the free credit waits on one - test/verify.js).
+    await s.patch('users', uidOf('b@example.com'), { emailVerifiedAt: new Date().toISOString() });
     x = await realFetch(U + '/spend', { method: 'POST', headers: { ...J, cookie: c }, body: '{}' });
     ok('...and lets an account with credit through', x.status === 200, String(x.status));
     await s.bump('users', uidOf('b@example.com'), { spentUsd: 50 });

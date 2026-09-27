@@ -193,7 +193,9 @@ const get = (p, cookie, accept = 'text/html') => fetch(B + p, { headers: cookie 
   ok('the app password can still start a scan', r.status === 200 && scans === 2, String(r.status));
   r = await scanPost({});
   ok('nobody at all cannot', r.status === 401 && scans === 2, String(r.status));
-  users.set('users/' + uid, { ...users.get('users/' + uid), access: { friction: 'member' }, spentUsd: 99 });
+  // Confirmed address: the free credit is only for one (2026-09-27; the gate
+  // itself is tested in test/verify.js).
+  users.set('users/' + uid, { ...users.get('users/' + uid), access: { friction: 'member' }, spentUsd: 99, emailVerifiedAt: new Date().toISOString() });
   r = await scanPost({ cookie: plain });
   ok('a shared account with no credit is stopped by the budget', r.status === 402 && scans === 2, String(r.status));
   users.set('users/' + uid, { ...users.get('users/' + uid), spentUsd: 0 });

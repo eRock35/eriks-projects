@@ -38,6 +38,17 @@ const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).
   ok('/api/auth/me still reports plan (this app\'s business)', me.plan === 'free', JSON.stringify(me));
   ok('...and whether they have paid', me.paid === false, JSON.stringify(me.paid));
   ok('and reports the signed-in address', me.email === 'viz@example.com');
+  // The shared banner reads this off the route that shadows identity's /me.
+  ok('...and that the new address is not confirmed yet', me.emailVerified === false, JSON.stringify(me.emailVerified));
+  {
+    // An old local row cannot vouch for the address: createdAt and
+    // emailVerifiedAt are the shared record's to say (2026-09-27).
+    const vuid = Buffer.from('viz@example.com').toString('base64url');
+    h.bag('dataviz').set('users/' + vuid, { createdAt: '2026-01-01T00:00:00Z', emailVerifiedAt: '2026-01-01T00:00:00Z' });
+    const again = await (await fetch(B + '/api/auth/me', { headers: { cookie } })).json();
+    ok('...even with an old local row that says otherwise', again.emailVerified === false, JSON.stringify(again.emailVerified));
+    h.bag('dataviz').delete('users/' + vuid);
+  }
 
   // Saving a project - the thing an account exists for
   r = await post('/api/projects', { title: 'T', viz: { type: 'bars' } }, cookie);

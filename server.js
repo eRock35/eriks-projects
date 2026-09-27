@@ -348,6 +348,13 @@ const identity = identityLib.create({
   app: 'landing',
   baseDomain: process.env.PASSKEY_RP_ID || '',
   rpName: 'Erik Strong',
+  // This is the one service with the mail key, so identity sends
+  // verification links from here directly; every other app forwards its
+  // sends here (POST /api/id/verify/dispatch, signed). Account mail comes
+  // From ACCOUNT_MAIL_FROM, never NEWSLETTER_FROM - see lib/email.js.
+  sendMail: (msg) => email.sendAccount(msg),
+  // Links land on this service's /verify, at the canonical origin.
+  verifyOrigin: SITE_ORIGIN,
 });
 identity.mount(app);
 // Price and record every model call this app makes.
@@ -1268,10 +1275,15 @@ app.post('/api/id/reset/request', identityLib.sameOriginOnly, async (req, res) =
   try {
     const uid = identityLib.uidFor(address);
     const user = await identityStore.store.get('users', uid);
-    if (user && user.password && user.password.hash && email.enabled()) {
+    if (user && user.password && user.password.hash && email.accountEnabled()) {
       const link = `${RESET_ORIGIN}/reset?t=${encodeURIComponent(reset.makeToken(uid, user.password.hash))}`;
       const body = reset.emailBody({ link, origin: RESET_ORIGIN });
-      await email.sendOne({ to: user.email, subject: body.subject, html: body.html, text: body.text });
+      // Account mail, From ACCOUNT_MAIL_FROM: this used to go out From
+      // NEWSLETTER_FROM, Erik's own address, to anyone who reset (2026-09-27).
+      await email.sendAccount({
+        to: user.email, subject: body.subject, html: body.html, text: body.text,
+        signal: AbortSignal.timeout(8000),
+      });
       await identity.log('password.reset.requested', req, { uid, email: user.email });
     }
   } catch (err) {
@@ -1312,6 +1324,98 @@ app.post('/api/id/reset/complete', identityLib.sameOriginOnly, async (req, res) 
 });
 
 app.get('/reset', (_req, res) => res.sendFile(path.join(SITE_DIR, 'reset.html')));
+
+/* ------------------------------------------------------------------ *
+ * Confirming an email address (2026-09-27)
+ * ------------------------------------------------------------------ */
+
+// Every verification link, from every app, lands here: this is the service
+// that mailed it. The token is checked by identity (signature, 48-hour
+// expiry, the account still exists and still has the address the link was
+// sent to). The failure page is the same for every reason, so it never says
+// whether an account exists. `next` is honoured only when it is an https URL
+// on this domain (identity.safeNext), so the link is not an open redirect.
+function verifyPage({ ok, next }) {
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  let host = '';
+  try { host = next ? new URL(next).hostname : ''; } catch (e) { host = ''; }
+  const heading = ok ? 'Email confirmed' : 'That link didn\u2019t work';
+  const message = ok
+    ? 'Thanks. Your address is confirmed, so the free AI credit and anything shared with you are switched on, in every app.'
+    : 'That link has expired - sign in and ask for a new one.';
+  const action = ok
+    ? (next
+      ? `<a class="btn" href="${esc(next)}">Back to the app</a><p class="foot">${esc(host)}</p>`
+      : '<a class="btn" href="/">Go to the home page</a>')
+    : '<a class="btn" href="/account">Go to your account</a><p class="foot">Signed in, it has a button to send a new link.</p>';
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>${esc(heading)}</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f5f7; --card: #fcfcfb; --text: #0b0b0b; --dim: #52514e;
+    --muted: #6e6d6a; --line: rgba(60,60,67,.16); --tint: #1f6fcc;
+    --good: #0b7a0b; --bad: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #000; --card: #1a1a19; --text: #fff; --dim: #c3c2b7;
+      --muted: #a3a29c; --line: rgba(84,84,88,.5); --tint: #1f6fcc;
+      --good: #4cd964; --bad: #ff6b5e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px 16px;
+  }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 26px 22px; width: 100%; max-width: 27em; }
+  .mark { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+          font-size: 22px; font-weight: 700; margin-bottom: 14px; color: #fff; background: ${ok ? 'var(--good)' : 'var(--bad)'}; }
+  @media (prefers-color-scheme: dark) { .mark { color: #000; } }
+  h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: -.01em; }
+  p.sub { color: var(--dim); font-size: 15px; margin: 0 0 18px; }
+  .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 46px;
+         font-weight: 600; border-radius: 11px; background: var(--tint); color: #fff; text-decoration: none; }
+  .foot { margin: 12px 0 0; font-size: 13.5px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="mark" aria-hidden="true">${ok ? '&#10003;' : '!'}</div>
+  <h1>${esc(heading)}</h1>
+  <p class="sub">${esc(message)}</p>
+  ${action}
+</main>
+</body>
+</html>`;
+}
+
+app.get('/verify', async (req, res) => {
+  // The token is in this URL: keep it out of caches and out of the Referer
+  // sent to wherever the button leads.
+  res.set('Cache-Control', 'no-store');
+  res.set('Referrer-Policy', 'no-referrer');
+  let result = { ok: false };
+  try {
+    result = await identity.confirmEmail(String(req.query.t || ''), req);
+  } catch (err) {
+    console.error('verify', err && err.message);
+    result = { ok: false };
+  }
+  const next = typeof req.query.next === 'string' ? identityLib.safeNext(req.query.next) : null;
+  res.status(result.ok ? 200 : 400).type('html').send(verifyPage({ ok: result.ok, next }));
+});
 
 // One place to manage the shared account: profile, password, passkeys, your
 // own API key, and leaving. It lives on the landing service rather than in a

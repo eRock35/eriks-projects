@@ -50,13 +50,13 @@ function readToken(token, lookupHash) {
 
 function emailBody({ link, origin }) {
   return {
-    subject: 'Reset your DataViz password',
-    text: `Someone asked to reset the password for this DataViz account.\n\n${link}\n\n`
+    subject: 'Reset your password',
+    text: `Someone asked to reset the password for your Strong Technical Consulting account (one account for every app on the site).\n\n${link}\n\n`
       + `The link works once and expires in an hour. If it was not you, ignore this and nothing changes.`,
     html: `<!DOCTYPE html><html><body style="margin:0;background:#f2f2f7;">
 <div style="max-width:560px;margin:0 auto;padding:28px 20px 40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1d1d1f;line-height:1.55;font-size:17px;">
 <h1 style="font-size:23px;font-weight:700;margin:0 0 14px;">Reset your password</h1>
-<p style="margin:0 0 18px;">Someone asked to reset the password for this DataViz account.</p>
+<p style="margin:0 0 18px;">Someone asked to reset the password for your Strong Technical Consulting account (one account for every app on the site).</p>
 <p style="margin:0 0 22px;"><a href="${link}" style="display:inline-block;background:#5B8DEF;color:#fff;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:12px;">Choose a new password</a></p>
 <p style="margin:0 0 8px;font-size:14px;color:#6e6e73;">The link works once and expires in an hour.</p>
 <p style="margin:0;font-size:14px;color:#6e6e73;">If it was not you, ignore this and nothing changes.</p>

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "SPAR_MEMORY=1 SPAR_FAKE_AI=1 SPAR_FAKE_DELAY_MS=600 PORT=8090 node server.js",
-    "test": "SPAR_MEMORY=1 SPAR_FAKE_AI=1 node test/run.js"
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 SPAR_MEMORY=1 SPAR_FAKE_AI=1 node test/run.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

@@ -58,7 +58,8 @@ const DONE = 'Check your inbox to confirm.';
   for (let i = 0; i < 60; i++) { try { await realFetch(base + '/api/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
   /* ---------- no address in any page ---------- */
-  for (const p of ['/', '/privacy', '/terms', '/writing', '/challenge']) {
+  // /account draws the (masked) address in the browser, never in the page (2026-09-27).
+  for (const p of ['/', '/privacy', '/terms', '/writing', '/challenge', '/account']) {
     const r = await realFetch(base + p);
     const html = await r.text();
     const found = (html.match(ADDRESS) || []).filter((a) => !/example\.com$/.test(a) && !/^[^@]*@\d/.test(a) && !a.endsWith('.png') && !a.endsWith('.jpg'));

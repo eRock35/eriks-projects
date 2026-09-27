@@ -62,6 +62,8 @@
   .top-ups button { padding: 0 6px; font-size: 14px; }
   .danger-zone { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
   [hidden] { display: none !important; }
+  .verify-card { border-color: color-mix(in srgb, var(--tint) 45%, var(--line)); }
+  .verify-card h2 { display: flex; align-items: center; gap: 8px; }
 
   /* ---- desktop ----------------------------------------------------------
      The phone layout is one column of full-width cards with full-width
@@ -145,9 +147,19 @@
   <div id="signedIn" hidden>
    <div class="col">
 
+    <!-- Shown only while the address is unconfirmed. The address itself is
+         drawn masked, by the script, never written into this page. -->
+    <div class="card verify-card" id="verifyCard" hidden>
+      <h2>Confirm your email <span class="pill">Not confirmed</span></h2>
+      <p class="sub" id="verifySub"></p>
+      <button class="sec wide" id="resendVerify">Send the link again</button>
+      <div class="status" id="verifyStatus"></div>
+    </div>
+
     <div class="card">
       <h2>Profile</h2>
       <p class="sub" id="whoSub"></p>
+      <p class="sub" id="verifiedLine" hidden><span class="pill on">Email confirmed</span></p>
       <label for="displayName">Display name</label>
       <input type="text" id="displayName" maxlength="80" autocomplete="name" placeholder="What the apps should call you">
       <button class="wide" id="saveProfile">Save</button>
@@ -284,6 +296,7 @@
     $('signOut').hidden = !inn;
     if (!inn) { offerFaceId(); return; }
     renderProfile();
+    renderVerify();
     renderPlan();
     renderApps();
     renderByok();
@@ -305,6 +318,35 @@
     $('whoSub').textContent = 'Signed in as ' + me.email + (me.admin ? ' · admin' : '');
     $('displayName').value = me.displayName || '';
   }
+
+  /** e***@example.com: enough to recognise your own address. */
+  function mask(email) {
+    var e = String(email || ''), at = e.lastIndexOf('@');
+    return at < 1 ? '' : e.charAt(0) + '***' + e.slice(at);
+  }
+
+  function renderVerify() {
+    var unconfirmed = me.emailVerified === false;
+    $('verifyCard').hidden = !unconfirmed;
+    $('verifiedLine').hidden = unconfirmed;
+    if (unconfirmed) {
+      $('verifySub').textContent = 'We sent a link to ' + mask(me.email) + '. Confirming it unlocks the free AI credit ' +
+        'and anything someone has shared with you. Everything else works already.';
+    }
+  }
+
+  $('resendVerify').addEventListener('click', async function () {
+    var btn = this, s = $('verifyStatus');
+    btn.disabled = true;
+    say(s, 'Sending…');
+    try {
+      await call('POST', ID + '/verify/send', {});
+      say(s, 'Sent. Check your inbox (and the spam folder) for a message from the accounts address.', 'ok');
+    } catch (e) {
+      say(s, e.message, 'err');
+      btn.disabled = false;
+    }
+  });
 
   /** A price, not a balance. "$5 a month" reads like a price; "$5.00 a month"
    *  reads like an invoice. */
