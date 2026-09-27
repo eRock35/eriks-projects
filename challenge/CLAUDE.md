@@ -148,16 +148,45 @@ Firestore.
 ## The leaderboard
 
 `GET /api/lab/leaderboard` — Keep/Kill standings from `lab_votes`: per app
-`keep`, `kill`, `votes`, `keepPct` (null with no votes), `rank`, `drop`
-number, plus `leader`. Ranked on the lower bound of a 95% Wilson interval on
-the keep share (one keep does not outrank 9 of 10); a leader is named only
-with 2+ votes and a strict lead, else `null`. Retired apps are left out.
+`slug`, `name`, `emoji`, both colours, `drop` number, `dropped`, `status`,
+`live`, **`votes` (the total) and `rank`**, plus `leader`. **No split**: no
+`keep`, `kill` or `keepPct` — see "No split in public" below. Ranked on the
+lower bound of a 95% Wilson interval on the keep share, worked out on the
+server and not sent (one keep does not outrank 9 of 10); a leader is named
+only with 2+ votes and a strict lead, else `null`. Retired apps are left out.
 Counts only: it never mints `lab_vid` (it reads nothing per visitor), CORS
 for the apex and `www.` like `/api/lab`, 15 s in memory (a vote clears it)
 and `max-age=15`. Read by the lab's own page (the Leaderboard section), the
 main site's `/api/activity` (the home page's banner and "Live now" feed) and
 the `/challenge` teaser's Leaderboard line. `standings()` is exported and
 tested in `test/lab.js`. A daily drop needs no change here.
+
+### No split in public (2026-09-27)
+
+Erik reviewed the crowd reveal and chose to make "you see the split only
+after you vote" real rather than a nudge: until then the leaderboard handed
+every app's keep % to anyone, so the lab page hid a number the API published.
+Now a keep % leaves the lab in exactly one place, `/api/lab`'s per-browser
+`split` (voted on that app, 5+ votes). Every reader was changed with it:
+
+- the lab's Leaderboard section takes the % from `data.apps[].split`, else
+  "🔒 Vote to see" / "Split at 5";
+- the main site's `/api/activity` (`lib/activity.js`) keeps `votes` and
+  `rank` only, and drops any split a lab might still send; its leader line
+  is "Glowup leads the Keep votes · 10 votes";
+- the home banner's three cells say "**10** votes", the leader's with an
+  outline and the heading "Glowup leads now" — the keep meter under each
+  cell is gone;
+- the `/challenge` teaser line reads "1. ✨ Glowup leads, **10** votes · 2.
+  …". Its `FALLBACK` (drops, for when the lab is down) never had numbers.
+
+What still leaks, and is accepted: the rank order plus vote counts, watched
+over time, can say which way one new vote went (two apps with the same count
+swap places). The order is the point of a leaderboard, and the brief kept it.
+
+The daily routine's LinkedIn line ("the Keep/Kill leaders from `lab_votes`,
+stated honestly") reads Firestore with the deploy token, not this API, so it
+can still quote real numbers. Nothing in `scripts/` reads the leaderboard.
 
 ## Build stats: tokens, agents and time per app (2026-09-26)
 
@@ -243,12 +272,11 @@ of 9 drops · Next: Booth →" (the newest drop you have not voted on). Under 5
 it says so ("Only 3 votes so far — the split shows at 5"). Withdrawing hides
 it again. `reveal()` is the one rule; the vote route answers with it.
 
-- **The public leaderboard is unchanged** — it still carries `keepPct`,
-  because the main site's banner, "Live now" feed and `/challenge` teaser
-  read it. That makes the reveal a nudge, not a secret: anyone can read the
-  numbers there. The lab's own Leaderboard section draws the rank for every
-  app but the % and bar only for apps this browser has voted on with 5+
-  votes ("🔒 Vote to see", "Split at 5" otherwise).
+- **The public leaderboard carries no split** (since 2026-09-27; it did on
+  the first day, which made this a nudge — see "No split in public"). The
+  lab's own Leaderboard section draws the rank and votes for every app, and
+  the % and bar only from this browser's own `split` ("🔒 Vote to see",
+  "Split at 5" otherwise).
 
 **The streak.** Consecutive **drop days** on which this browser voted on
 that day's drop *while it was the newest*. "Newest" comes from the registry

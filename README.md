@@ -26,7 +26,8 @@ Under the Challenge banner, "Live now" (`GET /api/activity`,
 15 minutes or hour, people today, a new lab drop, a new Keep leader, and
 Friction's strongest spike this week (its public `/api/spikes`, optional).
 The banner itself carries the lab's Keep or kill top three from the same
-call. It is app-level only - no person, no timestamp, and no count under two
+call: rank, votes and who leads, never a keep % (the lab shows a split only
+to someone who has voted on that app). It is app-level only - no person, no timestamp, and no count under two
 - cached 15 s on the server, and polled every 30 s by the page only while the
 tab is visible. The private family app is not tracked and never named.
 `LAB_URL` and `FRICTION_URL` override where it reads from (for local runs).

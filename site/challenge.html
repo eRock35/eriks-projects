@@ -281,8 +281,10 @@
     .catch(function () { clearTimeout(fallbackTimer); if (!drewLive) draw(FALLBACK); });
 
   // The leaderboard line: the lab's top three by its own ranking (a lone
-  // "keep" does not outrank ten votes at 90%). Counts only; the request
-  // carries no cookie and the lab mints none for it.
+  // "keep" does not outrank ten votes at 90%). Rank and vote counts only -
+  // the lab publishes no keep % (it shows a split only in the lab, to someone
+  // who has voted on that app). The request carries no cookie and the lab
+  // mints none for it.
   var lb = document.getElementById('lb'), lbList = document.getElementById('lbList'), lbAt = 0;
   function lbStatic() { if (lb.getAttribute('data-state') !== 'live') lb.setAttribute('data-state', 'static'); }
   function loadBoard() {
@@ -296,8 +298,8 @@
           return;
         }
         lbList.innerHTML = '<ol>' + apps.map(function (a, i) {
-          var v = Math.max(0, Math.floor(Number(a.votes) || 0)), p = Math.min(100, Math.max(0, Math.floor(Number(a.keepPct) || 0)));
-          return '<li>' + (i + 1) + '. ' + esc(a.emoji) + ' ' + esc(a.name) + (d.leader === a.slug && i === 0 ? ' leads with' : '') + ' <b>' + p + '%</b> keep of ' + v + '</li>';
+          var v = Math.max(0, Math.floor(Number(a.votes) || 0));
+          return '<li>' + (i + 1) + '. ' + esc(a.emoji) + ' ' + esc(a.name) + (d.leader === a.slug && i === 0 ? ' leads,' : '') + ' <b>' + v + '</b> vote' + (v === 1 ? '' : 's') + '</li>';
         }).join('') + '</ol>';
         lb.setAttribute('data-state', 'live');
       })

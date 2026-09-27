@@ -165,9 +165,9 @@ const buildStats = (() => {
 
 // A split is shown only to someone who has voted on that app, and only with
 // MIN_SPLIT votes behind it. Before the first tap the page says how many
-// voted, never which way: the crowd must not steer the first vote. (The
-// public leaderboard still carries keep %: the main site's banner reads it.
-// The lab's own page draws it only for apps this browser has voted on.)
+// voted, never which way: the crowd must not steer the first vote. The
+// public leaderboard carries no split either (2026-09-27): rank, votes and
+// the leader's name only, so this is the only way to see a keep %.
 const MIN_SPLIT = 5;
 /** Pure: a tally and this visitor's vote -> {votes: {total}, split|null}. */
 function reveal(tally, myVote) {
@@ -302,6 +302,11 @@ host.get('/api/lab', async (req, res) => {
 //
 // Counts only: no visitor ids, no notes, and it never mints the vote cookie
 // (it reads nothing per visitor), whoever asks. Retired apps are left out.
+//
+// No split (2026-09-27, Erik): the keep and kill counts and keep % stay on
+// the server. The ordering uses them; the answer carries only the rank, the
+// total votes and which app leads. A keep % is shown only through /api/lab's
+// per-browser reveal, to someone who has voted on that app, with 5+ votes.
 const MIN_LEAD_VOTES = 2;
 function wilsonLow(keep, n) {
   if (!n) return 0;
@@ -321,8 +326,7 @@ function standings(apps, tallies) {
       return {
         slug: a.slug, name: a.name, emoji: a.emoji, color: a.color, color2: a.color2,
         drop: i + 1, dropped: a.dropped, status: a.status, live: mounted.includes(a.slug),
-        keep, kill, votes, keepPct: votes ? Math.round((keep / votes) * 100) : null,
-        score: wilsonLow(keep, votes), order: i,
+        votes, score: wilsonLow(keep, votes), order: i,
       };
     })
     .sort((x, y) => y.score - x.score || y.votes - x.votes || y.order - x.order);

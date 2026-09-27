@@ -342,25 +342,28 @@
     };
   }
 
-  // Keep or kill standings. Counts only, from the lab's own ranking; hidden
-  // until it answers, and left as it was if a refresh fails.
+  // Keep or kill standings: rank, votes and the leader, from the lab's own
+  // ranking - the public answer carries no split. A keep % comes only from
+  // this browser's own reveal (/api/lab's `split`: voted on it, 5+ votes).
+  // Hidden until it answers, and left as it was if a refresh fails.
   var HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
   function loadBoard() {
     fetch('/api/lab/leaderboard', { credentials: 'omit' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d || !Array.isArray(d.apps) || !d.apps.length) return;
       var lead = null;
       $('#board').innerHTML = d.apps.map(function (a, i) {
-        var v = Math.max(0, Math.floor(Number(a.votes) || 0)), p = a.keepPct == null ? null : Math.min(100, Math.max(0, Math.floor(Number(a.keepPct) || 0)));
+        var v = Math.max(0, Math.floor(Number(a.votes) || 0));
         var isLead = d.leader === a.slug && i === 0;
         if (isLead) lead = a;
         var style = HEX.test(a.color) && HEX.test(a.color2) ? ' style="--c1:' + a.color + ';--c2:' + a.color2 + '"' : '';
         // The rank is public; the split is drawn only for a drop this browser
         // has voted on, with at least 5 votes behind it - the card's rule.
         var mine = data && data.apps.filter(function (x) { return x.slug === a.slug; })[0];
-        var show = mine && mine.myVote && v >= 5;
+        var show = !!(mine && mine.myVote && mine.split);
+        var p = show ? Math.min(100, Math.max(0, Math.round(num(mine.split.keepPct)))) : 0;
         var head = !v ? '' : show ? '<b>' + p + '% keep</b>' : mine && mine.myVote ? '<b class="dim">Split at 5</b>' : '<b class="dim">🔒 Vote to see</b>';
         return '<li' + (isLead ? ' class="lead"' : '') + '><span class="r">' + (i + 1) + '</span><span class="e"' + style + ' aria-hidden="true">' + esc(a.emoji) + '</span>' +
-          '<span class="n"><b>' + esc(a.name) + '</b><span class="bar' + (show || !v ? '' : ' hid') + '" aria-hidden="true"><i style="--p:' + (show ? p || 0 : 0) + '%"></i></span></span>' +
+          '<span class="n"><b>' + esc(a.name) + '</b><span class="bar' + (show || !v ? '' : ' hid') + '" aria-hidden="true"><i style="--p:' + p + '%"></i></span></span>' +
           '<span class="s">' + (v ? head + v + ' vote' + (v === 1 ? '' : 's') : 'No votes yet') + '</span></li>';
       }).join('');
       $('#standingsLead').textContent = lead ? '🔥 ' + lead.name + ' leads' : 'Nobody leads yet';

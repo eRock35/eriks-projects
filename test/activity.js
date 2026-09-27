@@ -22,7 +22,7 @@ async function test(name, fn) { await fn(); ran += 1; process.stdout.write('  ok
 const T0 = Date.parse('2026-09-25T15:00:00Z');
 const MIN = 60 * 1000;
 const ITEM_KEYS = ['href', 'icon', 'kind', 'name', 'text', 'when'].sort();
-const BOARD_KEYS = ['c1', 'c2', 'emoji', 'href', 'keep', 'keepPct', 'kill', 'name', 'rank', 'slug', 'votes'].sort();
+const BOARD_KEYS = ['c1', 'c2', 'emoji', 'href', 'name', 'rank', 'slug', 'votes'].sort();
 // Words that would mean something personal leaked through. Checked against
 // the whole serialized response.
 const IDENTIFYING = /email|@[a-z0-9-]+\.[a-z]|\buid\b|\bvid\b|visitor|user(name)?\b|\bip\b|ipAddress|\bcity\b|\btrip(Name|Id)?\b|referr|userAgent|lastSeenAt|since|\d{4}-\d{2}-\d{2}T/i;
@@ -30,9 +30,9 @@ const IDENTIFYING = /email|@[a-z0-9-]+\.[a-z]|\buid\b|\bvid\b|visitor|user(name)
 function board(over) {
   return Object.assign({
     apps: [
-      { slug: 'glowup', name: 'Glowup', emoji: '✨', color: '#6d1b7b', color2: '#8c2410', dropped: '2026-09-25', status: 'testing', live: true, keep: 9, kill: 1, votes: 10, keepPct: 90, rank: 1 },
-      { slug: 'receipt', name: 'Receipt', emoji: '🧾', color: '#0f4c45', color2: '#881337', dropped: '2026-09-25', status: 'testing', live: true, keep: 3, kill: 1, votes: 4, keepPct: 75, rank: 2 },
-      { slug: 'spar', name: 'Spar', emoji: '🥊', color: '#ff5a36', color2: '#ff8a3d', dropped: '2026-09-20', status: 'testing', live: true, keep: 0, kill: 0, votes: 0, keepPct: null, rank: 3 },
+      { slug: 'glowup', name: 'Glowup', emoji: '✨', color: '#6d1b7b', color2: '#8c2410', dropped: '2026-09-25', status: 'testing', live: true, votes: 10, rank: 1 },
+      { slug: 'receipt', name: 'Receipt', emoji: '🧾', color: '#0f4c45', color2: '#881337', dropped: '2026-09-25', status: 'testing', live: true, votes: 4, rank: 2 },
+      { slug: 'spar', name: 'Spar', emoji: '🥊', color: '#ff5a36', color2: '#ff8a3d', dropped: '2026-09-20', status: 'testing', live: true, votes: 0, rank: 3 },
     ],
     leader: 'glowup',
   }, over || {});
@@ -156,7 +156,7 @@ function get(port, p) {
 
   await test('a lab entry or spike title that names the private app is dropped', async () => {
     const b = board({ leader: 'srb' });
-    b.apps.unshift({ slug: 'srb', name: 'Santa Rosa trip', emoji: '🏖', dropped: '2026-09-25', status: 'testing', live: true, keep: 50, kill: 0, rank: 1 });
+    b.apps.unshift({ slug: 'srb', name: 'Santa Rosa trip', emoji: '🏖', dropped: '2026-09-25', status: 'testing', live: true, votes: 50, rank: 1 });
     const { a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: b }, '/api/spikes': { status: 200, body: [{ id: 'x', title: 'Rosa Beach rentals keep double-booking', ratio: 9 }] } }) });
     const s = JSON.stringify(await a.snapshot());
     assert.ok(!/santa|rosa/i.test(s), s);
@@ -200,7 +200,7 @@ function get(port, p) {
   await test('drops: two on the same day are told newest first, by drop number, not by rank', async () => {
     const b = board();
     b.apps = b.apps.map((x, i) => Object.assign({}, x, { drop: [6, 8, 1][i] }));
-    b.apps.push({ slug: 'booth', name: 'Booth', emoji: '🎪', dropped: '2026-09-25', status: 'testing', live: true, keep: 0, kill: 0, drop: 7 });
+    b.apps.push({ slug: 'booth', name: 'Booth', emoji: '🎪', dropped: '2026-09-25', status: 'testing', live: true, votes: 0, drop: 7 });
     const { a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: b } }) });
     const drops = (await a.snapshot()).items.filter((i) => i.kind === 'drop');
     assert.deepStrictEqual(drops.map((d) => d.name), ['Receipt', 'Booth']);
@@ -208,8 +208,8 @@ function get(port, p) {
 
   await test('drops: today\'s live drops are news; warming-up, old and future ones are not', async () => {
     const b = board();
-    b.apps.push({ slug: 'cold', name: 'Cold', emoji: '🧊', dropped: '2026-09-25', status: 'testing', live: false, keep: 0, kill: 0 });
-    b.apps.push({ slug: 'next', name: 'Next', emoji: '🔮', dropped: '2026-09-26', status: 'testing', live: true, keep: 0, kill: 0 });
+    b.apps.push({ slug: 'cold', name: 'Cold', emoji: '🧊', dropped: '2026-09-25', status: 'testing', live: false, votes: 0 });
+    b.apps.push({ slug: 'next', name: 'Next', emoji: '🔮', dropped: '2026-09-26', status: 'testing', live: true, votes: 0 });
     const { a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: b } }) });
     const drops = (await a.snapshot()).items.filter((i) => i.kind === 'drop');
     assert.deepStrictEqual(drops.map((d) => [d.name, d.text, d.when]).sort(), [['Glowup', 'dropped in the lab', '6 h ago'], ['Receipt', 'dropped in the lab', '6 h ago']]);
@@ -221,7 +221,7 @@ function get(port, p) {
     const lab = { body: board() };
     const f = feed({ leaderStore: store, fetch: upstream({ '/api/lab/leaderboard': () => ({ ok: true, status: 200, text: async () => JSON.stringify(lab.body) }) }) });
     let lead = (await f.a.snapshot()).items.find((i) => i.kind === 'lead');
-    assert.strictEqual(lead.name, 'Glowup'); assert.match(lead.text, /^leads the Keep votes · 90% keep of 10 votes$/);
+    assert.strictEqual(lead.name, 'Glowup'); assert.match(lead.text, /^leads the Keep votes · 10 votes$/);
     assert.deepStrictEqual(saved.v, { slug: 'glowup', since: null }, 'first sighting stored, not dated');
     lab.body = board({ leader: 'receipt' });
     f.clock.t += 61 * 1000;
@@ -239,19 +239,29 @@ function get(port, p) {
     let { a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: b } }) });
     assert.ok(!(await a.snapshot()).items.some((i) => i.kind === 'lead'));
     const thin = board();
-    thin.apps[0].keep = 1; thin.apps[0].kill = 0;
+    thin.apps[0].votes = 1;
     ({ a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: thin } }) }));
     assert.ok(!(await a.snapshot()).items.some((i) => i.kind === 'lead'));
   });
 
   await test('the board keeps the lab\'s order, drops retired apps, and says whether anyone has voted', async () => {
     const b = board();
-    b.apps.push({ slug: 'gone', name: 'Gone', emoji: '🪦', status: 'retired', keep: 40, kill: 0, rank: 0 });
+    b.apps.push({ slug: 'gone', name: 'Gone', emoji: '🪦', status: 'retired', votes: 40, rank: 0 });
     const { a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: b } }) });
     const body = await a.snapshot();
-    assert.deepStrictEqual(body.board.apps.map((x) => [x.slug, x.rank, x.keepPct]), [['glowup', 1, 90], ['receipt', 2, 75], ['spar', 3, null]]);
+    assert.deepStrictEqual(body.board.apps.map((x) => [x.slug, x.rank, x.votes]), [['glowup', 1, 10], ['receipt', 2, 4], ['spar', 3, 0]]);
     assert.strictEqual(body.board.leader, 'glowup');
     assert.strictEqual(body.board.anyVotes, true);
+  });
+
+  await test('no split ever leaves the feed, even from a lab that still sends one', async () => {
+    const b = board();
+    b.apps = b.apps.map((x) => Object.assign({}, x, { keep: 7, kill: 3, keepPct: 70, score: 0.4 }));
+    const { a } = feed({ fetch: upstream({ '/api/lab/leaderboard': { status: 200, body: b } }) });
+    const body = await a.snapshot();
+    const text = JSON.stringify(body);
+    assert.ok(!/"keep"|"kill"|keepPct|"score"|\d+% keep/.test(text), text);
+    assert.ok(body.items.some((i) => i.kind === 'lead' && i.text === 'leads the Keep votes · 10 votes'));
   });
 
   /* ---------------- counting across instances ---------------- */

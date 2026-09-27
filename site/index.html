@@ -341,7 +341,6 @@
   .cb-br { font-weight: 800; margin-right: 4px; }
   /* The keep share, as a hairline under the cell. Decoration: the number
      above it says the same thing in words. */
-  .cb-bm { position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p, 0%); background: rgba(255,255,255,.75); transition: width .6s var(--ease); }
   /* No numbers to show: one tile over the same area, so it reads as meant. */
   .cb-bs { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px 12px; border-radius: 11px;
            background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-size: 13.5px; font-weight: 600; line-height: 1.35; }
@@ -1742,16 +1741,17 @@
     }
     var leader = null;
     var html = apps.map(function (a, i) {
-      var votes = num(a.votes), pct = a.keepPct == null ? null : Math.min(100, num(a.keepPct));
+      // Rank and votes only: the lab publishes no keep % (a split is shown
+      // only in the lab, to someone who has voted on that app).
+      var votes = num(a.votes);
       var isLead = b.leader && a.slug === b.leader && i === 0;
       if (isLead) leader = clean(a.name, 30);
       var line = votes
-        ? '<b>' + pct + '%</b><span class="cb-w"> keep</span> · ' + votes + '<span class="cb-w"> vote' + (votes === 1 ? '' : 's') + '</span>'
+        ? '<b>' + votes + '</b> vote' + (votes === 1 ? '' : 's') + (isLead ? '<span class="cb-w"> · leads</span>' : '')
         : 'no votes yet';
       return '<li class="cb-bc' + (isLead ? ' lead' : '') + '">'
         + '<span class="cb-bn"><span class="cb-br">' + (i + 1) + '</span>' + esc(clean(a.emoji, 4)) + ' ' + esc(clean(a.name, 30)) + '</span>'
         + '<span class="cb-bp">' + line + '</span>'
-        + (pct == null ? '' : '<i class="cb-bm" aria-hidden="true" style="--p:' + pct + '%"></i>')
         + '</li>';
     });
     // Always three cells, so the box keeps its height with fewer apps.

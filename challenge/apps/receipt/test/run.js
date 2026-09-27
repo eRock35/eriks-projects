@@ -8,6 +8,20 @@
 // calls are counted from the identity's usage rows - the same rows that bill
 // a real account.
 
+// The fixtures are dated 2026-09-25 (x-local-date, T0), and the server only
+// believes a browser's date within a day of its own clock - so from the 27th
+// the suite failed on the calendar, not on the code (found 2026-09-27). The
+// clock is pinned to the fixture day, running forward from there, before
+// anything reads it.
+{
+  const RealDate = Date;
+  const offset = RealDate.parse('2026-09-25T15:00:00Z') - RealDate.now();
+  global.Date = class extends RealDate {
+    constructor(...a) { if (a.length) super(...a); else super(RealDate.now() + offset); }
+    static now() { return RealDate.now() + offset; }
+  };
+}
+
 const assert = require('assert');
 const http = require('http');
 const path = require('path');

@@ -2,7 +2,7 @@
 process.env.LAB_MEMORY = '1';
 const assert = require('assert');
 const http = require('http');
-const { host, mounted } = require('../server');
+const { host, mounted, store } = require('../server');
 
 (async () => {
   const server = http.createServer(host).listen(0);
@@ -35,7 +35,8 @@ const { host, mounted } = require('../server');
   })));
   const ids = race.map((x) => (x.headers.get('set-cookie') || cookie).split(';')[0]);
   assert.ok(ids[0].startsWith('lab_vid=')); assert.strictEqual(ids[0], ids[1]); ok('two votes fired at once carry the same lab_vid');
-  const tallyOf = async (slug) => { const b = await (await fetch(base + '/api/lab/leaderboard')).json(); const x = b.apps.find((a) => a.slug === slug); return { keep: x.keep, kill: x.kill }; };
+  // The split is not public any more; read the stored tally itself.
+  const tallyOf = async (slug) => { const t = (await store.get('lab_votes', slug)) || {}; return { keep: Math.max(0, t.keep || 0), kill: Math.max(0, t.kill || 0) }; };
   assert.deepStrictEqual((await call('GET', '/api/lab')).data.apps.find((a) => a.slug === 'spar').votes, { total: 1 });
   assert.deepStrictEqual(await tallyOf('spar'), { keep: 1, kill: 0 });
   ok('...and count once');
@@ -76,13 +77,14 @@ const { host, mounted } = require('../server');
   assert.match(String(lbSame.headers.get('cache-control')), /max-age=15/); ok('leaderboard: cached for 15 s');
   const lb = await lbSame.json();
   assert.ok(Array.isArray(lb.apps) && lb.apps.length >= 1);
-  const allowed = ['slug', 'name', 'emoji', 'color', 'color2', 'drop', 'dropped', 'status', 'live', 'keep', 'kill', 'votes', 'keepPct', 'rank'];
+  const allowed = ['slug', 'name', 'emoji', 'color', 'color2', 'drop', 'dropped', 'status', 'live', 'votes', 'rank'];
   lb.apps.forEach((a) => Object.keys(a).forEach((k) => assert.ok(allowed.includes(k), 'unexpected field ' + k)));
   assert.ok(!/myVote|vid|voter|note|zebra/i.test(JSON.stringify(lb))); ok('leaderboard: counts and names only - no voter, no vote of yours, no notes');
+  assert.ok(!/"keep"|"kill"|keepPct|"score"|"split"/.test(JSON.stringify(lb))); ok('leaderboard: no split - no keep, kill, keep % or score for anyone');
   assert.deepStrictEqual(lb.apps.map((a) => a.rank), lb.apps.map((_, i) => i + 1)); ok('leaderboard: ranks run 1..n');
   await call('POST', '/api/lab/spar/vote', { v: 'keep' });
   const after = await (await fetch(base + '/api/lab/leaderboard')).json();
-  assert.strictEqual(after.apps.find((a) => a.slug === 'spar').keep, 1); ok('leaderboard: a vote shows at once (the vote clears the cache)');
+  assert.strictEqual(after.apps.find((a) => a.slug === 'spar').votes, 1); ok('leaderboard: a vote shows at once (the vote clears the cache)');
   assert.strictEqual(after.leader, null); ok('leaderboard: one vote makes nobody the leader');
 
   const reg = [
@@ -94,14 +96,15 @@ const { host, mounted } = require('../server');
   assert.strictEqual(st.leader, 'b'); ok('standings: a clear leader with enough votes is named');
   assert.ok(!st.apps.some((a) => a.slug === 'dead')); ok('standings: retired apps are left out');
   assert.deepStrictEqual(st.apps.map((a) => a.drop), [2, 1, 3]); ok('standings: each app keeps its drop number, whatever its rank');
-  assert.strictEqual(st.apps.find((a) => a.slug === 'b').keepPct, 90); assert.strictEqual(st.apps.find((a) => a.slug === 'c').keepPct, null);
-  ok('standings: keep % is whole, and null (not 0) with no votes');
+  assert.deepStrictEqual(st.apps.map((a) => a.votes), [10, 1, 0]);
+  st.apps.forEach((a) => ['keep', 'kill', 'keepPct', 'score', 'order'].forEach((k) => assert.ok(!(k in a), k)));
+  ok('standings: total votes per app, and no keep, kill, keep % or score');
   st = standings(reg, { a: { keep: 3, kill: 1 }, b: { keep: 3, kill: 1 } });
   assert.strictEqual(st.leader, null); ok('standings: a tie at the top names no leader');
   st = standings(reg, { a: { kill: 5 }, b: { kill: 2 } });
   assert.strictEqual(st.leader, null); ok('standings: all kills names no leader');
   st = standings(reg, { a: { keep: -4, kill: 'x' } });
-  assert.deepStrictEqual([st.apps.find((a) => a.slug === 'a').keep, st.apps.find((a) => a.slug === 'a').kill], [0, 0]); ok('standings: a bad tally reads as zero');
+  assert.strictEqual(st.apps.find((a) => a.slug === 'a').votes, 0); ok('standings: a bad tally reads as zero');
 
   server.close();
   console.log(`\n${n}/${n} passed`);
