@@ -36,6 +36,10 @@ h.bag('identity').set('users/' + uid, {
 
 const cookie = h.session(SECRET, OWNER);
 
+// Trip Planner and Football are their own repos. Locally they sit beside this
+// one; CI checks them out and says where with SIBLING_REPOS.
+const SIBLINGS = process.env.SIBLING_REPOS || path.join(__dirname, '..', '..');
+
 /** Boot one app with its own environment, and wait for its port. */
 async function boot(file, env) {
   Object.assign(process.env, {
@@ -60,7 +64,7 @@ const passedTheGate = (status) => status !== 401 && status !== 403;
 
 (async () => {
   /* ---------- trip planner: chat on a trip ---------- */
-  let base = await boot(path.join('/home/user/trip-planner', 'server.js'), {
+  let base = await boot(path.join(SIBLINGS, 'trip-planner', 'server.js'), {
     PORT: '9401', FIRESTORE_DATABASE_ID: 'trip-planner', SESSION_SECRET: 'trip-secret-abcdefghijk',
     ADMIN_EMAIL: 'someone-else@example.com',   // deliberately NOT the owner
   });
@@ -76,7 +80,7 @@ const passedTheGate = (status) => status !== 401 && status !== 403;
   ok('trip chat is not refused to the owner', passedTheGate(r.status), String(r.status));
 
   /* ---------- football: research ---------- */
-  base = await boot(path.join('/home/user/college-football-app', 'server.js'), {
+  base = await boot(path.join(SIBLINGS, 'college-football-app', 'server.js'), {
     PORT: '9402', FIRESTORE_DATABASE_ID: 'college-football-app', SESSION_SECRET: 'cfb-secret-abcdefghijk',
     SITE_LOGIN_USERNAME: 'x', SITE_LOGIN_PASSWORD: 'y',
     RESEARCH_ALLOWED_EMAILS: '',   // deliberately empty: the shared grant must carry it

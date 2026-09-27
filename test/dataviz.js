@@ -81,7 +81,7 @@ const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).
   // ask. A sample added WITHOUT one falls through to the model and starts
   // costing money on a public page, which is the leak this project already
   // fixed once. Nothing tested it until now.
-  const datasets = require('/home/user/eriks-projects/apps/dataviz/lib/datasets.js');
+  const datasets = require(require('path').join(__dirname, '..', 'apps', 'dataviz', 'lib', 'datasets.js'));
   const specless = datasets.list().map((d) => datasets.get(d.id)).filter((d) => !datasets.isFree(d));
   ok('every sample carries a baked spec, so no sample costs anything',
      specless.length === 0, JSON.stringify(specless.map((d) => d.id)));
@@ -100,7 +100,7 @@ const jar = (r) => (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).
   ok('the new one works', r.status === 200);
 
   // the reset flow must read the identity record, not this app's billing record
-  const reset = require('/home/user/eriks-projects/apps/dataviz/lib/reset.js');
+  const reset = require(require('path').join(__dirname, '..', 'apps', 'dataviz', 'lib', 'reset.js'));
   const cur = users.get('users/' + uid);
   const token = reset.makeToken(uid, cur.password.hash);
   r = await post('/api/auth/reset/complete', { token, password: 'reset-password-here' });

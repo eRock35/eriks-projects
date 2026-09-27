@@ -29,5 +29,27 @@ jobs:
       - name: Shared files have not drifted
         run: node scripts/sync-shared.js --check
 
+      # test/owner.js boots Trip Planner and Football beside the apps here, to
+      # check one session opens all of them. Both repos are public. Checked out
+      # after the syntax check so it does not walk their files.
+      - name: Check out Trip Planner
+        uses: actions/checkout@v4
+        with:
+          repository: eRock35/trip-planner
+          path: siblings/trip-planner
+
+      - name: Check out College Football
+        uses: actions/checkout@v4
+        with:
+          repository: eRock35/college-football-app
+          path: siblings/college-football-app
+
+      - name: Install the sibling apps
+        run: |
+          (cd siblings/trip-planner && npm ci)
+          (cd siblings/college-football-app && npm ci)
+
       - name: Suites
         run: npm test
+        env:
+          SIBLING_REPOS: ${{ github.workspace }}/siblings
