@@ -1399,7 +1399,7 @@ Plain env vars on the Cloud Run service:
   "One canonical host"). Production still carries the www value from before
   that; `server.js` reads www, or no value, as the apex, so it is harmless
   until changed, but change it (see "Known open items")
-- `NEWSLETTER_FROM` — currently `Erik Strong <Erik.Strong@strongtechnicalconsulting.com>`.
+- `NEWSLETTER_FROM` — currently Erik's name and his address at the domain (see the secret; not written in this public repo, so it cannot be scraped from here).
   Any address on the verified domain works here with no extra DNS, since
   Resend verifies the domain and not the local part. Note that verifying a
   domain for sending does not create a mailbox: if nothing receives at this
@@ -1488,7 +1488,7 @@ Still Erik's, and sending will not work until it is done:
 - Add `strongtechnicalconsulting.com` as a domain in Resend and put the SPF
   and DKIM records it prints at the registrar. Until those resolve, Resend
   only sends from its own sandbox address to Erik's own account address.
-- Make sure something receives at `Erik.Strong@strongtechnicalconsulting.com`,
+- Make sure something receives at the newsletter's From address,
   a mailbox or a forwarding alias. Otherwise replies bounce. Alternatively set
   `NEWSLETTER_REPLY_TO` to an address he does read, which can be off-domain.
 

@@ -631,10 +631,12 @@
   /* The footer's "Pause motion": the same stillness, chosen on the page. */
   html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation: none !important; }
   html[data-motion="off"] h1 .w { opacity: 1 !important; transform: none !important; }
+  .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 </style>
   <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
        the service, so local runs and browser tests send nothing. -->
   <script src="/analytics.js" async></script>
+  <script src="/contact.js" defer></script>
 </head>
 <body>
 
@@ -703,7 +705,7 @@
     <div class="cta-row">
       <a class="btn btn-primary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>LinkedIn</a>
       <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg>GitHub</a>
-      <a class="btn btn-secondary" href="mailto:erik.strong@strongtechnicalconsulting.com"><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Email</a>
+      <a class="btn btn-secondary" href="#contact" data-contact><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Email</a>
     </div>
     <a class="cue" href="#projects" aria-label="Scroll to projects"><svg aria-hidden="true" focusable="false"><use href="#i-down"/></svg></a>
   </header>
@@ -995,6 +997,9 @@
         <input type="email" name="email" id="subEmail" inputmode="email" autocomplete="email" autocapitalize="none"
                spellcheck="false" enterkeyhint="go" placeholder="you@example.com" required>
         <button type="submit" id="subBtn">Subscribe</button>
+        <!-- Bot traps: people never see or fill these. See handleSubscribe. -->
+        <div class="hp" aria-hidden="true"><label for="subWebsite">Leave this empty</label><input type="text" name="website" id="subWebsite" tabindex="-1" autocomplete="off"></div>
+        <input type="hidden" name="t" id="subT" value="">
       </form>
       <p class="sub-note" id="subNote" role="status" aria-live="polite">You will get one email to confirm. Nothing else until there is something to read.</p>
       <p style="margin-top:14px"><a href="/writing" style="font-weight:600">Read the posts <span aria-hidden="true">&rsaquo;</span></a></p>
@@ -1004,9 +1009,9 @@
   <section id="contact">
     <div class="section-head" data-reveal><h2>Get in touch</h2></div>
     <div class="list" data-reveal>
-      <a class="row" href="mailto:erik.strong@strongtechnicalconsulting.com">
+      <a class="row" href="#contact" data-contact>
         <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg></span>
-        <span class="row-main"><span class="row-title">Email</span><span class="row-sub wraps">erik.strong@<wbr>strongtechnicalconsulting.com</span></span>
+        <span class="row-main"><span class="row-title">Email</span><span class="row-sub wraps" data-contact-show>Tap to email Erik</span></span>
         <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
       </a>
       <a class="row" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener">
@@ -1238,6 +1243,8 @@
   // on the page and answers inline.
   var subForm = document.getElementById("subForm");
   if (subForm) {
+    var subT = document.getElementById("subT");
+    if (subT) subT.value = String(Date.now());
     subForm.addEventListener("submit", async function (e) {
       e.preventDefault();
       var input = document.getElementById("subEmail");
@@ -1252,7 +1259,7 @@
         var res = await fetch("/api/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: address, source: "landing" })
+          body: JSON.stringify({ email: address, source: "landing", website: (document.getElementById("subWebsite") || {}).value || "", t: Number((document.getElementById("subT") || {}).value) || 0 })
         });
         var data = await res.json().catch(function () { return {}; });
         if (!res.ok) throw new Error(data.error || "That did not work.");

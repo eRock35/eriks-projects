@@ -76,7 +76,7 @@ rest was checked live:
 
 Creating accounts and binding roles needs a project Owner, which the deployer
 was not. Erik granted it Owner for that one job. It has been **revoked** —
-`roles/owner` on this project is `user:strongtechnicalconsulting@gmail.com`
+`roles/owner` on this project is Erik's own Google account (address not written in this public repo)
 and nothing else, confirmed against the live policy, and
 `iam.serviceAccounts.create` and `resourcemanager.projects.setIamPolicy` both
 read back denied once IAM propagated.

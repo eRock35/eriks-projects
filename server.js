@@ -505,6 +505,34 @@ function signupAllowed(ip) {
   return hits.length <= 5;
 }
 
+// Signup form bot traps (2026-09-27). A confirmation email goes to whatever
+// address is typed, so a bot filling the form can make this domain mail
+// strangers, which is spam from us and costs the domain its sending
+// reputation. Each trap answers exactly as a real signup does, so a bot
+// learns nothing from the response:
+//   - `website` is a field people never see; anything in it is a bot.
+//   - `t` is when the page drew the form (set by its script). Under two
+//     seconds from draw to submit is not a person. No `t` (no JavaScript)
+//     is allowed through, still under the per-IP limit.
+//   - one confirmation per address per 6 hours, so one inbox cannot be
+//     flooded by repeating its address;
+//   - at most 40 confirmation emails an hour from one instance, all addresses.
+const BOT_TOO_FAST_MS = 2000;
+const RESEND_AFTER_MS = 6 * 60 * 60 * 1000;
+const CONFIRMS_PER_HOUR = 40;
+const confirmsSent = [];
+function looksLikeBot(body) {
+  if (!body) return false;
+  if (typeof body.website === 'string' && body.website.trim()) return true;
+  const t = Number(body.t);
+  return Number.isFinite(t) && t > 0 && Date.now() - t < BOT_TOO_FAST_MS;
+}
+function confirmBudget() {
+  const now = Date.now();
+  while (confirmsSent.length && now - confirmsSent[0] > 60 * 60 * 1000) confirmsSent.shift();
+  return confirmsSent.length < CONFIRMS_PER_HOUR;
+}
+
 function unsubscribeUrlFor(id) {
   return `${view.origin()}/unsubscribe?t=${tokens.makeToken('unsub', id, 0)}`;
 }
@@ -517,6 +545,8 @@ async function handleSubscribe(req) {
   if (!signupAllowed(req.ip || 'unknown')) {
     return { ok: false, status: 429, message: 'Too many signups from here. Try again later.' };
   }
+  const DONE = { ok: true, message: 'Check your inbox to confirm.' };
+  if (looksLikeBot(req.body)) return DONE;
 
   const db = store();
   const id = tokens.emailId(address);
@@ -526,7 +556,13 @@ async function handleSubscribe(req) {
   if (existing && existing.status === 'confirmed') {
     // Deliberately the same answer as a new signup: telling a stranger that an
     // address is already subscribed leaks who is on the list.
-    return { ok: true, message: 'Check your inbox to confirm.' };
+    return DONE;
+  }
+  // Asked again soon after: the first confirmation is still in their inbox.
+  const lastSent = existing && existing.status === 'pending' ? Date.parse(existing.lastSentAt || '') : NaN;
+  if (Number.isFinite(lastSent) && Date.now() - lastSent < RESEND_AFTER_MS) return DONE;
+  if (email.enabled() && !confirmBudget()) {
+    return { ok: false, status: 429, message: 'Signups are busy right now. Try again in an hour.' };
   }
 
   await db.set('subscribers', id, {
@@ -535,7 +571,8 @@ async function handleSubscribe(req) {
     createdAt: (existing && existing.createdAt) || now,
     confirmedAt: null,
     unsubscribedAt: null,
-    source: String((req.body && req.body.source) || 'site'),
+    source: String((req.body && req.body.source) || 'site').slice(0, 40),
+    lastSentAt: email.enabled() ? now : null,
   });
 
   if (email.enabled()) {
@@ -549,6 +586,7 @@ async function handleSubscribe(req) {
         text: body.text,
         headers: { 'List-Unsubscribe': `<${unsubscribeUrlFor(id)}>` },
       });
+      confirmsSent.push(Date.now());
     } catch (err) {
       console.error('confirm email failed', err.message);
       return { ok: false, status: 502, message: 'Could not send the confirmation email. Try again shortly.' };
@@ -556,7 +594,7 @@ async function handleSubscribe(req) {
   } else {
     console.warn(`[subscribe] no mail provider configured; ${address} is pending with no confirmation sent.`);
   }
-  return { ok: true, message: 'Check your inbox to confirm.' };
+  return DONE;
 }
 
 app.post('/api/subscribe', async (req, res) => {
