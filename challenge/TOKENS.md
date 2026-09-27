@@ -52,6 +52,7 @@ Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
 |---|---|---|---|---|---|---|---|
 | Tally | one builder agent | 33.1M | 32.6M | ~210K | 1 | 36 min | in exact; out estimated |
 | Tipout | one builder agent | 32.3M | 31.8M | ~210K | 1 | 37 min | in exact; out estimated |
+| Tells | one builder agent | 50.2M | 49.6M | ~300K | 1 | 53 min | in exact; out estimated |
 
 Tally's transcript records only the start of each streamed reply's output
 (about 5K in total), a logging change since week 1's builds, so its output is
@@ -65,3 +66,8 @@ Tipout's transcript under-reports output the same way (about 4K for the whole
 build), so its output is estimated like Tally's.
 
 Visitors' AI use in the lab on 2026-09-27 (up to the drop, 07:00 UTC): none.
+
+Tells (an extra drop on 2026-09-27, asked for by Erik) is a larger build than
+the daily drops (web app, Chrome/Safari-ready extension, bookmarklet,
+Shortcut). Its transcript under-reports output the same way (~2K), so output
+is estimated from Tipout's rate over its longer agent time.

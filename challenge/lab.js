@@ -154,6 +154,21 @@ const APPS = [
     audience: 'Bars, restaurants & coffee shops that pool tips',
     status: 'testing',
   },
+  {
+    slug: 'tells',
+    name: 'Tells',
+    emoji: '🔎',
+    // Ink violet to highlighter crimson. White text holds 4.5:1 at both ends
+    // and across the gradient; npm run og darkens further if it does not.
+    color: '#2e1a5e',
+    color2: '#8a1538',
+    dropped: '2026-09-27',
+    tagline: 'See the tells of AI in a post, a page, a picture or a video.',
+    blurb: 'Paste a post, give a link, or drop a picture or a video. Tells highlights the exact passages and signals that read as AI, gives a likelihood with how sure it is, reads Content Credentials and generator metadata, and checks separately whether the ideas are original, with the earlier sources it found. Evidence, not a verdict.',
+    features: ['Highlights every tell, with its reason', 'A likelihood with a confidence band', 'Content Credentials & generator metadata', 'Originality check with earlier sources'],
+    audience: 'Anyone reading LinkedIn, X or the news, and anyone hiring or grading',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

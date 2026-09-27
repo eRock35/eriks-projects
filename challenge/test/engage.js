@@ -23,6 +23,14 @@ const reg = ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-24', '2026-09-25
   .map((d, i) => ({ slug: `a${i}`, name: `A${i}`, dropped: d, status: 'testing' }));
 assert.deepStrictEqual(dropDays([...reg, { dropped: 'soon' }, { dropped: '2026-09-25' }]), ['2026-09-25', '2026-09-24', '2026-09-22', '2026-09-21', '2026-09-20']);
 ok('dropDays: newest first, one per date, junk dates ignored');
+// Two drops on one date (Tipout and Tells both dropped 2026-09-27): one drop
+// day, a vote on either one credits it, and both are "today".
+const twin = [...reg, { slug: 'a5', name: 'A5', dropped: '2026-09-25', status: 'testing' }];
+assert.deepStrictEqual(dropDays(twin), dropDays(reg));
+assert.deepStrictEqual(streakOf(['2026-09-24', '2026-09-25'], twin), { current: 2, best: 2, pending: false });
+assert.deepStrictEqual(progress({ days: ['2026-09-25'] }, twin, { a5: 'keep' }).today, ['a4', 'a5']);
+assert.strictEqual(progress({ days: ['2026-09-25'] }, twin, { a5: 'keep' }).streak, 1);
+ok('two drops on one date: one drop day, either vote credits it, both are today');
 assert.deepStrictEqual(streakOf([], reg), { current: 0, best: 0, pending: false }); ok('streak: nothing voted, no streak');
 assert.deepStrictEqual(streakOf(['2026-09-25'], reg), { current: 1, best: 1, pending: false }); ok('streak: today\'s drop voted -> 1');
 assert.deepStrictEqual(streakOf(['2026-09-24'], reg), { current: 1, best: 1, pending: true });
@@ -122,6 +130,11 @@ assert.deepStrictEqual([progress(null, reg, { ...none, a4: 'kill', a1: 'keep' })
   assert.strictEqual(r.data.me.streak, 1); assert.deepStrictEqual(r.data.me.today, lab.APPS.filter((a) => a.dropped === newest).map((a) => a.slug));
   await lapsed('POST', `/api/lab/${todays.slug}/vote`, { v: 'kill' });
   ok('streak: day 1 - a vote on today\'s drop starts it');
+  const twins = lab.APPS.filter((a) => a.dropped === newest && a.status === 'testing');
+  if (twins.length > 1) {
+    r = await daily('POST', `/api/lab/${twins[1].slug}/vote`, { v: 'keep' });
+    assert.strictEqual(r.data.me.streak, 1); ok('streak: a second drop on the same day counts that day once');
+  }
   const d2 = ship(1);
   r = await daily('GET', '/api/lab');
   assert.deepStrictEqual([r.data.me.streak, r.data.me.pending], [1, true]); ok('streak: the next drop lands - still 1, pending');

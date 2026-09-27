@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tells</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><b>🔎 Tells</b><button id="opts" class="link" type="button">Settings</button></header>
+  <p class="muted">Check what you are reading for tells of AI. The quick scan is free and runs here.</p>
+  <div class="row">
+    <button id="sel" type="button">Check selection</button>
+    <button id="page" type="button" class="ghost">Check this page</button>
+  </div>
+  <div id="out" aria-live="polite"></div>
+  <script src="tells-core.js"></script>
+  <script src="ui.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

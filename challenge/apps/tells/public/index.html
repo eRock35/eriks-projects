@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tells — see the tells of AI in a post, a page, a picture or a video</title>
+  <meta name="description" content="Paste a post, give a link, or drop a picture or video. Tells highlights the passages and signals that read as AI, gives a likelihood with its confidence, and checks separately whether the ideas are original. Evidence, not a verdict.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#121019" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Tells">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Tells — See the tells of AI in a post, a page, a picture or a video.">
+  <meta property="og:description" content="Paste a post, give a link, or drop a picture or a video. Tells highlights the exact passages and signals that read as AI, gives a likelihood with how sure it is, reads Content Credentials and generator metadata, and checks separately whether the ideas are original, with the earli">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/tells/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/tells.png?v=a477e62bb2">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Tells, drop #11 in the Challenge Lab: See the tells of AI in a post, a page, a picture or a video.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Tells — See the tells of AI in a post, a page, a picture or a video.">
+  <meta name="twitter:description" content="Paste a post, give a link, or drop a picture or a video. Tells highlights the exact passages and signals that read as AI, gives a likelihood with how sure it is, reads Content Credentials and generator metadata, and checks separately whether the ideas are original, with the earli">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/tells.png?v=a477e62bb2">
+  <meta name="twitter:image:alt" content="Tells, drop #11 in the Challenge Lab: See the tells of AI in a post, a page, a picture or a video.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#check">Skip to the checker</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">🔎</span>Tells</a>
+    <nav class="top-links" aria-label="Page">
+      <a href="#add" class="hide-sm">Add to your browser</a>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>See the tells.</h1>
+      <p class="lede">Paste a post, give a link, or drop a picture or a video. Tells highlights the exact passages and signals that read as AI, says how likely and how sure, and checks separately whether the ideas are original.</p>
+      <p class="spine" id="spine"><b>Evidence, not a verdict.</b> <span id="limitsLine">A signal, not proof. Formal human writing can score high; edited AI text can score low.</span></p>
+    </section>
+
+    <div class="grid">
+      <section class="card checker" id="check" aria-label="Check something">
+        <div class="tabs" role="tablist" aria-label="What to check">
+          <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="true" data-tab="text">Text</button>
+          <button role="tab" id="tab-link" aria-controls="panel-link" aria-selected="false" tabindex="-1" data-tab="link">Link</button>
+          <button role="tab" id="tab-picture" aria-controls="panel-picture" aria-selected="false" tabindex="-1" data-tab="picture">Picture</button>
+          <button role="tab" id="tab-video" aria-controls="panel-video" aria-selected="false" tabindex="-1" data-tab="video">Video</button>
+        </div>
+
+        <div role="tabpanel" id="panel-text" aria-labelledby="tab-text" class="panel">
+          <label class="lbl" for="text">Paste a post, an email, an essay…</label>
+          <textarea id="text" rows="9" maxlength="20000" spellcheck="false" placeholder="Paste text here. The quick scan runs as you paste, free, on this device."></textarea>
+          <div class="row spread small muted"><span id="count">0 words</span><span>Up to 20,000 characters</span></div>
+          <div class="samples" aria-label="Samples">
+            <span class="small muted">Try a sample:</span>
+            <button class="chip" type="button" data-sample="templated">Templated LinkedIn post</button>
+            <button class="chip" type="button" data-sample="human">A person’s post</button>
+          </div>
+        </div>
+
+        <div role="tabpanel" id="panel-link" aria-labelledby="tab-link" class="panel" hidden>
+          <label class="lbl" for="url">A link to an article or post</label>
+          <div class="row">
+            <input class="input" id="url" type="url" inputmode="url" placeholder="https://…" autocomplete="off" spellcheck="false">
+            <button class="btn" id="fetch" type="button">Read it</button>
+          </div>
+          <p class="small muted">Our server fetches the page (https only) and checks its main text. The site sees a request from Tells, not from you. LinkedIn and X hide posts from servers: paste the text, or use the <a href="#add">browser button</a> on the post.</p>
+          <div id="linkInfo"></div>
+        </div>
+
+        <div role="tabpanel" id="panel-picture" aria-labelledby="tab-picture" class="panel" hidden>
+          <label class="drop" id="picDrop">
+            <input id="pic" type="file" accept="image/*,.heic,.heif" class="vh">
+            <span class="drop-in"><b>Choose a picture</b> or drop it here<br><span class="small muted">JPEG, PNG, WebP, HEIC · the metadata is read on this device, free</span></span>
+          </label>
+          <div id="picInfo"></div>
+          <div class="row" style="margin-top:8px"><button class="chip" type="button" data-sample="picture">See a sample result</button></div>
+        </div>
+
+        <div role="tabpanel" id="panel-video" aria-labelledby="tab-video" class="panel" hidden>
+          <label class="drop" id="vidDrop">
+            <input id="vid" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="vh">
+            <span class="drop-in"><b>Choose a video</b> or drop it here<br><span class="small muted">MP4, MOV, WebM · it never leaves this device; only 6 still frames do, if you ask for a visual read</span></span>
+          </label>
+          <div id="vidInfo"></div>
+        </div>
+
+        <div class="actions" id="actions"></div>
+      </section>
+
+      <section class="result" id="result" aria-live="polite" aria-label="Result"></section>
+    </div>
+
+    <section class="card" id="history" hidden>
+      <div class="row spread"><h2>Your recent checks</h2><button class="link-btn small" id="clearHist" type="button">Clear</button></div>
+      <p class="small muted">Only on this device, in this browser. Tells keeps no copy of anything you check.</p>
+      <ol id="histList" class="hist"></ol>
+    </section>
+
+    <section class="card" id="add">
+      <h2>Add Tells to your browser</h2>
+      <p class="muted">Check a post where you read it. All of these open the free quick scan first; nothing that uses credit happens without a tap.</p>
+
+      <div class="add-grid">
+        <div class="add-item">
+          <h3>Chrome or Safari on a computer</h3>
+          <p>Drag this button to your bookmarks bar. On any page, select a post’s text and click it.</p>
+          <p><a class="bm" id="bm" href="#add" draggable="true">🔎 Check with Tells</a></p>
+          <p class="small muted">Nothing selected? It sends the page’s address instead. On LinkedIn and X, select the post text first: those sites hide posts from our server.</p>
+        </div>
+
+        <div class="add-item">
+          <h3>Safari on iPhone or iPad</h3>
+          <ol class="steps">
+            <li><button class="btn small" id="copyBm" type="button">Copy the bookmark code</button></li>
+            <li>Bookmark any page: tap <b>Share</b> → <b>Add Bookmark</b> → Save.</li>
+            <li>Open <b>Bookmarks</b>, tap <b>Edit</b>, then the new bookmark.</li>
+            <li>Rename it <b>Check with Tells</b>, clear the address, paste the code, tap <b>Done</b>.</li>
+            <li>On LinkedIn or X, <b>select the post text first</b>, then open Bookmarks and tap <b>Check with Tells</b>.</li>
+          </ol>
+        </div>
+
+        <div class="add-item">
+          <h3>iPhone share sheet (any app)</h3>
+          <p>A Shortcut called <b>Check with Tells</b> takes text, links and pictures from the share sheet in any app.</p>
+          <details>
+            <summary>Build the Shortcut (5 minutes)</summary>
+            <ol class="steps">
+              <li>In <b>Shortcuts</b>, tap <b>+</b> and name it <b>Check with Tells</b>. Under <b>ⓘ</b>, turn on <b>Show in Share Sheet</b>; let it receive <b>Images, Safari web pages, Text and URLs</b>.</li>
+              <li>Add <b>Get Images from Input</b>, then <b>If</b> <i>Images</i> <b>has any value</b>.</li>
+              <li><b>Inside the If</b>: <b>Base64 Encode</b> the Images (call it Original). <b>Convert Image</b> to JPEG with <b>Preserve Metadata off</b>, <b>Resize Image</b> to width 1024, <b>Base64 Encode</b> it (call it Preview).</li>
+              <li>Then <b>Get Contents of URL</b>: <code>https://challenge.strongtechnicalconsulting.com/tells/api/check/picture?format=text</code>, Method <b>POST</b>, Header <code>Authorization</code> = <code>Bearer</code> + a space + your device key (Settings → Device keys). Request Body <b>JSON</b>: <code>original</code> → Dictionary with <code>data</code> = Original; <code>preview</code> → Dictionary with <code>data</code> = Preview. Then <b>Show Result</b>.</li>
+              <li><b>Otherwise</b> (text and links): <b>URL Encode</b> the Shortcut Input, put it after <code>https://challenge.strongtechnicalconsulting.com/tells/?src=shortcut&amp;q=</code> in a <b>Text</b> action, then <b>Open URLs</b>.</li>
+            </ol>
+            <p class="small muted">Pictures are checked straight away and use credit (a visual read, about half a cent); their metadata is read free from the original on our server and nothing is kept. Text and links only open Tells with the free quick scan.</p>
+          </details>
+        </div>
+
+        <div class="add-item">
+          <h3>Chrome extension</h3>
+          <p>A <b>Tells</b> button on every LinkedIn and X post, plus “Check selected text / this image / this page” on the right-click menu anywhere.</p>
+          <p><a class="btn small ghost" href="tells-extension.zip" download>Download the extension (.zip)</a></p>
+          <details>
+            <summary>Install it (“Load unpacked”)</summary>
+            <ol class="steps">
+              <li>Unzip the file somewhere you will keep it.</li>
+              <li>In Chrome, open <code>chrome://extensions</code> and turn on <b>Developer mode</b> (top right).</li>
+              <li>Click <b>Load unpacked</b> and choose the unzipped folder.</li>
+              <li>Open the extension’s <b>Options</b>, paste a device key from Settings → Device keys, and Save.</li>
+            </ol>
+            <p class="small muted">It is not in the Chrome Web Store yet. It reads only the post you click and what you right-click; your device key stays in the extension.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="card how" id="how">
+      <h2>How Tells reads</h2>
+      <ul>
+        <li><b>Quick scan</b> (free, instant, on your device): rules for the tells templated and model-written text over-use, each highlighted with its reason. Always low confidence.</li>
+        <li><b>Deep read</b> (uses credit): a model reads the text for tells and human signs. Every highlight it gives is checked against your text; any quote that is not in it is thrown away.</li>
+        <li><b>Metadata</b> (free, on your device): Content Credentials (C2PA), IPTC source type, generator settings and camera EXIF. The one <b>strong</b> signal, when it names an AI generator. We read Content Credentials but do not verify their signatures; <a href="https://contentcredentials.org/verify" target="_blank" rel="noopener noreferrer">verify them here</a>. Most sites strip metadata, so finding none means nothing.</li>
+        <li><b>Visual read</b> (uses credit): a model looks at the picture or 6 frames for artefacts. A <b>weak</b> signal.</li>
+        <li><b>Originality</b> (uses credit and web search): earlier sources that share the idea or the wording, with links, and what the piece adds. Scored separately from the AI likelihood.</li>
+      </ul>
+      <p class="muted"><b>Why no verdict?</b> AI-text detection is unreliable. It wrongly flags human writing, especially people writing in a second language and polished professional prose, and light editing hides AI text. A number without its reasons would be an accusation. So Tells shows the evidence and how much weight it can bear.</p>
+      <p class="muted"><b>What is kept:</b> nothing you check. No text, link, picture, frame or result is stored or logged. Pictures and frames are sent to Anthropic once for the read and dropped. Your recent checks list lives only in this browser. There are no share links: a public “this post is 87% AI” page would be aimed at a real person.</p>
+    </section>
+
+    <footer class="foot small muted">
+      <p>Tells is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy#tells">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="tells-core.js"></script>
+  <script src="tells-meta.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

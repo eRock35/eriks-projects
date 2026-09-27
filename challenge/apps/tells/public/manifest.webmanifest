@@ -1,0 +1,23 @@
+{
+  "name": "Tells",
+  "short_name": "Tells",
+  "description": "See the tells of AI in a post, a page, a picture or a video. Evidence, not a verdict.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#121019",
+  "theme_color": "#121019",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "tells",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "TELLS_DEV_MOUNT=/tells TELLS_MEMORY=1 TELLS_FAKE_AI=1 TELLS_FAKE_DELAY_MS=700 PORT=8112 node server.js",
+    "test": "TELLS_MEMORY=1 TELLS_FAKE_AI=1 node test/run.js",
+    "extension": "node scripts/extension.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "express": "^4.19.2"
+  }
+}

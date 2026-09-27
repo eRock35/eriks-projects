@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tells options</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>body { width: auto; max-width: 620px; margin: 24px auto; } label { display: block; font-weight: 600; margin: 14px 0 4px; } input { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; border: 1px solid #b9b3a6; border-radius: 10px; } .ok { color: #1c6b3a; font-weight: 600; } .bad { color: #9b1638; font-weight: 600; }</style>
+</head>
+<body>
+  <h1>🔎 Tells</h1>
+  <p class="muted">The quick scan is free and works without anything here. A deep read, an originality check and a visual read use your Tells account’s credit, so the extension needs a <b>device key</b> for that account.</p>
+  <ol class="muted">
+    <li>Open <a href="https://challenge.strongtechnicalconsulting.com/tells/#settings" target="_blank" rel="noopener noreferrer">Tells</a> and sign in.</li>
+    <li>Settings → Device keys → <b>Make a key</b>. It is shown once.</li>
+    <li>Paste it here. It stays in this browser’s extension storage and is sent only to Tells.</li>
+  </ol>
+  <label for="key">Device key</label>
+  <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="tells_…">
+  <label for="base">Tells address <span class="muted">(leave as is unless you are testing locally)</span></label>
+  <input id="base" type="url" spellcheck="false">
+  <div class="row" style="margin-top:12px">
+    <button id="save" type="button">Save</button>
+    <button id="test" type="button" class="ghost">Test the key</button>
+  </div>
+  <p id="msg" role="status"></p>
+  <h2>Pictures on other sites</h2>
+  <p class="muted">Tells can read images on LinkedIn and X already. To check a picture anywhere else from the right-click menu, it needs permission to download images from other sites. It only downloads the one you right-click.</p>
+  <div class="row"><button id="allow" type="button" class="ghost">Allow image checks on any site</button></div>
+  <script src="options.js"></script>
+</body>
+</html>
