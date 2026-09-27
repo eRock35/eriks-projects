@@ -203,11 +203,47 @@
     });
   }
 
+  // ---- order ----
+  // The drop number is the app's place in the registry, whatever the sort:
+  // Tells is Drop #11 at the top of Newest and at the bottom of Oldest.
+  // Retired apps sit at the end of every order.
+  var SORTS = { 'new': 1, old: 1, votes: 1, todo: 1, az: 1 };
+  var sortBy = 'new';
+  try { var saved = localStorage.getItem('lab-sort'); if (SORTS[saved] === 1) sortBy = saved; } catch (e) { /* private window */ }
+  function dropNo(a) { return data.apps.indexOf(a) + 1; }
+  function newer(a, b) { return a.dropped < b.dropped ? 1 : a.dropped > b.dropped ? -1 : dropNo(b) - dropNo(a); }
+  var ORDER = {
+    'new': newer,
+    old: function (a, b) { return -newer(a, b); },
+    votes: function (a, b) { return num(b.votes && b.votes.total) - num(a.votes && a.votes.total) || newer(a, b); },
+    todo: function (a, b) { return (a.myVote ? 1 : 0) - (b.myVote ? 1 : 0) || newer(a, b); },
+    az: function (a, b) { return String(a.name).localeCompare(String(b.name)) || newer(a, b); },
+  };
+  function sorted() {
+    var retired = function (a) { return a.status === 'retired' ? 1 : 0; };
+    return data.apps.slice().sort(function (a, b) { return retired(a) - retired(b) || ORDER[sortBy](a, b); });
+  }
+  function wireSort() {
+    var bar = $('#dropsBar');
+    Array.prototype.forEach.call(bar.querySelectorAll('[data-sort]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-sort') === sortBy));
+      b.onclick = function () {
+        var next = b.getAttribute('data-sort');
+        if (next === sortBy || SORTS[next] !== 1) return;
+        sortBy = next;
+        try { localStorage.setItem('lab-sort', sortBy); } catch (e) { /* not kept, still sorted */ }
+        wireSort();
+        draw();
+      };
+    });
+    bar.hidden = false;
+  }
+
   function card(a, i, fresh) {
     var total = num(a.votes && a.votes.total);
     var href = a.status === 'graduated' && a.home ? a.home : '/' + a.slug + '/';
-    return '<article class="app" id="app-' + esc(a.slug) + '" style="--c1:' + esc(a.color) + ';--c2:' + esc(a.color2) + ';animation-delay:' + (i * 90) + 'ms" data-slug="' + esc(a.slug) + '">' +
-      '<div class="top"><span class="badge">Drop #' + String(i + 1).padStart(2, '0') + (a.status === 'graduated' ? ' · Graduated 🎓' : a.status === 'retired' ? ' · Retired' : '') + '</span>' +
+    return '<article class="app" id="app-' + esc(a.slug) + '" style="--c1:' + esc(a.color) + ';--c2:' + esc(a.color2) + ';animation-delay:' + (Math.min(i, 8) * 70) + 'ms" data-slug="' + esc(a.slug) + '">' +
+      '<div class="top"><span class="badge">Drop #' + String(dropNo(a)).padStart(2, '0') + (a.status === 'graduated' ? ' · Graduated 🎓' : a.status === 'retired' ? ' · Retired' : '') + '</span>' +
       '<h3>' + esc(a.name) + '</h3><div class="date">' + esc(fmtDate(a.dropped)) + '</div><div class="emoji">' + esc(a.emoji) + '</div></div>' +
       '<div class="body"><p class="tagline">' + esc(a.tagline) + '</p><p class="blurb">' + esc(a.blurb) + '</p>' +
       '<div class="feats">' + a.features.map(function (f) { return '<span>' + esc(f) + '</span>'; }).join('') + '</div>' +
@@ -283,9 +319,11 @@
     $('.note-btn', c).onclick = function () { note(slug); };
   }
 
+  var drewSort = false;
   function draw() {
     var el = $('#drops');
-    el.innerHTML = data.apps.map(function (a, i) { return card(a, i, false); }).join('') + nextCard();
+    el.innerHTML = sorted().map(function (a, i) { return card(a, i, false); }).join('') + nextCard();
+    if (!drewSort) { drewSort = true; wireSort(); }
     if (!drewBuilt) { drewBuilt = true; drawBuilt(data.buildTotals); }
     Array.prototype.forEach.call(el.querySelectorAll('.app[data-slug]'), wire);
     $('#sApps').textContent = data.apps.length;

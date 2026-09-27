@@ -145,6 +145,15 @@ which way until this browser has voted on it (see "Crowd reveal" below).
 Notes are stored in `lab_notes` and **never displayed** — nothing to moderate, nothing to deface. Read them in
 Firestore.
 
+**Order (Erik, 2026-09-27):** the drops show newest first, with a sort bar
+above them: Newest, Oldest, Most votes, Not voted yet, A–Z. The choice is kept
+in this browser (`localStorage` `lab-sort`, wrapped in try/catch), never sent
+anywhere. The **drop number is the app's place in `lab.js`**, not its place on
+screen, so a sort never renumbers anything; two drops on one date order by
+that number. Retired apps sit at the end of every order and the "Classified"
+next-drop card is always last. A vote redraws its card in place and does not
+re-sort, so Most votes does not jump under your thumb.
+
 ## The leaderboard
 
 `GET /api/lab/leaderboard` — Keep/Kill standings from `lab_votes`: per app

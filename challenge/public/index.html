@@ -69,7 +69,20 @@
       <p class="built-note" id="builtNote"></p>
     </section>
 
-    <section id="drops" class="drops" aria-live="polite"></section>
+    <!-- Newest first by default; the choice is kept in this browser only.
+         Hidden until the drops are drawn, so nothing jumps. -->
+    <div class="drops-bar" id="dropsBar" hidden>
+      <h2 id="dropsTitle">The drops</h2>
+      <div class="sort" role="group" aria-label="Sort the drops">
+        <span class="sort-label" aria-hidden="true">Sort</span>
+        <button type="button" data-sort="new" aria-pressed="true">Newest</button>
+        <button type="button" data-sort="old" aria-pressed="false">Oldest</button>
+        <button type="button" data-sort="votes" aria-pressed="false">Most votes</button>
+        <button type="button" data-sort="todo" aria-pressed="false">Not voted yet</button>
+        <button type="button" data-sort="az" aria-pressed="false">A–Z</button>
+      </div>
+    </div>
+    <section id="drops" class="drops" aria-live="polite" aria-labelledby="dropsTitle"></section>
 
     <!-- Keep or kill standings, from /api/lab/leaderboard. Hidden until it
          answers; it sits below the drops, so appearing moves nothing above. -->
