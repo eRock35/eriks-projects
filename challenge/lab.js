@@ -169,6 +169,21 @@ const APPS = [
     audience: 'Anyone reading LinkedIn, X or the news, and anyone hiring or grading',
     status: 'testing',
   },
+  {
+    slug: 'covenant',
+    name: 'Covenant',
+    emoji: '📜',
+    // Bank green to navy. White text holds well over 4.5:1 at both ends and
+    // across the gradient; npm run og darkens further if it does not.
+    color: '#0f4a30',
+    color2: '#1b2c52',
+    dropped: '2026-09-28',
+    tagline: 'Know what your business loan expects of you - before the bank tells you.',
+    blurb: 'For small businesses with a bank or SBA loan, and the lenders who serve them. Paste the agreement or snap its pages and Covenant lists every covenant in plain English, each checked against the document\u2019s own words. A free health check says how much headroom you have in dollars, reporting deadlines go straight to your calendar, and each covenant comes with a plain explanation a lender\u2019s staff can hand a customer.',
+    features: ['Reads the agreement, quotes checked', 'Health check with headroom in dollars', 'Deadlines straight to your calendar', 'Explanations lender staff can share'],
+    audience: 'Small businesses with a bank or SBA loan, and the lenders who serve them',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

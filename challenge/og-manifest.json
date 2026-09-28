@@ -45,9 +45,13 @@
       "inputs": "dfcd4be8736adb04",
       "v": "a477e62bb2"
     },
+    "covenant": {
+      "inputs": "95d7b57c498b7be4",
+      "v": "c28444a697"
+    },
     "lab": {
-      "inputs": "ecfcb7a85a5f0edd",
-      "v": "aefeecb181"
+      "inputs": "f2c31c8da730e33b",
+      "v": "e2a251c002"
     }
   }
 }

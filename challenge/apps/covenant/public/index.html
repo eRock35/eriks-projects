@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Covenant — know what your business loan expects of you</title>
+  <meta name="description" content="Paste your business loan agreement or photograph its pages. Covenant lists every covenant in plain English, checks your numbers against the financial tests with the headroom in dollars, turns reporting deadlines into calendar dates, and gives lender staff a plain explanation to hand a customer.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0c1512" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f5f0" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Covenant">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Covenant — Know what your business loan expects of you - before the bank tells you.">
+  <meta property="og:description" content="For small businesses with a bank or SBA loan, and the lenders who serve them. Paste the agreement or snap its pages and Covenant lists every covenant in plain English, each checked against the document’s own words. A free health check says how much headroom you have in dollars, r">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/covenant/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/covenant.png?v=c28444a697">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Covenant, drop #12 in the Challenge Lab: Know what your business loan expects of you - before the bank tells you.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Covenant — Know what your business loan expects of you - before the bank tells you.">
+  <meta name="twitter:description" content="For small businesses with a bank or SBA loan, and the lenders who serve them. Paste the agreement or snap its pages and Covenant lists every covenant in plain English, each checked against the document’s own words. A free health check says how much headroom you have in dollars, r">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/covenant.png?v=c28444a697">
+  <meta name="twitter:image:alt" content="Covenant, drop #12 in the Challenge Lab: Know what your business loan expects of you - before the bank tells you.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the loan</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">📜</span>Covenant</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="loansBtn" type="button" hidden>My loans</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <!-- The loan view: the example on first open, a fresh reading, or a saved loan. -->
+    <div id="loanView">
+      <section class="intro" id="intro" aria-label="About this page"></section>
+
+      <section class="card loanhead" id="loanHead" aria-labelledby="loanName"></section>
+
+      <section class="glance" id="glance" aria-label="At a glance"></section>
+
+      <nav class="jump" id="jump" aria-label="Sections">
+        <a href="#health">Health check</a>
+        <a href="#deadlines">Deadlines</a>
+        <a href="#checklist">Every covenant</a>
+      </nav>
+
+      <div class="layout">
+        <section class="card health" id="health" aria-labelledby="healthH">
+          <div class="sec-head">
+            <h2 id="healthH">Health check</h2>
+            <span class="free">Free · worked out on this device</span>
+          </div>
+          <div id="periodBar"></div>
+          <div class="inputs" id="inputs"></div>
+          <div id="results" aria-live="polite"></div>
+        </section>
+
+        <section class="card deadlines" id="deadlines" aria-labelledby="deadH">
+          <div class="sec-head">
+            <h2 id="deadH">Deadlines</h2>
+            <label class="fye"><span>Fiscal year ends</span>
+              <select class="input" id="fye"></select>
+            </label>
+          </div>
+          <div id="deadList"></div>
+        </section>
+
+        <section class="checklist" id="checklist" aria-labelledby="checkH">
+          <div class="sec-head">
+            <h2 id="checkH">Every covenant</h2>
+            <button class="btn small ghost" id="explainAll" type="button" aria-pressed="false">Show customer explanations</button>
+          </div>
+          <div id="groups"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Reading your own loan. -->
+    <section class="card readview" id="readView" aria-labelledby="readH" hidden>
+      <button class="link-btn back" id="readBack" type="button">← Back</button>
+      <h2 id="readH">Read my loan</h2>
+      <p class="lede">Paste the agreement, or photograph its pages. Covenant lists every covenant in plain English, and checks each one’s own words against your document.</p>
+      <div class="tabs" role="tablist" aria-label="How to add the agreement">
+        <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="true" data-tab="text" type="button">Paste text</button>
+        <button role="tab" id="tab-photos" aria-controls="panel-photos" aria-selected="false" tabindex="-1" data-tab="photos" type="button">Photos of pages</button>
+      </div>
+      <div role="tabpanel" id="panel-text" aria-labelledby="tab-text">
+        <label class="lbl" for="agreement">The loan agreement’s text</label>
+        <textarea id="agreement" rows="10" maxlength="60000" spellcheck="false" placeholder="Paste the whole agreement, or at least the definitions, covenants and reporting sections. Copying from the PDF is fine."></textarea>
+        <div class="row spread small muted"><span id="count">0 characters</span><span>Up to 60,000</span></div>
+        <button class="chip" id="useSample" type="button">Paste the example agreement</button>
+      </div>
+      <div role="tabpanel" id="panel-photos" aria-labelledby="tab-photos" hidden>
+        <label class="drop" id="drop">
+          <input id="photos" type="file" accept="image/*" multiple class="vh">
+          <span><b>Choose photos of the pages</b><br><span class="small muted">Up to 6 · the covenant, definition and reporting pages matter most</span></span>
+        </label>
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+      <p class="note small">Read once, never stored. Only the list of covenants is kept, and only if you save it. Uses AI credit - usually a few cents; a free account comes with $2.</p>
+      <div class="actions" id="readActions"></div>
+      <div id="readOut" aria-live="polite"></div>
+    </section>
+
+    <footer class="foot small muted">
+      <p>Covenant is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="covenant-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

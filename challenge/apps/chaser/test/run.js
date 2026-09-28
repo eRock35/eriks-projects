@@ -7,6 +7,20 @@
 // unit-tested pieces. The pure rules (ranking, forecast, fees, grades) get
 // fixed-date tests first, because "today" is the input they all depend on.
 
+// The fixtures assume the week of 2026-09-26 (Tally's x-local-date is only
+// believed within a day of the server's clock; Chaser's collected streak is
+// counted in real weeks), so from Monday 2026-09-28 the suite failed on the
+// calendar, not on the code. The clock is pinned to that day, running
+// forward from there, before anything reads it - Receipt's fix.
+{
+  const RealDate = Date;
+  const offset = RealDate.parse('2026-09-26T15:00:00Z') - RealDate.now();
+  global.Date = class extends RealDate {
+    constructor(...a) { if (a.length) super(...a); else super(RealDate.now() + offset); }
+    static now() { return RealDate.now() + offset; }
+  };
+}
+
 const assert = require('assert');
 const http = require('http');
 const express = require('express');

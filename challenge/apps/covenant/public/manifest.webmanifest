@@ -1,0 +1,10 @@
+{
+  "name": "Covenant",
+  "short_name": "Covenant",
+  "description": "Know what your business loan expects of you - covenants in plain English, a health check with headroom, and deadlines to your calendar.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c1512",
+  "theme_color": "#0c1512",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
