@@ -144,7 +144,8 @@ or `async_payment_failed` (logged, nothing granted). Each event is claimed
 **atomically** with `create()` on `billing-events/<event id>` before it is
 applied, released if applying fails (so Stripe's retry applies it), and a
 second delivery meeting a claim still being applied gets a 409 (Stripe
-retries) rather than a 200. Subscribe the endpoint to both async events.
+retries) rather than a 200. The live endpoint is subscribed to both async
+events (Erik added them in the Stripe dashboard on 2026-09-29).
 
 Who has paid is decided by the **shared identity record**, never by this
 app's own `users` row. `attachProfile` strips `plan` and the rest of the
