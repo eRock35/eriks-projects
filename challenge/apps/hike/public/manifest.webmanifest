@@ -1,0 +1,10 @@
+{
+  "name": "Hike",
+  "short_name": "Hike",
+  "description": "Raise your prices without losing your regulars - your break-even, a rounded price list, the announcement and a tracker.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#17110f",
+  "theme_color": "#17110f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

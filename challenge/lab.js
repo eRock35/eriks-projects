@@ -184,6 +184,21 @@ const APPS = [
     audience: 'Small businesses with a bank or SBA loan, and the lenders who serve them',
     status: 'testing',
   },
+  {
+    slug: 'hike',
+    name: 'Hike',
+    emoji: '🏷️',
+    // Price-tag rust to plum. White text holds well over 4.5:1 at both ends
+    // and across the gradient; npm run og darkens further if it does not.
+    color: '#8f2d0f',
+    color2: '#4a1942',
+    dropped: '2026-09-29',
+    tagline: 'Raise your prices without losing your regulars.',
+    blurb: 'For cafés, salons, trades and shops that haven\u2019t raised prices in a while. Hike tells you in one sentence how many customers you could lose and still make more, rounds your price list like a pro and holds it under $10, writes the announcement and the counter script for when someone asks why, and a tracker tells you afterwards whether it worked.',
+    features: ['Your break-even in one sentence', 'A price list rounded like a pro', 'The announcement & counter script', 'A tracker that says if it worked'],
+    audience: 'Cafés, salons, trades & shops that haven\u2019t raised prices in a while',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

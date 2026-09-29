@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hike — raise your prices without losing your regulars</title>
+  <meta name="description" content="Hike tells you how many customers you could lose and still make more, rounds your price list like a pro (held under $10), writes the announcement and the counter script, plans the rollout and tells you afterwards whether it worked.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#17110f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#faf6f1" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hike">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Hike — Raise your prices without losing your regulars.">
+  <meta property="og:description" content="For cafés, salons, trades and shops that haven’t raised prices in a while. Hike tells you in one sentence how many customers you could lose and still make more, rounds your price list like a pro and holds it under $10, writes the announcement and the counter script for when someo">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/hike/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/hike.png?v=d4c9ed9344">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Hike, drop #13 in the Challenge Lab: Raise your prices without losing your regulars.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hike — Raise your prices without losing your regulars.">
+  <meta name="twitter:description" content="For cafés, salons, trades and shops that haven’t raised prices in a while. Hike tells you in one sentence how many customers you could lose and still make more, rounds your price list like a pro and holds it under $10, writes the announcement and the counter script for when someo">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/hike.png?v=d4c9ed9344">
+  <meta name="twitter:image:alt" content="Hike, drop #13 in the Challenge Lab: Raise your prices without losing your regulars.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to your plan</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">🏷️</span>Hike</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="plansBtn" type="button">Plans</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section class="intro" id="intro" aria-label="About this plan"></section>
+
+    <div class="layout">
+      <!-- The hero: how many customers could you lose and still make more? -->
+      <section class="card meter" id="meter" aria-labelledby="meterH">
+        <div class="sec-head">
+          <h2 id="meterH" class="eyebrow">Your break-even</h2>
+          <span class="free">Free</span>
+        </div>
+        <p class="headline" id="headline" aria-live="polite"></p>
+        <div class="dots" id="dots" aria-hidden="true"></div>
+
+        <div class="inputs3">
+          <label class="field"><span id="priceLbl">Price now</span>
+            <span class="money"><input class="input" id="mPrice" inputmode="decimal" autocomplete="off" placeholder="8.40"></span>
+          </label>
+          <div class="field">
+            <span id="costLbl">Cost per sale</span>
+            <span class="money" id="costWrap"><input class="input" id="mCost" inputmode="decimal" autocomplete="off" placeholder="2.90" aria-labelledby="costLbl"></span>
+            <span class="pct" id="marginWrap" hidden><input class="input" id="mMargin" inputmode="decimal" autocomplete="off" placeholder="65" aria-labelledby="costLbl"></span>
+            <button class="link-btn tiny" id="costMode" type="button">use margin %</button>
+          </div>
+          <label class="field"><span class="unitlbl"><select class="unit" id="mUnit" aria-label="What you count each month"></select></span>
+            <input class="input" id="mVolume" inputmode="numeric" autocomplete="off" placeholder="2,600">
+          </label>
+        </div>
+
+        <div class="slider-block">
+          <div class="row spread"><label for="newRange" class="lbl">New price</label><span class="money narrow"><input class="input" id="mNew" inputmode="decimal" autocomplete="off" aria-label="New price, typed"></span></div>
+          <input type="range" class="range" id="newRange" min="0" max="100" step="5">
+          <div class="chips" id="raiseChips" role="group" aria-label="Quick raises"></div>
+        </div>
+
+        <div class="slider-block" id="whatIfBlock">
+          <div class="row spread"><label for="lossRange" class="lbl">What if I lose <b id="lossOut">4%</b>?</label><span class="delta" id="deltaOut"></span></div>
+          <input type="range" class="range loss" id="lossRange" min="0" max="200" step="5">
+          <div class="scale small muted" id="lossScale"></div>
+        </div>
+
+        <details class="how" id="how"><summary>How we worked this out</summary><p id="working"></p></details>
+        <p class="disclaim">Estimates from your own numbers - not financial advice.</p>
+      </section>
+
+      <div class="rest">
+        <nav class="jump" aria-label="Sections">
+          <a href="#list">Price list</a>
+          <a href="#announce">Announcement</a>
+          <a href="#rollout">Rollout</a>
+          <a href="#tracker">Did it work?</a>
+        </nav>
+
+        <!-- The price list, rounded like a pro. -->
+        <section class="card list" id="list" aria-labelledby="listH">
+          <div class="sec-head">
+            <h2 id="listH">Price list</h2>
+            <span class="free">Free</span>
+          </div>
+          <div class="settings">
+            <label class="field target"><span>Target raise</span>
+              <span class="pct"><input class="input" id="target" inputmode="decimal" autocomplete="off"></span>
+            </label>
+            <label class="field"><span>Rounding</span><select class="input" id="style"></select></label>
+            <label class="switch"><input type="checkbox" id="holdUnder"><span class="knob" aria-hidden="true"></span><span>Hold under round numbers<span class="hint">$9.50 → $9.95, not $10.45</span></span></label>
+          </div>
+          <div class="summary" id="listSummary" aria-live="polite"></div>
+          <div id="rows"></div>
+          <div class="list-actions">
+            <button class="btn small ghost" id="pasteBtn" type="button" aria-expanded="false" aria-controls="pastePanel">Paste a list</button>
+            <button class="btn small ghost" id="snapBtn" type="button">📷 Snap the menu</button>
+            <button class="btn small ghost" id="addBtn" type="button">Add a line</button>
+          </div>
+          <div class="paste" id="pastePanel" hidden>
+            <label class="lbl" for="pasteBox">Paste your prices - one per line</label>
+            <textarea id="pasteBox" rows="7" maxlength="20000" spellcheck="false" placeholder="Latte 4.50&#10;Haircut - $45&#10;Gutter clean $180.00&#10;Or columns from a spreadsheet: name, price, cost, sales a month"></textarea>
+            <div class="row"><button class="btn small" id="readPaste" type="button">Read it</button><button class="chip" id="pasteSample" type="button">Paste the example menu</button></div>
+            <div id="pasteOut" aria-live="polite"></div>
+          </div>
+          <div class="board-wrap" id="boardWrap">
+            <div class="row spread board-head">
+              <h3>Menu board</h3>
+              <div class="seg" role="group" aria-label="Show">
+                <button type="button" data-board="before" aria-pressed="false">Before</button>
+                <button type="button" data-board="after" aria-pressed="true">After</button>
+              </div>
+            </div>
+            <div class="board" id="board"></div>
+            <div class="row">
+              <button class="btn small ghost" id="copyList" type="button">Copy new list</button>
+              <button class="btn small ghost" id="copyChanges" type="button">Copy changes</button>
+              <button class="btn small ghost" id="printBtn" type="button">Print</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- The words. -->
+        <section class="card announce" id="announce" aria-labelledby="annH">
+          <div class="sec-head">
+            <h2 id="annH">The announcement</h2>
+          </div>
+          <p class="small muted">Five pieces, in your words: the email, a sign for the door, a post, a text to regulars - and what staff say when someone asks why.</p>
+          <div class="ann-form">
+            <div class="grid2">
+              <label class="field"><span>Business name</span><input class="input" id="aBiz" maxlength="80" autocomplete="organization"></label>
+              <label class="field"><span>Type</span><select class="input" id="aType"></select></label>
+            </div>
+            <fieldset class="field reasons"><legend>Why, honestly (pick what’s true)</legend><div class="chips" id="aReasons"></div>
+              <label class="since" id="sinceWrap" hidden><span>First raise since</span><input class="input" id="aSince" inputmode="numeric" maxlength="4" placeholder="2023"></label>
+            </fieldset>
+            <label class="field"><span>In your own words <span class="hint-inline" id="otherCount"></span></span><textarea class="input" id="aOther" rows="2" maxlength="300" placeholder="Milk and coffee beans cost us much more than they did."></textarea></label>
+            <div class="field"><span id="toneLbl">Tone</span><div class="seg" role="group" aria-labelledby="toneLbl" id="aTone"></div></div>
+            <label class="field"><span class="row spread"><span>What’s changing</span><button class="link-btn tiny" id="sumReset" type="button" hidden>Use the list’s summary</button></span><textarea class="input" id="aSummary" rows="2" maxlength="400"></textarea></label>
+            <label class="field"><span>Existing clients (optional)</span><input class="input" id="aGrand" maxlength="200" placeholder="Existing clients keep their current prices until Dec 1."></label>
+            <details class="how voice"><summary>Match my voice (optional)</summary>
+              <label class="field"><span>Paste a past post or email - for style only, never facts</span><textarea class="input" id="aVoice" rows="4" maxlength="1500"></textarea></label>
+            </details>
+          </div>
+          <div class="ann-actions" id="annActions"></div>
+          <div id="annOut" aria-live="polite"></div>
+          <div id="pieces"></div>
+        </section>
+
+        <!-- The dates. -->
+        <section class="card rollout" id="rollout" aria-labelledby="rollH">
+          <div class="sec-head">
+            <h2 id="rollH">Rollout</h2>
+            <span class="free">Free</span>
+          </div>
+          <div class="grid3">
+            <label class="field"><span>Announce on</span><input class="input" type="date" id="rNotice"></label>
+            <label class="field"><span>New prices start</span><input class="input" type="date" id="rEffective"></label>
+            <label class="field"><span>Existing clients keep old prices</span><select class="input" id="rGrand"></select></label>
+          </div>
+          <div id="rollWarn"></div>
+          <ol class="timeline" id="timeline"></ol>
+          <button class="btn small ghost" id="icsBtn" type="button">Add to my calendar (.ics)</button>
+        </section>
+
+        <!-- Afterwards. -->
+        <section class="card tracker" id="tracker" aria-labelledby="trackH">
+          <div class="sec-head">
+            <h2 id="trackH">Did it work?</h2>
+            <span class="free">Free</span>
+          </div>
+          <div class="row tmode">
+            <span class="small" id="tModeLbl">Count each week in</span>
+            <div class="seg" role="group" aria-labelledby="tModeLbl">
+              <button type="button" data-mode="units" aria-pressed="true">Sales</button>
+              <button type="button" data-mode="revenue" aria-pressed="false">Revenue ($)</button>
+            </div>
+          </div>
+          <label class="field baseline"><span id="baseLbl">A typical week before the change</span><span id="baseWrap"><input class="input" id="tBase" inputmode="decimal" autocomplete="off"></span></label>
+          <div class="verdict" id="verdict" aria-live="polite"></div>
+          <div class="chart" id="chart"></div>
+          <div id="weeks"></div>
+          <button class="btn small ghost" id="addWeek" type="button">Add a week</button>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot small muted">
+      <p>Hike is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="print-only" id="printArea" aria-hidden="true"></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="hike-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

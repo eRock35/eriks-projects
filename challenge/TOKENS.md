@@ -54,6 +54,7 @@ Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
 | Tipout | one builder agent | 32.3M | 31.8M | ~210K | 1 | 37 min | in exact; out estimated |
 | Tells | one builder agent | 50.2M | 49.6M | ~300K | 1 | 53 min | in exact; out estimated |
 | Covenant | one builder agent | 27.2M | 26.7M | ~180K | 1 | 31 min | in exact; out estimated |
+| Hike | one builder agent | 34.4M | 33.9M | ~235K | 1 | 41 min | in exact; out estimated |
 
 Tally's transcript records only the start of each streamed reply's output
 (about 5K in total), a logging change since week 1's builds, so its output is
@@ -78,3 +79,8 @@ about 1.6K in / 0.9K out, under $0.01.
 
 Covenant's transcript under-reports output the same way (~4K), so output is
 estimated from Tipout's rate over its shorter agent time.
+
+Visitors' AI use in the lab on 2026-09-28: none.
+
+Hike's transcript under-reports output the same way (~4K), so output is
+estimated from Tipout's rate over its agent time.
