@@ -131,6 +131,22 @@ verification. `shared/identity.js` holds it; `test/verify.js` holds it here.
   each lab app's suite runs with `REQUIRE_VERIFIED_FOR_FREE_AI=0`, and the
   lab host test holds the gate for a real lab app under its mount.
 
+## The 2019 App Engine site is disabled (2026-09-28)
+
+Erik kept getting blank "Requesters Email address:" emails from his Gmail.
+The source was the project's original website, still running on App Engine
+(`default` service, version `20190405t204929`, PHP 5.5, us-east4,
+`metal-celerity-236019.appspot.com`). Its `app.yaml` routed `/` to a script,
+so any request to the root - an internet scanner such as Censys, a bot -
+ran `ContactEmail.php` with empty fields and mailed him (the request log
+shows "Undefined index: fname ... message" on every hit).
+
+The App Engine application was set to `USER_DISABLED` on 2026-09-28 (the App
+Engine Admin API was enabled to do it). That is reversible (Settings ->
+Enable application) and deletes nothing; its URLs now answer 404. Nothing
+of the current site runs on App Engine. If that script used a Gmail app
+password to send, that password should be revoked in Erik's Google account.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
