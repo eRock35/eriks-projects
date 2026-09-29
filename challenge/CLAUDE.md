@@ -86,20 +86,29 @@ from `main`.
    **fails if step 4 was skipped** or `lab.js` changed after it.
 6. Commit, push, `gcpdeploy ship challenge`.
 
-### Who the drops are for: mostly everyday people (Erik, 2026-09-29)
+### Who the drops are for: alternate business and everyday (Erik, 2026-09-29)
 
-The first thirteen drops were all small-business tools. Erik asked for a
-mixture **leaning to everyday users**: people at home, with friends and
-family, with their own money, health, time and hobbies, not only owners and
-teams. So aim for roughly **two everyday drops for every business one**
-across a week, and don't run three business drops in a row. The same bar
-applies to both: a real problem people have, genuinely fun, finished well,
-could be an iPhone app, not a repeat of a lab or portfolio app. An everyday
-app should still work for someone who never signs in (free first, the model
-only behind the usual gates), and should be something a person would show a
-friend. Friction's problems are business ones, so it feeds the business
-drops; the everyday ones come from ordinary life (and from the inbox, which
-outranks both).
+The first thirteen drops were all small-business tools. Erik asked for
+everyday people too: people at home, with friends and family, with their
+own money, health, time and hobbies. Then he set the shape: **still one app
+a day, alternating** between a business problem and an everyday one.
+
+- **Which kind today:** the opposite of the newest drop in `lab.js`. Hike
+  (business) and Dibs (everyday) both dropped on 2026-09-29, the day this
+  was decided; Dibs is the newer, so 2026-09-30 is a business drop,
+  2026-10-01 an everyday one, and so on. A missed day does not skip a kind:
+  the next run still takes the opposite of the newest drop.
+- **Holidays** keep their date and theme, and count as whichever kind they
+  are; the next day is the other kind.
+- **An inbox app idea** can be today's drop only if it is today's kind;
+  otherwise it waits for the next day of its kind (mark it `seen` with a
+  note saying when).
+- The same bar for both: a real problem people have, genuinely fun,
+  finished well, could be an iPhone app, not a repeat of a lab or portfolio
+  app. An everyday app works for someone who never signs in (free first, the
+  model only behind the usual gates) and is something a person would show a
+  friend. Friction's problems are business ones, so Friction feeds the
+  business days; everyday ideas come from ordinary life.
 
 ### Ideas from Friction (Erik, 2026-09-25)
 
