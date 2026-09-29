@@ -86,6 +86,21 @@ from `main`.
    **fails if step 4 was skipped** or `lab.js` changed after it.
 6. Commit, push, `gcpdeploy ship challenge`.
 
+### Who the drops are for: mostly everyday people (Erik, 2026-09-29)
+
+The first thirteen drops were all small-business tools. Erik asked for a
+mixture **leaning to everyday users**: people at home, with friends and
+family, with their own money, health, time and hobbies, not only owners and
+teams. So aim for roughly **two everyday drops for every business one**
+across a week, and don't run three business drops in a row. The same bar
+applies to both: a real problem people have, genuinely fun, finished well,
+could be an iPhone app, not a repeat of a lab or portfolio app. An everyday
+app should still work for someone who never signs in (free first, the model
+only behind the usual gates), and should be something a person would show a
+friend. Friction's problems are business ones, so it feeds the business
+drops; the everyday ones come from ordinary life (and from the inbox, which
+outranks both).
+
 ### Ideas from Friction (Erik, 2026-09-25)
 
 Before picking, the daily run reads what Friction is hearing:
