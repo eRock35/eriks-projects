@@ -131,17 +131,27 @@
       "wallMs": 2484000,
       "exact": false,
       "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~4K)."
+    },
+    "dibs": {
+      "in": 33919737,
+      "cached": 33398838,
+      "out": 225000,
+      "agents": 1,
+      "agentMs": 2358000,
+      "wallMs": 2358000,
+      "exact": false,
+      "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~5K)."
     }
   },
   "totals": {
-    "in": 570292497,
-    "cached": 494815613,
-    "out": 3488623,
-    "agents": 142,
-    "agentMs": 41014934,
-    "wallMs": 38158638,
-    "apps": 13,
-    "estimated": 7,
-    "cachedShare": 0.9697
+    "in": 604212234,
+    "cached": 528214451,
+    "out": 3713623,
+    "agents": 143,
+    "agentMs": 43372934,
+    "wallMs": 40516638,
+    "apps": 14,
+    "estimated": 8,
+    "cachedShare": 0.9706
   }
 }

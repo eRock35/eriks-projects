@@ -55,6 +55,7 @@ Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
 | Tells | one builder agent | 50.2M | 49.6M | ~300K | 1 | 53 min | in exact; out estimated |
 | Covenant | one builder agent | 27.2M | 26.7M | ~180K | 1 | 31 min | in exact; out estimated |
 | Hike | one builder agent | 34.4M | 33.9M | ~235K | 1 | 41 min | in exact; out estimated |
+| Dibs | one builder agent | 33.9M | 33.4M | ~225K | 1 | 39 min | in exact; out estimated |
 
 Tally's transcript records only the start of each streamed reply's output
 (about 5K in total), a logging change since week 1's builds, so its output is
@@ -83,4 +84,8 @@ estimated from Tipout's rate over its shorter agent time.
 Visitors' AI use in the lab on 2026-09-28: none.
 
 Hike's transcript under-reports output the same way (~4K), so output is
+estimated from Tipout's rate over its agent time.
+
+Dibs (an extra drop on 2026-09-29, the lab's first for everyday people,
+asked for by Erik) under-reports output the same way (~5K), so output is
 estimated from Tipout's rate over its agent time.

@@ -308,7 +308,7 @@
     return '<article class="app next" style="--c1:#7c3aed;--c2:#ec4899"><div class="top"><span class="badge">Drop #' + String(data.apps.length + 1).padStart(2, '0') + ' · Classified</span>' +
       '<h3>???</h3><div class="date">Something is cooking</div><div class="emoji">🧪</div></div>' +
       '<div class="body"><p class="tagline">The next experiment is being built right now.</p>' +
-      '<div class="count" id="count">–</div><p class="blurb">Every drop tries to fix a real business headache in a way that’s fun to use. Come back and vote.</p></div></article>';
+      '<div class="count" id="count">–</div><p class="blurb">Every drop tries to fix a real headache, at home or at work, in a way that’s fun to use. Come back and vote.</p></div></article>';
   }
 
   function wire(c) {

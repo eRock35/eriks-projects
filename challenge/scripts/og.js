@@ -95,7 +95,7 @@ function appMeta(a, drop, v) {
 function landingMeta(count, v) {
   return {
     title: 'The Challenge Lab — a new app every day',
-    description: `${count} app${count === 1 ? '' : 's'} so far, each trying to fix a real business headache in a way that’s fun to use. Try them free, then vote: keep it or kill it.`,
+    description: `${count} app${count === 1 ? '' : 's'} so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.`,
     url: `${LAB_ORIGIN}/`,
     image: `${LAB_ORIGIN}/og/lab.png?v=${v}`,
     alt: `The Challenge Lab: a new app every day. ${count} apps shipped so far.`,

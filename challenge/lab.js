@@ -199,6 +199,21 @@ const APPS = [
     audience: 'Cafés, salons, trades & shops that haven\u2019t raised prices in a while',
     status: 'testing',
   },
+  {
+    slug: 'dibs',
+    name: 'Dibs',
+    emoji: '🙋',
+    // Basil to tomato - the salad and the steak on one bill. White text
+    // holds 4.5:1 at both ends; npm run og darkens further if it does not.
+    color: '#3f6212',
+    color2: '#b3261e',
+    dropped: '2026-09-29',
+    tagline: 'Split the bill by what everyone actually had.',
+    blurb: 'Snap or paste the receipt and share a QR code: everyone at the table taps what they had on their own phone, no account needed for friends. Shared plates, tax and tip are split fairly to the cent, the maths is checked against the printed total, and each person gets a Venmo, Cash App or PayPal link to whoever paid.',
+    features: ['Snap or paste the receipt', 'Everyone taps their own, no account', 'Tax & tip split fairly to the cent', 'Pay links to whoever paid'],
+    audience: 'Friends, couples, roommates & anyone who\u2019s ever done the bill maths at the table',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

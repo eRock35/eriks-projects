@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dibs — split the bill by what everyone actually had</title>
+  <meta name="description" content="Snap or paste the receipt, share a QR code, and everyone taps what they had on their own phone. Tax, tip and shared plates are split fairly to the cent, with a pay link to whoever paid. Friends need no account.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#151110" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbf7f2" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Dibs">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Dibs — Split the bill by what everyone actually had.">
+  <meta property="og:description" content="Snap or paste the receipt and share a QR code: everyone at the table taps what they had on their own phone, no account needed for friends. Shared plates, tax and tip are split fairly to the cent, the maths is checked against the printed total, and each person gets a Venmo, Cash A">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/dibs/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/dibs.png?v=bd9d64fa9c">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Dibs, drop #14 in the Challenge Lab: Split the bill by what everyone actually had.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Dibs — Split the bill by what everyone actually had.">
+  <meta name="twitter:description" content="Snap or paste the receipt and share a QR code: everyone at the table taps what they had on their own phone, no account needed for friends. Shared plates, tax and tip are split fairly to the cent, the maths is checked against the printed total, and each person gets a Venmo, Cash A">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/dibs.png?v=bd9d64fa9c">
+  <meta name="twitter:image:alt" content="Dibs, drop #14 in the Challenge Lab: Split the bill by what everyone actually had.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the bill</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">🙋</span>Dibs</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="tablesBtn" type="button" hidden>My tables</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <!-- The example's one-liner, a phone-only bill's note, or the table bar. -->
+    <section id="strip" aria-label="About this bill"></section>
+
+    <!-- Start: snap or type (drawn when a fresh bill is begun). -->
+    <section class="card flow" id="flow" hidden></section>
+
+    <div class="layout" id="billView">
+      <div class="col-main">
+        <section class="card head" id="billHead" aria-label="The bill"></section>
+
+        <section class="card" id="peopleCard" aria-labelledby="peopleH">
+          <div class="sec-head">
+            <h2 id="peopleH">Who’s calling dibs?</h2>
+            <span class="small muted" id="peopleHint"></span>
+          </div>
+          <div class="people" id="people" role="group" aria-labelledby="peopleH"></div>
+        </section>
+
+        <section class="card" id="itemsCard" aria-labelledby="itemsH">
+          <div class="sec-head">
+            <h2 id="itemsH">What everyone had</h2>
+            <button class="btn small ghost" id="editBtn" type="button" aria-pressed="false">Edit items</button>
+          </div>
+          <div id="unclaimed" aria-live="polite"></div>
+          <ul class="items" id="items"></ul>
+          <div class="row" id="itemTools" hidden>
+            <button class="btn small ghost" id="addItem" type="button">+ Add an item</button>
+            <button class="btn small ghost" id="pasteMore" type="button">Paste more lines</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-side">
+        <section class="card" id="extrasCard" aria-labelledby="extrasH">
+          <div class="sec-head">
+            <h2 id="extrasH">Tax, tip &amp; extras</h2>
+          </div>
+          <div id="extras"></div>
+          <dl class="sums" id="sums"></dl>
+          <div id="check" aria-live="polite"></div>
+        </section>
+
+        <section class="card settle" id="settleCard" aria-labelledby="settleH">
+          <div class="sec-head">
+            <h2 id="settleH">Who owes whom</h2>
+          </div>
+          <div id="celebrate" aria-live="polite"></div>
+          <ul class="owes" id="owes"></ul>
+          <p class="fair" id="fair"></p>
+          <div id="handles"></div>
+          <div class="summary" id="summaryBox"></div>
+        </section>
+
+        <section class="card share" id="shareCard" aria-labelledby="shareH"></section>
+      </div>
+    </div>
+
+    <footer class="foot small muted">
+      <p class="quiet">Dibs does the maths; check it against your receipt.</p>
+      <p>Dibs is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site. Friends at your table never need one.</p>
+    </footer>
+  </main>
+
+  <div class="sticky" id="sticky" hidden></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="dibs-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

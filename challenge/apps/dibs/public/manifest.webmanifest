@@ -1,0 +1,10 @@
+{
+  "name": "Dibs",
+  "short_name": "Dibs",
+  "description": "Split the bill by what everyone actually had - snap the receipt, share a QR code, everyone taps their own.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#151110",
+  "theme_color": "#151110",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
