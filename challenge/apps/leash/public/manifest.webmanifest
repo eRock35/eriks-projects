@@ -1,0 +1,10 @@
+{
+  "name": "Leash",
+  "short_name": "Leash",
+  "description": "Know what your AI agent can do - before it does it. A blast-radius score, the worst day in dollars, fixes, a bad-day drill and a charter.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1418",
+  "theme_color": "#14303b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

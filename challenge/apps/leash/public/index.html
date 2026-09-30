@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Leash — know what your AI agent can do, before it does it</title>
+  <meta name="description" content="Tick what your AI agent can do (or paste its prompt): Leash gives a blast-radius score and its worst day in dollars, the fixes that drop the score, a bad-day drill, and a one-page charter with a kill switch.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0d1418" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f6f7" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Leash">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Leash — Know what your AI agent can do - before it does it.">
+  <meta property="og:description" content="For teams putting an AI agent in front of customers, money or data. Tick what it can do or paste its prompt, and Leash gives a blast-radius score and its worst day in dollars (&quot;it could refund $240,000 before anyone looks&quot;), the fixes that drop the score most, a timed bad-day dri">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/leash/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/leash.png?v=b6f77959c9">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Leash, drop #15 in the Challenge Lab: Know what your AI agent can do - before it does it.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Leash — Know what your AI agent can do - before it does it.">
+  <meta name="twitter:description" content="For teams putting an AI agent in front of customers, money or data. Tick what it can do or paste its prompt, and Leash gives a blast-radius score and its worst day in dollars (&quot;it could refund $240,000 before anyone looks&quot;), the fixes that drop the score most, a timed bad-day dri">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/leash.png?v=b6f77959c9">
+  <meta name="twitter:image:alt" content="Leash, drop #15 in the Challenge Lab: Know what your AI agent can do - before it does it.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to your agent</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">🦮</span>Leash</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="agentsBtn" type="button">Agents</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section class="intro" id="intro" aria-label="About this agent"></section>
+
+    <div class="layout">
+      <div class="side">
+        <!-- The hero: how bad is its worst day? -->
+        <section class="card hero" id="radius" aria-labelledby="radiusH">
+          <div class="sec-head">
+            <h2 id="radiusH" class="eyebrow">Blast radius</h2>
+            <span class="free">Free</span>
+          </div>
+          <div class="ring-row">
+            <div class="ring" id="ring" role="img"></div>
+            <ul class="legend" id="legend" aria-hidden="true"></ul>
+          </div>
+          <p class="worst" id="worst" aria-live="polite"></p>
+          <div id="heroCta"></div>
+          <ul class="notes" id="notes"></ul>
+          <details class="how"><summary>How we worked this out</summary><ol id="howList" class="small"></ol></details>
+          <p class="disclaim" id="disclaim"></p>
+        </section>
+
+        <!-- The fixes, each re-scored. -->
+        <section class="card fixes" id="fixes" aria-labelledby="fixesH">
+          <div class="sec-head">
+            <h2 id="fixesH">Fixes that move the needle</h2>
+            <span class="free">Free</span>
+          </div>
+          <div id="fixList" aria-live="polite"></div>
+        </section>
+      </div>
+
+      <div class="rest">
+        <nav class="jump" aria-label="Sections">
+          <a href="#profile">Agent</a>
+          <a href="#drill">Drill</a>
+          <a href="#charter">Charter</a>
+          <a href="#radius" class="jump-score" id="jumpScore">0 Low</a>
+        </nav>
+
+        <!-- The profile: what it is and what it can do. -->
+        <section class="card profile" id="profile" aria-labelledby="profileH">
+          <div class="sec-head">
+            <h2 id="profileH">The agent</h2>
+          </div>
+          <div class="grid2">
+            <label class="field"><span>Name</span><input class="input" id="pName" maxlength="80" autocomplete="off" placeholder="Our support agent"></label>
+            <label class="field"><span>What it does, in a line</span><input class="input" id="pDoes" maxlength="160" autocomplete="off" placeholder="Answers order questions by chat and email"></label>
+          </div>
+          <fieldset class="field"><legend>Who it talks to</legend><div class="chips" id="pTalks"></div></fieldset>
+          <div class="grid2">
+            <div class="field">
+              <label for="pWatch" class="lbl-s">When a person is watching</label>
+              <select class="input" id="pWatch"></select>
+              <label class="every" id="everyWrap" hidden><span>Every</span><input class="input" id="pEvery" inputmode="numeric" maxlength="3" aria-label="Hours between checks"><span>hours</span></label>
+            </div>
+            <label class="field"><span>Tasks in its busiest hour</span><input class="input" id="pRate" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="20"><span class="hint">Conversations or jobs it handles. Sizes the worst day where there is no daily limit.</span></label>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Two ways in">
+            <button type="button" role="tab" id="tabPick" aria-controls="panelPick" aria-selected="true">Pick what it can do <span class="tag">Free</span></button>
+            <button type="button" role="tab" id="tabPaste" aria-controls="panelPaste" aria-selected="false">Paste its prompt or tools <span class="tag ai">AI</span></button>
+          </div>
+          <div id="panelPick" role="tabpanel" aria-labelledby="tabPick">
+            <p class="small muted panel-lead">Switch on what it can do, then say whether it acts alone, its limits, whether it's logged well enough to replay, and whether it can be undone.</p>
+            <div id="checklist"></div>
+          </div>
+          <div id="panelPaste" role="tabpanel" aria-labelledby="tabPaste" hidden>
+            <p class="small muted panel-lead">Paste its system prompt, its tool or function definitions (JSON or text) or a runbook. AI maps it onto the checklist and shows you the words it found each thing in - nothing changes until you apply it. What you paste is read once and never stored.</p>
+            <label class="lbl" for="pasteBox">The agent's prompt, tools or runbook</label>
+            <textarea id="pasteBox" rows="9" maxlength="40000" spellcheck="false" placeholder="You are our support assistant. Tools: issue_refund(order_id, amount) - refund up to $200 without asking..."></textarea>
+            <div class="row spread"><span class="small muted" id="pasteCount">0 / 40,000</span><button class="chip" id="pasteSample" type="button">Paste the example prompt</button></div>
+            <div class="row"><button class="btn" id="readBtn" type="button">Read it with AI</button><span class="small muted">A cent or two of credit.</span></div>
+            <div id="readOut" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <!-- The drill. -->
+        <section class="card drill" id="drill" aria-labelledby="drillH">
+          <div class="sec-head">
+            <h2 id="drillH">Bad-day drill</h2>
+            <span class="free">Free</span>
+          </div>
+          <div id="drillBody"></div>
+        </section>
+
+        <!-- The charter. -->
+        <section class="card charter" id="charter" aria-labelledby="charterH">
+          <div class="sec-head">
+            <h2 id="charterH">The charter</h2>
+            <span class="free">Free</span>
+          </div>
+          <p class="small muted">One page for the team: what it may do alone, what needs a human, its limits, who pulls the plug and how, what is logged, and the first hour if something goes wrong.</p>
+          <div class="grid2">
+            <label class="field"><span>Kill switch: who pulls it</span><input class="input" id="cOwner" maxlength="80" autocomplete="off" placeholder="Priya, support lead"></label>
+            <label class="field"><span>How fast</span><input class="input" id="cSpeed" maxlength="80" autocomplete="off" placeholder="Within 5 minutes"></label>
+          </div>
+          <label class="field"><span>How they switch it off</span><input class="input" id="cHow" maxlength="200" autocomplete="off" placeholder="Admin > Support bot > turn off 'Agent enabled'. Refund tool key revoked in Stripe."></label>
+          <div class="grid2">
+            <label class="field"><span>Logs are kept for</span><input class="input" id="cRetention" maxlength="80" autocomplete="off" placeholder="90 days"></label>
+            <label class="field"><span>Review it</span><select class="input" id="cReview"></select></label>
+          </div>
+          <div class="charter-doc" id="charterDoc"></div>
+          <div class="row">
+            <button class="btn small" id="copyMd" type="button">Copy as Markdown</button>
+            <button class="btn small ghost" id="dlMd" type="button">Download .md</button>
+            <button class="btn small ghost" id="printBtn" type="button">Print</button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot small muted">
+      <p>Leash is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="print-only" id="printArea" aria-hidden="true"></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="leash-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -214,6 +214,22 @@ const APPS = [
     audience: 'Friends, couples, roommates & anyone who\u2019s ever done the bill maths at the table',
     status: 'testing',
   },
+  {
+    slug: 'leash',
+    name: 'Leash',
+    emoji: '🦮',
+    // Slate teal to a warning amber-brown - calm control, and the worst
+    // day's colour. White text holds well over 4.5:1 at both ends; npm run
+    // og darkens further if it does not.
+    color: '#1d4e5f',
+    color2: '#8a4a0b',
+    dropped: '2026-09-30',
+    tagline: 'Know what your AI agent can do - before it does it.',
+    blurb: 'For teams putting an AI agent in front of customers, money or data. Tick what it can do or paste its prompt, and Leash gives a blast-radius score and its worst day in dollars ("it could refund $240,000 before anyone looks"), the fixes that drop the score most, a timed bad-day drill that scores how ready you really are, and a one-page charter with a kill switch.',
+    features: ['A blast-radius score and the worst day in dollars', 'Fixes ranked by how much they drop it', 'A timed bad-day drill', 'A one-page charter with a kill switch'],
+    audience: 'Teams putting an AI agent in front of customers, money or data',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
