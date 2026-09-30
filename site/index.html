@@ -46,7 +46,7 @@
       "jobTitle": "Sr. Director, Sales Intelligence & Customer Insights",
       "worksFor": { "@type": "Organization", "name": "Equifax Workforce Solutions" },
       "homeLocation": { "@type": "Place", "name": "Atlanta, Georgia" },
-      "knowsAbout": ["Sales intelligence", "Customer insights", "Applied AI", "Data engineering", "Fraud detection"],
+      "knowsAbout": ["Sales intelligence", "Customer insights", "Applied AI", "Agentic AI", "Go-to-market strategy", "Data engineering", "Fraud detection"],
       "sameAs": ["https://www.linkedin.com/in/eriksstrong", "https://github.com/eRock35"]
     },
     {
@@ -546,7 +546,7 @@
   .card p:last-child { margin-bottom: 0; }
 
   .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-  @media (min-width: 620px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  @media (min-width: 620px) { .stats { grid-template-columns: repeat(3, 1fr); } }
   .stat { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); }
   .stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
   .stat-value { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; background: linear-gradient(135deg, var(--tint), var(--indigo)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -698,8 +698,8 @@
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg>Sales intelligence</span>
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg>Customer insights</span>
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg>Applied AI</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-growth"/></svg>Sales data whisperer</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-briefcase"/></svg>C-suite whisperer</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-growth"/></svg>Go-to-market strategy</span>
+      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-briefcase"/></svg>Executive advisory</span>
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-db"/></svg>Data &amp; engineering</span>
     </div>
     <div class="cta-row">
@@ -898,11 +898,11 @@
   <section id="about">
     <div class="section-head" data-reveal><h2>About</h2></div>
     <div class="card" data-reveal>
-      <p>I run sales intelligence and customer insights for all of <strong>Equifax Workforce Solutions</strong>, supporting over <strong>$2.7 billion</strong> in revenue across more than a dozen verticals. The job is connecting real data insight to business action: applied AI that drives and monitors the business and pulls the signal out of the noise, and custom apps and products that generate revenue on their own.</p>
-      <p>I've led the charge on deploying and using <strong>AI across the organization</strong>, and I'm one of the people it's looked to on where the field is going and what is actually worth building.</p>
-      <p>I lead the teams that build it, and I'm a coach player about it. I work directly with sales to influence live deals and where the business goes next, and I'm in front of the C-suite regularly.</p>
-      <p>I started at Equifax in 2013 writing code, and I never stopped. Along the way I built the insights and the algorithm that detect synthetic fraud in the credit marketplace, which became two patents, and I've won the company's biggest awards more than once, which is unheard of for someone who isn't a salesperson by trade.</p>
-      <p>Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
+      <p>I lead sales intelligence and customer insights for all of <strong>Equifax Workforce Solutions</strong>, supporting more than <strong>$2.7 billion</strong> in revenue across more than a dozen verticals. I work with our C-suite sales leaders, business-unit presidents and the Chief Risk Officers at our bank customers to shape the story on live deals, and in 2026 that work helped drive more than <strong>$50 million in new annual contract value</strong>.</p>
+      <p>I'm leading the organization's move to <strong>applied and agentic AI</strong>. The agents we've put into production save more than 1,700 hours a week: a research agent that investigates potential issues, and an insight agent that gives more than 100 account executives customer-ready talking points.</p>
+      <p>I'm a coach player. I lead a global team in the US, Costa Rica and India, and I still build alongside them.</p>
+      <p>I started at Equifax in 2013 writing code, and I never stopped. Along the way I built the insights and the algorithm that detect synthetic fraud in the credit marketplace, which became two patents, and I've won the company's top awards more than once, which is rare for someone who isn't in sales.</p>
+      <p>On the side I run <a href="/challenge">the Challenge</a>, a build-in-public experiment that ships a new AI-built app every day. Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
     </div>
 
     <div class="stats">
@@ -911,14 +911,22 @@
         <div class="stat-label">Revenue supported</div>
       </div>
       <div class="stat" data-reveal style="--d:.1s">
+        <div class="stat-value" data-count="50" data-prefix="$" data-suffix="M+">$50M+</div>
+        <div class="stat-label">New contract value, 2026</div>
+      </div>
+      <div class="stat" data-reveal style="--d:.15s">
+        <div class="stat-value" data-count="1700" data-suffix="+">1,700+</div>
+        <div class="stat-label">Hours a week saved by AI agents</div>
+      </div>
+      <div class="stat" data-reveal style="--d:.2s">
         <div class="stat-value" data-count="12" data-suffix="+">12+</div>
         <div class="stat-label">Verticals served</div>
       </div>
-      <div class="stat" data-reveal style="--d:.15s">
+      <div class="stat" data-reveal style="--d:.25s">
         <div class="stat-value" data-count="2">2</div>
         <div class="stat-label">Patents</div>
       </div>
-      <div class="stat" data-reveal style="--d:.2s">
+      <div class="stat" data-reveal style="--d:.3s">
         <div class="stat-value" data-since="2013" data-suffix="+">13+</div>
         <div class="stat-label">Years at Equifax</div>
       </div>
@@ -927,12 +935,12 @@
     <div class="verticals" data-reveal>
       <span class="vlabel">Strengths</span>
       <div class="vchips">
-        <span class="tag">Data science</span>
-        <span class="tag">Data analysis</span>
-        <span class="tag">Web development</span>
-        <span class="tag">Leadership</span>
-        <span class="tag">Applied AI</span>
+        <span class="tag">Solution selling</span>
+        <span class="tag">Executive engagement</span>
+        <span class="tag">Agentic &amp; applied AI</span>
+        <span class="tag">Analytics &amp; BI</span>
         <span class="tag">Data engineering</span>
+        <span class="tag">Team leadership</span>
       </div>
     </div>
 
@@ -955,7 +963,7 @@
     <div class="list list-facts" data-reveal style="margin-top:14px">
       <div class="row">
         <span class="row-icon" style="background: var(--indigo)"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg></span>
-        <span class="row-main"><span class="row-title">Led AI adoption across the organization</span><span class="row-sub">Looked to as a thought leader on where the field is going</span></span>
+        <span class="row-main"><span class="row-title">Leading the shift to agentic AI</span><span class="row-sub">Agents in production that save 1,700+ hours a week</span></span>
       </div>
       <div class="row">
         <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-patent"/></svg></span>
@@ -963,11 +971,11 @@
       </div>
       <div class="row">
         <span class="row-icon" style="background: var(--amber)"><svg aria-hidden="true" focusable="false"><use href="#i-award"/></svg></span>
-        <span class="row-main"><span class="row-title">Top Equifax awards, more than once</span><span class="row-sub">Rare for a role that isn't sales</span></span>
+        <span class="row-main"><span class="row-title">Top Equifax awards, more than once</span><span class="row-sub">2022 Top Gun, 2021 Innovation, and 16 Equifax One awards</span></span>
       </div>
       <div class="row">
         <span class="row-icon" style="background: var(--green)"><svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg></span>
-        <span class="row-main"><span class="row-title">Coach player</span><span class="row-sub">Leads the teams and still builds alongside them</span></span>
+        <span class="row-main"><span class="row-title">Coach player</span><span class="row-sub">Leads a global team and still builds alongside them</span></span>
       </div>
     </div>
 
@@ -1203,7 +1211,7 @@
 
   /* ---------- Count-up stats ---------- */
   function formatNumber(v, decimals) {
-    return decimals ? v.toFixed(decimals) : String(Math.round(v));
+    return decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString("en-US");
   }
   function countUp(el) {
     var decimals = Number(el.dataset.decimals || 0);
