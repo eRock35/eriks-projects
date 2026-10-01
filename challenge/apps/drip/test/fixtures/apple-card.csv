@@ -1,0 +1,9 @@
+Transaction Date,Clearing Date,Description,Merchant,Category,Type,Amount (USD),Purchased By
+09/02/2026,09/03/2026,"APPLE.COM/BILL ONE APPLE PARK WAY 866-712-7753 95014 CA USA",Apple Services,Other,Purchase,2.99,Alex Example
+09/02/2026,09/03/2026,"APPLE.COM/BILL ONE APPLE PARK WAY 866-712-7753 95014 CA USA",Apple Services,Other,Purchase,10.99,Alex Example
+09/05/2026,09/06/2026,"ACH DEPOSIT INTERNET TRANSFER FROM ACCOUNT ENDING IN 1234",Ach Deposit Internet Transfer From Account Ending In 1234,Payment,Payment,-200.00,Alex Example
+08/02/2026,08/03/2026,"APPLE.COM/BILL ONE APPLE PARK WAY 866-712-7753 95014 CA USA",Apple Services,Other,Purchase,2.99,Alex Example
+08/02/2026,08/03/2026,"APPLE.COM/BILL ONE APPLE PARK WAY 866-712-7753 95014 CA USA",Apple Services,Other,Purchase,10.99,Alex Example
+07/02/2026,07/03/2026,"APPLE.COM/BILL ONE APPLE PARK WAY 866-712-7753 95014 CA USA",Apple Services,Other,Purchase,2.99,Alex Example
+07/02/2026,07/03/2026,"APPLE.COM/BILL ONE APPLE PARK WAY 866-712-7753 95014 CA USA",Apple Services,Other,Purchase,10.99,Alex Example
+07/31/2026,07/31/2026,"MONTHLY INSTALLMENTS (3 OF 12)",Apple,Installment,Installment,41.58,Alex Example

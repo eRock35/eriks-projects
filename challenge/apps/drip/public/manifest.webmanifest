@@ -1,0 +1,10 @@
+{
+  "name": "Drip",
+  "short_name": "Drip",
+  "description": "Find every subscription quietly draining your account - read from your bank's CSV on your phone, never uploaded.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1d33",
+  "theme_color": "#0b1d33",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

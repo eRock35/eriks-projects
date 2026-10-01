@@ -230,6 +230,22 @@ const APPS = [
     audience: 'Teams putting an AI agent in front of customers, money or data',
     status: 'testing',
   },
+  {
+    slug: 'drip',
+    name: 'Drip',
+    emoji: '💧',
+    // Deep ocean blue to deep teal - water, calm, money staying put. White
+    // text holds well over 4.5:1 at both ends; npm run og darkens further
+    // if it does not.
+    color: '#0b4a8f',
+    color2: '#0f6466',
+    dropped: '2026-10-01',
+    tagline: 'Find every subscription quietly draining your account.',
+    blurb: 'Drop in your bank or card CSV - read on your phone, never uploaded - and Drip finds every recurring charge, what it costs a year, the price creeps and the trials that turned paid. Swipe keep or cut, watch the savings add up, and get reminders before the next charge.',
+    features: ['Your statement read on your phone, never uploaded', 'Every drip with its cost a year', 'Price creeps, trials and doubles flagged', 'Swipe keep or cut, reminders before the charge'],
+    audience: 'Anyone with a bank account who suspects they\u2019re paying for things they don\u2019t use',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
