@@ -59,6 +59,8 @@ Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
 | Leash | one builder agent | 27.8M | 27.1M | ~220K | 1 | 38 min | in exact; out estimated |
 | Drip | one builder agent | 37.0M | 36.2M | ~265K | 1 | 47 min | in exact; out estimated |
 | Boxed | one builder agent | 38.1M | 37.2M | ~230K | 1 | 41 min | in exact; out estimated |
+| Inside Joke | one builder agent | 40.9M | 40.1M | ~280K | 1 | 50 min | in exact; out estimated |
+| Flight | one builder agent | 31.4M | 30.6M | ~215K | 1 | 38 min | in exact; out estimated |
 
 Tally's transcript records only the start of each streamed reply's output
 (about 5K in total), a logging change since week 1's builds, so its output is
@@ -108,3 +110,10 @@ Visitors' AI use in the lab on 2026-10-01: none.
 Boxed's transcript under-reports output the same way (~4K), so output is
 estimated from Tipout's rate over its agent time. Its builder also fixed a
 date-dependent assertion in Drip's suite that started failing on 2026-10-02.
+
+Inside Joke and Flight were two extra drops on 2026-10-02, asked for by Erik
+the same day and built in parallel. Both transcripts under-report output
+the same way (~5-7K), so output is estimated from Tipout's rate.
+
+Not an app in the lab: the Next Move build (apps/nextmove, a portfolio app
+on Cloud Run and BigQuery), 48.3M in over 50 min of one builder agent.

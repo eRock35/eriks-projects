@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Inside Joke — trivia made from your own photos and group chat</title>
+  <meta name="description" content="Trivia made from your family's or friends' own photos and group chat. Play five questions a day on your own time and keep a streak, or play live together on a video call. Members need no account.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#120e19" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f3fa" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Inside Joke">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Inside Joke — Trivia made from your own photos and group chat - play together, even miles apart.">
+  <meta property="og:description" content="Make a group for your family or friends and everyone joins with a code, no account. Questions come from your own photos (where was this, what year, who took it, caption this), your group chat read on your phone (who’s the night owl, who said it?) and whatever you write. Play five">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/insidejoke/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/insidejoke.png?v=c68345c16d">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Inside Joke, drop #18 in the Challenge Lab: Trivia made from your own photos and group chat - play together, even miles apart.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Inside Joke — Trivia made from your own photos and group chat - play together, even miles apart.">
+  <meta name="twitter:description" content="Make a group for your family or friends and everyone joins with a code, no account. Questions come from your own photos (where was this, what year, who took it, caption this), your group chat read on your phone (who’s the night owl, who said it?) and whatever you write. Play five">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/insidejoke.png?v=c68345c16d">
+  <meta name="twitter:image:alt" content="Inside Joke, drop #18 in the Challenge Lab: Trivia made from your own photos and group chat - play together, even miles apart.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the game</a>
+  <header class="top">
+    <a class="brand" href="./" id="brand"><span class="mark" aria-hidden="true">🤫</span>Inside Joke</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="groupsBtn" type="button">My groups</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section id="strip" aria-label="About this group"></section>
+    <section id="home" hidden></section>
+    <section id="view" aria-live="polite"></section>
+
+    <footer class="foot small muted">
+      <p>Only members see a group, its photos and its questions. Chats are read on your phone; only the questions are kept.</p>
+      <p>Inside Joke is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site. Members never need one.</p>
+    </footer>
+  </main>
+
+  <nav class="tabbar dk-tabbar" id="tabs" aria-label="Group" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-tab="today"><span class="ic" aria-hidden="true">☀️</span><span>Today</span></button>
+      <button type="button" data-tab="live"><span class="ic" aria-hidden="true">🎉</span><span>Live</span></button>
+      <button type="button" data-tab="board"><span class="ic" aria-hidden="true">🏆</span><span>Board</span></button>
+      <button type="button" data-tab="questions"><span class="ic" aria-hidden="true">✍️</span><span>Questions</span></button>
+      <button type="button" data-tab="group"><span class="ic" aria-hidden="true">👪</span><span>Group</span></button>
+    </div>
+  </nav>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="ij-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

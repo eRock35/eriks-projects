@@ -110,12 +110,14 @@ a day, alternating** between a business problem and an everyday one.
   friend. Friction's problems are business ones, so Friction feeds the
   business days; everyday ideas come from ordinary life.
 
-### Queued by Erik (2026-10-02)
+### Built on Erik's ask (2026-10-02)
 
-Two everyday ideas Erik asked for in conversation. They take the next
-everyday days, ahead of a free pick (a holiday still outranks them):
+Two everyday ideas Erik asked for in conversation, then asked to have built
+the same day rather than queued. Both shipped on 2026-10-02 as Inside Joke
+and Flight, so the newest drop is everyday and 2026-10-03 is a business day.
+What he asked for, kept for the record:
 
-1. **Game night (2026-10-03).** Family/friends trivia generated from a
+1. **Game night -> Inside Joke.** Family/friends trivia generated from a
    group's own photos and group-chat exports - "who said it", "where was
    this", "what year" - with real multimodal work. The point Erik stressed:
    **playable when he is not with the people** (he travels a lot), so it
@@ -124,7 +126,7 @@ everyday days, ahead of a free pick (a holiday still outranks them):
    (room code, everyone on their own phone, like Dibs's table). Group-private:
    members only, photos kept only as small thumbnails the group can delete,
    chat exports read once and never stored (only the generated questions).
-2. **Beer buddies (the following everyday day, 2026-10-05).** An app to
+2. **Beer buddies -> Flight.** An app to
    share fun stuff with his beer friends. Not a repeat of Hopscotch (the
    portfolio's beer passport): a group thing - for example blind-tasting
    showdowns, "guess who brought it", voting on the next brewery or crawl,

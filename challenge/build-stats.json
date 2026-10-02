@@ -171,17 +171,37 @@
       "wallMs": 2448000,
       "exact": false,
       "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~4K)."
+    },
+    "insidejoke": {
+      "in": 40916788,
+      "cached": 40116386,
+      "out": 280000,
+      "agents": 1,
+      "agentMs": 2982000,
+      "wallMs": 2982000,
+      "exact": false,
+      "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~5K)."
+    },
+    "flight": {
+      "in": 31438893,
+      "cached": 30648078,
+      "out": 215000,
+      "agents": 1,
+      "agentMs": 2280000,
+      "wallMs": 2280000,
+      "exact": false,
+      "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~7K)."
     }
   },
   "totals": {
-    "in": 707052297,
-    "cached": 628700075,
-    "out": 4428623,
-    "agents": 146,
-    "agentMs": 50920934,
-    "wallMs": 48064638,
-    "apps": 17,
-    "estimated": 11,
-    "cachedShare": 0.9716
+    "in": 779407978,
+    "cached": 699464539,
+    "out": 4923623,
+    "agents": 148,
+    "agentMs": 56182934,
+    "wallMs": 53326638,
+    "apps": 19,
+    "estimated": 13,
+    "cachedShare": 0.9723
   }
 }

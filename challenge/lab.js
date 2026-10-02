@@ -262,6 +262,36 @@ const APPS = [
     audience: 'CPA firms, tax preparers and investors with a stack of K-1s',
     status: 'testing',
   },
+  {
+    slug: 'insidejoke',
+    name: 'Inside Joke',
+    emoji: '🤫',
+    // Lagoon teal to party fuchsia - a game night, not a ledger. White text
+    // holds 5.4:1 and 6.3:1; npm run og darkens further if it does not.
+    color: '#0e7490',
+    color2: '#a21caf',
+    dropped: '2026-10-02',
+    tagline: 'Trivia made from your own photos and group chat - play together, even miles apart.',
+    blurb: 'Make a group for your family or friends and everyone joins with a code, no account. Questions come from your own photos (where was this, what year, who took it, caption this), your group chat read on your phone (who\u2019s the night owl, who said it?) and whatever you write. Play five a day on your own time with a leaderboard and streaks, or live together on a video call.',
+    features: ['Questions from your own photos and group chat', 'Five a day, on your own time, with streaks', 'Live game night on everyone\u2019s phone', 'Members join with a code, no account'],
+    audience: 'Families and friend groups, near or far',
+    status: 'testing',
+  },
+  {
+    slug: 'flight',
+    name: 'Flight',
+    emoji: '🍻',
+    // Golden ale to stout - the two ends of a tasting flight. White text
+    // holds 5.3:1 and 15:1; npm run og darkens further if it does not.
+    color: '#946000',
+    color2: '#3d1f0c',
+    dropped: '2026-10-02',
+    tagline: 'Blind tastings and beer games for your crew - in the same bar or different cities.',
+    blurb: 'Everyone brings a beer, it gets a shuffled letter, and the crew scores it blind - stars, a style guess, an ABV guess - then guesses who brought what before the reveal hands out awards. Apart? A Same-Can Challenge has everyone score the same beer on their own time from wherever they are. Vote on the next brewery (paste a Hopscotch crawl link), and keep a crew leaderboard. Friends join with a code, no account.',
+    features: ['Blind tastings with shuffled letters and awards', 'Guess who brought it', 'A Same-Can Challenge for a crew that\u2019s apart', 'Vote on the next one, crew leaderboard'],
+    audience: 'Beer crews, homebrew clubs and anyone who argues about IPAs',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
