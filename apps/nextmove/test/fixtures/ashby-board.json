@@ -1,0 +1,50 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "0f5c7e7a-6d1e-4c39-9d0f-1b7e3b9a1111",
+      "title": "Head of Data",
+      "department": "Data",
+      "team": "Data",
+      "employmentType": "FullTime",
+      "location": "Remote (US)",
+      "secondaryLocations": [{ "location": "New York, NY" }],
+      "publishedAt": "2026-09-27T15:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "jobUrl": "https://jobs.ashbyhq.com/copperline/0f5c7e7a-6d1e-4c39-9d0f-1b7e3b9a1111",
+      "applyUrl": "https://jobs.ashbyhq.com/copperline/0f5c7e7a-6d1e-4c39-9d0f-1b7e3b9a1111/application",
+      "descriptionHtml": "<p>Copperline is building lending infrastructure.</p><p>You will own our experimentation platform and the culture around it, and lead a team of analysts and analytics engineers.</p><p>A background in lending or payments analytics is a plus.</p>",
+      "descriptionPlain": "Copperline is building lending infrastructure.\n\nYou will own our experimentation platform and the culture around it, and lead a team of analysts and analytics engineers.\n\nA background in lending or payments analytics is a plus.",
+      "compensation": {
+        "compensationTierSummary": "$205K – $240K • Offers Equity",
+        "scrapeableCompensationSalarySummary": "$205K - $240K",
+        "compensationTiers": [],
+        "summaryComponents": [
+          { "compensationType": "Salary", "interval": "1 YEAR", "currencyCode": "USD", "minValue": 205000, "maxValue": 240000 },
+          { "compensationType": "EquityPercentage", "interval": "NONE", "currencyCode": null, "minValue": 0.05, "maxValue": 0.1 }
+        ]
+      }
+    },
+    {
+      "id": "0f5c7e7a-6d1e-4c39-9d0f-1b7e3b9a2222",
+      "title": "Account Executive",
+      "department": "Sales",
+      "location": "New York, NY",
+      "publishedAt": "2026-09-25T15:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": false,
+      "jobUrl": "https://jobs.ashbyhq.com/copperline/0f5c7e7a-6d1e-4c39-9d0f-1b7e3b9a2222",
+      "descriptionPlain": "Sell to community banks. OTE $180,000.",
+      "compensation": null
+    },
+    {
+      "id": "0f5c7e7a-6d1e-4c39-9d0f-1b7e3b9a3333",
+      "title": "Unlisted Role",
+      "location": "Remote",
+      "isListed": false,
+      "jobUrl": "https://jobs.ashbyhq.com/copperline/x",
+      "descriptionPlain": "Hidden."
+    }
+  ]
+}

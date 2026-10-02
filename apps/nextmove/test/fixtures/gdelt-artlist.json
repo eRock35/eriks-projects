@@ -1,0 +1,9 @@
+{
+  "articles": [
+    { "url": "https://news.example.org/2026/09/30/northwind-logistics-cuts-200-jobs", "url_mobile": "", "title": "Northwind Logistics to cut 200 jobs in restructuring", "seendate": "20260930T141500Z", "socialimage": "", "domain": "news.example.org", "language": "English", "sourcecountry": "United States" },
+    { "url": "https://biz.example.com/northwind-names-new-cfo", "title": "Northwind Logistics names new CFO as chief financial officer steps down", "seendate": "20260929T090000Z", "domain": "biz.example.com", "language": "English", "sourcecountry": "United States" },
+    { "url": "https://biz.example.com/freight-roundup", "title": "Freight market roundup: rates fall again", "seendate": "20260929T080000Z", "domain": "biz.example.com", "language": "English", "sourcecountry": "United States" },
+    { "url": "javascript:alert(1)", "title": "Northwind Logistics <script>alert(1)</script> wins award", "seendate": "20260929T080000Z", "domain": "x", "language": "English", "sourcecountry": "United States" },
+    { "url": "https://news.example.org/2026/09/30/northwind-logistics-cuts-200-jobs", "title": "Northwind Logistics to cut 200 jobs in restructuring", "seendate": "20260930T141500Z", "domain": "news.example.org", "language": "English", "sourcecountry": "United States" }
+  ]
+}

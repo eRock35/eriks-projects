@@ -1,0 +1,32 @@
+[
+  {
+    "additional": "<div>Northwind is an equal opportunity employer.</div>",
+    "additionalPlain": "Northwind is an equal opportunity employer.",
+    "categories": { "commitment": "Full-time", "department": "Data", "location": "Atlanta, GA", "team": "Analytics", "allLocations": ["Atlanta, GA"] },
+    "createdAt": 1759154400000,
+    "descriptionPlain": "Northwind Logistics moves freight for 4,000 retailers. We are looking for a Director of Analytics to forecast volume across our network of distribution centers and lead our planning analytics team.",
+    "description": "<div>Northwind Logistics moves freight for 4,000 retailers.</div>",
+    "id": "8f2b6a1c-1d2e-4f00-9a77-2c1b0e5d9a01",
+    "lists": [
+      { "text": "What you'll do", "content": "<li>Forecast volume across our network of distribution centers.</li><li>Lead a team of 8 analysts.</li>" },
+      { "text": "What you'll bring", "content": "<li>Operations research methods such as linear programming.</li><li>Experience presenting to executives.</li>" }
+    ],
+    "text": "Director of Analytics, Network Planning",
+    "country": "US",
+    "workplaceType": "onsite",
+    "hostedUrl": "https://jobs.lever.co/northwind/8f2b6a1c-1d2e-4f00-9a77-2c1b0e5d9a01",
+    "applyUrl": "https://jobs.lever.co/northwind/8f2b6a1c-1d2e-4f00-9a77-2c1b0e5d9a01/apply",
+    "salaryRange": { "currency": "USD", "interval": "per-year-salary", "min": 175000, "max": 205000 },
+    "salaryDescriptionPlain": "Base pay range"
+  },
+  {
+    "categories": { "commitment": "Full-time", "department": "Operations", "location": "Dallas, TX", "team": "Warehouse" },
+    "createdAt": 1758549600000,
+    "descriptionPlain": "Supervise the second shift. Pay: $24/hr.",
+    "id": "8f2b6a1c-1d2e-4f00-9a77-2c1b0e5d9a02",
+    "lists": [],
+    "text": "Warehouse Shift Supervisor",
+    "workplaceType": "onsite",
+    "hostedUrl": "https://jobs.lever.co/northwind/8f2b6a1c-1d2e-4f00-9a77-2c1b0e5d9a02"
+  }
+]

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Next Move — your career copilot</title>
+  <meta name="description" content="Next Move watches the career boards of companies you care about, public pay data and company news, and every day scores the new roles against your background - with the posting's own words for why.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0d1118" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f4f0" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Next Move">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body class="nm-app">
+  <a class="skip" href="#main">Skip to your matches</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 18 L10 12 L14 15 L20 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 6 H20 V11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Next Move</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="profileBtn" type="button" hidden>Profile</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section id="strip" aria-label="About this page"></section>
+    <div id="tabs" class="tabs" role="tablist" aria-label="Views"></div>
+    <div id="view"></div>
+
+    <footer class="foot small muted">
+      <p>Next Move reads public career boards (Greenhouse, Lever, Ashby), SEC filings, news from GDELT and public pay data from the Department of Labor and BLS. It never scrapes LinkedIn, Indeed or Glassdoor.</p>
+      <p>Your background is kept only in your Next Move profile and is never shared. Scores are an AI's read of fit - a starting point, not a verdict. <button class="link-btn" id="privacyBtn" type="button">How your data is kept</button> · <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" role="status" aria-live="polite"></div>
+
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

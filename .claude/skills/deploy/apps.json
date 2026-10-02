@@ -1,5 +1,5 @@
 {
-  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here — gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
+  "_comment": "App registry. Env vars and secrets are deliberately NOT listed here \u2014 gcpdeploy reads the live Cloud Run service and swaps only the image, so this file can never drift out of sync with production.",
   "project": "metal-celerity-236019",
   "region": "us-central1",
   "registry": "erik-projects",
@@ -73,6 +73,14 @@
       "verify_job": null,
       "verify_doc": null,
       "_note": "The test lab: one service at challenge.strongtechnicalconsulting.com hosting every trial app at /<slug>, one database with per-app collection prefixes. First deploy: gcpdeploy create challenge. See challenge/CLAUDE.md."
+    },
+    "nextmove": {
+      "repo": "eriks-projects/apps/nextmove",
+      "service": "nextmove",
+      "db": "nextmove",
+      "verify_job": "nextmove-daily",
+      "verify_doc": "control/last-run",
+      "_note": "Subdirectory app like friction. One image, two entrypoints: the service runs server.js; Cloud Run JOBS nextmove-daily / nextmove-weekly / nextmove-comp run `node jobs/run.js <job>` on the same image. `ship` updates the SERVICE image only - after a ship, PATCH each job's template image to the same digest (see apps/nextmove/CLAUDE.md, 'Shipping a change'). The scheduler targets the jobs:run API, so `verify` starts a job and reads control/last-run, which lags until that run finishes (minutes). Data that grows lives in BigQuery dataset nextmove (us-central1)."
     }
   }
 }

@@ -1,0 +1,488 @@
+{
+  "postings": {
+    "description": "Job postings from public career boards (Greenhouse, Lever, Ashby) and the weekly web-search sweep. One row per posting; MERGEd daily.",
+    "schema": {
+      "fields": [
+        {
+          "name": "posting_id",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "sha256 of source + board + the board's own id (hex, 32)"
+        },
+        {
+          "name": "source",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "greenhouse | lever | ashby | websearch"
+        },
+        {
+          "name": "company_key",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "<provider>:<board token>, or name:<slug> when there is no public board"
+        },
+        {
+          "name": "company_name",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "title",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "title_norm",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "the role with grade words removed (lib/titles.js)"
+        },
+        {
+          "name": "seniority",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "intern | entry | mid | senior | staff | manager | director | vp | c_level"
+        },
+        {
+          "name": "department",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "location",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "location_state",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "US state code when the location names one"
+        },
+        {
+          "name": "remote",
+          "type": "BOOL",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "url",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "posted_at",
+          "type": "TIMESTAMP",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "first_seen",
+          "type": "TIMESTAMP",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "last_seen",
+          "type": "TIMESTAMP",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "closed_at",
+          "type": "TIMESTAMP",
+          "mode": "NULLABLE",
+          "description": "set when a fetched board no longer lists it"
+        },
+        {
+          "name": "pay_min",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_max",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_currency",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_period",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "hour | week | month | year"
+        },
+        {
+          "name": "pay_min_annual",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_max_annual",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_source",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "posted (parsed from the text) | ashby_comp | lever_salary | null"
+        },
+        {
+          "name": "description_text",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "plain text, truncated to 20,000 characters"
+        },
+        {
+          "name": "content_hash",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        }
+      ]
+    },
+    "timePartitioning": {
+      "type": "DAY",
+      "field": "first_seen"
+    },
+    "clustering": {
+      "fields": [
+        "company_key"
+      ]
+    }
+  },
+  "comp_public": {
+    "description": "Public compensation: DOL LCA (H-1B) disclosure data, one row per certified case; BLS OEWS, one row per occupation and area.",
+    "schema": {
+      "fields": [
+        {
+          "name": "source",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "h1b_lca | bls_oews"
+        },
+        {
+          "name": "year",
+          "type": "INTEGER",
+          "mode": "REQUIRED",
+          "description": "fiscal year (LCA) or reference year (OEWS)"
+        },
+        {
+          "name": "quarter",
+          "type": "INTEGER",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "employer",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "job_title",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "title_norm",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "seniority",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "soc_code",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "wage_annual",
+          "type": "NUMERIC",
+          "mode": "NULLABLE",
+          "description": "LCA: the offered wage (from), annualised. OEWS: the median."
+        },
+        {
+          "name": "wage_p25",
+          "type": "NUMERIC",
+          "mode": "NULLABLE",
+          "description": "OEWS only"
+        },
+        {
+          "name": "wage_p75",
+          "type": "NUMERIC",
+          "mode": "NULLABLE",
+          "description": "OEWS only"
+        },
+        {
+          "name": "employment",
+          "type": "INTEGER",
+          "mode": "NULLABLE",
+          "description": "OEWS only"
+        },
+        {
+          "name": "worksite_city",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "worksite_state",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "case_status",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        }
+      ]
+    },
+    "rangePartitioning": {
+      "field": "year",
+      "range": {
+        "start": "2015",
+        "end": "2041",
+        "interval": "1"
+      }
+    },
+    "clustering": {
+      "fields": [
+        "source",
+        "title_norm",
+        "worksite_state"
+      ]
+    }
+  },
+  "company_events": {
+    "description": "Company news and filings: SEC 8-Ks, GDELT news, and news the weekly sweep found.",
+    "schema": {
+      "fields": [
+        {
+          "name": "event_id",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "sha256 of the source and its own id (accession number, URL)"
+        },
+        {
+          "name": "company_key",
+          "type": "STRING",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "source",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "sec | gdelt | websearch"
+        },
+        {
+          "name": "event_type",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "layoff | exec_change | acquisition | funding | earnings | other"
+        },
+        {
+          "name": "headline",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "url",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "published_at",
+          "type": "TIMESTAMP",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "sec_form",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "sec_items",
+          "type": "STRING",
+          "mode": "REPEATED"
+        }
+      ]
+    },
+    "timePartitioning": {
+      "type": "DAY",
+      "field": "published_at"
+    },
+    "clustering": {
+      "fields": [
+        "company_key"
+      ]
+    }
+  },
+  "fits": {
+    "description": "Fit scores. user_key is an HMAC of the account id - never the id, an email or a name.",
+    "schema": {
+      "fields": [
+        {
+          "name": "user_key",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "HMAC-SHA256 of the uid under a key derived from IDENTITY_SESSION_SECRET"
+        },
+        {
+          "name": "posting_id",
+          "type": "STRING",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "scored_at",
+          "type": "TIMESTAMP",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "score",
+          "type": "INTEGER",
+          "mode": "REQUIRED",
+          "description": "0-100"
+        },
+        {
+          "name": "model",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "verdict",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "strong | worth_a_look | stretch | skip"
+        },
+        {
+          "name": "reasons",
+          "type": "JSON",
+          "mode": "NULLABLE",
+          "description": "{strengths: [{point, quote}], positioning}"
+        },
+        {
+          "name": "gaps",
+          "type": "JSON",
+          "mode": "NULLABLE",
+          "description": "[string]"
+        },
+        {
+          "name": "cost_usd",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "prefilter",
+          "type": "NUMERIC",
+          "mode": "NULLABLE",
+          "description": "the free prefilter score that put it in the top N"
+        },
+        {
+          "name": "content_hash",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "company_key",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "company_name",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "title",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "url",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "location",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "remote",
+          "type": "BOOL",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_min_annual",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_max_annual",
+          "type": "NUMERIC",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "pay_currency",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "source",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        }
+      ]
+    },
+    "timePartitioning": {
+      "type": "DAY",
+      "field": "scored_at"
+    },
+    "clustering": {
+      "fields": [
+        "user_key"
+      ]
+    }
+  },
+  "runs": {
+    "description": "One row per job run.",
+    "schema": {
+      "fields": [
+        {
+          "name": "run_id",
+          "type": "STRING",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "job",
+          "type": "STRING",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "started_at",
+          "type": "TIMESTAMP",
+          "mode": "REQUIRED"
+        },
+        {
+          "name": "finished_at",
+          "type": "TIMESTAMP",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "counts",
+          "type": "JSON",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "errors",
+          "type": "JSON",
+          "mode": "NULLABLE"
+        }
+      ]
+    },
+    "timePartitioning": {
+      "type": "DAY",
+      "field": "started_at"
+    }
+  }
+}
