@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Flight — blind tastings and beer games for your crew</title>
+  <meta name="description" content="A beer crew's game night: blind-tasting showdowns, guess who brought it, a Same-Can Challenge for when you're in different cities, a vote on the next brewery, and a crew leaderboard. Friends join with a code - no account.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#16110b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbf6ec" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Flight">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the crew</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">🍻</span>Flight</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="crewsBtn" type="button" hidden>My crews</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="flight-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "Flight",
+  "short_name": "Flight",
+  "description": "Blind tastings and beer games for your crew - in the same bar or different cities.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#16110b",
+  "theme_color": "#16110b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
