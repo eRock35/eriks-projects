@@ -246,6 +246,22 @@ const APPS = [
     audience: 'Anyone with a bank account who suspects they\u2019re paying for things they don\u2019t use',
     status: 'testing',
   },
+  {
+    slug: 'boxed',
+    name: 'Boxed',
+    emoji: '🗂️',
+    // Ledger green-grey to tax-form violet - greyer than Covenant's bank
+    // green and ending in violet, not navy. White text holds well over 4.5:1
+    // at both ends; npm run og darkens further if it does not.
+    color: '#405c55',
+    color2: '#3a2d74',
+    dropped: '2026-10-02',
+    tagline: 'Every K-1 box read, checked and rolled up - in minutes, not hours.',
+    blurb: 'For preparers with partnership-heavy clients. Drop in the Schedule K-1 PDFs and Boxed reads every box and code with the page it came from, checks Item L and the boxes for keying errors, rolls them up across the client, tracks the K-1s still missing with reminders and a chase list, and exports CSV. Files are read once and not kept; partner TINs are never stored.',
+    features: ['Every box and code read, with its page', 'Item L and the boxes checked for keying errors', 'A roll-up across the client, CSV out', 'What\u2019s still missing, with reminders'],
+    audience: 'CPA firms, tax preparers and investors with a stack of K-1s',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

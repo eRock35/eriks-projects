@@ -65,9 +65,13 @@
       "inputs": "e386383d1ba78c24",
       "v": "2563045afc"
     },
+    "boxed": {
+      "inputs": "44a208b3bc841705",
+      "v": "2bc881406b"
+    },
     "lab": {
-      "inputs": "a673d2fb2d835946",
-      "v": "2ef259a9a9"
+      "inputs": "b603a0b1c6cda6a0",
+      "v": "dab90fead7"
     }
   }
 }

@@ -58,6 +58,7 @@ Not an app: the LinkedIn API research workflow, 64.1M in / 248K out.
 | Dibs | one builder agent | 33.9M | 33.4M | ~225K | 1 | 39 min | in exact; out estimated |
 | Leash | one builder agent | 27.8M | 27.1M | ~220K | 1 | 38 min | in exact; out estimated |
 | Drip | one builder agent | 37.0M | 36.2M | ~265K | 1 | 47 min | in exact; out estimated |
+| Boxed | one builder agent | 38.1M | 37.2M | ~230K | 1 | 41 min | in exact; out estimated |
 
 Tally's transcript records only the start of each streamed reply's output
 (about 5K in total), a logging change since week 1's builds, so its output is
@@ -101,3 +102,9 @@ Visitors' AI use in the lab on 2026-09-30: none.
 
 Drip's transcript under-reports output the same way (~7K), so output is
 estimated from Tipout's rate over its agent time.
+
+Visitors' AI use in the lab on 2026-10-01: none.
+
+Boxed's transcript under-reports output the same way (~4K), so output is
+estimated from Tipout's rate over its agent time. Its builder also fixed a
+date-dependent assertion in Drip's suite that started failing on 2026-10-02.

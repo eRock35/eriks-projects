@@ -40,6 +40,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/dibs/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/leash/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/drip/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
+  ['eriks-projects/challenge/apps/boxed/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   // `webauthn.js:identity-webauthn.js` copies shared/webauthn.js in under
   // the name identity.js requires there (see RENAME_WEBAUTHN). Those copies
   // were made by hand and never synced, so a change to the passkey module
@@ -80,6 +81,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/dibs/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/leash/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/drip/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
+  ['eriks-projects/challenge/apps/boxed/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js', 'verify-banner.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js']],
   ['beer-app/web/public',                 ['tour.js', 'beacon.js']],

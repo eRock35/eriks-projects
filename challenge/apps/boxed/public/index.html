@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Boxed — every K-1 box read, checked and rolled up</title>
+  <meta name="description" content="Drop in a client's Schedule K-1s (Form 1065) and Boxed reads every box and code with the page it came from, checks Item L and the boxes for keying errors, rolls them up across the client, tracks what's still missing and exports CSV. Files are read once and not kept.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f1513" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f4f0" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Boxed">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Boxed — Every K-1 box read, checked and rolled up - in minutes, not hours.">
+  <meta property="og:description" content="For preparers with partnership-heavy clients. Drop in the Schedule K-1 PDFs and Boxed reads every box and code with the page it came from, checks Item L and the boxes for keying errors, rolls them up across the client, tracks the K-1s still missing with reminders and a chase list">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/boxed/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/boxed.png?v=2bc881406b">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Boxed, drop #17 in the Challenge Lab: Every K-1 box read, checked and rolled up - in minutes, not hours.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Boxed — Every K-1 box read, checked and rolled up - in minutes, not hours.">
+  <meta name="twitter:description" content="For preparers with partnership-heavy clients. Drop in the Schedule K-1 PDFs and Boxed reads every box and code with the page it came from, checks Item L and the boxes for keying errors, rolls them up across the client, tracks the K-1s still missing with reminders and a chase list">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/boxed.png?v=2bc881406b">
+  <meta name="twitter:image:alt" content="Boxed, drop #17 in the Challenge Lab: Every K-1 box read, checked and rolled up - in minutes, not hours.">
+  <!-- /lab:og -->
+</head>
+<body class="bx-app">
+  <a class="skip" href="#main">Skip to the K-1s</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true">🗂️</span>Boxed</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="clientsBtn" type="button">Clients</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <!-- The example's one-liner, or the client file's head. -->
+    <section id="strip" aria-label="About this client file"></section>
+    <!-- The client (board, K-1s, roll-up, what's missing) or one K-1's review. -->
+    <div id="view"></div>
+
+    <footer class="foot small muted">
+      <p><b>Boxed reads and checks K-1s. It is not tax advice, and you are responsible for what you file.</b></p>
+      <p>Your files are read once and not kept. Partner names, TINs and addresses are never stored. Boxed is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <!-- Filled only when printing the summary. -->
+  <div id="printArea" class="print-only" aria-hidden="true"></div>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" role="status" aria-live="polite"></div>
+
+  <script src="boxed-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

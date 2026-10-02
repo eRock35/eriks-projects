@@ -671,7 +671,7 @@ test('a saved list holds drips and nothing else - however much a request carries
   assert.deepStrictEqual([back.data.list.drips.length, back.data.list.checkedOn, back.data.limit], [15, TODAY, 150]);
   assert.ok(back.data.list.drips.every((d) => !('flags' in d) && !('charges' in d)));
   // A future checkedOn is today.
-  assert.strictEqual((await sam('PUT', '/api/list', { drips: [], checkedOn: '2099-01-01' })).data.list.checkedOn, TODAY);
+  assert.strictEqual((await sam('PUT', '/api/list', { drips: [], checkedOn: '2099-01-01' })).data.list.checkedOn, new Date().toISOString().slice(0, 10), 'the server’s today, not the fixture’s');
   await sam('PUT', '/api/list', body);
 });
 

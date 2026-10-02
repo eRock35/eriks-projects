@@ -1,0 +1,10 @@
+{
+  "name": "Boxed",
+  "short_name": "Boxed",
+  "description": "Every Schedule K-1 box read, checked and rolled up - with what's still missing.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#16211d",
+  "theme_color": "#16211d",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
