@@ -110,6 +110,27 @@ a day, alternating** between a business problem and an everyday one.
   friend. Friction's problems are business ones, so Friction feeds the
   business days; everyday ideas come from ordinary life.
 
+### Queued by Erik (2026-10-02)
+
+Two everyday ideas Erik asked for in conversation. They take the next
+everyday days, ahead of a free pick (a holiday still outranks them):
+
+1. **Game night (2026-10-03).** Family/friends trivia generated from a
+   group's own photos and group-chat exports - "who said it", "where was
+   this", "what year" - with real multimodal work. The point Erik stressed:
+   **playable when he is not with the people** (he travels a lot), so it
+   needs an async mode (a daily round each person plays on their own time,
+   a group leaderboard, streaks) as well as a live mode for a video call
+   (room code, everyone on their own phone, like Dibs's table). Group-private:
+   members only, photos kept only as small thumbnails the group can delete,
+   chat exports read once and never stored (only the generated questions).
+2. **Beer buddies (the following everyday day, 2026-10-05).** An app to
+   share fun stuff with his beer friends. Not a repeat of Hopscotch (the
+   portfolio's beer passport): a group thing - for example blind-tasting
+   showdowns, "guess who brought it", voting on the next brewery or crawl,
+   a crew leaderboard. If it can read a Hopscotch crawl or passport by its
+   share link rather than duplicating it, better.
+
 ### Ideas from Friction (Erik, 2026-09-25)
 
 Before picking, the daily run reads what Friction is hearing:
