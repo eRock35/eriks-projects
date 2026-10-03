@@ -18,6 +18,10 @@ name: iPhone apps to TestFlight
 # `version` in mobile/<app>/package.json.
 
 on:
+  # A TestFlight build expires after 90 days, so every app is rebuilt on the
+  # 1st of each month and the public links never point at an expired one.
+  schedule:
+    - cron: '23 9 1 * *'
   workflow_dispatch:
     inputs:
       app:
@@ -60,7 +64,7 @@ jobs:
       - name: Pick the apps
         id: pick
         env:
-          APP: ${{ inputs.app }}
+          APP: ${{ inputs.app || 'all' }}
         run: |
           if [ "$APP" = "all" ]; then
             echo 'apps=["trip","hopscotch","flight","insidejoke"]' >> "$GITHUB_OUTPUT"

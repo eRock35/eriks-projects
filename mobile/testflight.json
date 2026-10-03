@@ -1,0 +1,30 @@
+{
+  "_comment": "What TestFlight shows testers and Apple's beta reviewer, set by scripts/testflight_public.py. No personal details here: this repo is public. The reviewer contact (name, phone, email) and the feedback email are typed into App Store Connect by hand.",
+  "privacyPolicyUrl": "https://strongtechnicalconsulting.com/privacy",
+  "apps": {
+    "trip": {
+      "bundleId": "com.strongtechnicalconsulting.trip",
+      "description": "Trip Planner keeps a trip in one place: the day-by-day itinerary, live weather and a countdown, bookings, packing and budget lists you can share with whoever you travel with, receipts and card statements, photos, and brewery crawls with a map and route. Ask Claude to draft or change the itinerary and you approve every change before it is saved.",
+      "whatsNew": "First beta. Try opening the example trip, starting one of your own, and sharing it with someone you travel with. Tell us anything that feels slow, confusing or broken.",
+      "reviewNotes": "No sign-in is needed to look around: the example trip on the first screen shows every feature, read-only. Creating trips needs a free account (email and password, in the app). The AI features use a small free credit that comes with every account. The app shows the live site trip.strongtechnicalconsulting.com in a native shell with universal links, passkeys, the camera and the photo library."
+    },
+    "hopscotch": {
+      "bundleId": "com.strongtechnicalconsulting.hopscotch",
+      "description": "Hopscotch is a craft beer passport. Find breweries near you, log what you drink with a rating and a photo, earn badges and keep a streak, plan a brewery crawl with friends, and see how your ratings compare with other drinkers. For adults of legal drinking age.",
+      "whatsNew": "First beta. Try Near me, log a beer, and plan a crawl. Tell us anything that feels slow, confusing or broken.",
+      "reviewNotes": "Intended for users of legal drinking age; the app does not sell or deliver alcohol. Browsing breweries and the public feed needs no account. Logging beers needs a free account, made in the app with an email and password. Location is used only when the user taps Near me. The app shows the live site beer.strongtechnicalconsulting.com in a native shell with universal links, the camera, location and the photo library."
+    },
+    "flight": {
+      "bundleId": "com.strongtechnicalconsulting.flight",
+      "description": "Flight is game night for a beer crew. Everyone brings a beer, it gets a secret letter, and the crew scores it blind: stars, a style guess, an ABV guess and notes, then the reveal hands out awards. When the crew is in different cities, the Same-Can Challenge lets everyone score the same beer on their own time. There is also guess-who-brought-it, a vote on the next brewery, a crew leaderboard, and Cellar & Swap for have and want lists. Friends join by link or a six-character code, no account needed. For adults of legal drinking age.",
+      "whatsNew": "First beta. Start a crew, run a blind tasting or a Same-Can Challenge, and invite a friend with the code. Tell us anything that feels slow, confusing or broken.",
+      "reviewNotes": "Intended for users of legal drinking age; the app does not sell, ship or deliver alcohol (Cellar & Swap gifts go through a licensed seller). An example crew is on the first screen with no sign-in. Hosting a crew needs a free account, made in the app with an email and password; joining one needs only a name. Snap the label uses a small free AI credit. The app shows challenge.strongtechnicalconsulting.com/flight/ in a native shell with universal links, the camera and the photo library."
+    },
+    "insidejoke": {
+      "bundleId": "com.strongtechnicalconsulting.insidejoke",
+      "description": "Inside Joke turns a group's own photos, group chat and memories into trivia. Make a group for your family or friends, everyone joins by link or a six-character code with just a name, and you play five questions a day on your own time, with a leaderboard and streaks, or all together on game night. Made for people who are spread out and want to stay close.",
+      "whatsNew": "First beta. Make a group, add a few questions from photos or your own words, and invite someone with the code. Tell us anything that feels slow, confusing or broken.",
+      "reviewNotes": "Joining and playing need no account, just a name. Hosting a group needs a free account, made in the app with an email and password. Questions from photos use a small free AI credit; photos are used only to write the questions. The app shows challenge.strongtechnicalconsulting.com/insidejoke/ in a native shell with universal links, the camera and the photo library."
+    }
+  }
+}
