@@ -1,0 +1,32 @@
+{
+  "appId": "com.strongtechnicalconsulting.hopscotch",
+  "appName": "Hopscotch",
+  "webDir": "www",
+  "backgroundColor": "#B3730A",
+  "appendUserAgent": "StrongTechApp/hopscotch",
+  "server": {
+    "url": "https://beer.strongtechnicalconsulting.com/",
+    "allowNavigation": [
+      "beer.strongtechnicalconsulting.com",
+      "*.strongtechnicalconsulting.com"
+    ],
+    "errorPath": "index.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#B3730A"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#B3730A",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DEFAULT",
+      "overlaysWebView": true
+    }
+  }
+}

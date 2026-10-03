@@ -319,6 +319,11 @@ When Erik picks a keeper:
 3. `gcpdeploy create <slug> --env PASSKEY_RP_ID=strongtechnicalconsulting.com --domain <slug>.strongtechnicalconsulting.com`.
 4. Copy its `<slug>_*` collections from `challenge` into its own database
    without the prefix, if its trial data is worth keeping.
+5. Flight and Inside Joke are also iPhone apps (`mobile/README.md`). If one
+   graduates, move its entry out of the lab's
+   `/.well-known/apple-app-site-association` (`IOS_APPS` in `server.js`) to
+   the new host, and change its `server.url` and entitlements in
+   `mobile/scripts/generate.mjs`, regenerate, and ship a new build.
 
 ## Crowd reveal, voting streaks and badges (2026-09-26)
 

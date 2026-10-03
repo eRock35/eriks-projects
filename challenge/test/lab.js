@@ -192,6 +192,38 @@ const { host, mounted, store } = require('../server');
     ok(`every mounted app (${mounted.length}) loads the shared banner from its own base`);
   }
 
+  // --- the iPhone apps' association file (mobile/README.md) ---
+  {
+    const AASA = '/.well-known/apple-app-site-association';
+    const saved = process.env.APPLE_TEAM_ID;
+    delete process.env.APPLE_TEAM_ID;
+    let r = await fetch(base + AASA, { redirect: 'manual' });
+    assert.strictEqual(r.status, 404); ok('no APPLE_TEAM_ID: the association file is a 404, so nothing wrong is published');
+    for (const bad of ['abcde12345', 'ABCDE1234', 'ABCDE12345X']) {
+      process.env.APPLE_TEAM_ID = bad;
+      assert.strictEqual((await fetch(base + AASA, { redirect: 'manual' })).status, 404, bad);
+    }
+    ok('...and so is a malformed Team ID');
+    process.env.APPLE_TEAM_ID = 'ABCDE12345';
+    r = await fetch(base + AASA, { redirect: 'manual' });
+    assert.strictEqual(r.status, 200);
+    assert.match(r.headers.get('content-type') || '', /^application\/json\b/);
+    assert.strictEqual(r.headers.get('set-cookie'), null);
+    ok('set: 200 JSON, no redirect, no cookie');
+    const a = await r.json();
+    const flight = 'ABCDE12345.com.strongtechnicalconsulting.flight';
+    const ij = 'ABCDE12345.com.strongtechnicalconsulting.insidejoke';
+    assert.deepStrictEqual(a.applinks.details.map((d) => d.appIDs), [[flight], [ij]]);
+    const paths = (i) => a.applinks.details[i].components.map((c) => (c.exclude ? '!' : '') + c['/']);
+    assert.deepStrictEqual(paths(0), ['!/flight/api/*', '/flight', '/flight/*']);
+    assert.deepStrictEqual(paths(1), ['!/insidejoke/api/*', '/insidejoke', '/insidejoke/*']);
+    ok('Flight opens /flight/*, Inside Joke /insidejoke/*, neither an /api/ path, nothing else in the lab');
+    assert.deepStrictEqual(a.webcredentials, { apps: [flight, ij] }); ok('both apps may use the passwords saved for this host');
+    assert.ok(mounted.includes('flight') && mounted.includes('insidejoke'), 'both iPhone apps are mounted here');
+    ok('both iPhone apps are live in the lab');
+    if (saved === undefined) delete process.env.APPLE_TEAM_ID; else process.env.APPLE_TEAM_ID = saved;
+  }
+
   server.close();
   console.log(`\n${n}/${n} passed`);
   process.exit(0);

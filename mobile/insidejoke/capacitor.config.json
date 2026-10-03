@@ -1,0 +1,32 @@
+{
+  "appId": "com.strongtechnicalconsulting.insidejoke",
+  "appName": "Inside Joke",
+  "webDir": "www",
+  "backgroundColor": "#120E19",
+  "appendUserAgent": "StrongTechApp/insidejoke",
+  "server": {
+    "url": "https://challenge.strongtechnicalconsulting.com/insidejoke/",
+    "allowNavigation": [
+      "challenge.strongtechnicalconsulting.com",
+      "*.strongtechnicalconsulting.com"
+    ],
+    "errorPath": "index.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#120E19"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#120E19",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DEFAULT",
+      "overlaysWebView": true
+    }
+  }
+}

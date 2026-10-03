@@ -1,0 +1,32 @@
+{
+  "appId": "com.strongtechnicalconsulting.trip",
+  "appName": "Trip Planner",
+  "webDir": "www",
+  "backgroundColor": "#0047C8",
+  "appendUserAgent": "StrongTechApp/trip",
+  "server": {
+    "url": "https://trip.strongtechnicalconsulting.com/",
+    "allowNavigation": [
+      "trip.strongtechnicalconsulting.com",
+      "*.strongtechnicalconsulting.com"
+    ],
+    "errorPath": "index.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0047C8"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#0047C8",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DEFAULT",
+      "overlaysWebView": true
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "appId": "com.strongtechnicalconsulting.flight",
+  "appName": "Flight",
+  "webDir": "www",
+  "backgroundColor": "#16110B",
+  "appendUserAgent": "StrongTechApp/flight",
+  "server": {
+    "url": "https://challenge.strongtechnicalconsulting.com/flight/",
+    "allowNavigation": [
+      "challenge.strongtechnicalconsulting.com",
+      "*.strongtechnicalconsulting.com"
+    ],
+    "errorPath": "index.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#16110B"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#16110B",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DEFAULT",
+      "overlaysWebView": true
+    }
+  }
+}

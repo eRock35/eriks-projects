@@ -297,6 +297,41 @@ const lj = express.json({ limit: '8kb' });
 host.get('/api/health', (_req, res) => res.json({ ok: true, apps: mounted }));
 host.get('/healthz', (_req, res) => res.json({ ok: true }));
 
+// The iPhone apps' association file (mobile/README.md). Two of the lab's apps
+// ship as iPhone apps, so this one file speaks for both: a link under /flight/
+// opens Flight, one under /insidejoke/ opens Inside Joke, an app's /api/ never
+// does, and the rest of the lab stays in the browser. webcredentials lets each
+// app's web view use the passwords saved for this host. Apple fetches it with
+// no cookie and follows no redirect, so it answers here, on the host, before
+// the catch-all.
+//
+// The Team ID is read from APPLE_TEAM_ID on each request and is never written
+// in this public repo. Unset or malformed, the file does not exist (404), so
+// nothing wrong is ever published. If an app graduates to its own subdomain,
+// its entry moves with it.
+const IOS_APPS = [
+  { slug: 'flight', bundle: 'com.strongtechnicalconsulting.flight' },
+  { slug: 'insidejoke', bundle: 'com.strongtechnicalconsulting.insidejoke' },
+];
+host.get('/.well-known/apple-app-site-association', (_req, res) => {
+  const team = String(process.env.APPLE_TEAM_ID || '').trim();
+  if (!/^[A-Z0-9]{10}$/.test(team)) return res.status(404).json({ error: 'Not found.' });
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json({
+    applinks: {
+      details: IOS_APPS.map((a) => ({
+        appIDs: [`${team}.${a.bundle}`],
+        components: [
+          { '/': `/${a.slug}/api/*`, exclude: true, comment: 'The API is never a page.' },
+          { '/': `/${a.slug}` },
+          { '/': `/${a.slug}/*` },
+        ],
+      })),
+    },
+    webcredentials: { apps: IOS_APPS.map((a) => `${team}.${a.bundle}`) },
+  });
+});
+
 // The main site's /challenge page draws the live drops from here.
 const SITE_ORIGINS = new Set(['https://www.strongtechnicalconsulting.com', 'https://strongtechnicalconsulting.com']);
 

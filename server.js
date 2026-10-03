@@ -202,6 +202,25 @@ app.get('/healthz', (req, res) => res.status(200).send('ok'));
 // same handler on a path the edge leaves alone.
 app.get('/api/health', (req, res) => res.status(200).send('ok'));
 
+// The iPhone apps' association file (mobile/README.md), for the apex itself.
+// The apex is the shared account's passkey relying party (PASSKEY_RP_ID), so
+// Face ID sign-in inside an app's web view works only if this host names the
+// app here under webcredentials. All four apps are listed. No applinks: the
+// landing opens in the browser; each app's own host links to its app.
+//
+// Apple fetches it with no cookie and follows no redirect: /.well-known/ is
+// already exempt from the www -> apex 301 above, and this answers before any
+// gate. The Team ID is read from APPLE_TEAM_ID on each request and is never
+// written in this public repo. Unset or malformed, the file does not exist
+// (404), so nothing wrong is ever published.
+const IOS_BUNDLE_IDS = ['trip', 'hopscotch', 'flight', 'insidejoke'].map((a) => `com.strongtechnicalconsulting.${a}`);
+app.get('/.well-known/apple-app-site-association', (req, res) => {
+  const team = String(process.env.APPLE_TEAM_ID || '').trim();
+  if (!/^[A-Z0-9]{10}$/.test(team)) return res.status(404).json({ error: 'Not found.' });
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json({ webcredentials: { apps: IOS_BUNDLE_IDS.map((b) => `${team}.${b}`) } });
+});
+
 /* ------------------------------------------------------------------ *
  * Admin session
  * ------------------------------------------------------------------ */

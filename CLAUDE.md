@@ -147,6 +147,38 @@ Enable application) and deletes nothing; its URLs now answer 404. Nothing
 of the current site runs on App Engine. If that script used a Gmail app
 password to send, that password should be revoked in Erik's Google account.
 
+## iPhone apps (2026-10-03)
+
+Erik asked to make some of the apps iPhone apps and chose a native shell sent
+to TestFlight for Trip Planner, Hopscotch, Flight and Inside Joke. Everything
+is in `mobile/`, and **`mobile/README.md`** is the guide (what was built,
+Erik's one-time Apple steps, phase 2, the App Store review notes).
+
+- **One template, four outputs.** `mobile/scripts/generate.mjs` holds the
+  per-app table and writes each `mobile/<app>/` (Capacitor 8, Swift Package
+  Manager, no CocoaPods): config, offline page, icon and splash (rendered
+  opaque from the web icon), Info.plist, entitlements and the Xcode project
+  patch. The shared native code is `mobile/template/ios/*.swift` (where a
+  link opens; universal links). Edit those, regenerate, run
+  `npm run check` (`scripts/check.py`, plistlib round-trips and the rest),
+  and commit the output.
+- **Build:** `.github/workflows/ios.yml`, manual (`app`: all or one), on
+  macOS with Xcode 26. App Store Connect API key automatic signing; secrets
+  `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_P8` (base64),
+  `APPLE_TEAM_ID`. Nothing in the sandbox can compile Swift; only that
+  runner proves it builds.
+- **`/.well-known/apple-app-site-association`** is served by four services,
+  each from `APPLE_TEAM_ID` read per request (404 when unset or malformed, so
+  nothing wrong is published; the Team ID is never written in a repo):
+  the landing (`server.js`, webcredentials for all four apps: the apex is the
+  passkey RP ID), the lab (`challenge/server.js`, Flight on `/flight/*`, Inside
+  Joke on `/insidejoke/*`), Trip Planner and Hopscotch (their own hosts,
+  everything but `/api/*`). Tests: `test/aasa.js`, `challenge/test/lab.js`,
+  and each sibling repo's own. Graduating Flight or Inside Joke out of the lab
+  moves its entry to the new host, and its app's `server.url` and
+  entitlements with it.
+- `mobile/` is in `.dockerignore`; the landing image does not carry it.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

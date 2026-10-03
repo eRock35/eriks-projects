@@ -1,0 +1,193 @@
+name: iPhone apps to TestFlight
+
+# Builds the Capacitor shells in mobile/ and uploads them to TestFlight.
+# Run by hand from the Actions tab ("Run workflow"). See mobile/README.md for
+# the one-time Apple setup and the four secrets this reads:
+#
+#   APPSTORE_KEY_ID     the App Store Connect API key's ID
+#   APPSTORE_ISSUER_ID  the issuer ID shown above the keys list
+#   APPSTORE_KEY_P8     the downloaded AuthKey_XXXX.p8, base64-encoded
+#   APPLE_TEAM_ID       the 10-character Team ID
+#
+# Signing is Xcode's automatic signing driven by the API key: no certificates
+# repository, no fastlane. The build number is the run number (with the
+# attempt added on a re-run, so a retry never reuses one); the version is
+# `version` in mobile/<app>/package.json.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Which app to build
+        type: choice
+        options: [all, trip, hopscotch, flight, insidejoke]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Check secrets, pick apps
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.pick.outputs.apps }}
+    steps:
+      # On a cheap runner first, so a missing secret costs no macOS minutes.
+      - name: Check the four secrets are set
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_KEY_P8: ${{ secrets.APPSTORE_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          for name in APPSTORE_KEY_ID APPSTORE_ISSUER_ID APPSTORE_KEY_P8 APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing secrets::Add these repository secrets under Settings > Secrets and variables > Actions:$missing (see mobile/README.md)."
+            exit 1
+          fi
+          if ! printf '%s' "$APPLE_TEAM_ID" | grep -Eq '^[A-Z0-9]{10}$'; then
+            echo "::error title=APPLE_TEAM_ID::It should be the 10 capital letters and digits from the Membership page."
+            exit 1
+          fi
+
+      - name: Pick the apps
+        id: pick
+        env:
+          APP: ${{ inputs.app }}
+        run: |
+          if [ "$APP" = "all" ]; then
+            echo 'apps=["trip","hopscotch","flight","insidejoke"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "apps=[\"$APP\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: ${{ matrix.app }}
+    needs: plan
+    # App Store Connect only accepts builds made with the current SDK (iOS 26
+    # since April 2026), so the step below picks Xcode 26. If GitHub moves
+    # Xcode 26 off this image, change this to macos-26.
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.plan.outputs.apps) }}
+    # One build of an app at a time; a second run waits rather than racing
+    # the first for the same build number.
+    concurrency:
+      group: ios-${{ matrix.app }}
+      cancel-in-progress: false
+    env:
+      APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+      APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Xcode 26
+        run: |
+          xcode=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -n 1)
+          if [ -z "$xcode" ]; then
+            echo "::error title=No Xcode 26::This runner image has no Xcode 26. Installed:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode/Contents/Developer"
+          xcodebuild -version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+
+      - name: Check the project files
+        working-directory: mobile
+        run: python3 scripts/check.py
+
+      - name: Sync the shell into the iOS project
+        working-directory: mobile/${{ matrix.app }}
+        run: npx cap sync ios
+
+      - name: Version and build number
+        id: ver
+        working-directory: mobile/${{ matrix.app }}
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          build="$RUN_NUMBER"
+          if [ "$RUN_ATTEMPT" != "1" ]; then build="$build.$RUN_ATTEMPT"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "${{ matrix.app }}: version $version, build $build" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: App Store Connect key
+        env:
+          APPSTORE_KEY_P8: ${{ secrets.APPSTORE_KEY_P8 }}
+        run: |
+          umask 077
+          printf '%s' "$APPSTORE_KEY_P8" | tr -d ' \r\n' | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          if ! grep -q 'BEGIN PRIVATE KEY' "$RUNNER_TEMP/AuthKey.p8"; then
+            echo "::error title=APPSTORE_KEY_P8::It did not decode to a .p8 key. On a Mac: base64 -i AuthKey_XXXX.p8 | pbcopy, then paste as the secret."
+            exit 1
+          fi
+
+      - name: Archive
+        working-directory: mobile/${{ matrix.app }}/ios/App
+        run: |
+          xcodebuild archive -quiet \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$APPSTORE_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.ver.outputs.build }}"
+
+      - name: Upload to TestFlight
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$APPSTORE_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID"
+          echo "Uploaded. It shows in TestFlight once Apple finishes processing (usually 5-30 minutes)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
