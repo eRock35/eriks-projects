@@ -95,7 +95,7 @@ first key you'll need to click "Request Access" once. Generate a key named
 |---|---|
 | `APPSTORE_KEY_ID` | the Key ID |
 | `APPSTORE_ISSUER_ID` | the Issuer ID |
-| `APPSTORE_KEY_P8` | the .p8 file, base64: on a Mac, `base64 -i AuthKey_XXXX.p8 \| pbcopy`, then paste |
+| `APPSTORE_KEY_P8` | the .p8 file: open it as text and paste all of it, BEGIN and END lines included (base64 of the file also works: on a Mac, `base64 -i AuthKey_XXXX.p8 \| pbcopy`) |
 | `APPLE_TEAM_ID` | the Team ID from (a) |
 
 **(f) Tell Claude your Team ID.** It gets set as `APPLE_TEAM_ID` on four

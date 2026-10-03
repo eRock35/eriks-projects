@@ -6,7 +6,8 @@ name: iPhone apps to TestFlight
 #
 #   APPSTORE_KEY_ID     the App Store Connect API key's ID
 #   APPSTORE_ISSUER_ID  the issuer ID shown above the keys list
-#   APPSTORE_KEY_P8     the downloaded AuthKey_XXXX.p8, base64-encoded
+#   APPSTORE_KEY_P8     the downloaded AuthKey_XXXX.p8: its text pasted as is,
+#                       or the file base64-encoded
 #   APPLE_TEAM_ID       the 10-character Team ID
 #
 # Signing is Xcode's automatic signing driven by the API key: no certificates
@@ -137,9 +138,14 @@ jobs:
           APPSTORE_KEY_P8: ${{ secrets.APPSTORE_KEY_P8 }}
         run: |
           umask 077
-          printf '%s' "$APPSTORE_KEY_P8" | tr -d ' \r\n' | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          # Either the .p8 file's text pasted as is, or that file base64-encoded.
+          if printf '%s' "$APPSTORE_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$APPSTORE_KEY_P8" | tr -d '\r' > "$RUNNER_TEMP/AuthKey.p8"
+          else
+            printf '%s' "$APPSTORE_KEY_P8" | tr -d ' \r\n' | base64 --decode > "$RUNNER_TEMP/AuthKey.p8" || true
+          fi
           if ! grep -q 'BEGIN PRIVATE KEY' "$RUNNER_TEMP/AuthKey.p8"; then
-            echo "::error title=APPSTORE_KEY_P8::It did not decode to a .p8 key. On a Mac: base64 -i AuthKey_XXXX.p8 | pbcopy, then paste as the secret."
+            echo "::error title=APPSTORE_KEY_P8::It is not a .p8 key. Open AuthKey_XXXX.p8 in a text editor and paste all of it, BEGIN and END lines included."
             exit 1
           fi
 
