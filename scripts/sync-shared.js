@@ -63,12 +63,14 @@ const TARGETS = [
   // Santa Rosa (santa-rosa-beach-trip) was retired on 2026-09-27 and takes
   // no more copies. Put its line back if it is ever redeployed.
   // The browser-side tour helper.
+  // get-app.js (2026-10-03) goes to the four iPhone apps' pages and the
+  // landing page: the "Get the iPhone app" bar and list.
   // verify-banner.js (2026-09-27) goes to every page with a shared-account
   // UI - not Hopscotch, which links shared accounts by uid and has its own.
   // The view beacon rides along with the browser helpers: every app that
   // appears in the trending ranking has to report itself, or the ranking is
   // just whichever app happens to carry the file.
-  ['eriks-projects/site', ['passkey-client.js', 'beacon.js', 'verify-banner.js']],
+  ['eriks-projects/site', ['passkey-client.js', 'beacon.js', 'verify-banner.js', 'get-app.js']],
   ['eriks-projects/apps/friction/public', ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js']],
   ['eriks-projects/apps/dataviz/public',  ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/spar/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
@@ -88,13 +90,13 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/leash/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/drip/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/boxed/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
-  ['eriks-projects/challenge/apps/flight/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
-  ['eriks-projects/challenge/apps/insidejoke/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
+  ['eriks-projects/challenge/apps/flight/public',['desktop.css', 'passkey-client.js', 'verify-banner.js', 'get-app.js']],
+  ['eriks-projects/challenge/apps/insidejoke/public',['desktop.css', 'passkey-client.js', 'verify-banner.js', 'get-app.js']],
   ['eriks-projects/challenge/apps/shadow/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/apps/nextmove/public', ['desktop.css', 'passkey-client.js', 'verify-banner.js']],
-  ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js', 'verify-banner.js']],
+  ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js', 'verify-banner.js', 'get-app.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js']],
-  ['beer-app/web/public',                 ['tour.js', 'beacon.js']],
+  ['beer-app/web/public',                 ['tour.js', 'beacon.js', 'get-app.js']],
   ['spellbook/public',                    ['beacon.js', 'verify-banner.js']],
   ['santa-rosa-beach-trip/public',        ['desktop.css', 'photo-tools.js']],
 ];

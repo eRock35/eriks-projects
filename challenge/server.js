@@ -28,6 +28,22 @@ host.disable('x-powered-by');
 
 /* ---------------- mount the apps ---------------- */
 
+// "Get the iPhone app" for the lab's two iPhone apps (shared/get-app.js,
+// loaded by their pages as data-src="ios-app.json", relative to their base).
+// Answered here, ahead of the apps mounted below, so no app's own routes or
+// catch-all can swallow it. The link is a TestFlight public link from a Cloud
+// Run setting, unset until Apple approves the build; anything else is null and
+// the bar stays hidden.
+const TESTFLIGHT_LINK = /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]{4,20}$/;
+const IPHONE_APPS = { flight: 'Flight', insidejoke: 'Inside Joke' };
+host.get('/:slug/ios-app.json', (req, res, next) => {
+  const name = Object.prototype.hasOwnProperty.call(IPHONE_APPS, req.params.slug) ? IPHONE_APPS[req.params.slug] : null;
+  if (!name) return next();
+  const url = String(process.env[`TESTFLIGHT_URL_${req.params.slug.toUpperCase()}`] || '').trim();
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ name, url: TESTFLIGHT_LINK.test(url) ? url : null });
+});
+
 const mounted = [];
 for (const a of lab.APPS) {
   if (a.status !== 'testing') continue;

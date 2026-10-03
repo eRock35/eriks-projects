@@ -224,6 +224,31 @@ const { host, mounted, store } = require('../server');
     if (saved === undefined) delete process.env.APPLE_TEAM_ID; else process.env.APPLE_TEAM_ID = saved;
   }
 
+  // --- "Get the iPhone app" (shared/get-app.js) for the two iPhone apps ---
+  {
+    const LINK = 'https://testflight.apple.com/join/AbCd1234';
+    delete process.env.TESTFLIGHT_URL_FLIGHT; delete process.env.TESTFLIGHT_URL_INSIDEJOKE;
+    let r = await fetch(base + '/flight/ios-app.json');
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(await r.json(), { name: 'Flight', url: null }); ok('no link set: url is null, so the bar stays hidden');
+    process.env.TESTFLIGHT_URL_FLIGHT = LINK;
+    process.env.TESTFLIGHT_URL_INSIDEJOKE = 'https://evil.example/join/AbCd1234';
+    assert.deepStrictEqual(await (await fetch(base + '/flight/ios-app.json')).json(), { name: 'Flight', url: LINK });
+    assert.deepStrictEqual(await (await fetch(base + '/insidejoke/ios-app.json')).json(), { name: 'Inside Joke', url: null });
+    ok('a TestFlight public link is answered; anything else is null');
+    r = await fetch(base + '/spar/ios-app.json');
+    const t = await r.text();
+    assert.ok(!t.includes('testflight'), 'an app with no iPhone build gets no link');
+    ok('apps without an iPhone build are not answered by it');
+    for (const slug of ['flight', 'insidejoke']) {
+      const html = await (await fetch(base + '/' + slug + '/')).text();
+      assert.ok(html.includes('src="get-app.js" data-src="ios-app.json"'), slug + ' page loads get-app.js');
+      assert.strictEqual((await fetch(base + '/' + slug + '/get-app.js')).status, 200, slug + ' serves get-app.js');
+    }
+    ok('both iPhone apps load the bar from their own base');
+    delete process.env.TESTFLIGHT_URL_FLIGHT; delete process.env.TESTFLIGHT_URL_INSIDEJOKE;
+  }
+
   server.close();
   console.log(`\n${n}/${n} passed`);
   process.exit(0);

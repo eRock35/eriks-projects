@@ -132,6 +132,30 @@ Internal testers need no review. Install **TestFlight** from the App Store
 on your iPhone, then open the invite. To bring in friends who aren't on your
 team, use an External group, which needs a light one-time Beta App Review.
 
+## Letting anyone install them: TestFlight public links
+
+One link per app that anyone can tap on an iPhone to join the beta: no
+invites, no adding people by hand, up to 10,000 testers an app.
+
+- **Automatic:** the "TestFlight public links" workflow runs after every
+  green build (and from the Actions tab by hand). It writes each app's beta
+  description and privacy policy (`mobile/testflight.json`), makes a
+  **Public** tester group with its public link, adds the newest build with
+  "What to Test", and sends it to Apple's Beta App Review (usually under a
+  day). Its log ends with the four links.
+- **Your part, once per app:** App Store Connect > the app > **TestFlight >
+  Test Information**: the feedback email and the reviewer's first name, last
+  name, phone and email. They are typed there, not in this repo, because the
+  repo is public. Then run the workflow again (or wait for the next build).
+  For Hopscotch and Flight, set the age rating (App Information > Age
+  Rating) to cover alcohol references.
+- **The buttons:** a "Get the iPhone app" bar shows on iPhones on each app's
+  site, and an "On your iPhone" list on the landing page, once each service
+  has its link (`TESTFLIGHT_URL...`, see CLAUDE.md). Those are set after
+  Apple approves, so no button ever opens a beta that is not taking testers.
+- **Builds expire after 90 days.** The build workflow runs on the 1st of
+  every month, so the public links always have a live build behind them.
+
 ## Making changes
 
 - **Content and features** ship with the web app as they always have.

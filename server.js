@@ -221,6 +221,26 @@ app.get('/.well-known/apple-app-site-association', (req, res) => {
   res.json({ webcredentials: { apps: IOS_BUNDLE_IDS.map((b) => `${team}.${b}`) } });
 });
 
+// The landing page's "iPhone apps" list (shared/get-app.js, list mode). Each
+// link is a TestFlight public link from a Cloud Run setting, unset until
+// Apple approves that app's build for external testing; anything that is not
+// exactly such a link is left out, so a typo can never put a stray URL on the
+// page. Nothing is shown at all until one is set.
+const TESTFLIGHT_LINK = /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]{4,20}$/;
+const IPHONE_APPS = [
+  { env: 'TESTFLIGHT_URL_TRIP', name: 'Trip Planner', blurb: 'Plan, share and live a trip in one place.' },
+  { env: 'TESTFLIGHT_URL_HOPSCOTCH', name: 'Hopscotch', blurb: 'Your craft beer passport and brewery crawls.' },
+  { env: 'TESTFLIGHT_URL_FLIGHT', name: 'Flight', blurb: 'Blind tastings and beer games for your crew.' },
+  { env: 'TESTFLIGHT_URL_INSIDEJOKE', name: 'Inside Joke', blurb: 'Trivia made from your own photos and group chat.' },
+];
+app.get('/ios-apps.json', (_req, res) => {
+  const apps = IPHONE_APPS
+    .map((a) => ({ name: a.name, blurb: a.blurb, url: String(process.env[a.env] || '').trim() }))
+    .filter((a) => TESTFLIGHT_LINK.test(a.url));
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ apps });
+});
+
 /* ------------------------------------------------------------------ *
  * Admin session
  * ------------------------------------------------------------------ */

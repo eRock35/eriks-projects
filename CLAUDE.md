@@ -184,6 +184,26 @@ Erik's one-time Apple steps, phase 2, the App Store review notes).
   moves its entry to the new host, and its app's `server.url` and
   entitlements with it.
 - `mobile/` is in `.dockerignore`; the landing image does not carry it.
+- **Public links (2026-10-03).** Erik asked for a one-tap way for anyone to
+  get the apps. `.github/workflows/testflight-public.yml` (after every green
+  build, and by hand) runs `mobile/scripts/testflight_public.py`: test
+  information from `mobile/testflight.json`, a "Public" external group per
+  app with its public link, the newest build added and sent to Beta App
+  Review. **Erik's part, by hand in App Store Connect** (never in this
+  public repo): each app's TestFlight > Test Information feedback email and
+  reviewer contact; until then the job warns and sends nothing for review.
+  The build workflow also runs on the 1st of each month: a TestFlight build
+  expires after 90 days.
+- **"Get the iPhone app" buttons:** `shared/get-app.js` (synced). A bar on
+  an iPhone, never inside the app (its UA carries `StrongTechApp/`), on Trip
+  Planner, Hopscotch, Flight and Inside Joke, each asking its own
+  `ios-app.json`; a list on the landing page from `/ios-apps.json`. Every
+  link is a Cloud Run setting checked against the exact TestFlight
+  public-link shape: `TESTFLIGHT_URL` on trip-planner and hopscotch,
+  `TESTFLIGHT_URL_FLIGHT` / `_INSIDEJOKE` on challenge, all four
+  `TESTFLIGHT_URL_<APP>` on landing-page. **Leave them unset until Apple
+  approves that app's build**, or the button opens a page saying the beta
+  is not taking testers. The links are in the public-links job log.
 
 ## Commit and PR conventions
 

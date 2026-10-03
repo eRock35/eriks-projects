@@ -69,6 +69,24 @@ function get(path, host = APEX) {
   r = await get(PATH);
   ok('read per request', r.text.includes('ZZZZZ99999.com.strongtechnicalconsulting.trip'), r.text);
 
+  // The landing's iPhone apps list (shared/get-app.js, list mode).
+  const LINK = 'https://testflight.apple.com/join/AbCd1234';
+  for (const k of ['TRIP', 'HOPSCOTCH', 'FLIGHT', 'INSIDEJOKE']) delete process.env['TESTFLIGHT_URL_' + k];
+  r = await get('/ios-apps.json');
+  ok('no TestFlight links set: 200 with an empty list', r.status === 200 && JSON.parse(r.text).apps.length === 0, r.text);
+  process.env.TESTFLIGHT_URL_TRIP = LINK;
+  process.env.TESTFLIGHT_URL_HOPSCOTCH = 'https://evil.example/join/AbCd1234';
+  process.env.TESTFLIGHT_URL_FLIGHT = 'http://testflight.apple.com/join/AbCd1234';
+  process.env.TESTFLIGHT_URL_INSIDEJOKE = LINK + '?x=<b>';
+  r = await get('/ios-apps.json');
+  const listed = JSON.parse(r.text).apps;
+  ok('only an exact TestFlight public link is listed', listed.length === 1 && listed[0].name === 'Trip Planner' && listed[0].url === LINK, r.text);
+  ok('the list carries no cookie', !r.headers['set-cookie'], r.headers['set-cookie']);
+  for (const k of ['TRIP', 'HOPSCOTCH', 'FLIGHT', 'INSIDEJOKE']) delete process.env['TESTFLIGHT_URL_' + k];
+  r = await get('/');
+  ok('the landing page loads get-app.js in list mode, hidden until filled',
+    r.text.includes('src="/get-app.js" data-src="/ios-apps.json" data-list="#iphoneApps"') && /id="iphoneApps" hidden/.test(r.text));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
