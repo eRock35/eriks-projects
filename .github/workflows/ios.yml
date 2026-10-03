@@ -10,8 +10,10 @@ name: iPhone apps to TestFlight
 #                       or the file base64-encoded
 #   APPLE_TEAM_ID       the 10-character Team ID
 #
-# Signing is Xcode's automatic signing driven by the API key: no certificates
-# repository, no fastlane. The build number is the run number (with the
+# Signing is distribution-only, made per job through the App Store Connect API
+# (mobile/scripts/asc_signing.py) and revoked when the job ends: no
+# certificates repository, no fastlane, no registered device needed.
+# The build number is the run number (with the
 # attempt added on a re-run, so a retry never reuses one); the version is
 # `version` in mobile/<app>/package.json.
 
@@ -76,6 +78,9 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
+      # One at a time: each build holds a distribution certificate while it
+      # runs, and Apple caps how many a team may hold at once.
+      max-parallel: 1
       matrix:
         app: ${{ fromJSON(needs.plan.outputs.apps) }}
     # One build of an app at a time; a second run waits rather than racing
@@ -149,6 +154,20 @@ jobs:
             exit 1
           fi
 
+      # Distribution signing made through the API for this job alone (see
+      # mobile/scripts/asc_signing.py): Xcode's automatic signing insists on a
+      # development profile first, which Apple refuses a team with no devices.
+      - name: Signing
+        id: sign
+        working-directory: mobile
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet pyjwt cryptography
+          bundle=$(node -p "require('./${{ matrix.app }}/capacitor.config.json').appId")
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+          "$RUNNER_TEMP/asc/bin/python" scripts/asc_signing.py setup "$bundle" \
+            "${{ matrix.app }}/ios/App/App.xcodeproj/project.pbxproj"
+
       - name: Archive
         working-directory: mobile/${{ matrix.app }}/ios/App
         run: |
@@ -158,12 +177,6 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$APPSTORE_KEY_ID" \
-            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
             MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ steps.ver.outputs.build }}"
 
@@ -176,7 +189,12 @@ jobs:
           <dict>
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${{ steps.sign.outputs.bundle }}</key><string>${{ steps.sign.outputs.profile }}</string>
+            </dict>
             <key>teamID</key><string>$APPLE_TEAM_ID</string>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -193,6 +211,14 @@ jobs:
             -authenticationKeyID "$APPSTORE_KEY_ID" \
             -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID"
           echo "Uploaded. It shows in TestFlight once Apple finishes processing (usually 5-30 minutes)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Revoke the CI certificate
+        if: always()
+        working-directory: mobile
+        run: |
+          if [ -x "$RUNNER_TEMP/asc/bin/python" ] && [ -f "$RUNNER_TEMP/AuthKey.p8" ]; then
+            "$RUNNER_TEMP/asc/bin/python" scripts/asc_signing.py cleanup
+          fi
 
       - name: Remove the key
         if: always()

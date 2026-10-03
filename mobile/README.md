@@ -58,9 +58,20 @@ For each app:
 - Bundle ID: **Explicit**, using the ID from the table above.
 - Capabilities: tick **Associated Domains**.
 
-The build's automatic signing could register these by itself on the first
-run. Step (c), though, needs the bundle ID to exist already, so doing it by
-hand first is the straight path.
+The build does not register bundle IDs; it stops with a clear error if one
+is missing. It does turn on Associated Domains for a bundle ID that lacks it.
+
+**How the build signs.** Not with Xcode's automatic signing: that makes a
+development profile first, which Apple refuses to a team with no registered
+devices, and a TestFlight upload never needs one. Instead each build job asks
+the App Store Connect API for a distribution certificate (its key made on the
+runner, kept in a throwaway keychain) and an App Store profile, signs the App
+target manually, uploads, then deletes the profile and revokes the
+certificate (`mobile/scripts/asc_signing.py`). Revoking it does not affect a
+build already uploaded. Apps build one at a time because Apple caps how many
+distribution certificates a team holds at once; if a cancelled run ever
+leaves one behind and the next run reports the limit, revoke the stray one
+under **Certificates** at developer.apple.com.
 
 **(c) Create the four apps in App Store Connect.** Apple offers no API for
 this step. In appstoreconnect.apple.com, go to **Apps**, click **+**, then
