@@ -85,12 +85,20 @@ def test_information(app_id, cfg):
 def review_details(app_id, cfg):
     """Reviewer notes and no demo account; returns the contact fields still empty."""
     d = api('GET', f'/apps/{app_id}/betaAppReviewDetail')['data']
+    missing = [f for f in REVIEW_FIELDS if not d['attributes'].get(f)]
+    if missing:
+        # Apple refuses any change to this record until the contact is on it,
+        # so the notes wait for the run after Erik fills that in.
+        return missing
     want = {'notes': cfg['reviewNotes'], 'demoAccountRequired': False}
     change = {k: v for k, v in want.items() if d['attributes'].get(k) != v}
     if change:
-        d = api('PATCH', f"/betaAppReviewDetails/{d['id']}", {'data': {
-            'type': 'betaAppReviewDetails', 'id': d['id'], 'attributes': change}})['data']
-    return [f for f in REVIEW_FIELDS if not d['attributes'].get(f)]
+        # Apple wants the contact sent back with every change.
+        attrs = {f: d['attributes'][f] for f in REVIEW_FIELDS}
+        attrs.update(change)
+        api('PATCH', f"/betaAppReviewDetails/{d['id']}", {'data': {
+            'type': 'betaAppReviewDetails', 'id': d['id'], 'attributes': attrs}})
+    return []
 
 
 def public_group(app_id):
