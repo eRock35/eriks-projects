@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Shadow — find the software your team signed up for without asking</title>
+  <meta name="description" content="Read your company card statement and your Google Workspace or Microsoft 365 app-access export on this device - nothing is uploaded - and Shadow lists every tool, who approved it, what data it holds and what it costs. A risk score, the fixes that lower it most, a trial and renewal radar, and a front door for staff to ask first.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0c1018" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f5f8" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Shadow">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Shadow — Find the software your team signed up for without asking.">
+  <meta property="og:description" content="Free trials turn into tools full of customer, staff or student data that nobody approved, owns or has a contract for. Drop in the company card statement and your Google Workspace or Microsoft 365 app-access export - read on your device, never uploaded - and Shadow lists every too">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/shadow/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/shadow.png?v=be423435e4">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Shadow, drop #20 in the Challenge Lab: Find the software your team signed up for without asking.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Shadow — Find the software your team signed up for without asking.">
+  <meta name="twitter:description" content="Free trials turn into tools full of customer, staff or student data that nobody approved, owns or has a contract for. Drop in the company card statement and your Google Workspace or Microsoft 365 app-access export - read on your device, never uploaded - and Shadow lists every too">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/shadow.png?v=be423435e4">
+  <meta name="twitter:image:alt" content="Shadow, drop #20 in the Challenge Lab: Find the software your team signed up for without asking.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to your tools</a>
+  <header class="top">
+    <a class="brand" href="./" id="brand"><span class="mark" aria-hidden="true">🔦</span>Shadow</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="orgBtn" type="button" hidden>Inventories</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <!-- The example's one-liner, or which inventory this is. -->
+    <section id="strip" aria-label="About this inventory"></section>
+
+    <!-- Find the tools: read on this device, never uploaded. -->
+    <section class="importv" id="importView" aria-label="Find your tools" hidden></section>
+
+    <!-- A staff member's "Can I use this?" page (r/<link>). -->
+    <section class="askv" id="askView" aria-label="Ask to use a tool" hidden></section>
+
+    <div class="layout" id="mainView">
+      <div class="col-a">
+        <section class="card hero" id="hero" aria-label="The Shadow score"></section>
+        <section class="card" id="fixCard" aria-labelledby="fixH"></section>
+        <section class="card" id="radarCard" aria-labelledby="radarH"></section>
+        <section class="card" id="reqCard" aria-labelledby="reqH"></section>
+        <section class="card" id="howCard" aria-labelledby="howH"></section>
+      </div>
+      <div class="col-b">
+        <section class="card" id="invCard" aria-labelledby="invH"></section>
+        <section class="card" id="termsCard" aria-labelledby="termsH"></section>
+      </div>
+    </div>
+
+    <footer class="foot small muted">
+      <p class="quiet">Shadow finds patterns in your exports - check a tool before you cancel it, and read the contract before you sign it.</p>
+      <p>Card statements and sign-in exports are read on this device and never uploaded. Shadow is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="shadow-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

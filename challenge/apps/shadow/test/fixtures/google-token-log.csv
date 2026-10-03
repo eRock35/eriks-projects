@@ -1,0 +1,6 @@
+Event,Description,User,App name,Client ID,Scope,Date
+Authorize,User authorized access,ana@harbor.example,Taskloft,999.apps.googleusercontent.com,https://www.googleapis.com/auth/drive.file,2026-09-01T10:00:00Z
+Authorize,User authorized access,leo@harbor.example,Taskloft,999.apps.googleusercontent.com,https://www.googleapis.com/auth/drive.file,2026-09-02T10:00:00Z
+Authorize,User authorized access,ana@harbor.example,Taskloft,999.apps.googleusercontent.com,https://www.googleapis.com/auth/drive.file,2026-09-03T10:00:00Z
+Authorize,User authorized access,leo@harbor.example,Quillmate AI,888.apps.googleusercontent.com,https://www.googleapis.com/auth/documents,2026-09-04T10:00:00Z
+Authorize,User authorized access,ana@harbor.example,Android device,777.apps.googleusercontent.com,https://www.googleapis.com/auth/userinfo.email,2026-09-04T10:00:00Z

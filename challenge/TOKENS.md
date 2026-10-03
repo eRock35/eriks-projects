@@ -117,3 +117,17 @@ the same way (~5-7K), so output is estimated from Tipout's rate.
 
 Not an app in the lab: the Next Move build (apps/nextmove, a portfolio app
 on Cloud Run and BigQuery), 48.3M in over 50 min of one builder agent.
+
+Visitors' AI use in the lab on 2026-10-02: none.
+
+Not a new app: Flight's Cellar & Swap feature (2026-10-03, asked for by
+Erik), 24.8M in over 27 min of one builder agent.
+
+## Week 3 (2026-10-03 to 2026-10-09)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Shadow | one builder agent | 33.4M | 32.7M | ~240K | 1 | 43 min | in exact; out estimated |
+
+Shadow's transcript under-reports output the same way (~4K), so output is
+estimated from Tipout's rate over its agent time.

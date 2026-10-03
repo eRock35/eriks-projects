@@ -1,0 +1,10 @@
+{
+  "name": "Shadow",
+  "short_name": "Shadow",
+  "description": "Find the software your team signed up for without asking - read from your card statement and sign-in export on this device, never uploaded.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#121a2c",
+  "theme_color": "#121a2c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

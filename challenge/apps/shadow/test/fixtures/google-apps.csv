@@ -1,0 +1,6 @@
+App name,Type,ID,Verified status,Users,Scopes
+Google Chrome,Web application,111.apps.googleusercontent.com,Verified,48,https://www.googleapis.com/auth/userinfo.email
+Notewise,Web application,222.apps.googleusercontent.com,Unverified,14,"https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email"
+Zoom,Web application,333.apps.googleusercontent.com,Verified,22,"https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.events"
+HomeworkHero,Web application,444.apps.googleusercontent.com,Unverified,5,"https://www.googleapis.com/auth/classroom.rosters.readonly openid"
+Flowbridge,Web application,555.apps.googleusercontent.com,Unverified,2,"https://www.googleapis.com/auth/drive https://mail.google.com/"

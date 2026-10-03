@@ -1,0 +1,5 @@
+Date (UTC),Request ID,User,Username,User ID,Application,Application ID,Resource,Status
+2026-09-30T14:00:00Z,r1,Ana Patel,ana@harbor.example,u1,Kiosko,a1,Microsoft Graph,Success
+2026-09-30T14:05:00Z,r2,Leo Park,leo@harbor.example,u2,Kiosko,a1,Microsoft Graph,Success
+2026-09-30T14:06:00Z,r3,Leo Park,leo@harbor.example,u2,Kiosko,a1,Microsoft Graph,Success
+2026-09-30T15:00:00Z,r4,Ana Patel,ana@harbor.example,u1,Office 365 Exchange Online,a2,Exchange,Success

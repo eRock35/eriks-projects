@@ -292,6 +292,22 @@ const APPS = [
     audience: 'Beer crews, homebrew clubs and anyone who argues about IPAs',
     status: 'testing',
   },
+  {
+    slug: 'shadow',
+    name: 'Shadow',
+    emoji: '🔦',
+    // Midnight slate to a flashlight's amber: finding what is in the dark.
+    // White text holds over 4.5:1 at both ends; npm run og darkens further
+    // if it does not.
+    color: '#243048',
+    color2: '#8a3c08',
+    dropped: '2026-10-03',
+    tagline: 'Find the software your team signed up for without asking.',
+    blurb: 'Free trials turn into tools full of customer, staff or student data that nobody approved, owns or has a contract for. Drop in the company card statement and your Google Workspace or Microsoft 365 app-access export - read on your device, never uploaded - and Shadow lists every tool with who approved it, what data it holds, what access it was granted and what it costs. A risk score, the fixes that lower it most, a trial and renewal radar, a link staff use to ask first, and AI that reads a vendor\u2019s terms with every quote checked.',
+    features: ['Card and sign-in exports read on your device, never uploaded', 'A Shadow score and the fixes that lower it most', 'Trials and renewals on a radar, with calendar reminders', '\u201cCan I use this?\u201d requests from staff, no account needed'],
+    audience: 'IT, ops and finance at small companies, schools and public agencies',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

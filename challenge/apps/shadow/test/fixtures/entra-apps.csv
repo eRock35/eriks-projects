@@ -1,0 +1,5 @@
+displayName,appId,objectId,createdDateTime,applicationType,publisherName,Users,Permissions
+Microsoft Graph,00000003-0000-0000-c000-000000000000,9a1,2020-01-01,Microsoft Application,Microsoft,0,
+Notewise,3f2b-1,9a2,2026-01-12,Enterprise Application,Notewise Inc,23,"Mail.Read, Calendars.Read, User.Read, offline_access"
+Signupster,3f2b-2,9a3,2026-05-01,Enterprise Application,Signupster,4,User.Read
+Docshelf,3f2b-3,9a4,2026-06-01,Enterprise Application,Docshelf LLC,9,"Files.ReadWrite.All Sites.Read.All"
