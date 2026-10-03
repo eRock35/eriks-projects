@@ -73,6 +73,13 @@ distribution certificates a team holds at once; if a cancelled run ever
 leaves one behind and the next run reports the limit, revoke the stray one
 under **Certificates** at developer.apple.com.
 
+**Football (added 2026-10-03, after the first four).** The same (b) and (c)
+for one more app: bundle ID `com.strongtechnicalconsulting.football` with
+Associated Domains, and its App Store Connect record (any name, e.g.
+"College Football Board", since the store name must be unique; the home
+screen says "Football"). Its age rating needs the gambling references
+answered: it shows picks and links to DraftKings, though it takes no bets.
+
 **(c) Create the four apps in App Store Connect.** Apple offers no API for
 this step. In appstoreconnect.apple.com, go to **Apps**, click **+**, then
 **New App**:

@@ -1,0 +1,32 @@
+{
+  "appId": "com.strongtechnicalconsulting.football",
+  "appName": "Football",
+  "webDir": "www",
+  "backgroundColor": "#0B0B0C",
+  "appendUserAgent": "StrongTechApp/football",
+  "server": {
+    "url": "https://footballapp.strongtechnicalconsulting.com/",
+    "allowNavigation": [
+      "footballapp.strongtechnicalconsulting.com",
+      "*.strongtechnicalconsulting.com"
+    ],
+    "errorPath": "index.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0B0B0C"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#0B0B0C",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DEFAULT",
+      "overlaysWebView": true
+    }
+  }
+}

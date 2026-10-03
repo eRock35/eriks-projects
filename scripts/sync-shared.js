@@ -95,7 +95,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/shadow/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/apps/nextmove/public', ['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js', 'verify-banner.js', 'get-app.js']],
-  ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js']],
+  ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js', 'get-app.js']],
   ['beer-app/web/public',                 ['tour.js', 'beacon.js', 'get-app.js']],
   ['spellbook/public',                    ['beacon.js', 'verify-banner.js']],
   ['santa-rosa-beach-trip/public',        ['desktop.css', 'photo-tools.js']],

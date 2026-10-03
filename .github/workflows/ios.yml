@@ -27,7 +27,7 @@ on:
       app:
         description: Which app to build
         type: choice
-        options: [all, trip, hopscotch, flight, insidejoke]
+        options: [all, trip, hopscotch, flight, insidejoke, football]
         default: all
 
 permissions:
@@ -67,7 +67,7 @@ jobs:
           APP: ${{ inputs.app || 'all' }}
         run: |
           if [ "$APP" = "all" ]; then
-            echo 'apps=["trip","hopscotch","flight","insidejoke"]' >> "$GITHUB_OUTPUT"
+            echo 'apps=["trip","hopscotch","flight","insidejoke","football"]' >> "$GITHUB_OUTPUT"
           else
             echo "apps=[\"$APP\"]" >> "$GITHUB_OUTPUT"
           fi

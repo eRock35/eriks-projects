@@ -150,11 +150,12 @@ password to send, that password should be revoked in Erik's Google account.
 ## iPhone apps (2026-10-03)
 
 Erik asked to make some of the apps iPhone apps and chose a native shell sent
-to TestFlight for Trip Planner, Hopscotch, Flight and Inside Joke. Everything
+to TestFlight for Trip Planner, Hopscotch, Flight and Inside Joke, and
+(asked the same day) Football, the college football app. Everything
 is in `mobile/`, and **`mobile/README.md`** is the guide (what was built,
 Erik's one-time Apple steps, phase 2, the App Store review notes).
 
-- **One template, four outputs.** `mobile/scripts/generate.mjs` holds the
+- **One template, five outputs.** `mobile/scripts/generate.mjs` holds the
   per-app table and writes each `mobile/<app>/` (Capacitor 8, Swift Package
   Manager, no CocoaPods): config, offline page, icon and splash (rendered
   opaque from the web icon), Info.plist, entitlements and the Xcode project
@@ -173,13 +174,13 @@ Erik's one-time Apple steps, phase 2, the App Store review notes).
   apps build one at a time under Apple's certificate cap. First green run
   2026-10-03: all four uploaded to TestFlight. Nothing in the sandbox can
   compile Swift; only that runner proves it builds.
-- **`/.well-known/apple-app-site-association`** is served by four services,
+- **`/.well-known/apple-app-site-association`** is served by five services,
   each from `APPLE_TEAM_ID` read per request (404 when unset or malformed, so
   nothing wrong is published; the Team ID is never written in a repo):
-  the landing (`server.js`, webcredentials for all four apps: the apex is the
+  the landing (`server.js`, webcredentials for all five apps: the apex is the
   passkey RP ID), the lab (`challenge/server.js`, Flight on `/flight/*`, Inside
   Joke on `/insidejoke/*`), Trip Planner and Hopscotch (their own hosts,
-  everything but `/api/*`). Tests: `test/aasa.js`, `challenge/test/lab.js`,
+  everything but `/api/*`), and Football (`college-football-app`'s `server.js`). Tests: `test/aasa.js`, `challenge/test/lab.js`,
   and each sibling repo's own. Graduating Flight or Inside Joke out of the lab
   moves its entry to the new host, and its app's `server.url` and
   entitlements with it.
@@ -196,12 +197,12 @@ Erik's one-time Apple steps, phase 2, the App Store review notes).
   expires after 90 days.
 - **"Get the iPhone app" buttons:** `shared/get-app.js` (synced). A bar on
   an iPhone, never inside the app (its UA carries `StrongTechApp/`), on Trip
-  Planner, Hopscotch, Flight and Inside Joke, each asking its own
+  Planner, Hopscotch, Flight, Inside Joke and Football, each asking its own
   `ios-app.json`; a list on the landing page from `/ios-apps.json`. Every
   link is a Cloud Run setting checked against the exact TestFlight
   public-link shape: `TESTFLIGHT_URL` on trip-planner and hopscotch,
-  `TESTFLIGHT_URL_FLIGHT` / `_INSIDEJOKE` on challenge, all four
-  `TESTFLIGHT_URL_<APP>` on landing-page. **Leave them unset until Apple
+  `TESTFLIGHT_URL_FLIGHT` / `_INSIDEJOKE` on challenge, `TESTFLIGHT_URL` on college-football-app too, and
+  every `TESTFLIGHT_URL_<APP>` on landing-page. **Leave them unset until Apple
   approves that app's build**, or the button opens a page saying the beta
   is not taking testers. The links are in the public-links job log.
 

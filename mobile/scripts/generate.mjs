@@ -68,6 +68,17 @@ const APPS = {
       photosAdd: 'Flight saves an image to your photo library only when you ask it to.',
     },
   },
+  // The college football board. No camera or photo library: nothing on it
+  // takes a picture; brag and slip cards are saved through the share sheet.
+  football: {
+    name: 'Football',
+    bundleId: 'com.strongtechnicalconsulting.football',
+    url: `https://footballapp.${DOMAIN}/`,
+    brand: '#0B0B0C',
+    usage: {
+      photosAdd: 'Football saves an image to your photo library only when you ask it to, such as a brag card.',
+    },
+  },
   insidejoke: {
     name: 'Inside Joke',
     bundleId: 'com.strongtechnicalconsulting.insidejoke',
@@ -263,10 +274,12 @@ function infoPlist(app) {
     // HTTPS only, which is exempt: no export-compliance question per build.
     ITSAppUsesNonExemptEncryption: false,
     LSRequiresIPhoneOS: true,
-    NSCameraUsageDescription: u.camera,
+    // Only what the app uses. "Add" stays for every app: the share sheet's
+    // "Save Image" crashes the app without it.
+    ...(u.camera ? { NSCameraUsageDescription: u.camera } : {}),
     ...(u.location ? { NSLocationWhenInUseUsageDescription: u.location } : {}),
     NSPhotoLibraryAddUsageDescription: u.photosAdd,
-    NSPhotoLibraryUsageDescription: u.photos,
+    ...(u.photos ? { NSPhotoLibraryUsageDescription: u.photos } : {}),
     UIApplicationSceneManifest: {
       UIApplicationSupportsMultipleScenes: false,
       UISceneConfigurations: {

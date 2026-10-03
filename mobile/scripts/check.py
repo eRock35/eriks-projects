@@ -29,6 +29,7 @@ APPS = {
     "trip": ("Trip Planner", "com.strongtechnicalconsulting.trip", "https://trip.%s/" % DOMAIN),
     "hopscotch": ("Hopscotch", "com.strongtechnicalconsulting.hopscotch", "https://beer.%s/" % DOMAIN),
     "flight": ("Flight", "com.strongtechnicalconsulting.flight", "https://challenge.%s/flight/" % DOMAIN),
+    "football": ("Football", "com.strongtechnicalconsulting.football", "https://footballapp.%s/" % DOMAIN),
     "insidejoke": ("Inside Joke", "com.strongtechnicalconsulting.insidejoke", "https://challenge.%s/insidejoke/" % DOMAIN),
 }
 SWIFT = ["AppViewController.swift", "ShellPlugin.swift", "SceneDelegate.swift"]
@@ -141,8 +142,14 @@ def check_app(slug, name, bundle, url):
     ok(slug + ": version and build come from the build",
        info.get("CFBundleShortVersionString") == "$(MARKETING_VERSION)" and info.get("CFBundleVersion") == "$(CURRENT_PROJECT_VERSION)")
     ok(slug + ": export compliance answered", info.get("ITSAppUsesNonExemptEncryption") is False)
-    for key in ["NSCameraUsageDescription", "NSPhotoLibraryUsageDescription", "NSPhotoLibraryAddUsageDescription"]:
+    # Football takes no pictures, so it asks for no camera or library;
+    # every app keeps "Add", without which Save Image crashes it.
+    keys = ["NSPhotoLibraryAddUsageDescription"] + ([] if slug == "football" else ["NSCameraUsageDescription", "NSPhotoLibraryUsageDescription"])
+    for key in keys:
         ok(slug + ": " + key, isinstance(info.get(key), str) and len(info[key]) > 30 and name in info[key], info.get(key))
+    if slug == "football":
+        ok(slug + ": no camera or library prompt it would never use",
+           "NSCameraUsageDescription" not in info and "NSPhotoLibraryUsageDescription" not in info)
     if slug == "hopscotch":
         ok(slug + ": location text for Near me", name in str(info.get("NSLocationWhenInUseUsageDescription")))
     ok(slug + ": scene delegate", "SceneDelegate" in json.dumps(info.get("UIApplicationSceneManifest")))

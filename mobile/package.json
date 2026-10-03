@@ -2,12 +2,13 @@
   "name": "eriks-projects-mobile",
   "private": true,
   "version": "1.0.0",
-  "description": "Capacitor iOS shells for four of the web apps. See README.md.",
+  "description": "Capacitor iOS shells for five of the web apps. See README.md.",
   "workspaces": [
     "trip",
     "hopscotch",
     "flight",
-    "insidejoke"
+    "insidejoke",
+    "football"
   ],
   "scripts": {
     "generate": "node scripts/generate.mjs",

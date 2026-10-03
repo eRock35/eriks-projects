@@ -25,6 +25,12 @@
       "description": "Inside Joke turns a group's own photos, group chat and memories into trivia. Make a group for your family or friends, everyone joins by link or a six-character code with just a name, and you play five questions a day on your own time, with a leaderboard and streaks, or all together on game night. Made for people who are spread out and want to stay close.",
       "whatsNew": "First beta. Make a group, add a few questions from photos or your own words, and invite someone with the code. Tell us anything that feels slow, confusing or broken.",
       "reviewNotes": "Joining and playing need no account, just a name. Hosting a group needs a free account, made in the app with an email and password. Questions from photos use a small free AI credit; photos are used only to write the questions. The app shows challenge.strongtechnicalconsulting.com/insidejoke/ in a native shell with universal links, the camera and the photo library."
+    },
+    "football": {
+      "bundleId": "com.strongtechnicalconsulting.football",
+      "description": "Football is a college football board for Saturday. The week's slate, best bets and the AP Top 25, live scores with a ticker, and your own slip that tells you while a game is on whether each pick is covering. Follow any FBS team for its record, schedule and next game, call who covers each game and see what other readers think, and build a season record with badges. Picks are for fun: nothing in the app takes a bet.",
+      "whatsNew": "First beta. Pick your team, put a few plays on your slip, and watch them during a live game. Tell us anything that feels slow, confusing or broken.",
+      "reviewNotes": "No sign-in is needed: the board, live scores, team pages and the crowd's calls are open to everyone, and a slip works signed out. The app does not take bets, hold money or offer real-money gaming. Some cards link out to the DraftKings sportsbook website, marked 21+ where legal, which opens in Safari. A free account (email and password, in the app) syncs a slip across devices. The app shows the live site footballapp.strongtechnicalconsulting.com in a native shell with universal links and passkeys."
     }
   }
 }

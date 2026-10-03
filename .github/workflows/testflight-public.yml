@@ -17,7 +17,7 @@ on:
       app:
         description: Which app
         type: choice
-        options: [all, trip, hopscotch, flight, insidejoke]
+        options: [all, trip, hopscotch, flight, insidejoke, football]
         default: all
   workflow_run:
     workflows: ['iPhone apps to TestFlight']

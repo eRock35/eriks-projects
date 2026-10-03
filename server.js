@@ -205,7 +205,7 @@ app.get('/api/health', (req, res) => res.status(200).send('ok'));
 // The iPhone apps' association file (mobile/README.md), for the apex itself.
 // The apex is the shared account's passkey relying party (PASSKEY_RP_ID), so
 // Face ID sign-in inside an app's web view works only if this host names the
-// app here under webcredentials. All four apps are listed. No applinks: the
+// app here under webcredentials. All five apps are listed. No applinks: the
 // landing opens in the browser; each app's own host links to its app.
 //
 // Apple fetches it with no cookie and follows no redirect: /.well-known/ is
@@ -213,7 +213,7 @@ app.get('/api/health', (req, res) => res.status(200).send('ok'));
 // gate. The Team ID is read from APPLE_TEAM_ID on each request and is never
 // written in this public repo. Unset or malformed, the file does not exist
 // (404), so nothing wrong is ever published.
-const IOS_BUNDLE_IDS = ['trip', 'hopscotch', 'flight', 'insidejoke'].map((a) => `com.strongtechnicalconsulting.${a}`);
+const IOS_BUNDLE_IDS = ['trip', 'hopscotch', 'flight', 'insidejoke', 'football'].map((a) => `com.strongtechnicalconsulting.${a}`);
 app.get('/.well-known/apple-app-site-association', (req, res) => {
   const team = String(process.env.APPLE_TEAM_ID || '').trim();
   if (!/^[A-Z0-9]{10}$/.test(team)) return res.status(404).json({ error: 'Not found.' });
@@ -232,6 +232,7 @@ const IPHONE_APPS = [
   { env: 'TESTFLIGHT_URL_HOPSCOTCH', name: 'Hopscotch', blurb: 'Your craft beer passport and brewery crawls.' },
   { env: 'TESTFLIGHT_URL_FLIGHT', name: 'Flight', blurb: 'Blind tastings and beer games for your crew.' },
   { env: 'TESTFLIGHT_URL_INSIDEJOKE', name: 'Inside Joke', blurb: 'Trivia made from your own photos and group chat.' },
+  { env: 'TESTFLIGHT_URL_FOOTBALL', name: 'Football', blurb: 'The college football board, live scores and your slip.' },
 ];
 app.get('/ios-apps.json', (_req, res) => {
   const apps = IPHONE_APPS
