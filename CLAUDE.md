@@ -163,10 +163,16 @@ Erik's one-time Apple steps, phase 2, the App Store review notes).
   `npm run check` (`scripts/check.py`, plistlib round-trips and the rest),
   and commit the output.
 - **Build:** `.github/workflows/ios.yml`, manual (`app`: all or one), on
-  macOS with Xcode 26. App Store Connect API key automatic signing; secrets
-  `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_P8` (base64),
-  `APPLE_TEAM_ID`. Nothing in the sandbox can compile Swift; only that
-  runner proves it builds.
+  macOS with Xcode 26. Secrets `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`,
+  `APPSTORE_KEY_P8` (the .p8 text, or base64), `APPLE_TEAM_ID`; this
+  session cannot read or write them, only Erik can. **Not Xcode's automatic
+  signing**: it wants a development profile, which Apple refuses a team with
+  no registered devices. Each job makes a distribution certificate and an
+  App Store profile through the API (`mobile/scripts/asc_signing.py`),
+  signs the App target manually, uploads, then revokes and deletes both;
+  apps build one at a time under Apple's certificate cap. First green run
+  2026-10-03: all four uploaded to TestFlight. Nothing in the sandbox can
+  compile Swift; only that runner proves it builds.
 - **`/.well-known/apple-app-site-association`** is served by four services,
   each from `APPLE_TEAM_ID` read per request (404 when unset or malformed, so
   nothing wrong is published; the Team ID is never written in a repo):
