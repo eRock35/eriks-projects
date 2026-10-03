@@ -5,9 +5,11 @@ beer, it gets a shuffled letter, the crew scores it blind - stars, a style
 guess, an ABV guess, tasting notes - then the reveal hands out awards),
 **guess who brought it**, a **Same-Can Challenge** for a crew that is in
 different cities, a **vote on the next brewery or crawl** (a pasted Hopscotch
-crawl link becomes a crawl card), and a **crew leaderboard** with streaks and
-palate profiles. Friends join by link, QR or a six-character code with a
-name and an emoji - no account.
+crawl link becomes a crawl card), a **crew leaderboard** with streaks and
+palate profiles, and **Cellar & Swap** (have/want lists, matches, swaps in
+person, gifts through a licensed seller, a friendly IOU tally - see below).
+Friends join by link, QR or a six-character code with a name and an emoji -
+no account.
 
 Built 2026-10-02 at Erik's request, the same day he asked for it: "an app to
 share with my beer buddies on some fun stuff" (item 2 of "Queued by Erik
@@ -37,9 +39,9 @@ no passport, no brewery map: it is a game a group plays. Where the two meet -
 share link instead of planning crawls itself (see "Hopscotch links").
 
 **Who pays.** Almost nobody. The example crew, crews, joining, tasting,
-voting and the leaderboard are free and make no model call. A host needs a
-**free** account (so the crew is theirs to run and delete); members need
-**none**. The one metered thing is **Snap the label** (Haiku free, Sonnet
+voting, the leaderboard and Cellar & Swap are free and make no model
+call. A host needs a **free** account (so the crew is theirs to run and
+delete); members need **none**. The one metered thing is **Snap the label** (Haiku free, Sonnet
 for members via `identity.planFor`), a cent or two, paid by whoever snaps.
 
 ## Responsible tone (Erik's bar, and ours)
@@ -165,6 +167,123 @@ One quiet line in the footer, once: "Drink responsibly. 21+ where required."
   reach the page with their words; a provider error is a 502 (503 "The AI is
   busy"). Nothing logged carries a name, a note, a crawl or a photo.
 
+## Cellar & Swap (2026-10-03)
+
+**Why.** Erik (2026-10-02/03) asked about an app where people "sell, trade,
+ship beer to each other" - for example getting a beer from a friend on the
+West Coast. He was told the constraints: selling alcohol person to person
+needs a licence; USPS refuses alcohol; UPS and FedEx carry it only for
+licensed shippers with an alcohol agreement, so friends mailing beer to each
+other breaks carrier terms and, in many states, the law. **He chose the
+legal version**: Have/Want lists and matching, **swaps in person only**, and
+**gifting through a licensed seller that ships** to the friend's state.
+
+**What Flight deliberately does not do, and must not grow:** it never
+arranges, labels or tracks shipping between people; it never sells, prices
+or handles money (no price, payment, address or shipping field exists
+anywhere - the tests assert the stored shapes key by key); it never asks
+for or stores an address (a gift is ordered at the seller, to the friend's
+address, outside Flight); and it never fetches a seller's link. If someone
+asks for "ship it to me" or "sell it to me", that is the illegal version -
+say so, do not build it. The IOU tally counts beers, never dollars.
+
+A **Cellar** tab after Vote (Play, Vote, Cellar, Leaderboard, Crew - five
+fit the phone bar; the desktop rail shows them all). No model call except
+the optional **Snap a can**, which is the existing `/api/snap` (same gates,
+same meter) filling the add sheet.
+
+- **Lists.** Per member: a **cellar** (have) and a **wishlist** (want), 60
+  each. A line is name, brewery, style (Flight's fixed list), optional
+  format (can, bottle, crowler, growler) and count (1-99), a note; a have
+  has **open to swap**; a want has an optional **where to buy it legally**
+  link (https only, 300 characters, no user info, a dotted host -
+  `cleanLink`; drawn `target=_blank rel="noopener noreferrer"` with its host
+  beside it, never fetched) and the member's own **"seller ships to my
+  state?"** yes / no / not sure (`sellerShips` - an answer about a licensed
+  seller, the one ship-ish key the shape test allows). Only you write your
+  own lines; a member id in a body is ignored.
+- **Matches** (`cellarMatches`, computed on read): my wants against every
+  crew-mate's open-to-swap cellar and their wants against mine. Keys fold
+  case, accents, punctuation, "&" and the corporate words (the/brewing/
+  brewery/company/co/llc...) - Hopscotch's `beerKey`/`breweryKey` idea,
+  rewritten here (`foldText`, `breweryKey`, `matchLevel`), not imported;
+  letters of any script survive. Level 3 the same beer (same name, same
+  brewery when both give one), 2 the same brewery, 1 the same style. Per
+  crew-mate: **two-way** (each has a beer the other wants), **one-way**,
+  **same brewery**, **same style** - in that order, then more lines, then
+  member id. A wish someone is already gifting drops out; a bottle not open
+  to swap is never offered.
+- **Swaps** (`swaps/<id>`): what I give (from my cellar), what I get (from
+  their open-to-swap cellar) - either side may be empty ("nothing back, a
+  gift"), not both, 6 a side - and where: an in-person tasting the crew has
+  on (`session`; a blind one not yet revealed - a Same-Can Challenge is
+  played apart, so it is refused) or a few words (80), default "At our next
+  tasting". States: proposed -> accepted | declined (the one it was offered
+  to) | cancelled (the proposer; either once accepted); accepted -> done
+  when **both** tick "we swapped" (a tick can be undone until then). Closed
+  stays closed. Only the two can act; to anyone else - another member or a
+  stranger - a swap is a 404. Lines are copied as they were, so editing a
+  bottle later does not rewrite a swap; Flight never edits anyone's lists
+  after a swap - the done card offers "Edit Dark Harbor" instead. 30 open a
+  crew; 200 kept, the oldest declined/cancelled making room.
+- **Who sees what.** Every member sees every cellar and wishlist (that is
+  the point) and who is gifting what. An open, declined or cancelled swap
+  is the two people's alone. A **done** swap and an **arrived** gift go in
+  the crew's **Lately** feed ("Dev and Jonah swapped at Lager night") -
+  naming a tasting, **never** the free-typed place, which stays between the
+  two (a typed place could be someone's street).
+- **Gifts.** On a crew-mate's wish that has a seller link: **I'll gift
+  this** claims it (`claimGift`: never your own, never without a link, one
+  claimer at a time - a transaction, so two taps at once give one 200 and
+  one 409). The sheet and the claimed card say "Order it from the seller to
+  Ana's address - Flight never asks for or stores addresses", and warn when
+  the friend said the seller does not ship to them. The claimer can let it
+  go; the recipient marks **It arrived**, which takes the wish off their
+  list and keeps the gift record (120 kept per member) for the tally.
+  Removing a wish lets an un-arrived claimer off.
+- **IOUs** (`tallies`/`owedBetween`, computed on read, never stored): an
+  arrived gift means the recipient owes the giver one; a done one-sided
+  swap means whoever received owes whoever gave one; two-way swaps owe
+  nothing. In time order. **Squared up** (either side) is a recorded mark
+  on the marker's own document that takes one off whichever way the pair
+  leans, refused while they are level; a mark that finds them level on read
+  does nothing (so two at once cannot overshoot). "Ana owes you a beer (1)" /
+  "You owe Sam 2 beers".
+- **Storage, and why it is shaped this way.** One document per member's
+  lists - `cellars/<crewId>_<memberId>` `{crewId, member, haves, wants,
+  gifts, squares, createdAt, updatedAt, v}` - because a member edits their
+  own lines, and the only other writer (a gift claim) is about one of those
+  lines. A gift lives on the **recipient's** document, so "only one
+  claimer" is one transaction. Each swap is its own document. Every write is
+  a transaction (`cellarChange`, the swap routes), and each bumps the crew's
+  `v`, so `GET .../cellar?since=v` is one read when nothing moved. Tested:
+  two claims at once, and the owner adding a line while someone claims.
+- **Leaving or removal** (`scrubCellars`, after the session/poll scrub):
+  their cellar document is deleted, every swap they are in is deleted, and
+  their gift claims and the squared-up marks naming them come off everyone
+  else's documents - so their IOUs and feed lines vanish with them. Deleting
+  the crew purges `cellars` and `swaps` too.
+- **The rules, said once**, in a collapsed "How swapping works here" on the
+  tab: in person; for distance, gift through a seller licensed to ship to
+  their state; Flight never arranges shipping (USPS won't carry alcohol; UPS
+  and FedEx only for licensed shippers), never handles money, never asks for
+  an address; 21+ where required.
+- **The example crew** has cellars for all five: a two-way match (Maya's Fog
+  Lantern for Sam's Dark Harbor, spelt "Harbor Lane Brewing Co." on her
+  list), a one-way (Priya) and a same-style (Jonah), Maya's open proposal to
+  Sam, a done two-way swap between Dev and Jonah at Lager night, Priya on
+  the gift of Sam's Pacific Static, and two IOUs (Dev owes Sam for a
+  one-sided swap; Sam owes Jonah for a gift that arrived). Seller links are
+  on the reserved `.example` domain. Read-only: every cellar write opens
+  "Start a crew", and nothing is sent (checked in Chromium: no request).
+
+Tests (`test/run.js`): key folding, match ordering, line limits and
+cleaning, https-only links, the swap state machine, gift rules, IOU tallies
+with squares, the example, and over HTTP: own lines only, strangers' 404 on
+every cellar and swap route, proposals, gifts (with the race), limits,
+stored shapes, and removal/leaving scrubbing all of it. Rendered at 390 and
+1280, light and dark, with two member browsers.
+
 ## Snap the label (the one model call)
 
 `POST /api/snap` `{photo: {type, data}}`: `requireUser, requireBudget,
@@ -214,8 +333,9 @@ last session's awards ("Hazy vs West Coast": a four-beer blind tasting with
 an NA wheat in it, six awards, a shared Best Palate), an open Same-Can
 Challenge (the window closes this Sunday night on the visitor's clock) with
 two of five done, a vote with four votes in, and a leaderboard over two
-sessions. Scoring the can and voting work - on this phone only, never sent
-- and anything that needs a real crew opens "Start a crew".
+sessions, and a Cellar (see "Cellar & Swap"). Scoring the can and voting
+work - on this phone only, never sent - and anything that needs a real crew
+opens "Start a crew".
 
 **Start a crew** asks a signed-out visitor for a free account, then a crew
 name, your name and emoji, and lands on the Crew tab with the code in big
@@ -223,7 +343,7 @@ type, the QR (full screen on tap) and Share link. A friend opening `j/<code>`
 sees the crew's name and size (not who is in it), types a name, picks an
 emoji, and is in. Phones poll every 6 s (a crew) or 3 s (an open session)
 while visible and stop when hidden. On a phone the tabs (Play, Vote,
-Leaderboard, Crew) are a bottom bar; above 900px they are the left rail
+Cellar, Leaderboard, Crew) are a bottom bar; above 900px they are the left rail
 (`desktop.css`) and cards sit in two columns.
 
 ## Local run and tests
@@ -259,8 +379,17 @@ JavaScript", only its global renamed to `FlightQR`.
   city}}`.
 - `polls/<id>` - `{crewId, question, runner, options: [{id, text, crawl,
   addedBy}], votes: {memberId: [optionId]}, closed, pick, v, ...}`.
+- `cellars/<crewId>_<memberId>` - `{crewId, member, createdAt, updatedAt, v,
+  haves: [{id, name, brewery, style, size, count, note, swap, at}], wants:
+  [{id, name, brewery, style, size, count, note, buyLink, sellerShips, at}],
+  gifts: [{id, want, by, name, brewery, claimedAt, arrivedAt}], squares:
+  [{id, with, at}]}`.
+- `swaps/<id>` - `{crewId, from, to, give: [line], get: [line], where,
+  session, sessionTitle, state, ticks: {memberId: at}, createdAt, updatedAt,
+  decidedAt, doneAt, v}`; a line is `{item, name, brewery, style, size, n}`.
 
-Nothing else: no email, no account id, no browser key, no photo (tested).
+Nothing else: no email, no account id, no browser key, no photo, and no
+price, payment, address or shipping field (tested).
 Queries are single-field equality (`crewId ==`, `code ==`, `ownerTag ==`,
 `acctTags array-contains`), so **no composite index**. Crews this phone
 joined are remembered in `localStorage` `flight-crews-v1` (wrapped).
@@ -277,7 +406,11 @@ host: remove), `POST /api/crews/:cid/sessions`, `GET
 …/scores/:bid|guesses/:bid|city`, `DELETE …/sessions/:sid`, `POST
 /api/crews/:cid/polls`, `POST …/polls/:pid/options|close`, `DELETE
 …/polls/:pid/options/:oid`, `PUT …/polls/:pid/vote`, `DELETE
-…/polls/:pid`. Signed in (free): `GET|POST /api/crews`, `PATCH|DELETE
+…/polls/:pid`, `GET /api/crews/:cid/cellar[?since=v]`, `POST
+…/cellar/haves|wants`, `PATCH|DELETE …/cellar/haves|wants/:iid`, `POST|DELETE
+…/cellar/wants/:mid/:iid/gift`, `POST …/cellar/wants/:mid/:iid/arrived`,
+`POST …/ious/square`, `POST /api/crews/:cid/swaps`, `POST
+…/swaps/:wid/accept|decline|cancel|swapped|unswapped`. Signed in (free): `GET|POST /api/crews`, `PATCH|DELETE
 /api/crews/:cid`, `POST /api/crews/:cid/code|seat`. Metered:
 `POST /api/snap`.
 

@@ -133,12 +133,97 @@
     };
   }
 
+  /* Cellar & Swap. Seller links are on the reserved .example domain (they
+   * go nowhere), so the example never points at a real shop. For Sam (the
+   * visitor): a two-way match with Maya (her Fog Lantern for his Dark
+   * Harbor - spelt "Harbor Lane Brewing Co." on her list, which still
+   * matches), a one-way with Priya, a same-style one with Jonah; Maya's
+   * open proposal; Priya on the gift of his Pacific Static; a done swap
+   * between Dev and Jonah at Lager night; and two IOUs - Dev owes Sam for
+   * a one-sided swap, Sam owes Jonah for a gift that arrived. */
+  function item(id, name, brewery, style, size, count, extra) {
+    return Object.assign({ id: id, name: name, brewery: brewery, style: style, size: size, count: count, note: '' }, extra || {});
+  }
+  function cellar(member, haves, wants, gifts, at) {
+    return { id: 'sample_' + member, crewId: 'sample', member: member, haves: haves, wants: wants, gifts: gifts || [], squares: [], createdAt: at, updatedAt: at, v: 3 };
+  }
+  function cellars(now) {
+    var at = iso(now - 30 * DAY);
+    var H = function (x) { return Object.assign(x, { swap: x.swap !== false, at: at }); };
+    var W = function (x) { return Object.assign({ buyLink: null, sellerShips: null }, x, { at: at }); };
+    return [
+      cellar(SAM, [
+        H(item('ixsamh1', 'Dark Harbor', 'Harbor Lane', 'imperial-stout', 'bottle', 2, { note: 'Last year’s batch, kept cool.' })),
+        H(item('ixsamh2', 'Sunday Lawn', 'Clearwater', 'na-wheat', 'can', 4)),
+        H(item('ixsamh3', 'Copper Kettle Märzen', 'Old Mill Brewing', 'marzen', 'can', 1, { swap: false, note: 'Saving it for Oktoberfest.' })),
+      ], [
+        W(item('ixsamw1', 'Fog Lantern', 'Tidewater Brewing', 'hazy', 'can', null, { note: 'Missed it at the tasting.' })),
+        W(item('ixsamw2', 'Pacific Static', 'Driftline Ales', 'west-coast', 'can', 4, { buyLink: 'https://driftline-ales.example/shop/pacific-static', sellerShips: 'yes', note: 'Only sold on the coast.' })),
+      ], [
+        { id: 'gxsam001', want: 'ixsamw0', by: JONAH, name: 'Coastline Kölsch', brewery: 'Driftline Ales', claimedAt: iso(now - 20 * DAY), arrivedAt: iso(now - 12 * DAY) },
+        { id: 'gxsam002', want: 'ixsamw2', by: PRIYA, name: 'Pacific Static', brewery: 'Driftline Ales', claimedAt: iso(now - 2 * DAY), arrivedAt: null },
+      ], at),
+      cellar(MAYA, [
+        H(item('ixmayh1', 'Fog Lantern', 'Tidewater Brewing', 'hazy', 'can', 4)),
+        H(item('ixmayh2', 'Lakeside Helles', 'Pine Hollow', 'helles', 'can', 6, { swap: false })),
+      ], [
+        W(item('ixmayw1', 'Dark Harbor', 'Harbor Lane Brewing Co.', 'imperial-stout', 'bottle', 1, { note: 'The one everyone talks about.' })),
+      ], [], at),
+      cellar(DEV, [
+        H(item('ixdevh1', 'Copper Kettle Märzen', 'Old Mill Brewing', 'marzen', 'can', 1, { swap: false })),
+        H(item('ixdevh2', 'Night Ferry', 'Harbor Lane', 'oatmeal-stout', 'can', 3)),
+      ], [
+        W(item('ixdevw1', 'Sticky Wicket', 'Old Mill Brewing', 'barleywine', 'bottle', 1, { buyLink: 'https://old-mill-brewing.example/shop', sellerShips: 'unsure' })),
+      ], [], at),
+      cellar(JONAH, [
+        H(item('ixjonh1', 'Cold Snap Pils', 'Ridgeback Beer Co.', 'pilsner', 'can', 2)),
+        H(item('ixjonh2', 'Cloudberry Gose', 'Saltmarsh Brewing', 'gose', 'can', 2)),
+      ], [
+        W(item('ixjonw1', 'Midnight Oil', 'Driftline Ales', 'imperial-stout', 'bottle', 1, { note: 'Any big stout, honestly.' })),
+        W(item('ixjonw2', 'Lakeside Helles', 'Pine Hollow', 'helles', 'can', 2)),
+      ], [], at),
+      cellar(PRIYA, [
+        H(item('ixprih1', 'Low Tide Saison', 'Tidewater Brewing Company', 'saison', 'bottle', 1)),
+      ], [
+        W(item('ixpriw1', 'Dark Harbor', 'Harbor Lane', 'imperial-stout', 'bottle', 1)),
+      ], [], at),
+    ];
+  }
+  function line(id, name, brewery, style, size, n) { return { item: id, name: name, brewery: brewery, style: style, size: size, n: n }; }
+  function swaps(now) {
+    var lager = iso(now - 21 * DAY), hazy = iso(now - 7 * DAY);
+    return [
+      {
+        id: 'wxswap001', crewId: 'sample', from: DEV, to: JONAH,
+        give: [line('ixdevh0', 'Cold Snap Pils', 'Ridgeback Beer Co.', 'pilsner', 'can', 2)],
+        get: [line('ixjonh0', 'Copper Kettle Märzen', 'Old Mill Brewing', 'marzen', 'can', 1)],
+        where: '', session: 'sxlager01', sessionTitle: 'Lager night', state: 'done',
+        ticks: { mxdev0001: lager, mxjonah01: lager }, createdAt: iso(now - 24 * DAY), updatedAt: lager, decidedAt: iso(now - 23 * DAY), doneAt: lager, v: 4,
+      },
+      {
+        id: 'wxswap002', crewId: 'sample', from: SAM, to: DEV,
+        give: [line('ixsamh2', 'Sunday Lawn', 'Clearwater', 'na-wheat', 'can', 2)], get: [],
+        where: '', session: 'sxhazy001', sessionTitle: 'Hazy vs West Coast', state: 'done',
+        ticks: { mxsam0001: hazy, mxdev0001: hazy }, createdAt: iso(now - 9 * DAY), updatedAt: hazy, decidedAt: iso(now - 8 * DAY), doneAt: hazy, v: 4,
+      },
+      {
+        id: 'wxswap003', crewId: 'sample', from: MAYA, to: SAM,
+        give: [line('ixmayh1', 'Fog Lantern', 'Tidewater Brewing', 'hazy', 'can', 1)],
+        get: [line('ixsamh1', 'Dark Harbor', 'Harbor Lane', 'imperial-stout', 'bottle', 1)],
+        where: 'Saturday at the Harbor Lane taproom', session: null, sessionTitle: null, state: 'proposed',
+        ticks: {}, createdAt: iso(now - 5 * 3600000), updatedAt: iso(now - 5 * 3600000), decidedAt: null, doneAt: null, v: 1,
+      },
+    ];
+  }
+
   function state(now) {
     now = now || Date.now();
     return {
       crew: { id: 'sample', name: 'Thursday Pour Crew', code: 'PNTKQ7', display: 'PNT-KQ7', v: 1, members: MEMBERS.map(function (m) { return Object.assign({}, m); }), me: ME, host: false },
       sessions: [sameCan(now), hazyNight(now), lagerNight(now)],
       polls: [poll(now)],
+      cellars: cellars(now),
+      swaps: swaps(now),
     };
   }
 

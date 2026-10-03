@@ -45,6 +45,8 @@
     sid: null,           // the session on screen
     session: null,       // its view
     sample: null,        // the example crew's raw documents
+    cellar: null,        // the Cellar tab's view (a real crew)
+    cellarOpen: {},      // crew-mates' cellars left open, so a redraw keeps them open
     join: null,
     timers: { crew: null, session: null },
     busy: false,
@@ -205,6 +207,7 @@
       state.data = d;
       rememberCrew(d.crew.id, d.crew.name);
       draw();
+      if (!state.sid && state.tab === 'cellar') loadCellar(true);
     }).catch(function (e) {
       if (e.status === 404) {
         forgetCrew(CREW_ID);
@@ -254,7 +257,7 @@
     var m = /^s\/([A-Za-z0-9]{4,20})$/.exec(h);
     if (m) { state.sid = m[1]; return; }
     state.sid = null; state.session = null;
-    state.tab = ['play', 'vote', 'board', 'crew'].indexOf(h) >= 0 ? h : 'play';
+    state.tab = ['play', 'vote', 'cellar', 'board', 'crew'].indexOf(h) >= 0 ? h : 'play';
   }
   function openSession(sid) {
     state.sid = sid; state.session = null; state.pushed = true;
@@ -266,6 +269,7 @@
     state.sid = null; state.session = null; state.tab = t;
     history.pushState(null, '', '#' + t);
     draw(); startPolling();
+    if (t === 'cellar') loadCellar();
   }
   window.addEventListener('popstate', function () { readHash(); draw(); if (state.sid) loadSession(); startPolling(); });
 
@@ -286,14 +290,14 @@
       '<div class="faces" aria-label="' + esc(plural(c.members.length, 'member')) + '">' + c.members.slice(0, 8).map(function (m) { return '<span class="face" title="' + esc(m.name) + '" aria-hidden="true">' + esc(m.emoji) + '</span>'; }).join('') +
       (c.members.length > 8 ? '<span class="face more">+' + (c.members.length - 8) + '</span>' : '') + '</div></header>';
     var on = state.sid ? 'play' : state.tab;
-    html += '<nav class="tabbar dk-tabbar" aria-label="Crew"><div class="tabbar-inner"><a class="rail-brand" href="./"><span aria-hidden="true">🍻</span>' + esc(c.name) + '</a>' + [['play', '🍺', 'Play'], ['vote', '🗳️', 'Vote'], ['board', '🏆', 'Leaderboard'], ['crew', '👥', 'Crew']].map(function (t) {
+    html += '<nav class="tabbar dk-tabbar" aria-label="Crew"><div class="tabbar-inner"><a class="rail-brand" href="./"><span aria-hidden="true">🍻</span>' + esc(c.name) + '</a>' + [['play', '🍺', 'Play'], ['vote', '🗳️', 'Vote'], ['cellar', '🤝', 'Cellar'], ['board', '🏆', 'Leaderboard'], ['crew', '👥', 'Crew']].map(function (t) {
       return '<button type="button" class="tab' + (on === t[0] ? ' on' : '') + '" data-act="tab" data-tab="' + t[0] + '"' + (on === t[0] ? ' aria-current="page"' : '') + '><span aria-hidden="true">' + t[1] + '</span>' + t[2] + '</button>';
     }).join('') + '</div></nav>';
     html += state.sid ? '<div id="sessionView"></div>' : '<div id="tabView" class="tabgrid"></div>';
     html += footer();
     main.innerHTML = html;
     if (state.sid) drawSession();
-    else ({ play: drawPlay, vote: drawVote, board: drawBoard, crew: drawCrewTab })[state.tab]();
+    else ({ play: drawPlay, vote: drawVote, cellar: drawCellar, board: drawBoard, crew: drawCrewTab })[state.tab]();
   }
   function footer() {
     return '<footer class="foot small muted"><p class="quiet">Drink responsibly. 21+ where required. Non-alcoholic beers count for everything here.</p>' +
@@ -626,17 +630,23 @@
       img.src = url;
     });
   }
-  function snapLabel(file, root) {
+  /** Read a label into a form. `f` names its fields - the bring-a-beer
+   *  form by default; the cellar's form has no ABV. Nothing is saved: the
+   *  person checks it and presses the form's own button. */
+  var BRING_FIELDS = { name: '#bName', brewery: '#bBrewery', style: '#bStyle', abv: '#bAbv' };
+  function snapLabel(file, root, f) {
+    f = f || BRING_FIELDS;
     var out = $('#snapOut', root);
+    var save = f.save || (state.session && state.session.mode === 'home' ? 'Pour it' : 'Add it');
     out.innerHTML = '<p class="busy" role="status">Reading the label…</p>';
     shrink(file).then(function (p) { return api('POST', 'api/snap', { photo: p }); }).then(function (r) {
       var l = r.label;
-      $('#bName', root).value = l.name;
-      $('#bBrewery', root).value = l.brewery || '';
-      $('#bStyle', root).value = l.style && l.style !== 'other' ? l.style : (l.style === 'other' ? 'other' : '');
-      $('#bAbv', root).value = l.abv !== null ? l.abv : '';
-      out.innerHTML = '<div class="note review"><p><b>Check it against the can</b> - nothing is saved until you press ' + (state.session.mode === 'home' ? 'Pour it' : 'Add it') + '.</p><p class="small">' +
-        (l.abv === null ? '⚠︎ No ABV printed that could be read - add it if you know it. ' : '') +
+      $(f.name, root).value = l.name;
+      $(f.brewery, root).value = l.brewery || '';
+      $(f.style, root).value = l.style && l.style !== 'other' ? l.style : (l.style === 'other' ? 'other' : '');
+      if (f.abv) $(f.abv, root).value = l.abv !== null ? l.abv : '';
+      out.innerHTML = '<div class="note review"><p><b>Check it against the can</b> - nothing is saved until you press ' + esc(save) + '.</p><p class="small">' +
+        (f.abv && l.abv === null ? '⚠︎ No ABV printed that could be read - add it if you know it. ' : '') +
         (l.stylePrinted ? 'Label says “' + esc(l.stylePrinted) + '”. ' : '') + 'Confidence: ' + esc(l.confidence) + '.</p></div>';
     }).catch(function (e) {
       if (e.status === 401) { out.innerHTML = ''; return openAccount('Snapping a label uses a cent or two of AI credit, so it needs a free account (it comes with $2). Typing the beer in is free.'); }
@@ -755,6 +765,281 @@
         }).catch(function (err) { btn.disabled = false; btn.textContent = 'Start the vote'; showError(err, $('#npErr', root)); });
       });
     });
+  }
+
+  /* ---------------- Cellar & Swap ----------------
+   * Have/want lists, matches, swaps in person, gifts through a licensed
+   * seller, friendly IOUs. Nothing here asks for a price, a payment, an
+   * address or a shipping detail - there is nowhere to put one. */
+
+  function cellarData() {
+    if (sample()) { var sm = state.sample; return C.cellarView(sm.cellars, sm.swaps, sampleIds(), S.ME, Date.now()); }
+    return state.cellar;
+  }
+  function loadCellar(quiet) {
+    if (sample() || !CREW_ID) { if (!state.sid && state.tab === 'cellar') drawCellar(); return Promise.resolve(); }
+    return api('GET', crewPath('/cellar')).then(function (d) {
+      if (d.same) return;
+      state.cellar = d;
+      if (!state.sid && state.tab === 'cellar') drawCellar();
+    }).catch(function (e) { if (!quiet) showError(e); });
+  }
+  function setCellar(v, msg) {
+    state.cellar = v;
+    if (!state.sid && state.tab === 'cellar') drawCellar();
+    if (msg) toast(msg);
+  }
+  function cellarOf(mid) {
+    var cv = cellarData();
+    return (cv && cv.members.filter(function (x) { return x.member === mid; })[0]) || { member: mid, haves: [], wants: [] };
+  }
+  /** Every cellar write: refused on the example (with the usual "start your
+   *  own"), confirmed when `ask` says so, then sent. */
+  function cellarWrite(ask, method, path, body, msg, then) {
+    if (sample()) return openStart('That’s for your own crew - start one, it’s free.');
+    function go() {
+      call(method, crewPath(path), body).then(function (v) { if (then) then(v); setCellar(v, typeof msg === 'function' ? msg(v) : msg); }).catch(function (err) { showError(err); });
+    }
+    if (ask) confirmDo(ask, go); else go();
+  }
+
+  function amountText(it) {
+    var s = it.size ? C.sizeName(it.size).toLowerCase() : '';
+    if (it.count && s) return it.count + ' ' + s + (it.count === 1 ? '' : 's');
+    if (it.count) return '× ' + it.count;
+    return s;
+  }
+  function itemMeta(it) {
+    return [it.brewery ? esc(it.brewery) : '', it.style ? esc(C.styleName(it.style)) : '', esc(amountText(it))].filter(Boolean).join(' · ');
+  }
+  function buyLink(w, label) {
+    if (!w.buyLink || !/^https:\/\//.test(w.buyLink)) return '';
+    return '<a class="small buy" href="' + esc(w.buyLink) + '" target="_blank" rel="noopener noreferrer">' + esc(label || 'Where to buy it') + ': ' + esc(C.linkHost(w.buyLink)) + ' ↗</a>';
+  }
+  function shipsText(v, mine) {
+    var whose = mine ? 'my' : 'their';
+    return { yes: 'Seller ships to ' + whose + ' state', no: 'Seller doesn’t ship to ' + whose + ' state', unsure: 'Not sure the seller ships to ' + whose + ' state' }[v] || '';
+  }
+  function you(id, subject) { return id === crew().me ? (subject ? 'You' : 'you') : nameOf(id); }
+
+  var MATCH_LABEL = { 'two-way': 'Two-way match', 'one-way': 'One-way', brewery: 'Same brewery', style: 'Same style' };
+  var SWAP_LABEL = { proposed: 'Proposed', accepted: 'Accepted', declined: 'Declined', cancelled: 'Cancelled', done: 'Swapped ✓' };
+
+  function aStyle(id) { var n = C.styleName(id).toLowerCase(); return (/^[aeiou]/.test(n) ? 'an ' : 'a ') + n; }
+  function haveNames(lines) { return C.nameList(lines.map(function (l) { return l.haveName; })); }
+  function matchHtml(m, openWith) {
+    var nm = esc(nameOf(m.member));
+    var g = m.gets[0], v = m.gives[0];
+    var text;
+    if (m.kind === 'two-way') text = '<b>' + nm + '</b> has <b>' + esc(haveNames(m.gets)) + '</b> you want - you have <b>' + esc(haveNames(m.gives)) + '</b> on their wishlist.';
+    else if (m.kind === 'one-way') text = g ? '<b>' + nm + '</b> has <b>' + esc(haveNames(m.gets)) + '</b>, on your wishlist.' : 'You have <b>' + esc(haveNames(m.gives)) + '</b>, on ' + nm + '’s wishlist.';
+    else if (m.kind === 'brewery') text = g ? '<b>' + nm + '</b> has ' + esc(g.haveName) + ' - from the same brewery as ' + esc(g.wantName) + ', on your wishlist.' : 'Your ' + esc(v.haveName) + ' is from the same brewery as ' + esc(v.wantName) + ', on ' + nm + '’s wishlist.';
+    else text = g ? '<b>' + nm + '</b> has ' + esc(g.haveName) + ' - ' + esc(aStyle(g.haveStyle)) + ', like ' + esc(g.wantName) + ' on your wishlist.' : 'Your ' + esc(v.haveName) + ' is ' + esc(aStyle(v.haveStyle)) + ', like ' + esc(v.wantName) + ' on ' + nm + '’s wishlist.';
+    var act = openWith[m.member] ? '<span class="small muted">A swap with ' + nm + ' is open - see Your swaps.</span>'
+      : '<button type="button" class="btn small" data-act="propose" data-mid="' + esc(m.member) + '" data-get="' + esc(m.gets.map(function (x) { return x.have; }).join(',')) + '" data-give="' + esc(m.gives.map(function (x) { return x.have; }).join(',')) + '">Propose a swap</button>';
+    return '<li class="match k-' + esc(m.kind) + '"><span class="em" aria-hidden="true">' + esc(emojiOf(m.member)) + '</span><div class="mbody"><span class="kind">' + esc(MATCH_LABEL[m.kind]) + '</span><p>' + text + '</p>' + act + '</div></li>';
+  }
+
+  function linesText(lines) { return lines.map(function (l) { return (l.n > 1 ? l.n + ' × ' : '') + l.name; }).join(', '); }
+  function swapHtml(w) {
+    var nm = nameOf(w.with);
+    var head = w.outgoing ? 'You offered ' + who(w.with) : who(w.with) + ' offered you';
+    var html = '<li class="swap st-' + esc(w.state) + '"><div class="row spread"><span>' + head + '</span><span class="badge">' + esc(SWAP_LABEL[w.state] || w.state) + '</span></div>';
+    html += '<p class="small swaplines"><span><b>You give</b> ' + (w.give.length ? esc(linesText(w.give)) : 'nothing - a gift to you') + '</span><span><b>You get</b> ' + (w.get.length ? esc(linesText(w.get)) : 'nothing back - a gift from you') + '</span></p>';
+    html += '<p class="small muted">📍 ' + esc(w.sessionTitle ? 'At ' + w.sessionTitle : w.where) + '</p>';
+    if (w.state === 'accepted') html += '<p class="small">' + (w.myTick ? '✓ You ticked “we swapped”. ' : '') + (w.theirTick ? '✓ ' + esc(nm) + ' ticked it.' : 'Waiting for ' + esc(nm) + ' to tick it.') + '</p>';
+    var acts = [];
+    if (w.state === 'done') {
+      var mineNow = cellarOf(crew().me).haves;
+      var still = w.give.map(function (l) { return mineNow.filter(function (h) { return h.id === l.item; })[0]; }).filter(Boolean);
+      if (still.length) html += '<p class="small muted">Handed over? Take ' + esc(C.nameList(still.map(function (h) { return h.name; }))) + ' off your cellar or change the count - Flight never edits your lists for you.</p>' +
+        '<div class="row">' + still.map(function (h) { return '<button type="button" class="btn small ghost" data-act="edititem" data-list="haves" data-iid="' + esc(h.id) + '">Edit ' + esc(h.name) + '</button>'; }).join('') + '</div>';
+    }
+    if (w.can.accept) acts.push('<button type="button" class="btn small" data-act="swapact" data-do="accept" data-wid="' + esc(w.id) + '">Accept</button>');
+    if (w.can.decline) acts.push('<button type="button" class="btn small ghost" data-act="swapact" data-do="decline" data-wid="' + esc(w.id) + '">Decline</button>');
+    if (w.can.tick) acts.push(w.myTick ? '<button type="button" class="btn small ghost" data-act="swapact" data-do="unswapped" data-wid="' + esc(w.id) + '">Untick</button>' : '<button type="button" class="btn small" data-act="swapact" data-do="swapped" data-wid="' + esc(w.id) + '">We swapped ✓</button>');
+    if (w.can.cancel) acts.push('<button type="button" class="link-btn small" data-act="swapact" data-do="cancel" data-wid="' + esc(w.id) + '">Cancel</button>');
+    if (acts.length) html += '<div class="row">' + acts.join('') + '</div>';
+    return html + '</li>';
+  }
+
+  function iouHtml(x) {
+    var nm = esc(nameOf(x.member)), n = Math.abs(x.n);
+    var count = n === 1 ? 'a beer (1)' : n + ' beers';
+    var text = x.n > 0 ? '<b>' + nm + '</b> owes you ' + count : 'You owe <b>' + nm + '</b> ' + count;
+    return '<li><span><span class="em" aria-hidden="true">' + esc(emojiOf(x.member)) + '</span> ' + text + '</span><button type="button" class="btn small ghost" data-act="square" data-mid="' + esc(x.member) + '">Squared up</button></li>';
+  }
+
+  function feedHtml(f) {
+    var at = f.sessionTitle ? ' at ' + esc(f.sessionTitle) : '';
+    var when = '<span class="small muted"> · ' + esc(fmtDay(f.at)) + '</span>';
+    if (f.kind === 'gift') return '<li><span aria-hidden="true">🎁</span><span><b>' + esc(you(f.from, true)) + '</b> gifted <b>' + esc(you(f.to)) + '</b> ' + esc(f.give.join(', ')) + ', through the seller' + when + '</span></li>';
+    if (f.give.length && f.get.length) return '<li><span aria-hidden="true">🤝</span><span><b>' + esc(you(f.from, true)) + '</b> and <b>' + esc(you(f.to)) + '</b> swapped' + at + when + '<span class="small muted fline">' + esc(f.give.join(', ')) + ' for ' + esc(f.get.join(', ')) + '</span></span></li>';
+    var giver = f.give.length ? f.from : f.to, taker = f.give.length ? f.to : f.from;
+    return '<li><span aria-hidden="true">🎁</span><span><b>' + esc(you(giver, true)) + '</b> gave <b>' + esc(you(taker)) + '</b> ' + esc((f.give.length ? f.give : f.get).join(', ')) + at + when + '</span></li>';
+  }
+
+  /** One line of my own lists. */
+  function myItemHtml(list, it) {
+    var side = '';
+    if (list === 'haves') side = it.swap ? '<span class="badge ok-b">Open to swap</span>' : '<span class="small muted">Keeping it</span>';
+    var gift = '';
+    if (list === 'wants') {
+      if (it.gift) gift = '<span class="small gift-on">🎁 ' + esc(nameOf(it.gift.by)) + ' is on it</span><button type="button" class="btn small" data-act="arrived" data-iid="' + esc(it.id) + '">It arrived</button>';
+      else gift = it.buyLink ? '' : '<span class="small muted">Add a seller’s link and the crew can gift it.</span>';
+    }
+    return '<li><div class="cbody"><b>' + esc(it.name) + '</b><span class="small muted">' + itemMeta(it) + '</span>' + (it.note ? '<span class="small quote">“' + esc(it.note) + '”</span>' : '') +
+      (list === 'wants' ? buyLink(it) + (it.sellerShips ? '<span class="small muted">' + esc(shipsText(it.sellerShips, true)) + '</span>' : '') : '') + side + gift + '</div>' +
+      '<div class="col"><button type="button" class="btn small ghost" data-act="edititem" data-list="' + list + '" data-iid="' + esc(it.id) + '">Edit</button><button type="button" class="btn small ghost" data-act="rmitem" data-list="' + list + '" data-iid="' + esc(it.id) + '" aria-label="Take ' + esc(it.name) + ' off">✕</button></div></li>';
+  }
+  /** A crew-mate's wish, with the gift control. */
+  function giftControl(owner, w) {
+    var me = crew().me;
+    var nm = esc(nameOf(owner));
+    if (w.gift && w.gift.by === me) return '<div class="gift-mine"><p class="small"><b>🎁 You’re on it.</b> Order it from the seller to ' + nm + '’s address - Flight never asks for or stores addresses.</p><button type="button" class="link-btn small" data-act="unclaim" data-mid="' + esc(owner) + '" data-iid="' + esc(w.id) + '">Let it go</button></div>';
+    if (w.gift) return '<span class="small gift-on">🎁 ' + esc(nameOf(w.gift.by)) + ' is on it</span>';
+    if (w.buyLink) return '<button type="button" class="btn small ghost" data-act="gift" data-mid="' + esc(owner) + '" data-iid="' + esc(w.id) + '">🎁 I’ll gift this</button>';
+    return '';
+  }
+  function crewCellarHtml(mc) {
+    var m = mc.member;
+    var openHaves = mc.haves.filter(function (h) { return h.swap; }).length;
+    var html = '<li><details data-cellar="' + esc(m) + '"' + (state.cellarOpen[m] ? ' open' : '') + '><summary>' + who(m) + '<span class="small muted">' + plural(mc.haves.length, 'beer') + ' · ' + plural(mc.wants.length, 'wish', 'wishes') + '</span></summary><div class="cdetail">';
+    if (mc.haves.length) html += '<p class="eyebrow">Cellar</p><ul class="citems">' + mc.haves.map(function (h) {
+      return '<li><div class="cbody"><b>' + esc(h.name) + '</b><span class="small muted">' + itemMeta(h) + '</span>' + (h.note ? '<span class="small quote">“' + esc(h.note) + '”</span>' : '') + (h.swap ? '<span class="badge ok-b">Open to swap</span>' : '<span class="small muted">Keeping it</span>') + '</div></li>';
+    }).join('') + '</ul>';
+    if (mc.wants.length) html += '<p class="eyebrow">Wishlist</p><ul class="citems">' + mc.wants.map(function (w) {
+      return '<li><div class="cbody"><b>' + esc(w.name) + '</b><span class="small muted">' + itemMeta(w) + '</span>' + (w.note ? '<span class="small quote">“' + esc(w.note) + '”</span>' : '') + buyLink(w) +
+        (w.sellerShips ? '<span class="small muted">' + esc(shipsText(w.sellerShips, false)) + '</span>' : '') + giftControl(m, w) + '</div></li>';
+    }).join('') + '</ul>';
+    if (!mc.haves.length && !mc.wants.length) html += '<p class="small muted">Nothing listed yet.</p>';
+    if (openHaves || mc.wants.length) html += '<button type="button" class="btn small ghost" data-act="propose" data-mid="' + esc(m) + '">Propose a swap with ' + esc(nameOf(m)) + '</button>';
+    return html + '</div></details></li>';
+  }
+
+  var RULES = 'Swaps happen in person - at a tasting, a bar, on someone’s porch. For a friend who’s far away, gift it through the brewery’s own shop or a retailer licensed to ship to their state: you order, the seller delivers. Flight never arranges shipping between people (USPS won’t carry alcohol; UPS and FedEx carry it only for licensed shippers), never handles money and never asks for an address. 21+ where required.';
+
+  function drawCellar() {
+    var el = $('#tabView');
+    if (!el) return;
+    var cv = cellarData();
+    var html = '<section class="card full cellar-head"><div class="sec-head"><h2>Cellar &amp; Swap</h2>' + (sample() ? '<span class="small muted">example</span>' : '') + '</div>' +
+      '<p class="small muted">What you’ve got and what you’re after. Swap in person; for a friend far away, gift it through a seller that ships to them.</p>' +
+      '<details class="rules"><summary>How swapping works here</summary><p class="small">' + esc(RULES) + '</p></details></section>';
+    if (!cv) { el.innerHTML = html + '<section class="card full"><p class="busy" role="status">Opening the cellar…</p></section>'; return; }
+    var me = crew().me;
+    var mine = cellarOf(me);
+    var openWith = {};
+    cv.swaps.forEach(function (w) { if (w.state === 'proposed' || w.state === 'accepted') openWith[w.with] = true; });
+    var left = '<section class="card"><div class="sec-head"><h2>Matches</h2><span class="small muted">two-way first</span></div>' +
+      (cv.matches.length ? '<ul class="matches">' + cv.matches.map(function (m) { return matchHtml(m, openWith); }).join('') + '</ul>'
+        : '<p class="muted small">' + (mine.haves.length || mine.wants.length ? 'No matches yet. Mark beers open to swap, and add what you’re after - matches show up as the crew fills theirs in.' : 'Add what you’ve got and what you’re after, and matches with the crew show up here.') + '</p>') + '</section>';
+    left += '<section class="card"><div class="sec-head"><h2>Your swaps</h2></div>' + (cv.swaps.length ? '<ul class="swaps">' + cv.swaps.map(swapHtml).join('') + '</ul>' : '<p class="muted small">None yet. Propose one from a match, or from a crew-mate’s cellar.</p>') + '</section>';
+    left += '<section class="card"><div class="sec-head"><h2>Your cellar</h2><button type="button" class="btn small" data-act="additem" data-list="haves">+ Add</button></div>' +
+      (mine.haves.length ? '<ul class="citems">' + mine.haves.map(function (h) { return myItemHtml('haves', h); }).join('') + '</ul>' : '<p class="muted small">What’s in your fridge worth sharing? Up to ' + C.LIMITS.haves + '.</p>') + '</section>';
+    left += '<section class="card"><div class="sec-head"><h2>Your wishlist</h2><button type="button" class="btn small" data-act="additem" data-list="wants">+ Add</button></div>' +
+      (mine.wants.length ? '<ul class="citems">' + mine.wants.map(function (w) { return myItemHtml('wants', w); }).join('') + '</ul>' : '<p class="muted small">The beers you’d cross town for. Add where to buy one legally and a friend far away can gift it.</p>') + '</section>';
+    var right = '';
+    if (cv.ious.length) right += '<section class="card"><div class="sec-head"><h2>Beers owed</h2><span class="small muted">just for fun</span></div><ul class="ious">' + cv.ious.map(iouHtml).join('') + '</ul><p class="small muted">Counted from gifts and one-sided swaps. No money - settle it with a round next time.</p></section>';
+    var others = cv.members.filter(function (x) { return x.member !== me; });
+    right += '<section class="card"><div class="sec-head"><h2>The crew’s cellars</h2></div>' + (others.length ? '<ul class="ccellars">' + others.map(crewCellarHtml).join('') + '</ul>' : '<p class="muted small">Invite the crew - their cellars show up here.</p>') + '</section>';
+    if (cv.feed.length) right += '<section class="card"><div class="sec-head"><h2>Lately</h2></div><ul class="feed">' + cv.feed.map(feedHtml).join('') + '</ul></section>';
+    el.innerHTML = html + '<div class="ccol">' + left + '</div><div class="ccol">' + right + '</div>';
+  }
+
+  /** Add or edit a line of my cellar or wishlist. Snap a can reuses the
+   *  label reader (same gates, same meter). */
+  function openItem(list, it) {
+    if (sample()) return openStart('Your cellar and wishlist are for your own crew - start one, it’s free.');
+    var have = list === 'haves';
+    var v = it || {};
+    sheet('<h2>' + (it ? 'Edit ' + esc(it.name) : have ? 'Add to your cellar' : 'Add to your wishlist') + '</h2>' +
+      '<p class="small muted">' + (have ? 'What you’ve got on hand. Open to swap puts it in the crew’s matches.' : 'What you’re after. The crew sees it - someone may have one to swap, or gift it through a seller.') + '</p>' +
+      (it ? '' : '<div class="snapbox" id="snapBox"><button type="button" class="btn ghost block" data-act="snap"><span aria-hidden="true">📷</span> Snap a can</button><input type="file" accept="image/*" capture="environment" id="snapFile" class="vh" tabindex="-1" aria-hidden="true"><p class="small muted">Reads the name, brewery and style - you check it before it’s saved. A cent or two of AI credit (free account).</p><div id="snapOut" aria-live="polite"></div></div>') +
+      '<form id="itForm" class="stack">' +
+      '<label class="field"><span>Name</span><input class="input" id="iName" maxlength="' + C.LIMITS.beerName + '" required value="' + esc(v.name || '') + '" placeholder="Fog Lantern"></label>' +
+      '<label class="field"><span>Brewery</span><input class="input" id="iBrewery" maxlength="' + C.LIMITS.brewery + '" value="' + esc(v.brewery || '') + '" placeholder="Tidewater Brewing"></label>' +
+      '<label class="field"><span>Style</span>' + styleSelect('iStyle', v.style || '', 'Not sure') + '</label>' +
+      '<div class="pair"><label class="field"><span>Format <span class="muted">(optional)</span></span><select class="input" id="iSize"><option value="">-</option>' + C.SIZES.map(function (z) { return '<option value="' + esc(z.id) + '"' + (v.size === z.id ? ' selected' : '') + '>' + esc(z.name) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="field"><span>How many <span class="muted">(optional)</span></span><input class="input" id="iCount" inputmode="numeric" maxlength="2" value="' + esc(v.count || '') + '" placeholder="e.g. 2"></label></div>' +
+      '<label class="field"><span>A note <span class="muted">(optional · the crew sees it)</span></span><input class="input" id="iNote" maxlength="' + C.LIMITS.note + '" value="' + esc(v.note || '') + '" placeholder="' + (have ? 'Last year’s batch, kept cool' : 'Any big stout, honestly') + '"></label>' +
+      (have ? '<label class="check"><input type="checkbox" id="iSwap"' + (!it || it.swap ? ' checked' : '') + '><span>Open to swap <span class="small muted">- shows in the crew’s matches</span></span></label>'
+        : '<label class="field"><span>Where to buy it legally <span class="muted">(optional)</span></span><input class="input" id="iLink" type="url" inputmode="url" maxlength="' + C.LIMITS.link + '" autocomplete="off" value="' + esc(v.buyLink || '') + '" placeholder="https://… the brewery’s shop or a licensed retailer"></label>' +
+          '<p class="small muted">Just a link for the crew - Flight never opens it, sells anything or handles money. With one, a crew-mate can gift it to you through that seller.</p>' +
+          '<label class="field"><span>Does that seller ship to your state?</span><select class="input" id="iShips"><option value="">-</option>' + [['yes', 'Yes'], ['no', 'No'], ['unsure', 'Not sure']].map(function (o) { return '<option value="' + o[0] + '"' + (v.sellerShips === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') +
+      '<div id="itErr"></div><button class="btn block big" type="submit">' + (it ? 'Save' : 'Add it') + '</button></form>',
+      function (root) {
+        var sf = $('#snapFile', root);
+        if (sf) sf.addEventListener('change', function (e) { var f = e.target.files && e.target.files[0]; if (f) snapLabel(f, root, { name: '#iName', brewery: '#iBrewery', style: '#iStyle', abv: null, save: 'Add it' }); e.target.value = ''; });
+        $('#itForm', root).addEventListener('submit', function (e) {
+          e.preventDefault();
+          var body = { name: $('#iName', root).value, brewery: $('#iBrewery', root).value, style: $('#iStyle', root).value || null, size: $('#iSize', root).value || null, count: $('#iCount', root).value.trim() || null, note: $('#iNote', root).value };
+          if (have) body.swap = $('#iSwap', root).checked;
+          else {
+            body.buyLink = $('#iLink', root).value.trim() || null;
+            body.sellerShips = $('#iShips', root).value || null;
+            if (body.buyLink) { try { C.cleanLink(body.buyLink); } catch (err) { return showError(err, $('#itErr', root)); } }
+          }
+          if (body.count !== null) { try { C.cleanCount(body.count); } catch (err) { return showError(err, $('#itErr', root)); } }
+          var btn = $('button[type=submit]', root); btn.disabled = true;
+          var p = it ? call('PATCH', crewPath('/cellar/' + list + '/' + it.id), body) : call('POST', crewPath('/cellar/' + list), body);
+          p.then(function (cv) { closeSheet(); setCellar(cv, it ? 'Saved' : (have ? 'In your cellar' : 'On your wishlist')); })
+            .catch(function (err) { btn.disabled = false; showError(err, $('#itErr', root)); });
+        });
+      });
+  }
+
+  /** Propose a swap with one crew-mate: beers from my cellar, beers from
+   *  their open-to-swap cellar, and where - a tasting on now, or a few
+   *  words. In person; there is no address field. */
+  function openPropose(to, preGet, preGive) {
+    if (sample()) return openStart('Swapping is for your own crew - start one, it’s free.');
+    if (!state.cellar) return;
+    var mine = cellarOf(crew().me).haves;
+    var theirs = cellarOf(to).haves.filter(function (h) { return h.swap; });
+    var tastings = (state.data.sessions || []).filter(function (s) { return s.kind === 'blind' && s.stage !== 'revealed'; });
+    function boxes(items, pre, name, none) {
+      if (!items.length) return '<p class="small muted">' + esc(none) + '</p>';
+      return '<div class="picks">' + items.map(function (it) {
+        return '<label class="opt"><input type="checkbox" name="' + name + '" value="' + esc(it.id) + '"' + (pre.indexOf(it.id) >= 0 ? ' checked' : '') + '><span><span class="otext">' + esc(it.name) + '</span><span class="small muted">' + itemMeta(it) + '</span></span></label>';
+      }).join('') + '</div>';
+    }
+    sheet('<h2>Propose a swap</h2><p class="small muted">With ' + who(to) + ' - in person. Flight never asks for an address.</p>' +
+      '<form id="pwForm" class="stack"><fieldset class="field picks-set"><legend>You give</legend>' + boxes(mine, preGive || [], 'give', 'Nothing in your cellar yet - you can still ask for one as a gift.') + '</fieldset>' +
+      '<fieldset class="field picks-set"><legend>You get</legend>' + boxes(theirs, preGet || [], 'get', nameOf(to) + ' hasn’t marked anything open to swap yet.') + '<p class="small muted">Tick nothing here for “nothing back - a gift”.</p></fieldset>' +
+      '<label class="field"><span>Where and when</span><select class="input" id="pwAt"><option value="">At our next tasting</option>' + tastings.map(function (s) { return '<option value="' + esc(s.id) + '">At ' + esc(s.title) + '</option>'; }).join('') + '<option value="text">Somewhere else…</option></select></label>' +
+      '<input class="input" id="pwWhere" maxlength="' + C.LIMITS.swapWhere + '" placeholder="Saturday at the taproom" aria-label="Where and when" hidden>' +
+      '<div id="pwErr"></div><button class="btn block big" type="submit">Propose it</button></form>',
+      function (root) {
+        var at = $('#pwAt', root), where = $('#pwWhere', root);
+        if (tastings.length) at.value = tastings[0].id;
+        at.addEventListener('change', function () { where.hidden = at.value !== 'text'; if (!where.hidden) where.focus(); });
+        $('#pwForm', root).addEventListener('submit', function (e) {
+          e.preventDefault();
+          var picked = function (n) { return $$('input[name=' + n + ']:checked', root).map(function (i) { return i.value; }); };
+          var body = { to: to, give: picked('give'), get: picked('get') };
+          if (!body.give.length && !body.get.length) return showError(new Error('Pick at least one beer to give or get.'), $('#pwErr', root));
+          if (at.value === 'text') body.where = where.value; else if (at.value) body.session = at.value;
+          var btn = $('button[type=submit]', root); btn.disabled = true;
+          call('POST', crewPath('/swaps'), body).then(function (cv) { closeSheet(); setCellar(cv, 'Proposed - ' + nameOf(to) + ' sees it in their Cellar.'); })
+            .catch(function (err) { btn.disabled = false; showError(err, $('#pwErr', root)); });
+        });
+      });
+  }
+
+  /** "I'll gift this": what it means, said before the tap. */
+  function openGift(owner, iid) {
+    var w = cellarOf(owner).wants.filter(function (x) { return x.id === iid; })[0];
+    if (!w) return;
+    var nm = nameOf(owner);
+    var ships = w.sellerShips === 'yes' ? esc(nm) + ' says this seller ships to their state.'
+      : w.sellerShips === 'no' ? '<b>' + esc(nm) + ' says this seller doesn’t ship to their state</b> - check before you order, or find one that does.'
+        : 'Check the seller ships to ' + esc(nm) + '’s state before you order.';
+    sheet('<h2>Gift ' + esc(w.name) + ' to ' + esc(nm) + '</h2>' +
+      '<p>Order it from the seller to ' + esc(nm) + '’s address - Flight never asks for or stores addresses.</p>' +
+      '<p>' + buyLink(w, 'The seller') + '</p><p class="small">' + ships + '</p>' +
+      '<p class="small muted">Tap “I’m on it” so nobody else buys the same one. ' + esc(nm) + ' marks it arrived when it lands, and it goes on the friendly tally.</p>' +
+      '<button class="btn block big" type="button" data-act="giftgo" data-mid="' + esc(owner) + '" data-iid="' + esc(iid) + '">I’m on it</button>');
   }
 
   /* ---------------- Leaderboard ---------------- */
@@ -1129,6 +1414,44 @@
       case 'delcrew': confirmDo('Delete ' + crew().name + ' - every session, score, vote and member? This cannot be undone.', function () { api('DELETE', crewPath('')).then(function () { forgetCrew(CREW_ID); location.href = BASE; }).catch(function (err) { showError(err); }); }); break;
       case 'editme': openEditMe(); break;
       case 'seat': if (!signedIn()) openAccount('Sign in (free) and your seat in this crew follows your account to any device.', function () { doSeat(); }); else doSeat(); break;
+      case 'additem': openItem(t.getAttribute('data-list')); break;
+      case 'edititem': {
+        var il = t.getAttribute('data-list');
+        var itm = cellarOf(crew().me)[il].filter(function (x) { return x.id === t.getAttribute('data-iid'); })[0];
+        if (itm) openItem(il, itm);
+        break;
+      }
+      case 'rmitem': {
+        var rl = t.getAttribute('data-list'), rid = t.getAttribute('data-iid');
+        var rit = cellarOf(crew().me)[rl].filter(function (x) { return x.id === rid; })[0];
+        cellarWrite('Take ' + (rit ? rit.name : 'it') + ' off your ' + (rl === 'haves' ? 'cellar' : 'wishlist') + '?' + (rit && rit.gift ? ' Whoever is gifting it gets let off.' : ''), 'DELETE', '/cellar/' + rl + '/' + rid, undefined, 'Taken off');
+        break;
+      }
+      case 'propose': {
+        var split = function (a) { var x = t.getAttribute(a); return x ? x.split(',') : []; };
+        openPropose(t.getAttribute('data-mid'), split('data-get'), split('data-give'));
+        break;
+      }
+      case 'swapact': {
+        var sdo = t.getAttribute('data-do');
+        var asks = { decline: 'Decline this swap?', cancel: 'Cancel this swap?' };
+        var says = { accept: 'Accepted - now meet up and swap.', decline: 'Declined', cancel: 'Cancelled', swapped: 'Ticked - done once you both tick it.', unswapped: 'Unticked' };
+        var swid = t.getAttribute('data-wid');
+        cellarWrite(asks[sdo] || null, 'POST', '/swaps/' + swid + '/' + sdo, {}, function (v) {
+          var w = v.swaps.filter(function (x) { return x.id === swid; })[0];
+          return w && w.state === 'done' ? 'Swapped! 🍻 The crew sees it in Lately.' : says[sdo];
+        });
+        break;
+      }
+      case 'gift': openGift(t.getAttribute('data-mid'), t.getAttribute('data-iid')); break;
+      case 'giftgo': cellarWrite(null, 'POST', '/cellar/wants/' + t.getAttribute('data-mid') + '/' + t.getAttribute('data-iid') + '/gift', {}, 'You’re on it - order it from the seller.', function () { closeSheet(); }); break;
+      case 'unclaim': cellarWrite('Let it go? Someone else can gift it then.', 'DELETE', '/cellar/wants/' + t.getAttribute('data-mid') + '/' + t.getAttribute('data-iid') + '/gift', undefined, 'Let go'); break;
+      case 'arrived': {
+        var aw = cellarOf(crew().me).wants.filter(function (x) { return x.id === t.getAttribute('data-iid'); })[0];
+        cellarWrite('Did it arrive? It comes off your wishlist' + (aw && aw.gift ? ', and you owe ' + nameOf(aw.gift.by) + ' a beer' : '') + '.', 'POST', '/cellar/wants/' + crew().me + '/' + t.getAttribute('data-iid') + '/arrived', {}, 'Arrived 🎁 - say thanks!');
+        break;
+      }
+      case 'square': cellarWrite('Mark one beer squared up with ' + nameOf(t.getAttribute('data-mid')) + '?', 'POST', '/ious/square', { with: t.getAttribute('data-mid') }, 'Squared up'); break;
       case 'emo': {
         var root = t.closest('.sheet') || document;
         $$('.emo', t.parentNode).forEach(function (b) { b.setAttribute('aria-checked', String(b === t)); });
@@ -1140,6 +1463,12 @@
     }
   });
   function doSeat() { api('POST', crewPath('/seat'), {}).then(function (v) { state.data.crew = v; draw(); toast('Your seat follows your account now.'); }).catch(function (err) { showError(err); }); }
+
+  // A crew-mate's cellar stays open across redraws (a claim, a poll).
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (d && d.getAttribute && d.getAttribute('data-cellar')) state.cellarOpen[d.getAttribute('data-cellar')] = d.open;
+  }, true);
 
   // Votes and "who brought it" picks: forms and selects.
   document.addEventListener('submit', function (e) {

@@ -314,6 +314,50 @@ form + .btn.danger { margin-top: 12px; }
 .joincard form { text-align: left; }
 .joinbox { margin: 12px 0; }
 
+/* ---------- cellar & swap ---------- */
+.ccol { min-width: 0; }
+.rules { margin-top: 4px; border-top: 1px solid var(--line); }
+.rules summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--link); font-weight: 700; }
+.rules p { margin: 0 0 6px; max-width: 68ch; }
+.matches, .swaps, .citems, .ious, .feed, .ccellars { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+.match { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); }
+.match.k-two-way { border-color: var(--accent); background: var(--accent-soft); }
+.match .em { font-size: 1.5rem; line-height: 1.2; }
+.mbody { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.mbody p { margin: 0; overflow-wrap: anywhere; }
+.kind { font-size: .74rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.swap { display: grid; gap: 6px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); }
+.swap.st-proposed, .swap.st-accepted { border-color: var(--accent); }
+.swap.st-done .badge { background: var(--good-bg); color: var(--good); }
+.swap p { margin: 0; }
+.swaplines { display: grid; gap: 2px; overflow-wrap: anywhere; }
+.citems li { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 14px; background: var(--card2); }
+.cbody { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; flex: 1; min-width: 0; }
+.cbody b { overflow-wrap: anywhere; }
+.cbody .btn { margin-top: 4px; }
+.badge.ok-b { background: var(--good-bg); color: var(--good); }
+.buy { overflow-wrap: anywhere; min-height: 32px; display: inline-flex; align-items: center; font-weight: 600; }
+.gift-on { color: var(--good); font-weight: 700; }
+.gift-mine { background: var(--good-bg); border-radius: 10px; padding: 8px 10px; margin-top: 4px; }
+.gift-mine p { margin: 0; }
+.ious li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; min-height: 48px; border-bottom: 1px solid var(--line); }
+.ious li:last-child { border-bottom: 0; }
+.ious + p { margin-top: 8px; }
+.ccellars details { border: 1px solid var(--line); border-radius: 14px; }
+.ccellars summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; min-height: 52px; cursor: pointer; }
+.cdetail { padding: 0 12px 12px; }
+.cdetail .eyebrow { margin-top: 10px; }
+.feed li { display: flex; gap: 10px; align-items: flex-start; }
+.feed li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.fline { display: block; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair .field { margin: 0; }
+.check { display: flex; gap: 10px; align-items: center; min-height: 44px; font-weight: 700; cursor: pointer; }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); flex: 0 0 auto; }
+.picks-set { border: 0; padding: 0; margin: 4px 0; min-width: 0; }
+.picks-set legend { font-weight: 700; font-size: .92rem; padding: 0; margin-bottom: 6px; }
+.picks { display: grid; gap: 8px; }
+
 /* ---------- sheet ---------- */
 .sheet-back { position: fixed; inset: 0; background: rgba(15, 10, 5, .55); z-index: 40; }
 .sheet {

@@ -182,9 +182,10 @@ function actorOf(req, crew) {
   return { mid: m ? m.id : null, host: Boolean(m && m.host && tag && crew.ownerTag === tag && m.acct === tag) };
 }
 
-/** Delete a crew and everything in it: its sessions and polls first. */
+/** Delete a crew and everything in it: its sessions, polls, cellars and
+ *  swaps first. */
 async function purgeCrew(id) {
-  for (const c of ['sessions', 'polls']) {
+  for (const c of ['sessions', 'polls', 'cellars', 'swaps']) {
     for (const d of await store.list(c, { where: [['crewId', '==', id]] })) await store.remove(c, d.id);
   }
   await store.remove('crews', id);
@@ -335,7 +336,8 @@ app.delete('/api/crews/:cid', user, route('Could not delete the crew.', async (r
 }));
 
 /** The host removes someone, or someone leaves. Everything they put in the
- *  crew's sessions and polls goes with them. No sign-in needed to leave. */
+ *  crew's sessions, polls and cellars goes with them. No sign-in needed to
+ *  leave. */
 app.delete('/api/crews/:cid/members/:mid', route('Could not remove them.', async (req, res) => {
   const mid = String(req.params.mid || '');
   const { crew, actor } = await crewChange(req, (d, a) => { K.remove(d, a, mid, Date.now()); });
@@ -357,6 +359,7 @@ app.delete('/api/crews/:cid/members/:mid', route('Could not remove them.', async
       });
     }
   }
+  await scrubCellars(crew.id, mid);
   if (mid === actor.mid) return res.json({ ok: true, left: true });
   res.json(K.view(crew, actor.mid, actor.host));
 }));
@@ -600,6 +603,168 @@ app.delete('/api/crews/:cid/polls/:pid', route('Could not delete the vote.', asy
   await store.remove('polls', pid);
   await bumpCrew(crew.id);
   res.json({ ok: true });
+}));
+
+/* ------------------------------------------------------------------ *
+ * Cellar & Swap: have/want lists, in-person swaps, gifts through a
+ * licensed seller, and a friendly IOU tally. No model call, no money, no
+ * address, no shipping between people - see CLAUDE.md "Cellar & Swap".
+ *
+ * One document per member's lists, `cellars/<crewId>_<memberId>` (their
+ * haves, wants, the gifts made to them and their squared-up marks), and
+ * one per swap, `swaps/<id>`. Every write is a transaction on one of them.
+ * ------------------------------------------------------------------ */
+
+const cellarDocId = (crewId, mid) => `${crewId}_${mid}`;
+const cellarIds = { item: () => K.newId('i'), gift: () => K.newId('g'), square: () => K.newId('q') };
+
+async function cellarBundle(crew, actor) {
+  const memberIds = K.memberIds(crew);
+  const [cellars, swaps] = await Promise.all([
+    store.list('cellars', { where: [['crewId', '==', crew.id]] }),
+    store.list('swaps', { where: [['crewId', '==', crew.id]] }),
+  ]);
+  return { v: crew.v || 0, ...Core.cellarView(cellars, swaps, memberIds, actor.mid, Date.now()) };
+}
+
+/** A member leaving or removed: their lists and every swap they are in are
+ *  deleted; the gifts they claimed and the squared-up marks naming them
+ *  come off everyone else's lists. */
+async function scrubCellars(crewId, mid) {
+  for (const d of await store.list('cellars', { where: [['crewId', '==', crewId]] })) {
+    if (d.member === mid) { await store.remove('cellars', d.id); continue; }
+    await store.transact('cellars', d.id, (cur) => {
+      if (!cur) return undefined;
+      const doc = { ...cur };
+      if (!Core.scrubCellar(doc, mid)) return undefined;
+      doc.v = (doc.v || 0) + 1;
+      return doc;
+    });
+  }
+  for (const w of await store.list('swaps', { where: [['crewId', '==', crewId]] })) {
+    if (w.from === mid || w.to === mid) await store.remove('swaps', w.id);
+  }
+}
+
+app.get('/api/crews/:cid/cellar', route('Could not load the cellar.', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { crew, actor } = await memberCrew(req);
+  const since = Number(req.query.since);
+  if (Number.isInteger(since) && since === (crew.v || 0)) return res.json({ same: true, v: crew.v || 0 });
+  res.json(await cellarBundle(crew, actor));
+}));
+
+/** One change to one member's lists, as a transaction. `owner` is whose
+ *  lists ('me' for the caller's own); the rules in flight-core decide who
+ *  may change what (only you your own lines; anyone else a gift claim). */
+async function cellarChange(req, owner, fn) {
+  countWrite(req);
+  const { crew, actor } = await memberCrew(req);
+  const memberIds = K.memberIds(crew);
+  const mid = owner === 'me' ? actor.mid : String(owner || '');
+  if (!memberIds.includes(mid)) throw httpError(404, 'No such member.');
+  const now = Date.now();
+  await store.transact('cellars', cellarDocId(crew.id, mid), (cur) => {
+    const doc = cur ? { ...cur } : Core.newCellar(crew.id, mid, now);
+    if (doc.crewId !== crew.id || doc.member !== mid) throw httpError(404, 'No such list.');
+    fn(doc, actor, memberIds, now);
+    return doc;
+  });
+  await bumpCrew(crew.id);
+  return cellarBundle(crew, actor);
+}
+
+app.post('/api/crews/:cid/cellar/:list', route('Could not add that.', async (req, res) => {
+  const list = Core.cellarList(String(req.params.list));
+  res.json(await cellarChange(req, 'me', (d, a, m, now) => { Core.addItem(d, a, list, req.body || {}, now, cellarIds); }));
+}));
+app.patch('/api/crews/:cid/cellar/:list/:iid', route('Could not save that.', async (req, res) => {
+  Core.cellarList(String(req.params.list));
+  res.json(await cellarChange(req, 'me', (d, a, m, now) => { Core.editItem(d, a, String(req.params.iid), req.body || {}, now); }));
+}));
+app.delete('/api/crews/:cid/cellar/:list/:iid', route('Could not take that off.', async (req, res) => {
+  Core.cellarList(String(req.params.list));
+  res.json(await cellarChange(req, 'me', (d, a, m, now) => { Core.removeItem(d, a, String(req.params.iid), now); }));
+}));
+
+/** "I'll gift this" on a crew-mate's wish, letting it go, and the
+ *  recipient's "It arrived". */
+app.post('/api/crews/:cid/cellar/wants/:mid/:iid/gift', route('Could not claim that.', async (req, res) => {
+  res.json(await cellarChange(req, req.params.mid, (d, a, m, now) => { Core.claimGift(d, a, String(req.params.iid), now, cellarIds); }));
+}));
+app.delete('/api/crews/:cid/cellar/wants/:mid/:iid/gift', route('Could not let that go.', async (req, res) => {
+  res.json(await cellarChange(req, req.params.mid, (d, a, m, now) => { Core.unclaimGift(d, a, String(req.params.iid), now); }));
+}));
+app.post('/api/crews/:cid/cellar/wants/:mid/:iid/arrived', route('Could not save that.', async (req, res) => {
+  res.json(await cellarChange(req, req.params.mid, (d, a, m, now) => { Core.giftArrived(d, a, String(req.params.iid), now); }));
+}));
+
+/** Squared up: one beer settled between the caller and a crew-mate. The
+ *  tally is read first (it spans every list and swap), then the mark goes
+ *  on the caller's own document. */
+app.post('/api/crews/:cid/ious/square', route('Could not save that.', async (req, res) => {
+  const { crew, actor } = await memberCrew(req);
+  const withMid = typeof (req.body || {}).with === 'string' ? req.body.with : '';
+  const memberIds = K.memberIds(crew);
+  const [cellars, swaps] = await Promise.all([
+    store.list('cellars', { where: [['crewId', '==', crew.id]] }),
+    store.list('swaps', { where: [['crewId', '==', crew.id]] }),
+  ]);
+  const net = actor.mid && memberIds.includes(withMid) ? Core.owedBetween(Core.tallies(cellars, swaps, memberIds), actor.mid, withMid) : 0;
+  res.json(await cellarChange(req, 'me', (d, a, m, now) => { Core.squareUp(d, a, withMid, net, m, now, cellarIds); }));
+}));
+
+/** Propose a swap: in person, at a tasting the crew has on or a place in a
+ *  few words. 30 open a crew; 200 kept, the oldest declined or cancelled
+ *  making room. */
+app.post('/api/crews/:cid/swaps', route('Could not propose that.', async (req, res) => {
+  countWrite(req);
+  const { crew, actor } = await memberCrew(req);
+  const b = req.body || {};
+  const memberIds = K.memberIds(crew);
+  const to = typeof b.to === 'string' && memberIds.includes(b.to) ? b.to : null;
+  const [mine, theirs] = await Promise.all([
+    actor.mid ? store.get('cellars', cellarDocId(crew.id, actor.mid)) : null,
+    to ? store.get('cellars', cellarDocId(crew.id, to)) : null,
+  ]);
+  let session = null;
+  if (b.session !== null && b.session !== undefined && b.session !== '') {
+    const sid = String(b.session);
+    const s = K.isId(sid) ? await store.get('sessions', sid) : null;
+    session = s && s.crewId === crew.id ? s : null;
+  }
+  const now = Date.now();
+  const w = Core.newSwap(b, actor, mine, theirs, memberIds, session, now);
+  const all = await store.list('swaps', { where: [['crewId', '==', crew.id]] });
+  if (all.filter(Core.swapOpen).length >= Core.LIMITS.swapsOpen) throw httpError(409, `The crew has ${Core.LIMITS.swapsOpen} swaps open - settle or cancel one first.`);
+  if (all.length >= Core.LIMITS.swapsKept) {
+    const old = all.filter((x) => x.state === 'declined' || x.state === 'cancelled').sort((x, y) => String(x.updatedAt).localeCompare(String(y.updatedAt)))[0];
+    if (!old) throw httpError(409, `A crew keeps ${Core.LIMITS.swapsKept} swaps.`);
+    await store.remove('swaps', old.id);
+  }
+  w.crewId = crew.id;
+  const wid = K.newId('w');
+  await store.transact('swaps', wid, (cur) => { if (cur) throw httpError(409, 'Try again.'); return w; });
+  await bumpCrew(crew.id);
+  res.json(await cellarBundle(crew, actor));
+}));
+
+/** Accept, decline, cancel, or tick "we swapped" (both ticks and it is
+ *  done). Only the two people in it; to anyone else it is a 404. */
+app.post('/api/crews/:cid/swaps/:wid/:action', route('Could not save that.', async (req, res) => {
+  countWrite(req);
+  const { crew, actor } = await memberCrew(req);
+  const wid = String(req.params.wid || '');
+  const action = String(req.params.action || '');
+  if (!K.isId(wid) || !Core.SWAP_ACTIONS.includes(action)) throw httpError(404, 'No such swap.');
+  await store.transact('swaps', wid, (cur) => {
+    if (!cur || cur.crewId !== crew.id) throw httpError(404, 'No such swap.');
+    const w = { ...cur, ticks: { ...(cur.ticks || {}) } };
+    Core.swapAct(w, actor, action, Date.now());
+    return w;
+  });
+  await bumpCrew(crew.id);
+  res.json(await cellarBundle(crew, actor));
 }));
 
 /* ------------------------------------------------------------------ *

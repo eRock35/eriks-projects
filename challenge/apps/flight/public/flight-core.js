@@ -26,6 +26,9 @@
     sessionsPerCrew: 100, pollsPerCrew: 30,
     windowMinMs: 60 * 60 * 1000, windowMaxMs: 14 * 24 * 60 * 60 * 1000,
     abvMax: 20,
+    // Cellar & Swap.
+    haves: 60, wants: 60, itemCount: 99, link: 300, swapWhere: 80, swapLines: 6,
+    swapsOpen: 30, swapsKept: 200, giftsKept: 120, squaresKept: 120, feed: 12, matches: 20,
   };
 
   var POINTS = { styleExact: 3, styleFamily: 1, abvClosest: 2, whoBrought: 2, award: 2 };
@@ -818,6 +821,497 @@
     return v;
   }
 
+  /* ------------------------------------------------------------------ *
+   * Cellar & Swap: what each member has and wants, matched across the
+   * crew; swaps in person; gifts bought from a licensed seller; and a
+   * friendly tally of who owes whom a beer. The legal version, by design:
+   * Flight never arranges shipping between people, never handles money and
+   * never asks for an address - there is no field for any of them.
+   *
+   * One document per member's lists (`cellars/<crewId>_<memberId>`): their
+   * haves, their wants, the gifts made TO them (a claim lives on the wish
+   * it answers) and the "squared up" marks they made. Each swap is its own
+   * document. Every write is a transaction on one of those, so two phones
+   * editing at once both stick. Matches and the IOU tally are worked out
+   * on read and never stored.
+   * ------------------------------------------------------------------ */
+
+  var SIZES = [['can', 'Can'], ['bottle', 'Bottle'], ['crowler', 'Crowler'], ['growler', 'Growler']].map(function (r) { return { id: r[0], name: r[1] }; });
+  var SIZE_IDS = SIZES.map(function (s) { return s.id; });
+  var SELLER_SHIPS = ['yes', 'no', 'unsure'];
+  var SWAP_ACTIONS = ['accept', 'decline', 'cancel', 'swapped', 'unswapped'];
+  var MATCH_KINDS = ['two-way', 'one-way', 'brewery', 'style'];
+  function sizeName(id) { for (var i = 0; i < SIZES.length; i++) if (SIZES[i].id === id) return SIZES[i].name; return ''; }
+  function iso(t) { return new Date(t).toISOString(); }
+
+  /** Folds case, accents, punctuation and "&", so "Fog Lantern" typed on
+   *  one phone meets "fog-lantern" on another (Hopscotch's rule, written
+   *  again here). Letters of any script survive - a name in kanji is not
+   *  folded to nothing - and punctuation alone folds to nothing. */
+  function foldText(v) {
+    var s = typeof v === 'string' ? v : '';
+    if (s.length > 400) s = s.slice(0, 400);
+    return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  }
+  // "Tidewater" typed by hand and "Tidewater Brewing Co." from a can are the
+  // same place. Only the corporate words go - never "beer" or "ale", which
+  // are sometimes the name.
+  var BREWERY_NOISE = /\b(the|brewing|brewery|breweries|brewers|brewhouse|company|co|llc|inc|ltd)\b/g;
+  function breweryKey(name) {
+    var plain = foldText(name);
+    return plain.replace(BREWERY_NOISE, ' ').replace(/\s+/g, ' ').trim() || plain;
+  }
+  function beerKey(brewery, name) { var b = foldText(name); return b ? breweryKey(brewery) + '|' + b : ''; }
+
+  /** How well a wish meets a bottle: 3 the same beer (same name, and the
+   *  same brewery when both say one), 2 the same brewery, 1 the same style,
+   *  0 nothing. */
+  function matchLevel(want, have) {
+    var wn = foldText(want.name), hn = foldText(have.name);
+    var wb = breweryKey(want.brewery), hb = breweryKey(have.brewery);
+    if (wn && wn === hn && (!wb || !hb || wb === hb)) return 3;
+    if (wb && wb === hb) return 2;
+    if (want.style && want.style !== 'other' && want.style === have.style) return 1;
+    return 0;
+  }
+
+  var LINK_MSG = 'Paste an https link to the brewery’s own shop or a licensed retailer - or leave it blank.';
+  /** "Where to buy it legally": an https link the member pasted. Never
+   *  fetched by anyone - it is only drawn, as a link. http, javascript:,
+   *  data:, a link with a user name or password in it, a bare word, or
+   *  anything over 300 characters is refused. Blank is no link. */
+  function cleanLink(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v !== 'string') throw fail(400, LINK_MSG);
+    var s = v.trim();
+    if (!s) return null;
+    if (s.length > LIMITS.link || !/^https:\/\//i.test(s) || /[\s<>"'`\\\u0000-\u001f\u007f-\u009f]/.test(s) || s.replace(STRIP, '') !== s) throw fail(400, LINK_MSG);
+    var u;
+    try { u = new URL(s); } catch (e) { throw fail(400, LINK_MSG); }
+    if (u.protocol !== 'https:' || u.username || u.password || !/^[a-z0-9.-]+$/i.test(u.hostname) || u.hostname.indexOf('.') < 1 || /\.$/.test(u.hostname)) throw fail(400, LINK_MSG);
+    if (u.href.length > LIMITS.link) throw fail(400, LINK_MSG);
+    return u.href;
+  }
+  /** The host a link goes to, for showing beside it ("shop.example"). */
+  function linkHost(href) {
+    try { return new URL(href).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+  }
+
+  function cleanCount(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var n = typeof v === 'string' ? Number(v.trim()) : v;
+    if (typeof n !== 'number' || !isFinite(n) || Math.floor(n) !== n || n < 1 || n > LIMITS.itemCount) throw fail(400, 'Count is a whole number from 1 to ' + LIMITS.itemCount + '.');
+    return n;
+  }
+
+  /** One line of a cellar or a wishlist, as typed. `prev` is the line being
+   *  edited: a field the input leaves out keeps its old value. There is no
+   *  price, no payment, no address and no shipping field - by design. */
+  function cleanItem(input, list, prev) {
+    input = input || {};
+    prev = prev || {};
+    function pick(k) { return has(input, k) ? input[k] : prev[k]; }
+    var name = clean(pick('name'), LIMITS.beerName);
+    if (!/[\p{L}\p{N}]/u.test(name)) throw fail(400, 'Give the beer a name.');
+    var style = pick('style');
+    if (style !== null && style !== undefined && style !== '' && !cleanStyle(style)) throw fail(400, 'Pick a style from the list.');
+    var size = pick('size');
+    if (size !== null && size !== undefined && size !== '' && SIZE_IDS.indexOf(size) < 0) throw fail(400, 'Pick can, bottle, crowler or growler.');
+    var out = {
+      name: name, brewery: clean(pick('brewery'), LIMITS.brewery), style: cleanStyle(style),
+      size: SIZE_IDS.indexOf(size) >= 0 ? size : null, count: cleanCount(pick('count')), note: clean(pick('note'), LIMITS.note),
+    };
+    if (list === 'haves') out.swap = pick('swap') === true;
+    else {
+      out.buyLink = cleanLink(pick('buyLink'));
+      var sh = pick('sellerShips');
+      out.sellerShips = SELLER_SHIPS.indexOf(sh) >= 0 ? sh : null;
+    }
+    return out;
+  }
+
+  function newCellar(crewId, mid, now) {
+    return { crewId: crewId, member: mid, haves: [], wants: [], gifts: [], squares: [], createdAt: iso(now), updatedAt: iso(now), v: 0 };
+  }
+  function cellarList(list) {
+    if (list !== 'haves' && list !== 'wants') throw fail(404, 'Not a list.');
+    return list;
+  }
+  /** Only you write your own lists. */
+  function ownCellar(doc, actor) {
+    if (!actor || !actor.mid) throw fail(403, 'Join the crew first.');
+    if (doc.member !== actor.mid) throw fail(403, 'That’s not your list.');
+  }
+  function findItem(doc, iid) {
+    var lists = ['haves', 'wants'];
+    for (var i = 0; i < lists.length; i++) {
+      var arr = doc[lists[i]] || [];
+      for (var j = 0; j < arr.length; j++) if (arr[j].id === iid) return { list: lists[i], item: arr[j], index: j };
+    }
+    return null;
+  }
+  function itemOf(id, it, list, at) {
+    var out = { id: id, name: it.name, brewery: it.brewery, style: it.style, size: it.size, count: it.count, note: it.note };
+    if (list === 'haves') out.swap = it.swap;
+    else { out.buyLink = it.buyLink; out.sellerShips = it.sellerShips; }
+    out.at = at;
+    return out;
+  }
+
+  function addItem(doc, actor, list, input, now, ids) {
+    ownCellar(doc, actor);
+    cellarList(list);
+    var max = list === 'haves' ? LIMITS.haves : LIMITS.wants;
+    if ((doc[list] || []).length >= max) throw fail(409, (list === 'haves' ? 'Your cellar' : 'Your wishlist') + ' holds ' + max + ' beers. Take one off first.');
+    var it = itemOf(ids.item(), cleanItem(input, list), list, iso(now));
+    doc[list] = (doc[list] || []).concat([it]);
+    touch(doc, now);
+    return it;
+  }
+  function editItem(doc, actor, iid, input, now) {
+    ownCellar(doc, actor);
+    var f = findItem(doc, iid);
+    if (!f) throw fail(404, 'That beer isn’t on your list any more.');
+    var it = itemOf(f.item.id, cleanItem(input, f.list, f.item), f.list, f.item.at);
+    doc[f.list][f.index] = it;
+    touch(doc, now);
+    return it;
+  }
+  /** Take a line off. A wish someone is gifting goes with its claim - the
+   *  gift was never bought through Flight, so there is nothing to undo. */
+  function removeItem(doc, actor, iid, now) {
+    ownCellar(doc, actor);
+    var f = findItem(doc, iid);
+    if (!f) throw fail(404, 'That beer isn’t on your list any more.');
+    doc[f.list] = doc[f.list].filter(function (x) { return x.id !== iid; });
+    if (f.list === 'wants') doc.gifts = (doc.gifts || []).filter(function (g) { return !(g.want === iid && !g.arrivedAt); });
+    touch(doc, now);
+  }
+
+  /* ---- gifts: through a licensed seller, never person to person ---- */
+
+  function activeGift(doc, wantId) {
+    var gs = doc.gifts || [];
+    for (var i = 0; i < gs.length; i++) if (gs[i].want === wantId && !gs[i].arrivedAt) return gs[i];
+    return null;
+  }
+  /** Keep a list within `max` by dropping its oldest settled records (the
+   *  ones `done` says are finished); refuses when only open ones are left. */
+  function prune(arr, max, done) {
+    var out = arr.slice();
+    while (out.length >= max) {
+      var k = -1;
+      for (var i = 0; i < out.length; i++) if (done(out[i])) { k = i; break; }
+      if (k < 0) return null;
+      out.splice(k, 1);
+    }
+    return out;
+  }
+  /** "I'll gift this": someone else in the crew claims a wish that has a
+   *  seller's link. One claimer at a time; never your own wish. The order
+   *  itself happens at the seller, to the friend's address - Flight never
+   *  sees the address, the order or the money. */
+  function claimGift(doc, actor, wantId, now, ids) {
+    if (!actor || !actor.mid) throw fail(403, 'Join the crew first.');
+    var w = (doc.wants || []).filter(function (x) { return x.id === wantId; })[0];
+    if (!w) throw fail(404, 'That’s not on their wishlist any more.');
+    if (doc.member === actor.mid) throw fail(409, 'That’s your own wish - you can’t gift it to yourself.');
+    if (!w.buyLink) throw fail(409, 'Gifts go through a licensed seller, and this wish has no link to one yet.');
+    var g = activeGift(doc, wantId);
+    if (g) throw fail(409, g.by === actor.mid ? 'You’re already on it.' : 'Someone’s already on this one.');
+    var kept = prune(doc.gifts || [], LIMITS.giftsKept, function (x) { return Boolean(x.arrivedAt); });
+    if (!kept) throw fail(409, 'Too many gifts on the way at once.');
+    var gift = { id: ids.gift(), want: wantId, by: actor.mid, name: w.name, brewery: w.brewery, claimedAt: iso(now), arrivedAt: null };
+    doc.gifts = kept.concat([gift]);
+    touch(doc, now);
+    return gift;
+  }
+  function unclaimGift(doc, actor, wantId, now) {
+    var g = activeGift(doc, wantId);
+    if (!g) throw fail(404, 'Nobody’s on that one.');
+    if (!actor || g.by !== actor.mid) throw fail(403, 'Only whoever claimed it can let it go.');
+    doc.gifts = doc.gifts.filter(function (x) { return x !== g; });
+    touch(doc, now);
+  }
+  /** The recipient says it came. The wish comes off the list; the gift is
+   *  kept, because the crew's IOU tally is worked out from it. */
+  function giftArrived(doc, actor, wantId, now) {
+    if (!actor || !actor.mid || doc.member !== actor.mid) throw fail(403, 'Only whoever wished for it can say it arrived.');
+    var g = activeGift(doc, wantId);
+    if (!g) throw fail(409, 'Nobody’s on that one yet.');
+    g.arrivedAt = iso(now);
+    doc.wants = (doc.wants || []).filter(function (x) { return x.id !== wantId; });
+    touch(doc, now);
+  }
+
+  /* ---- swaps: in person only ---- */
+
+  function swapOpen(w) { return w.state === 'proposed' || w.state === 'accepted'; }
+  /** The beers on one side of a swap, picked from a list by id, copied as
+   *  they are now (the swap still reads if the line is edited later). */
+  function pickLines(picks, items, theirs) {
+    if (picks === null || picks === undefined) return [];
+    if (!Array.isArray(picks)) throw fail(400, 'Pick beers from the lists.');
+    var out = [], seen = {};
+    picks.slice(0, 40).forEach(function (p) {
+      var id = typeof p === 'string' ? p : (p && typeof p.item === 'string' ? p.item : '');
+      if (seen[id]) return;
+      var it = (items || []).filter(function (x) { return x.id === id; })[0];
+      if (!it) throw fail(400, 'That beer isn’t on the list any more.');
+      if (theirs && !it.swap) throw fail(409, 'They haven’t marked ' + it.name + ' open to swap.');
+      var max = it.count || 12;
+      var n = p && typeof p === 'object' && has(p, 'n') ? Number(p.n) : 1;
+      if (!isFinite(n) || Math.floor(n) !== n || n < 1 || n > max) throw fail(400, 'How many of ' + it.name + '? Up to ' + max + '.');
+      seen[id] = true;
+      out.push({ item: it.id, name: it.name, brewery: it.brewery, style: it.style, size: it.size, n: n });
+    });
+    if (out.length > LIMITS.swapLines) throw fail(400, LIMITS.swapLines + ' beers a side is plenty.');
+    return out;
+  }
+  /**
+   * A proposal: what I give (from my cellar), what I get (from their
+   * open-to-swap cellar) - either side may be empty ("nothing back, a
+   * gift"), not both - and where: a tasting the crew has on (`session`, not
+   * yet revealed) or a few words. No price, no address, no shipping.
+   */
+  function newSwap(input, actor, mine, theirs, memberIds, session, now) {
+    input = input || {};
+    if (!actor || !actor.mid) throw fail(403, 'Join the crew first.');
+    var to = input.to;
+    if (typeof to !== 'string' || memberIds.indexOf(to) < 0) throw fail(400, 'Pick someone in the crew.');
+    if (to === actor.mid) throw fail(400, 'Swapping with yourself? Pick someone else.');
+    var give = pickLines(input.give, mine ? mine.haves : [], false);
+    var get = pickLines(input.get, theirs ? theirs.haves : [], true);
+    if (!give.length && !get.length) throw fail(400, 'Pick at least one beer to give or get.');
+    var wantSession = input.session !== null && input.session !== undefined && input.session !== '';
+    if (wantSession && !session) throw fail(400, 'That tasting isn’t in this crew.');
+    if (session && session.kind !== 'blind') throw fail(409, 'A Same-Can Challenge is played apart - pick a tasting in one room, or say where.');
+    if (session && stageOf(session, now) === 'revealed') throw fail(409, 'That tasting is over - pick another, or say where.');
+    var where = clean(input.where, LIMITS.swapWhere);
+    return {
+      from: actor.mid, to: to, give: give, get: get,
+      where: session ? '' : (where || 'At our next tasting'),
+      session: session ? session.id : null, sessionTitle: session ? clean(session.title, LIMITS.title) : null,
+      state: 'proposed', ticks: {}, createdAt: iso(now), updatedAt: iso(now), decidedAt: null, doneAt: null, v: 1,
+    };
+  }
+  /**
+   * proposed -> accepted | declined (whoever it was offered to) | cancelled
+   * (whoever proposed it); accepted -> done (both tick "swapped") |
+   * cancelled (either). Only the two of them can act; to anyone else it
+   * does not exist. A closed swap stays closed.
+   */
+  function swapAct(w, actor, action, now) {
+    if (!actor || !actor.mid || (actor.mid !== w.from && actor.mid !== w.to)) throw fail(404, 'No such swap.');
+    if (SWAP_ACTIONS.indexOf(action) < 0) throw fail(404, 'No such swap.');
+    if (!swapOpen(w)) throw fail(409, 'That swap is ' + (w.state === 'done' ? 'done' : w.state) + ' - nothing more to do.');
+    var at = iso(now);
+    w.ticks = w.ticks || {};
+    if (action === 'accept' || action === 'decline') {
+      if (w.state !== 'proposed') throw fail(409, 'It’s already been accepted.');
+      if (actor.mid !== w.to) throw fail(403, action === 'accept' ? 'You can’t accept your own proposal.' : 'It’s yours - cancel it instead.');
+      w.state = action === 'accept' ? 'accepted' : 'declined';
+      w.decidedAt = at;
+    } else if (action === 'cancel') {
+      if (w.state === 'proposed' && actor.mid !== w.from) throw fail(403, 'Decline it instead.');
+      w.state = 'cancelled';
+      w.decidedAt = at;
+    } else {
+      if (w.state !== 'accepted') throw fail(409, 'Accept it first - then tick it once you’ve swapped.');
+      if (action === 'swapped') w.ticks[actor.mid] = at; else delete w.ticks[actor.mid];
+      if (w.ticks[w.from] && w.ticks[w.to]) { w.state = 'done'; w.doneAt = at; }
+    }
+    touch(w, now);
+    return w;
+  }
+
+  /* ---- friendly IOUs: counts, never money ---- */
+
+  function pairKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+  /**
+   * The tally between every pair, worked out from what is stored and never
+   * stored itself: an arrived gift means its recipient owes the giver one;
+   * a one-sided swap that is done means whoever received owes whoever gave
+   * one; a "squared up" mark takes one off whichever way it leans (and
+   * does nothing once it is level). In time order, so the same records give
+   * the same numbers on every phone. `t['a|b'] > 0`: a owes b that many.
+   */
+  function tallies(cellars, swaps, memberIds) {
+    var inCrew = {};
+    memberIds.forEach(function (m) { inCrew[m] = true; });
+    var ev = [];
+    (cellars || []).forEach(function (c) {
+      if (!inCrew[c.member]) return;
+      (c.gifts || []).forEach(function (g) { if (g.arrivedAt && inCrew[g.by] && g.by !== c.member) ev.push({ at: g.arrivedAt, id: g.id, owes: c.member, to: g.by }); });
+      (c.squares || []).forEach(function (q) { if (inCrew[q.with] && q.with !== c.member) ev.push({ at: q.at, id: q.id, a: c.member, b: q.with, square: true }); });
+    });
+    (swaps || []).forEach(function (w) {
+      if (w.state !== 'done' || !inCrew[w.from] || !inCrew[w.to]) return;
+      var gives = (w.give || []).length, gets = (w.get || []).length;
+      if (gives && !gets) ev.push({ at: w.doneAt, id: w.id, owes: w.to, to: w.from });
+      else if (!gives && gets) ev.push({ at: w.doneAt, id: w.id, owes: w.from, to: w.to });
+    });
+    ev.sort(function (x, y) { return String(x.at).localeCompare(String(y.at)) || String(x.id).localeCompare(String(y.id)); });
+    var t = {};
+    ev.forEach(function (e) {
+      if (e.square) {
+        var k = pairKey(e.a, e.b), v = t[k] || 0;
+        if (v > 0) t[k] = v - 1; else if (v < 0) t[k] = v + 1;
+        return;
+      }
+      var k2 = pairKey(e.owes, e.to);
+      t[k2] = (t[k2] || 0) + (e.owes < e.to ? 1 : -1);
+    });
+    return t;
+  }
+  /** > 0: `other` owes `me` that many beers; < 0: I owe them. */
+  function owedBetween(t, me, other) {
+    var v = t[pairKey(me, other)] || 0;
+    return (me < other ? -v : v) || 0;
+  }
+  /** "Squared up": either side marks one beer settled. Refused when the two
+   *  are already level (`net` is what the tally says now). */
+  function squareUp(doc, actor, withMid, net, memberIds, now, ids) {
+    ownCellar(doc, actor);
+    if (typeof withMid !== 'string' || withMid === actor.mid || memberIds.indexOf(withMid) < 0) throw fail(400, 'Pick someone in the crew.');
+    if (!net) throw fail(409, 'You two are square already.');
+    var kept = prune(doc.squares || [], LIMITS.squaresKept, function () { return true; });
+    doc.squares = kept.concat([{ id: ids.square(), with: withMid, at: iso(now) }]);
+    touch(doc, now);
+  }
+
+  /* ---- matches ---- */
+
+  function bestLines(wants, haves) {
+    var out = [];
+    wants.forEach(function (w) {
+      var best = null, lvl = 0;
+      haves.forEach(function (h) { var l = matchLevel(w, h); if (l > lvl) { lvl = l; best = h; } });
+      if (best) out.push({ want: w.id, wantName: w.name, have: best.id, haveName: best.name, haveBrewery: best.brewery, haveStyle: best.style, level: lvl });
+    });
+    return out;
+  }
+  /**
+   * My wants against everyone else's open-to-swap cellar, and their wants
+   * against mine. Per crew-mate: "two-way" when each has a beer the other
+   * wants, "one-way" when only one side does, then the weaker "same
+   * brewery" and "same style". A wish someone is already gifting is left
+   * out. Two-way first, then one-way, then brewery, then style; within a
+   * kind, more beers first, then the member id - deterministic.
+   */
+  function cellarMatches(byMember, me, memberIds) {
+    var empty = { haves: [], wants: [], gifts: [] };
+    var mine = byMember[me] || empty;
+    var open = function (c) { return (c.haves || []).filter(function (h) { return h.swap; }); };
+    var wishes = function (c) { return (c.wants || []).filter(function (w) { return !activeGift(c, w.id); }); };
+    var myWants = wishes(mine), myHaves = open(mine);
+    var out = [];
+    memberIds.forEach(function (m) {
+      if (m === me || !byMember[m]) return;
+      var c = byMember[m];
+      var gets = bestLines(myWants, open(c));
+      var gives = bestLines(wishes(c), myHaves);
+      var top = function (arr) { return arr.reduce(function (a, x) { return Math.max(a, x.level); }, 0); };
+      var g = top(gets), v = top(gives);
+      var kind = g === 3 && v === 3 ? 'two-way' : (g === 3 || v === 3 ? 'one-way' : (Math.max(g, v) === 2 ? 'brewery' : (Math.max(g, v) === 1 ? 'style' : null)));
+      if (!kind) return;
+      var lvl = { 'two-way': 3, 'one-way': 3, brewery: 2, style: 1 }[kind];
+      var only = function (arr) { return arr.filter(function (x) { return x.level === lvl; }); };
+      out.push({ member: m, kind: kind, gets: only(gets), gives: only(gives) });
+    });
+    out.sort(function (a, b) {
+      return (MATCH_KINDS.indexOf(a.kind) - MATCH_KINDS.indexOf(b.kind)) || ((b.gets.length + b.gives.length) - (a.gets.length + a.gives.length)) || String(a.member).localeCompare(String(b.member));
+    });
+    return out.slice(0, LIMITS.matches);
+  }
+
+  /* ---- what one member sees ---- */
+
+  function swapView(w, me, canSee) {
+    var outgoing = w.from === me;
+    var other = outgoing ? w.to : w.from;
+    var open = swapOpen(w);
+    var ticks = w.ticks || {};
+    return {
+      id: w.id, from: w.from, to: w.to, with: other, outgoing: outgoing,
+      give: outgoing ? w.give : w.get, get: outgoing ? w.get : w.give,
+      where: w.where || '', session: w.session || null, sessionTitle: w.sessionTitle || null,
+      state: w.state, createdAt: w.createdAt, decidedAt: w.decidedAt || null, doneAt: w.doneAt || null,
+      myTick: Boolean(ticks[me]), theirTick: Boolean(ticks[other]),
+      can: {
+        accept: canSee && w.state === 'proposed' && !outgoing,
+        decline: canSee && w.state === 'proposed' && !outgoing,
+        cancel: canSee && open && (w.state === 'accepted' || outgoing),
+        tick: canSee && w.state === 'accepted',
+      },
+    };
+  }
+  /**
+   * The Cellar tab, for one member: every crew-mate's cellar and wishlist
+   * (with who is gifting what), my matches, my own swaps (another pair's
+   * open or declined swap is theirs alone), the crew's feed of completed
+   * swaps and arrived gifts, and my IOUs. A free-typed "where" stays
+   * between the two people; the feed names a tasting, never a place.
+   */
+  function cellarView(cellars, swaps, memberIds, me, now) {
+    var inCrew = {};
+    memberIds.forEach(function (m) { inCrew[m] = true; });
+    var byMember = {};
+    (cellars || []).forEach(function (c) { if (inCrew[c.member]) byMember[c.member] = c; });
+    swaps = (swaps || []).filter(function (w) { return inCrew[w.from] && inCrew[w.to]; });
+    var members = memberIds.map(function (m) {
+      var c = byMember[m] || { haves: [], wants: [], gifts: [] };
+      return {
+        member: m,
+        haves: (c.haves || []).map(function (h) { return itemOf(h.id, h, 'haves', h.at); }),
+        wants: (c.wants || []).map(function (w) {
+          var it = itemOf(w.id, w, 'wants', w.at);
+          var g = activeGift(c, w.id);
+          it.gift = g && inCrew[g.by] ? { by: g.by, claimedAt: g.claimedAt } : null;
+          return it;
+        }),
+      };
+    });
+    var mineSwaps = [];
+    if (me) {
+      var involved = swaps.filter(function (w) { return w.from === me || w.to === me; })
+        .sort(function (a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) || String(a.id).localeCompare(String(b.id)); });
+      var openOnes = involved.filter(swapOpen), closed = involved.filter(function (w) { return !swapOpen(w); }).slice(0, 8);
+      mineSwaps = openOnes.concat(closed).map(function (w) { return swapView(w, me, true); });
+    }
+    var feed = [];
+    swaps.forEach(function (w) {
+      if (w.state !== 'done') return;
+      feed.push({ kind: 'swap', id: w.id, at: w.doneAt, from: w.from, to: w.to, give: w.give.map(function (l) { return l.name; }), get: w.get.map(function (l) { return l.name; }), sessionTitle: w.sessionTitle || null });
+    });
+    Object.keys(byMember).forEach(function (m) {
+      (byMember[m].gifts || []).forEach(function (g) {
+        if (g.arrivedAt && inCrew[g.by]) feed.push({ kind: 'gift', id: g.id, at: g.arrivedAt, from: g.by, to: m, give: [g.name], get: [], sessionTitle: null });
+      });
+    });
+    feed.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)) || String(a.id).localeCompare(String(b.id)); });
+    var t = tallies(cellars, swaps, memberIds);
+    var ious = me ? memberIds.filter(function (m) { return m !== me; }).map(function (m) { return { member: m, n: owedBetween(t, me, m) }; }).filter(function (x) { return x.n; }) : [];
+    return {
+      members: members,
+      matches: me ? cellarMatches(byMember, me, memberIds) : [],
+      swaps: mineSwaps,
+      feed: feed.slice(0, LIMITS.feed),
+      ious: ious,
+      open: swaps.filter(swapOpen).length,
+    };
+  }
+
+  /** A member leaving or removed, seen from someone else's lists: the gifts
+   *  they claimed or gave and the squared-up marks naming them go. (Their
+   *  own lists and every swap they are in are deleted outright.) */
+  function scrubCellar(doc, mid) {
+    var g0 = (doc.gifts || []).length, q0 = (doc.squares || []).length;
+    doc.gifts = (doc.gifts || []).filter(function (g) { return g.by !== mid; });
+    doc.squares = (doc.squares || []).filter(function (q) { return q.with !== mid; });
+    return doc.gifts.length !== g0 || doc.squares.length !== q0;
+  }
+
   return {
     LIMITS: LIMITS, POINTS: POINTS, FAMILIES: FAMILIES, STYLES: STYLES, STYLE_IDS: STYLE_IDS, OTHER: OTHER, HOPPY: HOPPY,
     CHIPS: CHIPS, EMOJI: EMOJI, AWARDS: AWARDS, LETTERS: LETTERS,
@@ -829,5 +1323,11 @@
     setScore: setScore, setGuess: setGuess, setCity: setCity, reveal: reveal, scrubMember: scrubMember,
     results: results, recap: recap, sessionView: sessionView, sessionSummary: sessionSummary, settledAt: settledAt, board: board,
     newPoll: newPoll, addOption: addOption, removeOption: removeOption, vote: vote, pollResults: pollResults, closePoll: closePoll, pollView: pollView,
+    SIZES: SIZES, SELLER_SHIPS: SELLER_SHIPS, SWAP_ACTIONS: SWAP_ACTIONS, MATCH_KINDS: MATCH_KINDS, sizeName: sizeName,
+    foldText: foldText, breweryKey: breweryKey, beerKey: beerKey, matchLevel: matchLevel, cleanLink: cleanLink, linkHost: linkHost,
+    cleanCount: cleanCount, cleanItem: cleanItem, newCellar: newCellar, cellarList: cellarList, findItem: findItem,
+    addItem: addItem, editItem: editItem, removeItem: removeItem, activeGift: activeGift, claimGift: claimGift, unclaimGift: unclaimGift, giftArrived: giftArrived,
+    swapOpen: swapOpen, newSwap: newSwap, swapAct: swapAct, tallies: tallies, owedBetween: owedBetween, squareUp: squareUp,
+    cellarMatches: cellarMatches, cellarView: cellarView, scrubCellar: scrubCellar,
   };
 });

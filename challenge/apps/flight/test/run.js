@@ -448,8 +448,242 @@ test('the example crew: a finished four-beer blind tasting with awards, an open 
   assert.strictEqual(v.progress.filter((p) => p.done >= p.of).length, 2);
   assert.strictEqual(v.progress.find((p) => p.member === S.ME).done, 0, 'the visitor has a can to score');
   assert.ok(Object.keys(st.polls[0].votes).length >= 3 && !st.polls[0].votes[S.ME], 'the visitor has not voted yet');
-  assert.ok(!/@|https?:\/\//.test(JSON.stringify(st).replace(/"url":null/g, '')), 'no addresses, no live links');
+  const text = JSON.stringify(st);
+  assert.ok(!/@/.test(text), 'no addresses');
+  const links = text.match(/https?:\/\/[^"]*/g) || [];
+  assert.ok(links.length >= 2 && links.every((l) => /^https:\/\/[a-z0-9-]+\.example\//.test(l)), `no live links - only the reserved .example domain: ${links.join(' ')}`);
 });
+
+/* ---------------- pure: Cellar & Swap ---------------- */
+
+const cid = { item: () => `i${++seq}x`, gift: () => `g${++seq}x`, square: () => `q${++seq}x` };
+const have = (id, name, brewery, style, swap = true, extra = {}) => ({ id, name, brewery, style, size: null, count: null, note: '', swap, at: '', ...extra });
+const want = (id, name, brewery, style, extra = {}) => ({ id, name, brewery, style, size: null, count: null, note: '', buyLink: null, sellerShips: null, at: '', ...extra });
+const cel = (member, haves = [], wants = [], gifts = [], squares = []) => ({ crewId: 'c', member, haves, wants, gifts, squares });
+
+test('cellar keys fold case, accents, punctuation, "&" and the corporate words - "Harbor Lane Brewing Co." is "harbor lane"', () => {
+  assert.strictEqual(C.foldText('  Fög–Lantérn!! '), 'fog lantern');
+  assert.strictEqual(C.foldText('Señorita'), C.foldText('SENORITA'));
+  assert.strictEqual(C.foldText('Salt & Pepper'), 'salt and pepper');
+  for (const b of ['The Tidewater Brewing Co.', 'Tidewater Brewing Company', 'tidewater', 'TIDEWATER BREWERY', 'Tidewater, LLC']) assert.strictEqual(C.breweryKey(b), 'tidewater', b);
+  assert.strictEqual(C.breweryKey('Brewing Co.'), 'brewing co', 'all noise keeps the plain words rather than nothing');
+  assert.strictEqual(C.breweryKey('Old Mill Ales'), 'old mill ales', '"ales" can be the name - it stays');
+  assert.strictEqual(C.beerKey('Harbor Lane Brewing Co.', 'Dark Harbor'), C.beerKey('harbor lane', 'DARK-HARBOR'));
+  assert.strictEqual(C.beerKey('x', '!!!'), '', 'no name, no key');
+  assert.strictEqual(C.foldText('静岡'), '静岡', 'a name with no Latin letters keeps its own form');
+  // Levels: 3 the same beer, 2 the same brewery, 1 the same style.
+  const w = want('w', 'Fog Lantern', 'Tidewater Brewing', 'hazy');
+  assert.strictEqual(C.matchLevel(w, have('h', 'fog lantern', 'The Tidewater Brewing Co.', 'ipa')), 3);
+  assert.strictEqual(C.matchLevel(w, have('h', 'Fog Lantern', '', null)), 3, 'a missing brewery on one side still matches by name');
+  assert.strictEqual(C.matchLevel(w, have('h', 'Fog Lantern', 'Copycat Ales', 'hazy')), 1, 'same name, different brewery: not the same beer');
+  assert.strictEqual(C.matchLevel(w, have('h', 'Low Tide Saison', 'Tidewater Brewing Company', 'saison')), 2);
+  assert.strictEqual(C.matchLevel(w, have('h', 'Juice Box', 'Elsewhere', 'hazy')), 1);
+  assert.strictEqual(C.matchLevel(want('w', 'X', '', 'other'), have('h', 'Y', '', 'other')), 0, '"something else" is not a style match');
+});
+
+test('matches: two-way first, then one-way, same brewery, same style; only open-to-swap bottles, never a wish already being gifted', () => {
+  const ids = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6'];
+  const by = {
+    m1: cel('m1', [have('a1', 'Dark Harbor', 'Harbor Lane', 'imperial-stout'), have('a2', 'Sunday Lawn', 'Clearwater', 'na-wheat'), have('a3', 'Hoarded', 'Old Mill', 'barleywine', false)],
+      [want('b1', 'Fog Lantern', 'Tidewater Brewing', 'hazy'), want('b2', 'Pacific Static', 'Driftline', 'west-coast'), want('b3', 'Gifted One', 'Elsewhere', 'gose', { buyLink: 'https://x.example/' })],
+      [{ id: 'g1', want: 'b3', by: 'm6', claimedAt: '2026-10-01T00:00:00Z', arrivedAt: null }]),
+    m5: cel('m5', [have('e1', 'Other Hazy', 'Nobody', 'hazy')], []),
+    m4: cel('m4', [have('d1', 'Low Tide Saison', 'Tidewater Brewing Company', 'saison')], []),
+    m3: cel('m3', [], [want('c1', 'dark harbor', 'Harbor Lane Brewing Co.', 'imperial-stout')]),
+    m2: cel('m2', [have('f1', 'Fog Lantern', 'The Tidewater Brewing Co.', 'hazy'), have('f2', 'Pacific Static', 'Driftline', 'west-coast', false)], [want('f3', 'Sunday Lawn', '', null)]),
+    m6: cel('m6', [have('g2', 'Gifted One', 'Elsewhere', 'gose'), have('g3', 'Old Mill thing', 'Old Mill', 'barleywine')], [want('g4', 'Hoarded', 'Old Mill', 'barleywine')]),
+  };
+  const ms = C.cellarMatches(by, 'm1', ids);
+  assert.deepStrictEqual(ms.map((m) => [m.member, m.kind]), [['m2', 'two-way'], ['m3', 'one-way'], ['m4', 'brewery'], ['m5', 'style']]);
+  assert.deepStrictEqual(ms[0].gets.map((g) => g.haveName), ['Fog Lantern'], 'Pacific Static is not open to swap');
+  assert.deepStrictEqual(ms[0].gives.map((g) => g.haveName), ['Sunday Lawn']);
+  assert.deepStrictEqual([ms[1].gets.length, ms[1].gives[0].haveName], [0, 'Dark Harbor'], 'they want what I have, folded through "Brewing Co."');
+  assert.deepStrictEqual(ms[2].gets.map((g) => [g.wantName, g.haveName, g.level]), [['Fog Lantern', 'Low Tide Saison', 2]]);
+  assert.ok(!ms.some((m) => m.member === 'm6'), 'a wish someone is gifting is out, and a bottle I keep is not offered');
+  // The other way round, m2 sees the same pair as two-way; m6 sees nothing of m1's kept bottle.
+  assert.strictEqual(C.cellarMatches(by, 'm2', ids).find((m) => m.member === 'm1').kind, 'two-way');
+  // A kind outranks more lines: a style match with many lines stays below a one-way.
+  const many = { ...by, m5: cel('m5', [have('e1', 'H1', 'N', 'hazy'), have('e2', 'H2', 'N2', 'west-coast')], [want('e3', 'Stout', 'Q', 'imperial-stout'), want('e4', 'NA', 'R', 'na-wheat')]) };
+  assert.deepStrictEqual(C.cellarMatches(many, 'm1', ids).map((m) => m.kind), ['two-way', 'one-way', 'brewery', 'style']);
+  // My own bottles never match my own wishes.
+  assert.deepStrictEqual(C.cellarMatches({ m1: cel('m1', [have('x', 'Same', 'B', 'hazy')], [want('y', 'Same', 'B', 'hazy')]) }, 'm1', ['m1']), []);
+});
+
+test('cellar lines: bounded and stripped, a fixed style list and formats, counts 1-99, 60 haves and 60 wants, only your own', () => {
+  const doc = C.newCellar('c', 'm1', T0);
+  const it = C.addItem(doc, A('m1'), 'haves', { name: '<b>Fog</b> Lantern‮', brewery: 'Tidewater\u0000', style: 'hazy', size: 'crowler', count: '4', note: 'x'.repeat(500), swap: true, price: 9, address: '1 Main St', shipTo: 'Denver' }, T0, cid);
+  assert.deepStrictEqual(Object.keys(it).sort(), ['at', 'brewery', 'count', 'id', 'name', 'note', 'size', 'style', 'swap']);
+  assert.deepStrictEqual([it.name, it.brewery, it.count, it.size, Array.from(it.note).length], ['Fog Lantern', 'Tidewater', 4, 'crowler', C.LIMITS.note]);
+  for (const bad of [{ name: '' }, { name: '!!' }, { name: 'X', style: 'nope' }, { name: 'X', size: 'keg' }, { name: 'X', count: 0 }, { name: 'X', count: 100 }, { name: 'X', count: 2.5 }, { name: 'X', count: 'lots' }]) {
+    assert.throws(() => C.addItem(doc, A('m1'), 'haves', bad, T0, cid), (e) => e.status === 400, JSON.stringify(bad));
+  }
+  assert.throws(() => C.addItem(doc, A('m2'), 'haves', { name: 'X' }, T0, cid), /not your list/);
+  assert.throws(() => C.editItem(doc, A('m2'), it.id, { name: 'Y' }, T0), /not your list/);
+  assert.throws(() => C.addItem(doc, A('m1'), 'stash', { name: 'X' }, T0, cid), (e) => e.status === 404);
+  // An edit keeps what it does not mention.
+  C.editItem(doc, A('m1'), it.id, { swap: false }, T0);
+  assert.deepStrictEqual([doc.haves[0].name, doc.haves[0].swap, doc.haves[0].count], ['Fog Lantern', false, 4]);
+  const w = C.addItem(doc, A('m1'), 'wants', { name: 'Dark Harbor', buyLink: 'https://Harbor-Lane.example/shop', sellerShips: 'maybe' }, T0, cid);
+  assert.deepStrictEqual(Object.keys(w).sort(), ['at', 'brewery', 'buyLink', 'count', 'id', 'name', 'note', 'sellerShips', 'size', 'style']);
+  assert.deepStrictEqual([w.buyLink, w.sellerShips], ['https://harbor-lane.example/shop', null], 'only yes / no / unsure');
+  for (let i = doc.haves.length; i < C.LIMITS.haves; i++) C.addItem(doc, A('m1'), 'haves', { name: `Beer ${i}` }, T0, cid);
+  assert.throws(() => C.addItem(doc, A('m1'), 'haves', { name: 'One more' }, T0, cid), /holds 60/);
+  for (let i = doc.wants.length; i < C.LIMITS.wants; i++) C.addItem(doc, A('m1'), 'wants', { name: `Wish ${i}` }, T0, cid);
+  assert.throws(() => C.addItem(doc, A('m1'), 'wants', { name: 'One more' }, T0, cid), /holds 60/);
+  C.removeItem(doc, A('m1'), it.id, T0);
+  assert.strictEqual(doc.haves.length, C.LIMITS.haves - 1);
+});
+
+test('"where to buy it legally" is https only: http, javascript:, data:, other schemes, user info and junk are refused; it is never fetched', () => {
+  assert.strictEqual(C.cleanLink('  https://Shop.Tidewater.example/fog?size=4  '), 'https://shop.tidewater.example/fog?size=4');
+  assert.strictEqual(C.cleanLink(''), null);
+  assert.strictEqual(C.cleanLink(null), null);
+  for (const bad of [
+    'http://shop.example/x', 'javascript:alert(1)', 'JavaScript:alert(1)//https://x.example', 'data:text/html,<script>x</script>', 'ftp://shop.example/x',
+    'mailto:a@b.example', 'file:///etc/passwd', 'vbscript:x', '//shop.example/x', 'shop.example/x', 'https://user:pw@shop.example/', 'https://localhost/x',
+    'https:javascript:alert(1)', 'https://shop.example/a b', 'https://shop.example/"onmouseover=x', 'https://shop.example/‮x', `https://shop.example/${'a'.repeat(300)}`,
+    'https://[::1]/x', 42, { href: 'https://x.example' },
+  ]) assert.throws(() => C.cleanLink(bad), (e) => e.status === 400, String(bad));
+  assert.strictEqual(C.linkHost('https://www.shop.example/x'), 'shop.example');
+  // Nothing in the server or the rules fetches it.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'public', 'flight-core.js'), 'utf8');
+  assert.ok(!/fetch\([^)]*buyLink/.test(src) && !/readCrawl\([^)]*buyLink/.test(src));
+});
+
+test('swaps: proposed -> accepted | declined -> done when both tick, or cancelled; only the two can act, never your own accept, closed stays closed', () => {
+  const ids = ['m1', 'm2', 'm3'];
+  const mine = cel('m1', [have('h1', 'Dark Harbor', 'Harbor Lane', 'imperial-stout', true, { count: 2 })]);
+  const theirs = cel('m2', [have('h2', 'Fog Lantern', 'Tidewater', 'hazy'), have('h3', 'Kept', 'X', 'pilsner', false)]);
+  const tasting = { id: 'snight001', kind: 'blind', stage: 'setup', title: 'Thursday’s tasting', revealedAt: null };
+  const mk = (extra) => C.newSwap({ to: 'm2', give: [{ item: 'h1', n: 2 }], get: ['h2'], session: 'snight001', ...extra }, A('m1'), mine, theirs, ids, tasting, T0);
+  const w = mk();
+  assert.deepStrictEqual([w.state, w.sessionTitle, w.where, w.give[0].n, w.get[0].name], ['proposed', 'Thursday’s tasting', '', 2, 'Fog Lantern']);
+  assert.deepStrictEqual(Object.keys(w).sort(), ['createdAt', 'decidedAt', 'doneAt', 'from', 'get', 'give', 'session', 'sessionTitle', 'state', 'ticks', 'to', 'updatedAt', 'v', 'where']);
+  // Bad proposals.
+  assert.throws(() => mk({ to: 'm1' }), /yourself/);
+  assert.throws(() => mk({ to: 'mstranger' }), /someone in the crew/);
+  assert.throws(() => mk({ give: [], get: [] }), /at least one/);
+  assert.throws(() => mk({ get: ['h3'] }), /open to swap/);
+  assert.throws(() => mk({ give: [{ item: 'h1', n: 3 }] }), /Up to 2/);
+  assert.throws(() => mk({ give: ['nope'] }), /isn’t on the list/);
+  assert.throws(() => C.newSwap({ to: 'm2', give: ['h1'], session: 'sgone0001' }, A('m1'), mine, theirs, ids, null, T0), /isn’t in this crew/);
+  assert.throws(() => C.newSwap({ to: 'm2', give: ['h1'], session: 'x' }, A('m1'), mine, theirs, ids, { ...tasting, revealedAt: new Date(T0).toISOString() }, T0), /over/);
+  assert.throws(() => C.newSwap({ to: 'm2', give: ['h1'], session: 'x' }, A('m1'), mine, theirs, ids, { ...tasting, kind: 'samecan', window: { opensAt: new Date(T0).toISOString(), closesAt: new Date(T0 + 86400000).toISOString() } }, T0), /played apart/);
+  const gift = C.newSwap({ to: 'm2', give: ['h1'], get: [], where: '<i>Saturday</i> at the taproom' }, A('m1'), mine, theirs, ids, null, T0);
+  assert.deepStrictEqual([gift.get, gift.where, gift.session], [[], 'Saturday at the taproom', null], 'nothing back - a gift; a place in a few words');
+  assert.strictEqual(C.newSwap({ to: 'm2', get: ['h2'] }, A('m1'), null, theirs, ids, null, T0).where, 'At our next tasting');
+  // The state machine.
+  assert.throws(() => C.swapAct(w, A('m3'), 'accept', T0), (e) => e.status === 404, 'a third member: it does not exist for them');
+  assert.throws(() => C.swapAct(w, A(null), 'accept', T0), (e) => e.status === 404);
+  assert.throws(() => C.swapAct(w, A('m1'), 'accept', T0), /can’t accept your own/);
+  assert.throws(() => C.swapAct(w, A('m1'), 'decline', T0), /cancel it instead/);
+  assert.throws(() => C.swapAct(w, A('m2'), 'cancel', T0), /Decline it instead/);
+  assert.throws(() => C.swapAct(w, A('m1'), 'swapped', T0), /Accept it first/);
+  assert.throws(() => C.swapAct(w, A('m2'), 'explode', T0), (e) => e.status === 404);
+  C.swapAct(w, A('m2'), 'accept', T0);
+  assert.throws(() => C.swapAct(w, A('m2'), 'accept', T0), /already been accepted/);
+  C.swapAct(w, A('m1'), 'swapped', T0 + 1);
+  C.swapAct(w, A('m1'), 'unswapped', T0 + 2);
+  C.swapAct(w, A('m1'), 'swapped', T0 + 3);
+  assert.strictEqual(w.state, 'accepted', 'one tick is not enough');
+  C.swapAct(w, A('m2'), 'swapped', T0 + 4);
+  assert.deepStrictEqual([w.state, w.doneAt], ['done', new Date(T0 + 4).toISOString()]);
+  for (const [who, act] of [['m1', 'cancel'], ['m2', 'swapped'], ['m2', 'decline'], ['m1', 'unswapped']]) assert.throws(() => C.swapAct(w, A(who), act, T0), /nothing more to do/, `${who} ${act}`);
+  const d = mk(); C.swapAct(d, A('m2'), 'decline', T0);
+  assert.throws(() => C.swapAct(d, A('m2'), 'accept', T0), /declined - nothing more/);
+  const c = mk(); C.swapAct(c, A('m2'), 'accept', T0); C.swapAct(c, A('m2'), 'cancel', T0);
+  assert.strictEqual(c.state, 'cancelled', 'either can cancel an accepted swap');
+  // What each one sees: a swap from the receiver's side reads the other way round.
+  const v2 = C.cellarView([mine, theirs], [{ ...mk(), id: 'wv1' }], ids, 'm2', T0).swaps[0];
+  assert.deepStrictEqual([v2.outgoing, v2.give[0].name, v2.get[0].name, v2.can.accept, v2.can.cancel], [false, 'Fog Lantern', 'Dark Harbor', true, false]);
+  assert.deepStrictEqual(C.cellarView([mine, theirs], [{ ...mk(), id: 'wv1' }], ids, 'm3', T0).swaps, [], 'a third member does not see an open swap');
+});
+
+test('gifts: only through a seller’s link, never to yourself, one claimer at a time, only they can let it go, only the recipient says it arrived', () => {
+  const doc = cel('m1', [], [want('w1', 'Pacific Static', 'Driftline', 'west-coast', { buyLink: 'https://driftline.example/shop' }), want('w2', 'No Link', 'X', null)]);
+  assert.throws(() => C.claimGift(doc, A('m1'), 'w1', T0, cid), /yourself/);
+  assert.throws(() => C.claimGift(doc, A('m2'), 'w2', T0, cid), /licensed seller/);
+  assert.throws(() => C.claimGift(doc, A('m2'), 'nope', T0, cid), (e) => e.status === 404);
+  assert.throws(() => C.claimGift(doc, A(null), 'w1', T0, cid), /Join/);
+  const g = C.claimGift(doc, A('m2'), 'w1', T0, cid);
+  assert.deepStrictEqual(Object.keys(g).sort(), ['arrivedAt', 'brewery', 'by', 'claimedAt', 'id', 'name', 'want']);
+  assert.throws(() => C.claimGift(doc, A('m3'), 'w1', T0, cid), /Someone’s already on this one/);
+  assert.throws(() => C.claimGift(doc, A('m2'), 'w1', T0, cid), /already on it/);
+  assert.throws(() => C.unclaimGift(doc, A('m3'), 'w1', T0), /Only whoever claimed it/);
+  assert.throws(() => C.giftArrived(doc, A('m2'), 'w1', T0), /Only whoever wished for it/);
+  C.unclaimGift(doc, A('m2'), 'w1', T0);
+  assert.strictEqual(C.activeGift(doc, 'w1'), null);
+  assert.throws(() => C.giftArrived(doc, A('m1'), 'w1', T0), /Nobody’s on that one/);
+  C.claimGift(doc, A('m3'), 'w1', T0, cid);
+  const v = C.cellarView([doc], [], ['m1', 'm2', 'm3'], 'm2', T0);
+  assert.deepStrictEqual(v.members[0].wants[0].gift, { by: 'm3', claimedAt: new Date(T0).toISOString() }, 'the crew sees who is on it');
+  C.giftArrived(doc, A('m1'), 'w1', T0 + 1000);
+  assert.ok(!doc.wants.some((w) => w.id === 'w1'), 'the wish comes off the list');
+  assert.strictEqual(doc.gifts.filter((x) => x.arrivedAt).length, 1, 'the gift stays, for the tally');
+  // Taking a wish off lets its claimer off; an arrived gift stays.
+  const d2 = cel('m1', [], [want('w3', 'Z', '', null, { buyLink: 'https://z.example/' })]);
+  C.claimGift(d2, A('m2'), 'w3', T0, cid);
+  C.removeItem(d2, A('m1'), 'w3', T0);
+  assert.deepStrictEqual(d2.gifts, []);
+});
+
+test('IOUs: counted from arrived gifts and one-sided swaps, in time order, offset one at a time by "squared up" - never stored, never money', () => {
+  const ids = ['m1', 'm2', 'm3'];
+  const at = (h) => new Date(T0 + h * 3600000).toISOString();
+  const gift = (id, by, h) => ({ id, want: 'w', by, name: 'X', brewery: '', claimedAt: at(h - 1), arrivedAt: at(h) });
+  const sw = (id, from, to, give, get, h, state = 'done') => ({ id, from, to, give: give.map((n) => ({ item: 'i', name: n, n: 1 })), get: get.map((n) => ({ item: 'i', name: n, n: 1 })), state, doneAt: state === 'done' ? at(h) : null });
+  const cellars = [cel('m1', [], [], [gift('ga', 'm2', 1)]), cel('m2', [], [], [], [{ id: 'q1', with: 'm1', at: at(4) }, { id: 'q2', with: 'm1', at: at(5) }, { id: 'q3', with: 'm1', at: at(6) }])];
+  const swaps = [
+    sw('w1', 'm2', 'm1', ['Gift'], [], 2),            // one-sided, m2 gave m1: m1 owes m2
+    sw('w2', 'm1', 'm2', ['A'], ['B'], 3),            // two-way: nothing owed
+    sw('w3', 'm2', 'm1', ['Open'], [], 3, 'accepted'), // not done: nothing yet
+    sw('w4', 'm1', 'm3', [], ['Asked for'], 2),        // m1 got without giving: m1 owes m3
+  ];
+  // At hour 3 (before any square): m1 owes m2 two (a gift + a one-sided swap), m1 owes m3 one.
+  const early = C.tallies([cellars[0], cel('m2')], swaps, ids);
+  assert.strictEqual(C.owedBetween(early, 'm1', 'm2'), -2);
+  assert.strictEqual(C.owedBetween(early, 'm2', 'm1'), 2);
+  assert.strictEqual(C.owedBetween(early, 'm1', 'm3'), -1);
+  assert.strictEqual(C.owedBetween(early, 'm2', 'm3'), 0);
+  // Three squares from m2: two settle it, the third finds them level and does nothing.
+  const t = C.tallies(cellars, swaps, ids);
+  assert.strictEqual(C.owedBetween(t, 'm1', 'm2'), 0);
+  // A later gift the other way starts a new debt - the extra square was not banked.
+  cellars[1].gifts.push(gift('gb', 'm1', 7));
+  assert.strictEqual(C.owedBetween(C.tallies(cellars, swaps, ids), 'm1', 'm2'), 1, 'm2 owes m1 one');
+  // The view: from m1's side.
+  const v = C.cellarView(cellars, swaps, ids, 'm1', T0);
+  assert.deepStrictEqual(v.ious, [{ member: 'm2', n: 1 }, { member: 'm3', n: -1 }]);
+  // Someone who left takes their side of it with them.
+  assert.deepStrictEqual(C.cellarView(cellars, swaps, ['m1', 'm2'], 'm1', T0).ious, [{ member: 'm2', n: 1 }]);
+  // Squaring up needs something to square.
+  const mine = C.newCellar('c', 'm3', T0);
+  assert.throws(() => C.squareUp(mine, A('m3'), 'm2', 0, ids, T0, cid), /square already/);
+  assert.throws(() => C.squareUp(mine, A('m3'), 'm3', 1, ids, T0, cid), /someone in the crew/);
+  assert.throws(() => C.squareUp(mine, A('m2'), 'm1', 1, ids, T0, cid), /not your list/);
+  C.squareUp(mine, A('m3'), 'm1', 1, ids, T0, cid);
+  assert.deepStrictEqual(Object.keys(mine.squares[0]).sort(), ['at', 'id', 'with']);
+});
+
+test('the example crew’s Cellar: a two-way match, a done in-person swap, a claimed gift and IOUs both ways - with no price, address or shipping field', () => {
+  const st = S.state(Date.now());
+  const ids = st.crew.members.map((m) => m.id);
+  const v = C.cellarView(st.cellars, st.swaps, ids, S.ME, Date.now());
+  assert.deepStrictEqual(v.matches.map((m) => [m.member, m.kind]).slice(0, 2), [['mxmaya001', 'two-way'], ['mxpriya01', 'one-way']]);
+  assert.ok(v.feed.some((f) => f.kind === 'swap' && f.give.length && f.get.length && f.sessionTitle === 'Lager night'), 'an in-person swap at a tasting');
+  const pacific = v.members.find((m) => m.member === S.ME).wants.find((w) => w.name === 'Pacific Static');
+  assert.strictEqual(pacific.gift.by, 'mxpriya01', 'Priya is on it');
+  assert.ok(v.ious.some((x) => x.n > 0) && v.ious.some((x) => x.n < 0), JSON.stringify(v.ious));
+  assert.ok(v.swaps.some((w) => w.state === 'proposed' && w.can.accept), 'an open proposal for the visitor');
+  const keys = new Set();
+  const walk = (o) => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') for (const [k, x] of Object.entries(o)) { keys.add(k); walk(x); } };
+  walk({ cellars: st.cellars, swaps: st.swaps });
+  assert.deepStrictEqual([...keys].filter((k) => MONEY_OR_ADDRESS.test(k)), ['sellerShips'], 'only the member’s own yes/no about a licensed seller');
+});
+
+// What must never be a field anywhere in Cellar & Swap. `sellerShips` - the
+// member's own answer about a licensed seller - is the one key it lets past.
+const MONEY_OR_ADDRESS = /price|pay|cost|amount|usd|money|cash|fee|address|addr|street|zip|postal|city|ship|carrier|tracking|courier|parcel/i;
 
 /* ---------------- pure: Hopscotch links ---------------- */
 
@@ -885,6 +1119,235 @@ test('votes over HTTP: approval, results after voting, a Hopscotch link becomes 
     await client()('POST', `/api/crews/${CREW}/polls/${pid}/options`, { text: `https://${HOP}/c/s_good` });
     assert.strictEqual(f.seen.length, before);
   } finally { hop._setFetch(null); }
+});
+
+/* ---------------- Cellar & Swap over HTTP ---------------- */
+
+let cAna, cSam, cPri, cDee, CC, cMid = {};
+const cel$ = (p) => `/api/crews/${CC}${p}`;
+const itemId = (bundle, mid, list, name) => bundle.members.find((m) => m.member === mid)[list].find((x) => x.name === name).id;
+
+test('cellar over HTTP: members add haves and wants as themselves, links https only, typed text stripped - and nobody can write anyone else’s list', async () => {
+  cAna = await register('ana.cellar@example.com');
+  const c = await cAna('POST', '/api/crews', { name: 'Cellar crew', hostName: 'Ana', emoji: '🦊' });
+  CC = c.data.id; cMid.ana = c.data.crew.me;
+  for (const [k, n] of [['sam', 'Sam'], ['pri', 'Priya'], ['dee', 'Dee']]) {
+    const cl = client();
+    await cl('POST', `/api/join/${c.data.crew.code}`, { name: n });
+    cMid[k] = (await cl('GET', `/api/crews/${CC}`)).data.crew.me;
+    if (k === 'sam') cSam = cl; else if (k === 'pri') cPri = cl; else cDee = cl;
+  }
+  const empty = await cSam('GET', cel$('/cellar'));
+  assert.strictEqual(empty.status, 200);
+  assert.deepStrictEqual([empty.data.matches, empty.data.swaps, empty.data.ious, empty.data.feed], [[], [], [], []]);
+  let r = await cSam('POST', cel$('/cellar/haves'), { name: '<b>Fog Lantern</b>‮', brewery: 'Tidewater Brewing', style: 'hazy', size: 'can', count: 4, note: '<img src=x onerror=alert(1)>Juicy', swap: true, price: 12, address: '1 Main St', member: cMid.ana });
+  assert.strictEqual(r.status, 200, r.text);
+  const fog = r.data.members.find((m) => m.member === cMid.sam).haves[0];
+  assert.deepStrictEqual([fog.name, fog.note, fog.swap, fog.count], ['Fog Lantern', 'Juicy', true, 4]);
+  assert.ok(!('price' in fog) && !('address' in fog));
+  assert.strictEqual(r.data.members.find((m) => m.member === cMid.ana).haves.length, 0, 'a member id in the body changes nothing - it is the caller’s own list');
+  await cSam('POST', cel$('/cellar/haves'), { name: 'Sunday Lawn', brewery: 'Clearwater', style: 'na-wheat', size: 'can', count: 6, swap: true });
+  await cSam('POST', cel$('/cellar/haves'), { name: 'Copper Kettle', brewery: 'Old Mill', style: 'marzen', swap: false });
+  for (const bad of ['http://harbor-lane.example/shop', 'javascript:alert(1)', 'data:text/html,hi', 'ftp://harbor-lane.example/', 'https://u:p@harbor-lane.example/']) {
+    const x = await cSam('POST', cel$('/cellar/wants'), { name: 'Dark Harbor', buyLink: bad });
+    assert.deepStrictEqual([x.status, /https link/.test(x.data.error)], [400, true], bad);
+  }
+  r = await cSam('POST', cel$('/cellar/wants'), { name: 'Dark Harbor', brewery: 'Harbor Lane', style: 'imperial-stout', buyLink: 'https://harbor-lane.example/shop', sellerShips: 'yes' });
+  assert.strictEqual(r.status, 200);
+  await cSam('POST', cel$('/cellar/wants'), { name: 'Pacific Static', brewery: 'Driftline', style: 'west-coast', buyLink: 'https://driftline.example/shop', sellerShips: 'unsure' });
+  await cSam('POST', cel$('/cellar/wants'), { name: 'No Link Lager', style: 'helles' });
+  for (const bad of [{ name: 'X', size: 'keg' }, { name: 'X', count: 0 }, { name: 'X', style: 'nope' }, { name: '' }]) assert.strictEqual((await cSam('POST', cel$('/cellar/haves'), bad)).status, 400, JSON.stringify(bad));
+  assert.strictEqual((await cSam('POST', cel$('/cellar/stash'), { name: 'X' })).status, 404);
+  // Ana's lists, folded spellings included.
+  await cAna('POST', cel$('/cellar/haves'), { name: 'dark harbor', brewery: 'Harbor Lane Brewing Co.', style: 'imperial-stout', size: 'bottle', count: 2, swap: true });
+  r = await cAna('POST', cel$('/cellar/wants'), { name: 'FOG-LANTERN', brewery: 'The Tidewater Brewing Co.', style: 'hazy' });
+  // Only your own lines: another member's item id is "not on your list".
+  const samFog = itemId(r.data, cMid.sam, 'haves', 'Fog Lantern');
+  assert.strictEqual((await cAna('PATCH', cel$(`/cellar/haves/${samFog}`), { name: 'Mine now' })).status, 404);
+  assert.strictEqual((await cAna('DELETE', cel$(`/cellar/haves/${samFog}`))).status, 404);
+  assert.strictEqual((await cSam('PATCH', cel$(`/cellar/haves/${samFog}`), { count: 3 })).data.members.find((m) => m.member === cMid.sam).haves[0].count, 3, 'you can edit your own');
+  // Matches, both ways round.
+  const anaView = (await cAna('GET', cel$('/cellar'))).data;
+  assert.deepStrictEqual([anaView.matches[0].member, anaView.matches[0].kind], [cMid.sam, 'two-way']);
+  assert.deepStrictEqual([anaView.matches[0].gets[0].haveName, anaView.matches[0].gives[0].haveName], ['Fog Lantern', 'dark harbor']);
+  const samView = (await cSam('GET', cel$('/cellar'))).data;
+  assert.strictEqual(samView.matches[0].kind, 'two-way');
+  const v = (await cSam('GET', `/api/crews/${CC}`)).data.crew.v;
+  assert.deepStrictEqual((await cSam('GET', cel$(`/cellar?since=${v}`))).data, { same: true, v }, 'an idle cellar costs one read');
+});
+
+test('cellar: a stranger gets the same 404 a missing crew gets, on every cellar and swap route', async () => {
+  const strangers = [client(), await register('olly.cellar@example.com')];
+  const routes = [
+    ['GET', '/cellar'], ['POST', '/cellar/haves', { name: 'x' }], ['PATCH', '/cellar/haves/ixxxxxxx1', { name: 'x' }], ['DELETE', '/cellar/wants/ixxxxxxx1'],
+    ['POST', `/cellar/wants/${cMid.sam}/ixxxxxxx1/gift`, {}], ['DELETE', `/cellar/wants/${cMid.sam}/ixxxxxxx1/gift`], ['POST', `/cellar/wants/${cMid.sam}/ixxxxxxx1/arrived`, {}],
+    ['POST', '/ious/square', { with: cMid.sam }], ['POST', '/swaps', { to: cMid.sam, give: [] }], ['POST', '/swaps/wxxxxxxx1/accept', {}],
+  ];
+  for (const s of strangers) {
+    for (const [m, p, b] of routes) {
+      const r = await s(m, cel$(p), b);
+      assert.strictEqual(r.status, 404, `${m} ${p}`);
+      const missing = await s(m, `/api/crews/BBBBBBBBBBBBBBBB${p}`, b);
+      assert.strictEqual(r.data.error, missing.data.error, 'the same answer as a crew that does not exist');
+    }
+  }
+  assert.ok(!store._dump().includes('olly'), 'nothing was written for them');
+});
+
+test('swaps over HTTP: propose for a tasting, only the two can act, no accepting your own, both tick to finish; the crew sees it done', async () => {
+  const b0 = (await cAna('GET', cel$('/cellar'))).data;
+  const anaDH = itemId(b0, cMid.ana, 'haves', 'dark harbor'), samFog = itemId(b0, cMid.sam, 'haves', 'Fog Lantern'), samKept = itemId(b0, cMid.sam, 'haves', 'Copper Kettle');
+  const night = (await cAna('POST', `/api/crews/${CC}/sessions`, { kind: 'blind', title: 'Thursday’s tasting' })).data.id;
+  const can = (await cAna('POST', `/api/crews/${CC}/sessions`, { kind: 'samecan', beer: { name: 'Can' }, window: { closesAt: new Date(Date.now() + 2 * 86400000).toISOString() } })).data.id;
+  assert.strictEqual((await cAna('POST', cel$('/swaps'), { to: cMid.sam, give: [anaDH], get: [samKept] })).status, 409, 'not open to swap');
+  assert.strictEqual((await cAna('POST', cel$('/swaps'), { to: cMid.sam, give: [anaDH], get: [samFog], session: can })).status, 409, 'a Same-Can Challenge is apart');
+  assert.strictEqual((await cAna('POST', cel$('/swaps'), { to: cMid.sam, give: [anaDH], session: 'snotreal01' })).status, 400);
+  assert.strictEqual((await cAna('POST', cel$('/swaps'), { to: cMid.ana, give: [anaDH] })).status, 400, 'not with yourself');
+  assert.strictEqual((await cAna('POST', cel$('/swaps'), { to: cMid.sam })).status, 400, 'something to give or get');
+  let r = await cAna('POST', cel$('/swaps'), { to: cMid.sam, give: [{ item: anaDH, n: 1 }], get: [samFog], session: night, where: 'my place, 12 Elm St', price: 20, address: 'x', shipping: 'ups' });
+  assert.strictEqual(r.status, 200, r.text);
+  const w = r.data.swaps[0];
+  assert.deepStrictEqual([w.state, w.outgoing, w.sessionTitle, w.where, w.give[0].name, w.get[0].name], ['proposed', true, 'Thursday’s tasting', '', 'dark harbor', 'Fog Lantern']);
+  const stored = await store.get('swaps', w.id);
+  assert.deepStrictEqual(Object.keys(stored).sort(), ['createdAt', 'crewId', 'decidedAt', 'doneAt', 'from', 'get', 'give', 'id', 'session', 'sessionTitle', 'state', 'ticks', 'to', 'updatedAt', 'v', 'where']);
+  for (const l of [...stored.give, ...stored.get]) assert.deepStrictEqual(Object.keys(l).sort(), ['brewery', 'item', 'n', 'name', 'size', 'style']);
+  assert.deepStrictEqual((await cPri('GET', cel$('/cellar'))).data.swaps, [], 'Priya does not see a swap she is not in');
+  assert.strictEqual((await cPri('POST', cel$(`/swaps/${w.id}/accept`), {})).status, 404, 'only the two can act');
+  assert.strictEqual((await cPri('POST', cel$(`/swaps/${w.id}/cancel`), {})).status, 404);
+  assert.strictEqual((await cAna('POST', cel$(`/swaps/${w.id}/accept`), {})).status, 403, 'no accepting your own');
+  assert.strictEqual((await cSam('POST', cel$(`/swaps/${w.id}/swapped`), {})).status, 409, 'accept first');
+  assert.strictEqual((await cSam('POST', cel$(`/swaps/${w.id}/explode`), {})).status, 404);
+  r = await cSam('POST', cel$(`/swaps/${w.id}/accept`), {});
+  assert.deepStrictEqual([r.status, r.data.swaps[0].state, r.data.swaps[0].outgoing], [200, 'accepted', false]);
+  assert.strictEqual((await cSam('POST', cel$(`/swaps/${w.id}/accept`), {})).status, 409);
+  await cAna('POST', cel$(`/swaps/${w.id}/swapped`), {});
+  r = await cSam('POST', cel$(`/swaps/${w.id}/swapped`), {});
+  assert.strictEqual(r.data.swaps[0].state, 'done');
+  for (const [cl, act] of [[cAna, 'cancel'], [cSam, 'decline'], [cSam, 'unswapped']]) assert.strictEqual((await cl('POST', cel$(`/swaps/${w.id}/${act}`), {})).status, 409, `closed stays closed: ${act}`);
+  const pri = (await cPri('GET', cel$('/cellar'))).data;
+  const f = pri.feed.find((x) => x.id === w.id);
+  assert.deepStrictEqual([f.kind, f.sessionTitle, f.give, f.get], ['swap', 'Thursday’s tasting', ['dark harbor'], ['Fog Lantern']], 'the crew sees it in the feed');
+  // A one-sided swap in a place typed by hand: the place stays between the two.
+  const samLawn = itemId(pri, cMid.sam, 'haves', 'Sunday Lawn');
+  r = await cSam('POST', cel$('/swaps'), { to: cMid.pri, give: [{ item: samLawn, n: 2 }], get: [], where: 'Saturday, 12 Elm St' });
+  const w2 = r.data.swaps.find((x) => x.state === 'proposed');
+  assert.deepStrictEqual([w2.where, w2.get], ['Saturday, 12 Elm St', []]);
+  await cPri('POST', cel$(`/swaps/${w2.id}/accept`), {});
+  await cPri('POST', cel$(`/swaps/${w2.id}/swapped`), {});
+  await cSam('POST', cel$(`/swaps/${w2.id}/swapped`), {});
+  const dee = await cDee('GET', cel$('/cellar'));
+  assert.ok(dee.data.feed.some((x) => x.id === w2.id) && !/Elm St/.test(dee.text), 'the crew sees who gave what - never the place typed');
+  assert.deepStrictEqual((await cSam('GET', cel$('/cellar'))).data.ious, [{ member: cMid.pri, n: 1 }], 'Priya owes Sam one');
+  assert.deepStrictEqual((await cPri('GET', cel$('/cellar'))).data.ious, [{ member: cMid.sam, n: -1 }]);
+  // Declined and cancelled.
+  const w3 = (await cSam('POST', cel$('/swaps'), { to: cMid.ana, get: [anaDH] })).data.swaps.find((x) => x.state === 'proposed');
+  await cAna('POST', cel$(`/swaps/${w3.id}/decline`), {});
+  assert.strictEqual((await cAna('POST', cel$(`/swaps/${w3.id}/accept`), {})).status, 409);
+  const w4 = (await cSam('POST', cel$('/swaps'), { to: cMid.ana, get: [anaDH] })).data.swaps.find((x) => x.state === 'proposed');
+  assert.strictEqual((await cSam('POST', cel$(`/swaps/${w4.id}/cancel`), {})).data.swaps.find((x) => x.id === w4.id).state, 'cancelled');
+});
+
+test('gifts over HTTP: one claimer at a time (even at the same moment), never your own, the recipient says it arrived, and the tally follows', async () => {
+  const b = (await cDee('GET', cel$('/cellar'))).data;
+  const dh = itemId(b, cMid.sam, 'wants', 'Dark Harbor'), ps = itemId(b, cMid.sam, 'wants', 'Pacific Static'), nl = itemId(b, cMid.sam, 'wants', 'No Link Lager');
+  const g = (mid, iid) => cel$(`/cellar/wants/${mid}/${iid}/gift`);
+  assert.strictEqual((await cSam('POST', g(cMid.sam, dh), {})).status, 409, 'not to yourself');
+  assert.strictEqual((await cDee('POST', g(cMid.sam, nl), {})).status, 409, 'no seller link, no gift');
+  assert.strictEqual((await cDee('POST', g('mnotreal01', dh), {})).status, 404);
+  // Two at the same moment: exactly one is on it.
+  const race = await Promise.all([cDee('POST', g(cMid.sam, dh), {}), cPri('POST', g(cMid.sam, dh), {})]);
+  assert.deepStrictEqual(race.map((x) => x.status).sort(), [200, 409]);
+  const winner = race[0].status === 200 ? cDee : cPri, loser = winner === cDee ? cPri : cDee;
+  const winMid = winner === cDee ? cMid.dee : cMid.pri;
+  let v = (await cAna('GET', cel$('/cellar'))).data;
+  assert.deepStrictEqual(v.members.find((m) => m.member === cMid.sam).wants.find((w) => w.id === dh).gift.by, winMid, 'the crew sees who is on it');
+  assert.ok(!v.matches.some((m) => m.gives.some((x) => x.want === dh)), 'a wish being gifted drops out of Ana’s matches');
+  assert.strictEqual((await loser('DELETE', g(cMid.sam, dh))).status, 403, 'only the claimer lets it go');
+  assert.strictEqual((await winner('POST', cel$(`/cellar/wants/${cMid.sam}/${dh}/arrived`), {})).status, 403, 'only the recipient says it arrived');
+  assert.strictEqual((await winner('DELETE', g(cMid.sam, dh))).status, 200);
+  assert.strictEqual((await cDee('POST', g(cMid.sam, dh), {})).status, 200, 'free again');
+  // The owner adding a line while someone claims another: both stick.
+  const [add, claim] = await Promise.all([cSam('POST', cel$('/cellar/wants'), { name: 'Raced In' }), cPri('POST', g(cMid.sam, ps), {})]);
+  assert.deepStrictEqual([add.status, claim.status], [200, 200]);
+  const doc = await store.get('cellars', `${CC}_${cMid.sam}`);
+  assert.ok(doc.wants.some((w) => w.name === 'Raced In') && doc.gifts.some((x) => x.want === ps && x.by === cMid.pri), 'both writes are there');
+  // It arrives.
+  const r = await cSam('POST', cel$(`/cellar/wants/${cMid.sam}/${dh}/arrived`), {});
+  assert.strictEqual(r.status, 200);
+  assert.ok(!r.data.members.find((m) => m.member === cMid.sam).wants.some((w) => w.id === dh), 'off the wishlist');
+  assert.ok(r.data.feed.some((f) => f.kind === 'gift' && f.from === cMid.dee && f.to === cMid.sam));
+  assert.deepStrictEqual(r.data.ious, [{ member: cMid.pri, n: 1 }, { member: cMid.dee, n: -1 }], 'Sam owes Dee one; Priya still owes Sam');
+  // Squared up: one at a time, and only while something is owed.
+  assert.strictEqual((await cSam('POST', cel$('/ious/square'), { with: cMid.ana })).status, 409, 'nothing owed between them');
+  assert.strictEqual((await cSam('POST', cel$('/ious/square'), { with: cMid.sam })).status, 400);
+  assert.deepStrictEqual((await cDee('POST', cel$('/ious/square'), { with: cMid.sam })).data.ious, [], 'either side can square it');
+  assert.strictEqual((await cSam('POST', cel$('/ious/square'), { with: cMid.dee })).status, 409, 'level now');
+});
+
+test('cellar limits: 60 haves, 30 open swaps a crew', async () => {
+  const room = await register('rae.limits@example.com');
+  const c = await room('POST', '/api/crews', { name: 'Limit crew', hostName: 'Rae' });
+  const id = c.data.id;
+  const g = client();
+  await g('POST', `/api/join/${c.data.crew.code}`, { name: 'Gus' });
+  const gus = (await g('GET', `/api/crews/${id}`)).data.crew.me;
+  for (let i = 0; i < C.LIMITS.haves; i++) assert.strictEqual((await room('POST', `/api/crews/${id}/cellar/haves`, { name: `Beer ${i}`, swap: true })).status, 200, `have ${i}`);
+  const full = await room('POST', `/api/crews/${id}/cellar/haves`, { name: 'Sixty-one' });
+  assert.deepStrictEqual([full.status, /holds 60/.test(full.data.error)], [409, true]);
+  const first = (await room('GET', `/api/crews/${id}/cellar`)).data.members.find((m) => m.member !== gus).haves[0].id;
+  for (let i = 0; i < C.LIMITS.swapsOpen; i++) assert.strictEqual((await room('POST', `/api/crews/${id}/swaps`, { to: gus, give: [first] })).status, 200, `swap ${i}`);
+  const more = await room('POST', `/api/crews/${id}/swaps`, { to: gus, give: [first] });
+  assert.deepStrictEqual([more.status, /30 swaps open/.test(more.data.error)], [409, true]);
+  await room('DELETE', `/api/crews/${id}`);
+  assert.ok(!store._dump().includes(id), 'deleting the crew takes its cellars and swaps');
+});
+
+test('cellar documents hold no price, payment, address or shipping field - only the shapes they are meant to have', async () => {
+  const keys = new Set();
+  const walk = (o) => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') for (const [k, x] of Object.entries(o)) { if (!/^m[a-z0-9]{9}$/.test(k)) keys.add(k); walk(x); } };
+  const cellars = await store.list('cellars', {});
+  const swaps = await store.list('swaps', {});
+  assert.ok(cellars.length >= 3 && swaps.length >= 3);
+  for (const d of cellars) {
+    assert.deepStrictEqual(Object.keys(d).sort(), ['createdAt', 'crewId', 'gifts', 'haves', 'id', 'member', 'squares', 'updatedAt', 'v', 'wants']);
+    for (const h of d.haves) assert.deepStrictEqual(Object.keys(h).sort(), ['at', 'brewery', 'count', 'id', 'name', 'note', 'size', 'style', 'swap']);
+    for (const w of d.wants) assert.deepStrictEqual(Object.keys(w).sort(), ['at', 'brewery', 'buyLink', 'count', 'id', 'name', 'note', 'sellerShips', 'size', 'style']);
+    for (const x of d.gifts) assert.deepStrictEqual(Object.keys(x).sort(), ['arrivedAt', 'brewery', 'by', 'claimedAt', 'id', 'name', 'want']);
+    for (const q of d.squares) assert.deepStrictEqual(Object.keys(q).sort(), ['at', 'id', 'with']);
+  }
+  walk(cellars); walk(swaps);
+  assert.deepStrictEqual([...keys].filter((k) => MONEY_OR_ADDRESS.test(k)), ['sellerShips']);
+  const text = JSON.stringify([cellars, swaps]);
+  assert.ok(!/12 Main|1 Main St|"price"|"address"|"shipping"/.test(text), 'nothing a request tried to add');
+  // The page never asks for one either.
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+  // (The Same-Can "where are you tasting it?" box is a city: address-level2.)
+  for (const input of js.match(/<(input|select|textarea)[^>]*>/g) || []) assert.ok(!/address|street|postal|zip|price|cost|card|ship-to|shipping/i.test(input.replace(/sellerShips|iShips|"address-level2"/g, '')), input);
+  assert.ok(!/autocomplete="(street-address|postal-code|address-line|cc-)/.test(js));
+});
+
+test('leaving or being removed takes a member’s cellar, wishlist, swaps, claims and squared-up marks with them', async () => {
+  const has = (mid) => store._dump().includes(mid);
+  const priMid = cMid.pri, deeMid = cMid.dee;
+  assert.ok(has(priMid) && has(deeMid));
+  // Priya: her own lists, a claim on Sam's wish, a done one-sided swap and her side of the tally.
+  await cPri('POST', cel$('/cellar/haves'), { name: 'Low Tide Saison', swap: true });
+  assert.strictEqual((await cAna('DELETE', `/api/crews/${CC}/members/${priMid}`)).status, 200, 'the host removes her');
+  assert.ok(!has(priMid), 'nothing anywhere names her');
+  assert.strictEqual(await store.get('cellars', `${CC}_${priMid}`), null);
+  let sam = (await cSam('GET', cel$('/cellar'))).data;
+  assert.ok(!sam.ious.some((x) => x.member === priMid) && !sam.swaps.some((w) => w.with === priMid));
+  assert.strictEqual(sam.members.find((m) => m.member === cMid.sam).wants.find((w) => w.name === 'Pacific Static').gift, null, 'her claim is gone - someone else can gift it');
+  // Dee leaves on her own: her gift to Sam and the squared-up mark go with her.
+  assert.strictEqual((await cDee('DELETE', `/api/crews/${CC}/members/${deeMid}`)).status, 200);
+  assert.ok(!has(deeMid));
+  sam = (await cSam('GET', cel$('/cellar'))).data;
+  assert.deepStrictEqual(sam.ious, []);
+  assert.ok(!sam.feed.some((f) => f.from === deeMid || f.to === deeMid));
+  assert.strictEqual((await cPri('GET', cel$('/cellar'))).status, 404, 'she is a stranger now');
+  // Deleting the crew takes every cellar and swap.
+  assert.strictEqual((await cAna('DELETE', `/api/crews/${CC}`)).status, 200);
+  assert.ok(!store._dump().includes(CC));
 });
 
 test('keep my seat: a guest signs in and comes back as themselves on another device', async () => {
