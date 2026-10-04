@@ -10,9 +10,11 @@ name: iPhone apps to TestFlight
 #                       or the file base64-encoded
 #   APPLE_TEAM_ID       the 10-character Team ID
 #
-# Signing is distribution-only, made per job through the App Store Connect API
-# (mobile/scripts/asc_signing.py) and revoked when the job ends: no
-# certificates repository, no fastlane, no registered device needed.
+# Signing: the archive is signed with a distribution certificate made per job
+# through the App Store Connect API (mobile/scripts/asc_signing.py) and revoked
+# when the job ends; the upload is re-signed by Xcode with Apple's
+# cloud-managed distribution certificate, which survives that. No certificates
+# repository, no fastlane, no registered device needed.
 # The build number is the run number (with the
 # attempt added on a re-run, so a retry never reuses one); the version is
 # `version` in mobile/<app>/package.json.
@@ -184,8 +186,20 @@ jobs:
             MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ steps.ver.outputs.build }}"
 
+      # The archive above was signed with this job's own certificate, which is
+      # revoked when the job ends. Apple checks the signature again when a build
+      # is sent for review, so a build left signed with it fails as ITMS-90035
+      # "Invalid Signature" (Flight and Football, 2026-10-03). So the throwaway
+      # keychain goes first, and the export re-signs with Apple's cloud-managed
+      # distribution certificate (automatic signing, the Admin key): one Apple
+      # keeps, never revoked, and no device needed for an App Store profile.
       - name: Upload to TestFlight
         run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          if security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
+            echo "::error title=Signing::A local distribution identity is still in a keychain; the export would sign with it instead of Apple's cloud certificate."
+            exit 1
+          fi
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -193,12 +207,7 @@ jobs:
           <dict>
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>signingCertificate</key><string>Apple Distribution</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>${{ steps.sign.outputs.bundle }}</key><string>${{ steps.sign.outputs.profile }}</string>
-            </dict>
+            <key>signingStyle</key><string>automatic</string>
             <key>teamID</key><string>$APPLE_TEAM_ID</string>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>

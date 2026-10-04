@@ -11,8 +11,11 @@ upload never needs a device, so CI signs for distribution only:
            install the profile, and patch the App target to sign manually.
   cleanup  delete the profile and revoke the certificate.
 
-Revoking a distribution certificate does not touch builds already uploaded
-(Apple re-signs what it ships), so nothing outlives the job. Apple caps how
+This certificate signs the ARCHIVE only. Apple checks a build's signature
+again when it is sent for review, and one signed with a revoked certificate
+fails as ITMS-90035 "Invalid Signature" (Flight and Football, 2026-10-03). So
+the workflow deletes this keychain before exporting, and the export re-signs
+with Apple's cloud-managed distribution certificate, which is never revoked. Apple caps how
 many distribution certificates a team may hold at once, which is why the
 workflow builds one app at a time and always runs cleanup.
 

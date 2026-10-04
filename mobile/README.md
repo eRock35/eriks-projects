@@ -66,9 +66,13 @@ development profile first, which Apple refuses to a team with no registered
 devices, and a TestFlight upload never needs one. Instead each build job asks
 the App Store Connect API for a distribution certificate (its key made on the
 runner, kept in a throwaway keychain) and an App Store profile, signs the App
-target manually, uploads, then deletes the profile and revokes the
-certificate (`mobile/scripts/asc_signing.py`). Revoking it does not affect a
-build already uploaded. Apps build one at a time because Apple caps how many
+target manually and archives. That certificate is revoked when the job ends,
+so the upload is **not** signed with it: the keychain holding it is deleted
+first and the export re-signs with Apple's cloud-managed distribution
+certificate (automatic signing, which the Admin key allows and which needs no
+device for an App Store profile). A build left signed with the revoked
+certificate fails at review as ITMS-90035 "Invalid Signature", which is what
+happened to Flight and Football on 2026-10-03. Apps build one at a time because Apple caps how many
 distribution certificates a team holds at once; if a cancelled run ever
 leaves one behind and the next run reports the limit, revoke the stray one
 under **Certificates** at developer.apple.com.

@@ -170,8 +170,11 @@ Erik's one-time Apple steps, phase 2, the App Store review notes).
   signing**: it wants a development profile, which Apple refuses a team with
   no registered devices. Each job makes a distribution certificate and an
   App Store profile through the API (`mobile/scripts/asc_signing.py`),
-  signs the App target manually, uploads, then revokes and deletes both;
-  apps build one at a time under Apple's certificate cap. First green run
+  signs and archives the App target with them, then revokes and deletes
+  both; the upload is re-signed with Apple's **cloud-managed** distribution
+  certificate (the throwaway keychain is deleted first). Uploading with the
+  revoked one failed review as ITMS-90035 (Flight, Football, 2026-10-03).
+  Apps build one at a time under Apple's certificate cap. First green run
   2026-10-03: all four uploaded to TestFlight. Nothing in the sandbox can
   compile Swift; only that runner proves it builds.
 - **`/.well-known/apple-app-site-association`** is served by five services,
