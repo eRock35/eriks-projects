@@ -308,6 +308,21 @@ const APPS = [
     audience: 'IT, ops and finance at small companies, schools and public agencies',
     status: 'testing',
   },
+  {
+    slug: 'chorus',
+    name: 'Chorus',
+    emoji: '\u{1F9F9}',
+    // Fresh sage to plum: a clean kitchen, then a calm evening. White text
+    // holds 7:1 or better at both ends.
+    color: '#3f6212',
+    color2: '#6b21a8',
+    dropped: '2026-10-04',
+    tagline: 'Chores split fairly - and everyone can see it.',
+    blurb: 'For roommates, couples and families. Chorus deals the week\u2019s chores by how big each job is, how much each person can take on (kids count half), what they can\u2019t do, and who had the worst one last time - and says why in plain words. Tick yours, swap what you can\u2019t get to, nudge without nagging, and the Fairness tab shows who\u2019s really carrying the house. Everyone joins with a code, no account.',
+    features: ['A fair rotation weighed by effort and capacity', 'Tick, swap and nudge from everyone\u2019s phone', 'Fairness: who did what this month, in one line', 'Starter chores for roommates, couples and families, or snap a room for AI suggestions'],
+    audience: 'Roommates, couples and families who share a home',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

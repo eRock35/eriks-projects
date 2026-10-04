@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chorus — chores split fairly, and everyone can see it</title>
+  <meta name="description" content="Chores dealt out fairly for roommates, couples and families: weighed by effort, kids count half, nobody gets what they can't do, and the worst jobs rotate. Tick, swap, nudge, and see who's carrying the house. Everyone joins with a code - no account.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#12150f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f6f0" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Chorus">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Chorus — Chores split fairly - and everyone can see it.">
+  <meta property="og:description" content="For roommates, couples and families. Chorus deals the week’s chores by how big each job is, how much each person can take on (kids count half), what they can’t do, and who had the worst one last time - and says why in plain words. Tick yours, swap what you can’t get to, nudge wit">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/chorus/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/chorus.png?v=e1b7f9bcf3">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Chorus, drop #21 in the Challenge Lab: Chores split fairly - and everyone can see it.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Chorus — Chores split fairly - and everyone can see it.">
+  <meta name="twitter:description" content="For roommates, couples and families. Chorus deals the week’s chores by how big each job is, how much each person can take on (kids count half), what they can’t do, and who had the worst one last time - and says why in plain words. Tick yours, swap what you can’t get to, nudge wit">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/chorus.png?v=e1b7f9bcf3">
+  <meta name="twitter:image:alt" content="Chorus, drop #21 in the Challenge Lab: Chores split fairly - and everyone can see it.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the chores</a>
+  <header class="top">
+    <a class="brand" href="./#start"><span class="mark" aria-hidden="true">🧹</span>Chorus</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="chorus-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

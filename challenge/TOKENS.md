@@ -128,6 +128,7 @@ Erik), 24.8M in over 27 min of one builder agent.
 | App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
 |---|---|---|---|---|---|---|---|
 | Shadow | one builder agent | 33.4M | 32.7M | ~240K | 1 | 43 min | in exact; out estimated |
+| Chorus | one builder agent | 36.0M | 35.5M | ~215K | 1 | 38 min | in exact; out estimated |
 
-Shadow's transcript under-reports output the same way (~4K), so output is
-estimated from Tipout's rate over its agent time.
+Shadow's and Chorus's transcripts under-report output the same way (~4K,
+~5K), so output is estimated from Tipout's rate over each one's agent time.

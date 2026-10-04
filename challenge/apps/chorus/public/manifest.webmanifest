@@ -1,0 +1,10 @@
+{
+  "name": "Chorus",
+  "short_name": "Chorus",
+  "description": "Chores split fairly - and everyone can see it.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6f0",
+  "theme_color": "#3f6212",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
