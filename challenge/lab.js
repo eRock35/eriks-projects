@@ -323,6 +323,21 @@ const APPS = [
     audience: 'Roommates, couples and families who share a home',
     status: 'testing',
   },
+  {
+    slug: 'tieout',
+    name: 'Tieout',
+    emoji: '\u{1FAA2}',
+    // Rope red to ledger navy, the knot's two colours. White text holds
+    // 8.2:1 and 14.5:1.
+    color: '#9b1c1c',
+    color2: '#13294b',
+    dropped: '2026-10-05',
+    tagline: 'Any bank statement PDF to a clean CSV - proven to tie out to the penny.',
+    blurb: 'For bookkeepers and small businesses who re-key statements. Drop in any bank or card statement PDF (or photos of it) and Tieout reads every row, then proves it against the statement\u2019s own arithmetic - opening plus every row equals closing, the running balance row by row - and names the exact row that was misread, with the fix. Edit any cell, re-read one page, check a CSV you already have for free, and export CSV, QuickBooks Online, Xero or OFX. Statements are read once and not kept.',
+    features: ['Any bank\u2019s PDF or photos, read by AI', 'Proven to tie out - the wrong row named', 'Fix in one tap, or re-read one page', 'CSV, QuickBooks, Xero or OFX, months merged'],
+    audience: 'Bookkeepers, accountants and small-business owners',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

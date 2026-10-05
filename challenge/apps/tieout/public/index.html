@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tieout — any bank statement PDF to a clean CSV, proven to tie out</title>
+  <meta name="description" content="Tieout reads a bank or credit card statement PDF, checks every row against the statement's own arithmetic - opening plus every row equals closing, the running balance row by row - names the row that was misread and offers the fix, then exports CSV, QuickBooks Online, Xero or OFX. Files are read once and not kept.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Tieout">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Tieout — Any bank statement PDF to a clean CSV - proven to tie out to the penny.">
+  <meta property="og:description" content="For bookkeepers and small businesses who re-key statements. Drop in any bank or card statement PDF (or photos of it) and Tieout reads every row, then proves it against the statement’s own arithmetic - opening plus every row equals closing, the running balance row by row - and nam">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/tieout/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/tieout.png?v=7f0369f482">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Tieout, drop #22 in the Challenge Lab: Any bank statement PDF to a clean CSV - proven to tie out to the penny.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Tieout — Any bank statement PDF to a clean CSV - proven to tie out to the penny.">
+  <meta name="twitter:description" content="For bookkeepers and small businesses who re-key statements. Drop in any bank or card statement PDF (or photos of it) and Tieout reads every row, then proves it against the statement’s own arithmetic - opening plus every row equals closing, the running balance row by row - and nam">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/tieout.png?v=7f0369f482">
+  <meta name="twitter:image:alt" content="Tieout, drop #22 in the Challenge Lab: Any bank statement PDF to a clean CSV - proven to tie out to the penny.">
+  <!-- /lab:og -->
+</head>
+<body class="to-app">
+  <a class="skip" href="#main">Skip to the statement</a>
+  <header class="top">
+    <a class="brand" href="./" id="brand"><span class="mark" aria-hidden="true">🪢</span>Tieout</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="stmtsBtn" type="button">Statements</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <div id="view"></div>
+
+    <footer class="foot small muted">
+      <p><b>Tieout converts and checks statements. It is not accounting advice - look over an export before you post it.</b></p>
+      <p>Your statement is read once and not kept. Account numbers come back as their last four digits. Rows stay in this browser until you clear them. Tieout is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    </footer>
+  </main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" role="status" aria-live="polite"></div>
+
+  <script src="tieout-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

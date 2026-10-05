@@ -129,6 +129,8 @@ Erik), 24.8M in over 27 min of one builder agent.
 |---|---|---|---|---|---|---|---|
 | Shadow | one builder agent | 33.4M | 32.7M | ~240K | 1 | 43 min | in exact; out estimated |
 | Chorus | one builder agent | 36.0M | 35.5M | ~215K | 1 | 38 min | in exact; out estimated |
+| Tieout | one builder agent | 30.2M | 29.4M | ~200K | 1 | 36 min | in exact; out estimated |
 
-Shadow's and Chorus's transcripts under-report output the same way (~4K,
-~5K), so output is estimated from Tipout's rate over each one's agent time.
+Shadow's, Chorus's and Tieout's transcripts under-report output the same way
+(~4K, ~5K, ~6K), so output is estimated from Tipout's rate over each one's
+agent time.

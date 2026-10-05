@@ -629,19 +629,38 @@ test('two phones ticking at once both stick (and the same writes without the tra
 });
 
 test('swaps: offer, one taker when two claim at once, the points move, only the offerer takes it back', async () => {
-  const ben = client();
+  let ben = client();
   const look = await ben('GET', `/api/join/${CODE}`);
   await ben('POST', `/api/join/${CODE}`, { seat: look.data.seats[0].id }); // Cleo
-  const cleoMid = (await ben('GET', `/api/homes/${HOME}`)).data.home.me;
-  const dev = client();
+  let cleoMid = (await ben('GET', `/api/homes/${HOME}`)).data.home.me;
+  let dev = client();
   await dev('POST', `/api/join/${CODE}`, { seat: look.data.seats[1].id }); // Dev
-  const v = (await host('GET', `/api/homes/${HOME}`)).data;
-  const eff = C.effective(v.weeks[0]);
-  const home = v.home;
+  let v = (await host('GET', `/api/homes/${HOME}`)).data;
+  let eff = C.effective(v.weeks[0]);
+  let home = v.home;
   const mine = Object.keys(eff).find((k) => eff[k] === hostMid && !v.weeks[0].ticks[k] && home.members.filter((m) => m.id !== hostMid).every((m) => !m.cant.includes(k.split('_')[0])));
   assert.ok(mine, 'the host has a chore to offer');
-  const notMine = Object.keys(eff).find((k) => eff[k] === cleoMid && !v.weeks[0].ticks[k]);
-  assert.ok(notMine, 'Cleo has a chore of her own');
+  // Member ids are random, so which of the two joiners the deal leaves with an
+  // unticked chore this week varies from run to run: play the offerer with
+  // whichever one has one (it failed about one run in three when it was
+  // always the first).
+  const open = (mid) => Object.keys(eff).find((k) => eff[k] === mid && !v.weeks[0].ticks[k]);
+  let notMine = open(cleoMid);
+  if (!notMine) {
+    const devMid = (await dev('GET', `/api/homes/${HOME}`)).data.home.me;
+    notMine = open(devMid);
+    if (notMine) { [ben, dev] = [dev, ben]; cleoMid = devMid; }
+  }
+  if (!notMine) {
+    // Earlier tests tick chores, and which ones depends on the same random
+    // ids: both joiners' chores can all be done already. Undo one.
+    const done = Object.keys(eff).find((k) => eff[k] === cleoMid && v.weeks[0].ticks[k]);
+    assert.ok(done, 'Cleo was dealt a chore');
+    assert.strictEqual((await ben('DELETE', `/api/homes/${HOME}/ticks/${done}`)).status, 200);
+    v = (await host('GET', `/api/homes/${HOME}`)).data; eff = C.effective(v.weeks[0]); home = v.home;
+    notMine = open(cleoMid);
+  }
+  assert.ok(notMine, 'a member other than the host has a chore of their own');
   assert.strictEqual((await host('POST', `/api/homes/${HOME}/swaps/${mine}`, { action: 'nope' })).status, 400);
   assert.strictEqual((await ben('POST', `/api/homes/${HOME}/swaps/${mine}`, { action: 'offer' })).status, 403, 'only your own');
   assert.strictEqual((await host('POST', `/api/homes/${HOME}/swaps/${mine}`, { action: 'offer' })).status, 200);
