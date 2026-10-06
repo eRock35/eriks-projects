@@ -338,6 +338,20 @@ const APPS = [
     audience: 'Bookkeepers, accountants and small-business owners',
     status: 'testing',
   },
+  {
+    slug: 'shelflife',
+    name: 'Shelf Life',
+    emoji: '\u{1F96C}',
+    // Leaf green to tomato. White text holds 6.4:1 and 7.3:1.
+    color: '#2f6b3a',
+    color2: '#9a3412',
+    dropped: '2026-10-06',
+    tagline: 'Eat what\u2019s about to go off first - and stop binning food.',
+    blurb: 'For households, couples and roommates who keep finding the spinach has turned. Shelf Life sorts your fridge, freezer and pantry by what needs eating - past its date, today, tomorrow, this week - ranks forty-odd simple recipes by how much of it they use up, and keeps score: eaten vs binned, money rescued, your no-waste streak, and what you keep binning. Add food in taps from 150 everyday foods, or snap the fridge or a receipt. Share one kitchen with the household by code, no account.',
+    features: ['Eat-first board: today, tomorrow, this week', 'Tonight: recipes that use what\u2019s going off', 'Saved: eaten vs binned, streaks, money rescued', '150 foods in taps, or snap the fridge with AI'],
+    audience: 'Households, couples and roommates who share a fridge',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

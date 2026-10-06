@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Shelf Life — eat what’s about to go off first</title>
+  <meta name="description" content="Eat what's about to go off first - and stop binning food. Shelf Life sorts your fridge, freezer and pantry by what needs eating, finds a recipe for tonight that uses it, and shows what you've saved. Free, no account; share the kitchen with your household by code.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#13150f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f5ef" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Shelf Life">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Shelf Life — Eat what’s about to go off first - and stop binning food.">
+  <meta property="og:description" content="For households, couples and roommates who keep finding the spinach has turned. Shelf Life sorts your fridge, freezer and pantry by what needs eating - past its date, today, tomorrow, this week - ranks forty-odd simple recipes by how much of it they use up, and keeps score: eaten ">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/shelflife/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/shelflife.png?v=2d78780993">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Shelf Life, drop #23 in the Challenge Lab: Eat what’s about to go off first - and stop binning food.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Shelf Life — Eat what’s about to go off first - and stop binning food.">
+  <meta name="twitter:description" content="For households, couples and roommates who keep finding the spinach has turned. Shelf Life sorts your fridge, freezer and pantry by what needs eating - past its date, today, tomorrow, this week - ranks forty-odd simple recipes by how much of it they use up, and keeps score: eaten ">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/shelflife.png?v=2d78780993">
+  <meta name="twitter:image:alt" content="Shelf Life, drop #23 in the Challenge Lab: Eat what’s about to go off first - and stop binning food.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the kitchen</a>
+  <header class="top">
+    <a class="brand" href="./#start"><span class="mark" aria-hidden="true">🥬</span>Shelf Life</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="shelf-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

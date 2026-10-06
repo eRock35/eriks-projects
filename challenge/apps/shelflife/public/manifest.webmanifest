@@ -1,0 +1,10 @@
+{
+  "name": "Shelf Life",
+  "short_name": "Shelf Life",
+  "description": "Eat what's about to go off first - and stop binning food.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#2f6b3a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -89,9 +89,13 @@
       "inputs": "c1156486d88cc54a",
       "v": "7f0369f482"
     },
+    "shelflife": {
+      "inputs": "c2e9f3f25fa7f2b7",
+      "v": "2d78780993"
+    },
     "lab": {
-      "inputs": "e0647ae6bb8b5013",
-      "v": "95c20d193b"
+      "inputs": "bdbad456654a17a5",
+      "v": "71d832b2de"
     }
   }
 }
