@@ -131,7 +131,8 @@ Erik), 24.8M in over 27 min of one builder agent.
 | Chorus | one builder agent | 36.0M | 35.5M | ~215K | 1 | 38 min | in exact; out estimated |
 | Tieout | one builder agent | 30.2M | 29.4M | ~200K | 1 | 36 min | in exact; out estimated |
 | Shelf Life | one builder agent | 25.8M | 25.0M | ~205K | 1 | 37 min | in exact; out estimated |
+| Burnrate | one builder agent | 32.8M | 31.9M | ~205K | 1 | 37 min | in exact; out estimated |
 
-Shadow's, Chorus's, Tieout's and Shelf Life's transcripts under-report output the
-same way (~4K, ~5K, ~6K, ~7K), so output is estimated from Tipout's rate over each one's
+Shadow's, Chorus's, Tieout's, Shelf Life's and Burnrate's transcripts under-report
+output the same way (~4K, ~5K, ~6K, ~7K, ~4K), so output is estimated from Tipout's rate over each one's
 agent time.

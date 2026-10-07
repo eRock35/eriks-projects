@@ -93,9 +93,13 @@
       "inputs": "c2e9f3f25fa7f2b7",
       "v": "2d78780993"
     },
+    "burnrate": {
+      "inputs": "015324b3ff62bcbb",
+      "v": "52fceae978"
+    },
     "lab": {
-      "inputs": "bdbad456654a17a5",
-      "v": "71d832b2de"
+      "inputs": "4da30e49c2322775",
+      "v": "ff331b94c1"
     }
   }
 }

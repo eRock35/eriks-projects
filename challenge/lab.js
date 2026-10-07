@@ -352,6 +352,20 @@ const APPS = [
     audience: 'Households, couples and roommates who share a fridge',
     status: 'testing',
   },
+  {
+    slug: 'burnrate',
+    name: 'Burnrate',
+    emoji: '\u{1F525}',
+    // Ember orange to night indigo. White text holds 7.3:1 and 11.4:1.
+    color: '#9a3412',
+    color2: '#312e81',
+    dropped: '2026-10-07',
+    tagline: 'See where your coding agent\u2019s tokens go - and cut the waste.',
+    blurb: 'For engineering leads, founders and developers paying for Claude Code. Drop in your ~/.claude/projects folder - read on your device, never uploaded - and Burnrate prices every turn at list prices: by day, project, model, session and person, subagents apart, with a projected month. Then it finds the waste - caches gone cold, files re-read, giant test logs, bloated sessions, loops, big models on small turns, subagents duplicating each other - each with dollars attached and a fix to paste into CLAUDE.md. Compare the team, export Markdown, CSV or a summary card, and let AI write your fixes from the numbers alone.',
+    features: ['Transcripts read on your device, never uploaded', 'Seven waste patterns, each with dollars and a fix', 'Team view with a seat-cost line, by day and person', 'Markdown, CSV and a share card; AI writes your CLAUDE.md fixes'],
+    audience: 'Engineering leaders, founders and developers paying for coding agents',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

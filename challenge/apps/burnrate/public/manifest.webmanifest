@@ -1,0 +1,10 @@
+{
+  "name": "Burnrate",
+  "short_name": "Burnrate",
+  "description": "See where your coding agent's tokens go - and cut the waste.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f4f1",
+  "theme_color": "#9a3412",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
