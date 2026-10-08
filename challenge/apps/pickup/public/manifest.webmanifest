@@ -1,0 +1,10 @@
+{
+  "name": "Pickup",
+  "short_name": "Pickup",
+  "description": "Who's in, fair teams, and who owes for the court.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f2",
+  "theme_color": "#c2410c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

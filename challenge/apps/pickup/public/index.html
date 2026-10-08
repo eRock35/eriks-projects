@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pickup — who’s in, fair teams, and who owes for the court</title>
+  <meta name="description" content="Run your weekly pickup game without the group-chat chaos. Everyone taps In, Maybe or Out (no app, no account), Pickup keeps the waitlist, makes fair teams, keeps the season's standings and tracks who owes for the court. Free.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#121214" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pickup">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Pickup — Who’s in, fair teams, and who owes for the court.">
+  <meta property="og:description" content="For anyone who runs a weekly pickup game - basketball, five-a-side, volleyball, pickleball, ultimate, padel - out of a group chat. Everyone taps In, Maybe or Out from a link, no app and no account; past the cap there’s a waitlist, and when someone drops the next one’s in. One tap">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/pickup/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/pickup.png?v=0846a595a9">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Pickup, drop #25 in the Challenge Lab: Who’s in, fair teams, and who owes for the court.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pickup — Who’s in, fair teams, and who owes for the court.">
+  <meta name="twitter:description" content="For anyone who runs a weekly pickup game - basketball, five-a-side, volleyball, pickleball, ultimate, padel - out of a group chat. Everyone taps In, Maybe or Out from a link, no app and no account; past the cap there’s a waitlist, and when someone drops the next one’s in. One tap">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/pickup.png?v=0846a595a9">
+  <meta name="twitter:image:alt" content="Pickup, drop #25 in the Challenge Lab: Who’s in, fair teams, and who owes for the court.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the game</a>
+  <header class="top">
+    <a class="brand" href="./#start"><span class="mark" aria-hidden="true">🏀</span>Pickup</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="pickup-core.js"></script>
+  <script src="sample.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

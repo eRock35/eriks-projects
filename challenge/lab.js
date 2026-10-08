@@ -366,6 +366,20 @@ const APPS = [
     audience: 'Engineering leaders, founders and developers paying for coding agents',
     status: 'testing',
   },
+  {
+    slug: 'pickup',
+    name: 'Pickup',
+    emoji: '\u{1F3C0}',
+    // Court orange to navy. White text holds 5.2:1 and 10.4:1.
+    color: '#c2410c',
+    color2: '#1e3a8a',
+    dropped: '2026-10-08',
+    tagline: 'Who\u2019s in, fair teams, and who owes for the court.',
+    blurb: 'For anyone who runs a weekly pickup game - basketball, five-a-side, volleyball, pickleball, ultimate, padel - out of a group chat. Everyone taps In, Maybe or Out from a link, no app and no account; past the cap there\u2019s a waitlist, and when someone drops the next one\u2019s in. One tap makes even teams by skill, positions and who should play apart, results build a season with streaks and a Player of the Week vote, and the court cost is split among who actually played, with Paid ticks and a reminder ready to paste. Paste the group chat and Pickup reads the replies for you.',
+    features: ['In / Maybe / Out with a cap and a waitlist', 'Fair teams in one tap, reshuffle for a new split', 'Season standings, streaks, Player of the Week', 'Court money split among who played, no chasing'],
+    audience: 'Anyone who organises a weekly pickup game or rec group',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

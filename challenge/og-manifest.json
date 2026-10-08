@@ -97,9 +97,13 @@
       "inputs": "015324b3ff62bcbb",
       "v": "52fceae978"
     },
+    "pickup": {
+      "inputs": "42d04bc44289f900",
+      "v": "0846a595a9"
+    },
     "lab": {
-      "inputs": "4da30e49c2322775",
-      "v": "ff331b94c1"
+      "inputs": "2b6b73fdc1b98593",
+      "v": "35ec31ef19"
     }
   }
 }
