@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Parity — prove the migrated data matches</title>
+  <meta name="description" content="Prove the migrated data matches - without it leaving your machine. Drop a table before and after a migration (CSV, TSV or JSON Lines, up to about 1 GB each). Parity maps the columns, applies your rules, and names every missing, extra, duplicated or changed row, with aggregates side by side and a sign-off report. Runs entirely in the browser; works with the network off. Fingerprint mode compares two machines that cannot share data.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f1720" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Parity">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Parity — Prove the migrated data matches - without it leaving your machine.">
+  <meta property="og:description" content="For data engineers, platform leads and DBAs moving a table between schemas or systems where the data can’t go to a cloud diff tool. Drop the table before and after - CSV, TSV or JSON Lines, up to about 1 GB each, read on your device and never uploaded. Parity pairs the columns, l">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/parity/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/parity.png?v=fe603ca5a9">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Parity, drop #26 in the Challenge Lab: Prove the migrated data matches - without it leaving your machine.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Parity — Prove the migrated data matches - without it leaving your machine.">
+  <meta name="twitter:description" content="For data engineers, platform leads and DBAs moving a table between schemas or systems where the data can’t go to a cloud diff tool. Drop the table before and after - CSV, TSV or JSON Lines, up to about 1 GB each, read on your device and never uploaded. Parity pairs the columns, l">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/parity.png?v=fe603ca5a9">
+  <meta name="twitter:image:alt" content="Parity, drop #26 in the Challenge Lab: Prove the migrated data matches - without it leaving your machine.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./#start" data-act="home"><span class="mark" aria-hidden="true">⚖️</span>Parity</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="parity-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

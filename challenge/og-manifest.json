@@ -101,9 +101,13 @@
       "inputs": "42d04bc44289f900",
       "v": "0846a595a9"
     },
+    "parity": {
+      "inputs": "c9f27cb2a15a8354",
+      "v": "fe603ca5a9"
+    },
     "lab": {
-      "inputs": "2b6b73fdc1b98593",
-      "v": "35ec31ef19"
+      "inputs": "1ff3b0fb44c125a5",
+      "v": "e1a92036ed"
     }
   }
 }

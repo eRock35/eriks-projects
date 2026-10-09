@@ -1,0 +1,10 @@
+{
+  "name": "Parity",
+  "short_name": "Parity",
+  "description": "Prove the migrated data matches - without it leaving your machine.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0b5d6b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

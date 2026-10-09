@@ -1,6 +1,6 @@
 {
   "_about": "Written by scripts/token-ledger.py --stats. Apps only; totals are the sum of the apps. See challenge/TOKENS.md.",
-  "updated": "2026-10-08",
+  "updated": "2026-10-09",
   "apps": {
     "spar": {
       "in": 30000000,
@@ -251,17 +251,27 @@
       "wallMs": 2442000,
       "exact": false,
       "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~2K)."
+    },
+    "parity": {
+      "in": 32794683,
+      "cached": 31641009,
+      "out": 285000,
+      "agents": 1,
+      "agentMs": 3066000,
+      "wallMs": 3066000,
+      "exact": false,
+      "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~5K)."
     }
   },
   "totals": {
-    "in": 964087398,
-    "cached": 879016909,
-    "out": 6213623,
-    "agents": 154,
-    "agentMs": 70078934,
-    "wallMs": 67222638,
-    "apps": 25,
-    "estimated": 19,
-    "cachedShare": 0.9723
+    "in": 996882081,
+    "cached": 910657918,
+    "out": 6498623,
+    "agents": 155,
+    "agentMs": 73144934,
+    "wallMs": 70288638,
+    "apps": 26,
+    "estimated": 20,
+    "cachedShare": 0.972
   }
 }

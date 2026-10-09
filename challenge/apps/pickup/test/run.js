@@ -77,14 +77,14 @@ const ctx = (extra) => ({ now: NOW, rand, actor: host, ...(extra || {}) });
 const NAMES = ['Host', 'Sam', 'Jo', 'Mia', 'Priya', 'Tom', 'Dev', 'Lena', 'Kai', 'Ravi', 'Ola', 'Ben', 'Chris', 'Nina'];
 const mid = (n) => `m${n.toLowerCase().padEnd(8, '0').slice(0, 8)}`;
 /** A group with these regulars and this week's game (Thursday 7pm). */
-function world(names = NAMES, extra = {}) {
+function world(names = NAMES, extra = {}, now = NOW) {
   const g = C.cleanGroup({
     name: 'Test Hoops', sport: 'basketball', tz: TZ,
     sched: { wd: 3, time: '19:00', place: 'Riverside', cap: 10, cost: 6000 },
     members: names.map((n, i) => ({ id: i === 0 ? 'mhost0001' : mid(n), name: n, emoji: C.EMOJI[i % C.EMOJI.length], skill: 3, host: i === 0 })),
     ...extra,
   }, { tz: TZ, rand });
-  const e = C.ensureGame(g, NOW);
+  const e = C.ensureGame(g, now);
   C.applyPatch(g, e.patch);
   return { g, gid: e.gid };
 }
@@ -823,7 +823,10 @@ async function register(email, ip) {
 }
 /** A group as a phone would send it to go online. */
 function phoneGroup() {
-  const { g } = world(NAMES.slice(0, 6));
+  // The HTTP tests run against the real clock, so this week's game must be
+  // ahead of it: a game dated from the fixed NOW has kicked off once that
+  // Thursday passes, and the server rightly refuses members' answers.
+  const { g } = world(NAMES.slice(0, 6), {}, Date.now() + 8 * 86400000);
   g.name = 'The <i>Test</i> Hoops';
   g.members[2].skill = 5; // Jo
   g.lines = [{ a: mid('Sam'), b: mid('Jo'), k: 'apart' }];

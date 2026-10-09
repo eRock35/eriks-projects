@@ -380,6 +380,20 @@ const APPS = [
     audience: 'Anyone who organises a weekly pickup game or rec group',
     status: 'testing',
   },
+  {
+    slug: 'parity',
+    name: 'Parity',
+    emoji: '\u2696\uFE0F',
+    // Deep teal to slate night. White text holds 6.8:1 and 12.2:1.
+    color: '#0b6474',
+    color2: '#0b3b45',
+    dropped: '2026-10-09',
+    tagline: 'Prove the migrated data matches - without it leaving your machine.',
+    blurb: 'For data engineers, platform leads and DBAs moving a table between schemas or systems where the data can\u2019t go to a cloud diff tool. Drop the table before and after - CSV, TSV or JSON Lines, up to about 1 GB each, read on your device and never uploaded. Parity pairs the columns, learns the rules from rows that share a key (trim, cents to dollars, date formats, code tables) and names every missing, duplicated or changed row with its key and what happened to it - truncated, shifted by hours, null turned empty. Aggregates side by side, a sign-off report in HTML, Markdown or JSON, and fingerprints for two machines that can\u2019t share data at all.',
+    features: ['Read on your device, works with the network off', 'Columns mapped and rules learned, no code', 'Every problem named, with keys and before \u2192 after', 'Fingerprints compare two air-gapped machines'],
+    audience: 'Data engineers, platform leads and DBAs running migrations',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
