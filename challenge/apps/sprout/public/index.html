@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sprout — know which plants need you today</title>
+  <meta name="description" content="Know which plants need you today - and hand them to a plant-sitter in one link. Sprout learns how thirsty each houseplant really is, sorts them into thirsty today, check the soil, coming up and happy, and builds a day-by-day care sheet for whoever waters them while you are away. 89 plants in its catalogue, everything on your phone, no account.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#121611" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f4ec" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sprout">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Sprout — Know which plants need you today - and hand them to a plant-sitter in one link.">
+  <meta property="og:description" content="For anyone with houseplants, from one pothos to a jungle, who waters on vibes, drowns some and forgets others, and panics before a trip. Pick from 89 common plants and Sprout sorts them every morning - thirsty today, check the soil, coming up, happy - learns each plant’s real pac">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/sprout/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/sprout.png?v=301d05463f">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Sprout, drop #27 in the Challenge Lab: Know which plants need you today - and hand them to a plant-sitter in one link.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sprout — Know which plants need you today - and hand them to a plant-sitter in one link.">
+  <meta name="twitter:description" content="For anyone with houseplants, from one pothos to a jungle, who waters on vibes, drowns some and forgets others, and panics before a trip. Pick from 89 common plants and Sprout sorts them every morning - thirsty today, check the soil, coming up, happy - learns each plant’s real pac">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/sprout.png?v=301d05463f">
+  <meta name="twitter:image:alt" content="Sprout, drop #27 in the Challenge Lab: Know which plants need you today - and hand them to a plant-sitter in one link.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./#start" data-act="home"><span class="mark" aria-hidden="true">🌱</span>Sprout</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="sprout-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

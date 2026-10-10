@@ -394,6 +394,20 @@ const APPS = [
     audience: 'Data engineers, platform leads and DBAs running migrations',
     status: 'testing',
   },
+  {
+    slug: 'sprout',
+    name: 'Sprout',
+    emoji: '\u{1F331}',
+    // Leaf green to watering-can blue. White text holds 6.5:1 and 8.5:1.
+    color: '#2d6a3e',
+    color2: '#0d4f86',
+    dropped: '2026-10-10',
+    tagline: 'Know which plants need you today - and hand them to a plant-sitter in one link.',
+    blurb: 'For anyone with houseplants, from one pothos to a jungle, who waters on vibes, drowns some and forgets others, and panics before a trip. Pick from 89 common plants and Sprout sorts them every morning - thirsty today, check the soil, coming up, happy - learns each plant\u2019s real pace from every \u201cNot yet\u201d, stretches the gaps in winter, warns when one sits in the wrong light, and keeps a streak, a history and a photo diary. Going away? One link gives your sitter a day-by-day list to tick off, and the plan lives in the link itself - nothing stored on a server. Not sure what it is, or why it\u2019s yellowing? Snap it and AI takes a look.',
+    features: ['Today board: thirsty, check soil, coming up, happy', 'Learns each plant\u2019s pace, longer in winter', 'Plant-sitter link: a day-by-day list, no app, no server', '89 plants with care and pet safety; AI reads a photo'],
+    audience: 'Anyone with houseplants - especially the ones who travel',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

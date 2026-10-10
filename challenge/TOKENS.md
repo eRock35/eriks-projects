@@ -138,3 +138,12 @@ Erik), 24.8M in over 27 min of one builder agent.
 Shadow's, Chorus's, Tieout's, Shelf Life's, Burnrate's, Pickup's and Parity's
 transcripts under-report output the same way (~4K, ~5K, ~6K, ~7K, ~4K, ~2K, ~5K), so output is estimated from Tipout's rate over each one's
 agent time.
+
+## Week 4 (2026-10-10 to 2026-10-16)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Sprout | one builder agent | 33.7M | 32.5M | ~235K | 1 | 42 min | in exact; out estimated |
+
+Sprout's transcript under-reports output the same way as Week 3's (~2K), so
+output is estimated from Tipout's rate over its agent time.
