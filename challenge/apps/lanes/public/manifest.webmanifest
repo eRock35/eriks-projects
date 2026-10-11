@@ -1,0 +1,10 @@
+{
+  "name": "Lanes",
+  "short_name": "Lanes",
+  "description": "Run coding agents in parallel without them stepping on each other.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#0b6e64",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

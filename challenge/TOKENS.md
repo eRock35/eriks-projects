@@ -144,6 +144,7 @@ agent time.
 | App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
 |---|---|---|---|---|---|---|---|
 | Sprout | one builder agent | 33.7M | 32.5M | ~235K | 1 | 42 min | in exact; out estimated |
+| Lanes | one builder agent | 40.0M | 38.9M | ~265K | 1 | 48 min | in exact; out estimated |
 
-Sprout's transcript under-reports output the same way as Week 3's (~2K), so
-output is estimated from Tipout's rate over its agent time.
+Sprout's and Lanes's transcripts under-report output the same way as Week 3's
+(~2K, ~1K), so output is estimated from Tipout's rate over each one's agent time.

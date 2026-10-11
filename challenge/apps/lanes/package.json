@@ -1,0 +1,18 @@
+{
+  "name": "lanes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "LANES_DEV_MOUNT=/lanes LANES_MEMORY=1 LANES_FAKE_AI=1 LANES_FAKE_DELAY_MS=900 PORT=8128 node server.js",
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 LANES_MEMORY=1 LANES_FAKE_AI=1 node test/run.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "express": "^4.19.2"
+  }
+}

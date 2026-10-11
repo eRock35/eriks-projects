@@ -408,6 +408,20 @@ const APPS = [
     audience: 'Anyone with houseplants - especially the ones who travel',
     status: 'testing',
   },
+  {
+    slug: 'lanes',
+    name: 'Lanes',
+    emoji: '\u{1F6A6}',
+    // Lane teal to night asphalt. White text holds 6.1:1 and 16.5:1.
+    color: '#0b6e64',
+    color2: '#15202b',
+    dropped: '2026-10-11',
+    tagline: 'Run coding agents in parallel without them stepping on each other.',
+    blurb: 'For developers and engineering leads running several coding agents at once - Claude Code, Codex, Cursor - or several people on parallel branches. Copy one command, run it in your repo, and Lanes reads every branch\u2019s changes on your device (nothing is uploaded) and shows what will collide before you merge: the same lines changed twice, lockfiles, two migrations numbered 0042, version bumps, the same helper written twice - then the merge order that needs the fewest rebases, with the commands. Starting fresh? Plan a lane per agent from your real file tree, with rules for shared files, reserved migration numbers and a brief for each agent - or let AI split the tasks from your file paths alone.',
+    features: ['Diffs read on your device, never uploaded', 'Collisions by line, lockfiles, migrations, duplicate helpers', 'A merge order with the fewest rebases, and the commands', 'Lanes and a brief per agent; AI splits tasks from paths only'],
+    audience: 'Developers and engineering leads running coding agents in parallel',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

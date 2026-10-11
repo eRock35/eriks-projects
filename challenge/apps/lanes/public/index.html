@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lanes — run coding agents in parallel without collisions</title>
+  <meta name="description" content="Run coding agents in parallel without them stepping on each other. Lanes reads your branches' diffs on your device (nothing is uploaded) and finds the collisions before you merge: the same lines changed twice, lockfiles, migration numbers, version bumps, the same helper written twice - then suggests a merge order with the commands. Or plan the lanes first and give each agent a brief.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0e1217" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Lanes">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Lanes — Run coding agents in parallel without them stepping on each other.">
+  <meta property="og:description" content="For developers and engineering leads running several coding agents at once - Claude Code, Codex, Cursor - or several people on parallel branches. Copy one command, run it in your repo, and Lanes reads every branch’s changes on your device (nothing is uploaded) and shows what will">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/lanes/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lanes.png?v=99772c2ef2">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Lanes, drop #28 in the Challenge Lab: Run coding agents in parallel without them stepping on each other.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Lanes — Run coding agents in parallel without them stepping on each other.">
+  <meta name="twitter:description" content="For developers and engineering leads running several coding agents at once - Claude Code, Codex, Cursor - or several people on parallel branches. Copy one command, run it in your repo, and Lanes reads every branch’s changes on your device (nothing is uploaded) and shows what will">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lanes.png?v=99772c2ef2">
+  <meta name="twitter:image:alt" content="Lanes, drop #28 in the Challenge Lab: Run coding agents in parallel without them stepping on each other.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./#start" data-act="home"><span class="mark" aria-hidden="true">🚦</span>Lanes</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="lanes-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>
