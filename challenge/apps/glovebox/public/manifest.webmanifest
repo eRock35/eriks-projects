@@ -1,0 +1,10 @@
+{
+  "name": "Glovebox",
+  "short_name": "Glovebox",
+  "description": "Know what your car needs next - and what that warning light means.",
+  "start_url": "./#next", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#1d4f91",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

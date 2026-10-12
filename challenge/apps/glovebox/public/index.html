@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Glovebox — know what your car needs next</title>
+  <meta name="description" content="Know what your car needs next - and what that warning light means. Glovebox keeps your car's maintenance plan and service history on your phone, sorts what's due by miles or months - whichever comes first - explains 42 dashboard warning lights by colour, and makes a tidy service history to hand a buyer in one link. No account needed.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f4f6" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Glovebox">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Glovebox — Know what your car needs next - and what that warning light means.">
+  <meta property="og:description" content="For any driver whose only record is the oil-change sticker, who can’t remember when the tyres were rotated, panics at an orange light on the dash, and has nothing to show a buyer. Tell Glovebox your car and the odometer, and it builds a maintenance plan - oil, tyres, brakes, filt">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/glovebox/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/glovebox.png?v=14c0c86d96">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Glovebox, drop #29 in the Challenge Lab: Know what your car needs next - and what that warning light means.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Glovebox — Know what your car needs next - and what that warning light means.">
+  <meta name="twitter:description" content="For any driver whose only record is the oil-change sticker, who can’t remember when the tyres were rotated, panics at an orange light on the dash, and has nothing to show a buyer. Tell Glovebox your car and the odometer, and it builds a maintenance plan - oil, tyres, brakes, filt">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/glovebox.png?v=14c0c86d96">
+  <meta name="twitter:image:alt" content="Glovebox, drop #29 in the Challenge Lab: Know what your car needs next - and what that warning light means.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./#start" data-act="home"><span class="mark" aria-hidden="true">🧤</span>Glovebox</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="glovebox-lights.js"></script>
+  <script src="glovebox-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

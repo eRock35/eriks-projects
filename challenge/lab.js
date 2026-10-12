@@ -422,6 +422,20 @@ const APPS = [
     audience: 'Developers and engineering leads running coding agents in parallel',
     status: 'testing',
   },
+  {
+    slug: 'glovebox',
+    name: 'Glovebox',
+    emoji: '\u{1F9E4}',
+    // Dashboard blue to night dash. White text holds 8.1:1 and 15.6:1.
+    color: '#1d4f91',
+    color2: '#1b2433',
+    dropped: '2026-10-12',
+    tagline: 'Know what your car needs next - and what that warning light means.',
+    blurb: 'For any driver whose only record is the oil-change sticker, who can\u2019t remember when the tyres were rotated, panics at an orange light on the dash, and has nothing to show a buyer. Tell Glovebox your car and the odometer, and it builds a maintenance plan - oil, tyres, brakes, filters, battery, renewals; no oil changes on an EV - then sorts what\u2019s due into overdue, due soon, coming up and all good, by miles or months, whichever comes first, projected from how far you actually drive. Pick a warning light by colour and shape for what it means and what to do - red always says stop safely. Log services and costs, keep receipt photos on your phone, and hand a buyer a tidy service history in one link that nothing on a server ever sees. AI reads a dashboard or receipt photo if you want.',
+    features: ['What\u2019s due: miles or months, whichever comes first', '42 warning lights by colour and shape, free', 'Service log, costs and cost per mile on your phone', 'A buyer\u2019s service history in one link; AI reads photos'],
+    audience: 'Any driver - especially before a road trip, or when it\u2019s time to sell',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

@@ -1,6 +1,6 @@
 {
   "_about": "Written by scripts/token-ledger.py --stats. Apps only; totals are the sum of the apps. See challenge/TOKENS.md.",
-  "updated": "2026-10-11",
+  "updated": "2026-10-12",
   "apps": {
     "spar": {
       "in": 30000000,
@@ -281,17 +281,27 @@
       "wallMs": 2886000,
       "exact": false,
       "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~1K)."
+    },
+    "glovebox": {
+      "in": 38059680,
+      "cached": 36912965,
+      "out": 250000,
+      "agents": 1,
+      "agentMs": 2688000,
+      "wallMs": 2688000,
+      "exact": false,
+      "note": "Input exact from the transcript; output estimated (this transcript records only the start of each streamed reply, ~2K)."
     }
   },
   "totals": {
-    "in": 1070529098,
-    "cached": 982046703,
-    "out": 6998623,
-    "agents": 157,
-    "agentMs": 78574934,
-    "wallMs": 75718638,
-    "apps": 28,
-    "estimated": 22,
-    "cachedShare": 0.9718
+    "in": 1108588778,
+    "cached": 1018959668,
+    "out": 7248623,
+    "agents": 158,
+    "agentMs": 81262934,
+    "wallMs": 78406638,
+    "apps": 29,
+    "estimated": 23,
+    "cachedShare": 0.9717
   }
 }
