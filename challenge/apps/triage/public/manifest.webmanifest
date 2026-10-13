@@ -1,0 +1,10 @@
+{
+  "name": "Triage",
+  "short_name": "Triage",
+  "description": "Review the giant AI-written PR in the order that matters - and skim the rest with a clear conscience.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#9f1d35",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

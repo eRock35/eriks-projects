@@ -117,9 +117,13 @@
       "inputs": "a6f19e7f4134672d",
       "v": "14c0c86d96"
     },
+    "triage": {
+      "inputs": "6699a9a6cb302ac8",
+      "v": "a2783187fa"
+    },
     "lab": {
-      "inputs": "cc059ba14f0c3c19",
-      "v": "2b33706d2c"
+      "inputs": "493155926a17a3f0",
+      "v": "5a2f7392ea"
     }
   }
 }

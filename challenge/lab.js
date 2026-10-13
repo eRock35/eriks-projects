@@ -436,6 +436,20 @@ const APPS = [
     audience: 'Any driver - especially before a road trip, or when it\u2019s time to sell',
     status: 'testing',
   },
+  {
+    slug: 'triage',
+    name: 'Triage',
+    emoji: '\u{1FA7A}',
+    // Triage crimson to night slate. White text holds 8.0:1 and 16.1:1.
+    color: '#9b1c3a',
+    color2: '#1b2130',
+    dropped: '2026-10-13',
+    tagline: 'Review the giant AI-written PR in the order that matters - and skim the rest with a clear conscience.',
+    blurb: 'For engineering leads and reviewers whose coding agents now open 3,000-line pull requests several times a day. Paste the diff, or run one command - Triage reads it on your device (nothing is uploaded) and sorts the real changes from the renames, reformatting, lockfile churn, snapshots and generated code. What\u2019s left is ranked by what it touches - permission checks, migrations, routes with no test, config defaults, new dependencies, secrets and hidden characters - with why and what to look for. You get a review plan with a time estimate, the one check that makes skimming each group safe, a split into smaller stacked PRs with the git commands and a comment for the author, and a report for the PR. AI explains one hunk if you ask, after you see exactly what it would send.',
+    features: ['Diffs read on your device, never uploaded', 'Mechanical vs meaningful, line by line, conservatively', 'A risk-ordered review plan with checklists and checks', 'Split it into stacked PRs, with the commands'],
+    audience: 'Engineering leads and reviewers facing large AI-written pull requests',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

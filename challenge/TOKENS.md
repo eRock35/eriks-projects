@@ -146,6 +146,7 @@ agent time.
 | Sprout | one builder agent | 33.7M | 32.5M | ~235K | 1 | 42 min | in exact; out estimated |
 | Lanes | one builder agent | 40.0M | 38.9M | ~265K | 1 | 48 min | in exact; out estimated |
 | Glovebox | one builder agent | 38.1M | 36.9M | ~250K | 1 | 45 min | in exact; out estimated |
+| Triage | one builder agent | 30.6M | 29.8M | ~245K | 1 | 44 min | in exact; out estimated |
 
-Sprout's, Lanes's and Glovebox's transcripts under-report output the same way as
-Week 3's (~2K, ~1K, ~2K), so output is estimated from Tipout's rate over each one's agent time.
+Sprout's, Lanes's, Glovebox's and Triage's transcripts under-report output the
+same way as Week 3's (~2K, ~1K, ~2K, ~1K), so output is estimated from Tipout's rate over each one's agent time.
