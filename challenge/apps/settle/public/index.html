@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Settle — where are we eating? Settle it in a minute</title>
+  <meta name="description" content="Stuck in the group-chat loop of “I don’t mind, what do you want?” Share one link, everyone swipes Yes, No or Love on their own phone (no app, no account), and Settle finds the match. Decks for dinner, movies, date night and more. Free.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#110e18" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f5fb" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Settle">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Settle — Where are we eating? Settle it in a minute.">
+  <meta property="og:description" content="For friends, couples, families and housemates stuck in the group-chat loop of “I don’t mind, what do you want?” - dinner, a takeaway, a movie, the weekend plan, a holiday spot. Ask once, pick options or a ready-made deck, and drop one link in the chat: everyone swipes Yes, No or ">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/settle/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/settle.png?v=e38a17e484">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Settle, drop #31 in the Challenge Lab: Where are we eating? Settle it in a minute.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Settle — Where are we eating? Settle it in a minute.">
+  <meta name="twitter:description" content="For friends, couples, families and housemates stuck in the group-chat loop of “I don’t mind, what do you want?” - dinner, a takeaway, a movie, the weekend plan, a holiday spot. Ask once, pick options or a ready-made deck, and drop one link in the chat: everyone swipes Yes, No or ">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/settle.png?v=e38a17e484">
+  <meta name="twitter:image:alt" content="Settle, drop #31 in the Challenge Lab: Where are we eating? Settle it in a minute.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the decision</a>
+  <header class="top">
+    <a class="brand" href="./#start"><span class="mark" aria-hidden="true">🤝</span>Settle</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="settle-core.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

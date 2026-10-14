@@ -450,6 +450,20 @@ const APPS = [
     audience: 'Engineering leads and reviewers facing large AI-written pull requests',
     status: 'testing',
   },
+  {
+    slug: 'settle',
+    name: 'Settle',
+    emoji: '\u{1F91D}',
+    // Settle violet to deep berry. White text holds 7.1:1 and 7.9:1.
+    color: '#6d28d9',
+    color2: '#9d174d',
+    dropped: '2026-10-14',
+    tagline: 'Where are we eating? Settle it in a minute.',
+    blurb: 'For friends, couples, families and housemates stuck in the group-chat loop of \u201cI don\u2019t mind, what do you want?\u201d - dinner, a takeaway, a movie, the weekend plan, a holiday spot. Ask once, pick options or a ready-made deck, and drop one link in the chat: everyone swipes Yes, No or Love on their own phone, no app and no account, and nobody sees anyone\u2019s votes until the reveal. The first thing everyone said yes to is the match; a tie spins a wheel that lands the same on every phone. Rank-a-top-3 mode runs ranked choice and explains every round, everyone gets one veto, and AI can fill the deck with ideas.',
+    features: ['Everyone swipes Yes, No or Love - no app, no account', 'It\u2019s a match: the first thing everyone said yes to', 'Ranked choice with every round in words, one veto each', 'Built-in decks for dinner, movies, date night and more'],
+    audience: 'Friends, couples and families who can\u2019t decide where to eat',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
