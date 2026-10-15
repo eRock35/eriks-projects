@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Zoned — find the building and fridge controllers on your till network</title>
+  <meta name="description" content="Find the building and fridge controllers on your till network - and fence them off. Zoned reads a network scan you already ran (nmap, an ARP table or the router's DHCP list) on your device - it never scans anything and nothing is uploaded - finds the refrigeration, HVAC and lighting controllers and the contractor's remote-access box sharing a network with your tills, and gives you a zone plan, firewall rules and a letter for the contractor.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f1218" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Zoned">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Zoned — Find the building and fridge controllers on your till network - and fence them off.">
+  <meta property="og:description" content="For IT directors and single-site IT generalists at grocers, convenience stores, restaurants, clinics and small offices, where the HVAC or refrigeration contractor plugged their controllers - and often a cellular modem - into the same flat network as the tills, the office PCs and ">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/zoned/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/zoned.png?v=05a3175c4e">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Zoned, drop #32 in the Challenge Lab: Find the building and fridge controllers on your till network - and fence them off.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Zoned — Find the building and fridge controllers on your till network - and fence them off.">
+  <meta name="twitter:description" content="For IT directors and single-site IT generalists at grocers, convenience stores, restaurants, clinics and small offices, where the HVAC or refrigeration contractor plugged their controllers - and often a cellular modem - into the same flat network as the tills, the office PCs and ">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/zoned.png?v=05a3175c4e">
+  <meta name="twitter:image:alt" content="Zoned, drop #32 in the Challenge Lab: Find the building and fridge controllers on your till network - and fence them off.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./#start" data-act="home"><span class="mark" aria-hidden="true">🚧</span>Zoned</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="zoned-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -464,6 +464,20 @@ const APPS = [
     audience: 'Friends, couples and families who can\u2019t decide where to eat',
     status: 'testing',
   },
+  {
+    slug: 'zoned',
+    name: 'Zoned',
+    emoji: '\u{1F6A7}',
+    // Hazard orange to night slate. White text holds 6.3:1 and 15.6:1.
+    color: '#a3420c',
+    color2: '#1c2433',
+    dropped: '2026-10-15',
+    tagline: 'Find the building and fridge controllers on your till network - and fence them off.',
+    blurb: 'For IT directors and single-site IT generalists at grocers, convenience stores, restaurants, clinics and small offices, where the HVAC or refrigeration contractor plugged their controllers - and often a cellular modem - into the same flat network as the tills, the office PCs and the guest Wi-Fi. Bring a scan you already ran (nmap, an ARP table or the router\u2019s DHCP list): Zoned reads it on your device - it never scans anything and nothing is uploaded - and names every device with why it thinks so, from the maker names, ports and banners. You get the findings in plain words, six zones with every device placed, default-deny firewall rules, steps for UniFi, Meraki, pfSense and FortiGate, a checklist and a letter for the contractor, and a report. AI suggests what the unknowns are if you ask, after you see exactly what it would send - never an address.',
+    features: ['Scans read on your device; Zoned never scans anything', 'Refrigeration, HVAC and remote-access boxes found, with why', 'Six zones, every device placed, default-deny firewall rules', 'A contractor checklist and letter with the exact ports'],
+    audience: 'Store and small-office IT people with a contractor\u2019s controllers on the till network',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

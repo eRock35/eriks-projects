@@ -826,7 +826,9 @@ function phoneGroup() {
   // The HTTP tests run against the real clock, so this week's game must be
   // ahead of it: a game dated from the fixed NOW has kicked off once that
   // Thursday passes, and the server rightly refuses members' answers.
-  const { g } = world(NAMES.slice(0, 6), {}, Date.now() + 8 * 86400000);
+  // A day ahead keeps the game in the future and within the two weeks a
+  // host may move it, which the "move it to yesterday" step below relies on.
+  const { g } = world(NAMES.slice(0, 6), {}, Date.now() + 86400000);
   g.name = 'The <i>Test</i> Hoops';
   g.members[2].skill = 5; // Jo
   g.lines = [{ a: mid('Sam'), b: mid('Jo'), k: 'apart' }];
@@ -1077,7 +1079,8 @@ test('teams, results, votes and Paid over HTTP: the core’s rules, and skill nu
   assert.strictEqual((await HOST('POST', `/api/groups/${GID}/games/${GAME}/matches`, { a: 0, b: 5, w: 'a' })).status, 400);
   // Paid and votes need kickoff: move the game into the past by rewriting its date (as a host would after the fact).
   const past = C.addDays(C.localDate(Date.now(), TZ), -1);
-  await HOST('PATCH', `/api/groups/${GID}/games/${GAME}`, { date: past });
+  const moved = await HOST('PATCH', `/api/groups/${GID}/games/${GAME}`, { date: past });
+  assert.strictEqual(moved.status, 200, moved.text);
   const now = (await HOST('GET', `/api/groups/${GID}`)).data;
   const g = now.group;
   assert.ok(g.games[GAME], 'yesterday’s game is still this week’s until it’s done');
