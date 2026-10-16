@@ -149,6 +149,7 @@ agent time.
 | Triage | one builder agent | 30.6M | 29.8M | ~245K | 1 | 44 min | in exact; out estimated |
 | Settle | one builder agent | 34.0M | 33.5M | ~260K | 1 | 47 min | in exact; out estimated |
 | Zoned | one builder agent | 31.1M | 30.0M | ~230K | 1 | 42 min | in exact; out estimated |
+| Jars | one builder agent | 33.5M | 32.6M | ~250K | 1 | 45 min | in exact; out estimated |
 
-Sprout's, Lanes's, Glovebox's, Triage's, Settle's and Zoned's transcripts
-under-report output the same way as Week 3's (~2K, ~1K, ~2K, ~1K, ~2K, ~4K), so output is estimated from Tipout's rate over each one's agent time.
+Sprout's, Lanes's, Glovebox's, Triage's, Settle's, Zoned's and Jars's transcripts
+under-report output the same way as Week 3's (~2K, ~1K, ~2K, ~1K, ~2K, ~4K, ~5K), so output is estimated from Tipout's rate over each one's agent time.

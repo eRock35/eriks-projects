@@ -478,6 +478,20 @@ const APPS = [
     audience: 'Store and small-office IT people with a contractor\u2019s controllers on the till network',
     status: 'testing',
   },
+  {
+    slug: 'jars',
+    name: 'Jars',
+    emoji: '\u{1FAD9}',
+    // Jar purple to berry. White text holds 8.4:1 and 7.2:1.
+    color: '#5b2fb3',
+    color2: '#a3215e',
+    dropped: '2026-10-16',
+    tagline: 'Pocket money in three jars - spend, save, give - and watch the savings grow.',
+    blurb: 'For parents of kids about 5 to 12 who want to teach money with the pocket money they already give - but whose system is coins in a drawer, an IOU they forget, and a kid who can\u2019t tell how long until the LEGO set. Set each child\u2019s pocket money, payday and split, and payday runs itself: open Jars and the money drops into three jars a kid can tap, missed weeks caught up, never twice. Goals show \u201cabout 6 more paydays\u201d, optional Bank of Mum & Dad interest makes saving visible, and a grown-up PIN guards anything that adds money or dips into Save. Grandparents get a read-only link and can send back a gift note. Everything stays on your phone: no account, no AI, nothing uploaded.',
+    features: ['Payday runs itself - split three ways, never paid twice', 'Goals counted in paydays, with a celebration when reached', 'Bank of Mum & Dad interest, with a with-vs-without chart', 'A grandparents\u2019 link and gift notes - no account, no server'],
+    audience: 'Parents of kids about 5 to 12 who give pocket money',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

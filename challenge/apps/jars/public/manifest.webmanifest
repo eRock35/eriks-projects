@@ -1,0 +1,10 @@
+{
+  "name": "Jars",
+  "short_name": "Jars",
+  "description": "Pocket money in three jars - spend, save, give - and watch the savings grow.",
+  "start_url": "./#jars", "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8ef",
+  "theme_color": "#5b2fb3",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
