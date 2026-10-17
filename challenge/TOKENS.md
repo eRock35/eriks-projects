@@ -153,3 +153,12 @@ agent time.
 
 Sprout's, Lanes's, Glovebox's, Triage's, Settle's, Zoned's and Jars's transcripts
 under-report output the same way as Week 3's (~2K, ~1K, ~2K, ~1K, ~2K, ~4K, ~5K), so output is estimated from Tipout's rate over each one's agent time.
+
+## Week 5 (2026-10-17 to 2026-10-23)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Sniff | one builder agent (plus one review round) | 44.6M | 43.3M | ~275K | 1 | 50 min | in exact; out estimated |
+
+Sniff's transcript under-reports output the same way (~4K), so output is estimated from Tipout's rate over its agent time.
+Visitors' AI use in the lab on 2026-10-16: none.

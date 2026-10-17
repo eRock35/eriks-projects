@@ -1,0 +1,10 @@
+{
+  "name": "Sniff",
+  "short_name": "Sniff",
+  "description": "Before you install that app, see where it could send your data.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1320",
+  "theme_color": "#3b2a7a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -492,6 +492,20 @@ const APPS = [
     audience: 'Parents of kids about 5 to 12 who give pocket money',
     status: 'testing',
   },
+  {
+    slug: 'sniff',
+    name: 'Sniff',
+    emoji: '\u{1F43D}',
+    // Indigo to magenta. White text holds 9.2:1 and 7.1:1.
+    color: '#4b2bb0',
+    color2: '#a21f6b',
+    dropped: '2026-10-17',
+    tagline: 'Before you install that app, see where it could send your data.',
+    blurb: 'For IT generalists, security-minded power users and small-business owners about to install a browser extension, an npm or PyPI package, a repo, or an AI-built tool from one person. Drop a folder, a .zip, a .crx or a .tgz, or paste code - Sniff reads it on your device (nothing is uploaded) and shows what it could read (cookies, keys, env vars, the clipboard, ~/.ssh and .npmrc, browser passwords, wallets) joined to where it could send each one, risky destinations named - a Discord webhook, a raw IP, a tunnel. It flags the hiding (base64, eval, packed code, a date gate), the postinstall scripts that run before you use it, and every extension permission in plain words. Static reading, not proof - it finds what the code could do. Built-in samples, good and bad, and AI can weigh in on one finding after you see the exact lines it would send.',
+    features: ['Read on your device - a folder, .zip, .crx, .tgz or pasted code, never uploaded', 'A data map: what it reads → how it leaves → where, risky hosts first', 'Hiding, install-time scripts and extension permissions, in plain words', 'A made-up sample to try; AI explains a finding from only the lines you confirm'],
+    audience: 'IT generalists, power users and owners vetting a single-contributor or AI-built app',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
