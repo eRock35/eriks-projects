@@ -89,26 +89,26 @@ estimated from Tipout's rate over its shorter agent time.
 Visitors' AI use in the lab on 2026-09-28: none.
 
 Hike's transcript under-reports output the same way (~4K), so output is
-estimated from Tipout's rate over its agent time.
+estimated from Tipout's rate over each one's agent time.
 
 Dibs (an extra drop on 2026-09-29, the lab's first for everyday people,
 asked for by Erik) under-reports output the same way (~5K), so output is
-estimated from Tipout's rate over its agent time.
+estimated from Tipout's rate over each one's agent time.
 
 Visitors' AI use in the lab on 2026-09-29: none.
 
 Leash's transcript under-reports output the same way (~4K), so output is
-estimated from Tipout's rate over its agent time.
+estimated from Tipout's rate over each one's agent time.
 
 Visitors' AI use in the lab on 2026-09-30: none.
 
 Drip's transcript under-reports output the same way (~7K), so output is
-estimated from Tipout's rate over its agent time.
+estimated from Tipout's rate over each one's agent time.
 
 Visitors' AI use in the lab on 2026-10-01: none.
 
 Boxed's transcript under-reports output the same way (~4K), so output is
-estimated from Tipout's rate over its agent time. Its builder also fixed a
+estimated from Tipout's rate over each one's agent time. Its builder also fixed a
 date-dependent assertion in Drip's suite that started failing on 2026-10-02.
 
 Inside Joke and Flight were two extra drops on 2026-10-02, asked for by Erik
@@ -159,6 +159,8 @@ under-report output the same way as Week 3's (~2K, ~1K, ~2K, ~1K, ~2K, ~4K, ~5K)
 | App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
 |---|---|---|---|---|---|---|---|
 | Sniff | one builder agent (plus one review round) | 44.6M | 43.3M | ~275K | 1 | 50 min | in exact; out estimated |
+| Boomerang | one builder agent | 31.3M | 30.8M | ~200K | 1 | 36 min | in exact; out estimated |
 
-Sniff's transcript under-reports output the same way (~4K), so output is estimated from Tipout's rate over its agent time.
+Sniff's and Boomerang's transcripts under-report output the same way (~4K, ~7K), so output is estimated from Tipout's rate over each one's agent time.
 Visitors' AI use in the lab on 2026-10-16: none.
+Visitors' AI use in the lab on 2026-10-17: none.

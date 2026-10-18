@@ -506,6 +506,20 @@ const APPS = [
     audience: 'IT generalists, power users and owners vetting a single-contributor or AI-built app',
     status: 'testing',
   },
+  {
+    slug: 'boomerang',
+    name: 'Boomerang',
+    emoji: '\u{1FA83}',
+    // Boomerang teal to burnt orange. White text holds 6.3:1 and 7.3:1.
+    color: '#0f6b66',
+    color2: '#9a3412',
+    dropped: '2026-10-18',
+    tagline: 'Lend it. Get it back.',
+    blurb: 'For anyone with friends, family, roommates or neighbours who has lent a drill, a book, a jacket, a dish or a board game and can\u2019t remember who has it - and finds asking for it back awkward. Add a loan in seconds (the emoji picks itself, a photo stays on your phone) and your shelf sorts itself into out now, due soon, overdue and back home, with a little personality: \u201cYour ladder has been on holiday for 94 days\u201d, your return rate and your most reliable borrower. Send them a receipt link they confirm with one tap - no app, no account - and later tap \u201cI\u2019ve given it back\u201d while you tap \u201cIt\u2019s back\u201d. When it\u2019s overdue, slide a tone dial from Polite to Legal-ish for a ready-to-send nudge. Free and no account; sign in to have your shelf on every phone, and AI can write a custom nudge.',
+    features: ['Lent and borrowed in seconds, sorted by what\u2019s overdue', 'A receipt link your friend confirms - no app, no account', 'Nudges from Polite to Legal-ish, ready to send', 'Stats with personality and a celebration when it comes back'],
+    audience: 'Anyone with friends, family, roommates or neighbours',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
