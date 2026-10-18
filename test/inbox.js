@@ -162,23 +162,31 @@ const auth = (t) => ({ authorization: 'Bearer ' + t });
 
   /* ---------- list, filter, patch ---------- */
   say('\nlist, filter, note');
+  // The original token is a phone token now (2026-10-18): it sends and
+  // replies, and it can no longer read or annotate the inbox. The daily run
+  // reads through scripts/inbox.js, so nothing that used it is stranded.
   r = await req('GET', '/api/inbox?status=new', { headers: auth(token1) });
-  ok('the daily run lists what is new, newest first', r.status === 200 && r.data.items.length === 5
+  ok('the original token is a phone token: it cannot list the inbox', r.status === 403, String(r.status));
+  r = await req('PATCH', '/api/inbox/' + first.id, { body: { status: 'doing' }, headers: auth(token1) });
+  ok('...nor PATCH an idea', r.status === 403, String(r.status));
+  const PG = { ...ADMIN, ...PAGE };
+  r = await req('GET', '/api/inbox?status=new', { headers: ADMIN });
+  ok('the page lists what is new, newest first', r.status === 200 && r.data.items.length === 5
     && r.data.items[0].id === pageId && r.data.counts.new === 5 && r.data.counts.all === 5, r.text.slice(0, 200));
-  r = await req('PATCH', '/api/inbox/' + first.id, { body: { status: 'doing', claudeNote: 'Found it: tripdates.js counts from UTC. Fix drafted.' }, headers: auth(token1) });
-  ok('the daily run marks it doing, with a note', r.status === 200 && r.data.item.status === 'doing' && /UTC/.test(r.data.item.claudeNote));
+  r = await req('PATCH', '/api/inbox/' + first.id, { body: { status: 'doing', claudeNote: 'Found it: tripdates.js counts from UTC. Fix drafted.' }, headers: PG });
+  ok('an idea is marked doing, with a note', r.status === 200 && r.data.item.status === 'doing' && /UTC/.test(r.data.item.claudeNote));
   ok('...and the text is untouched', r.data.item.text === first.item.text);
-  r = await req('PATCH', '/api/inbox/' + first.id, { body: { claudeNote: 'n'.repeat(5000) }, headers: auth(token1) });
+  r = await req('PATCH', '/api/inbox/' + first.id, { body: { claudeNote: 'n'.repeat(5000) }, headers: PG });
   ok('a note is capped at 1000', r.status === 200 && r.data.item.claudeNote.length === 1000);
-  r = await req('PATCH', '/api/inbox/' + first.id, { body: { text: 'rewritten' }, headers: auth(token1) });
+  r = await req('PATCH', '/api/inbox/' + first.id, { body: { text: 'rewritten' }, headers: PG });
   ok('the text cannot be patched', r.status === 400);
   r = await req('GET', '/api/inbox?status=doing', { headers: ADMIN });
   ok('the Doing filter shows it, and only it', r.status === 200 && r.data.items.length === 1 && r.data.items[0].id === first.id && r.data.counts.doing === 1 && r.data.counts.new === 4);
-  r = await req('PATCH', '/api/inbox/' + first.id, { body: { status: 'finished' }, headers: auth(token1) });
+  r = await req('PATCH', '/api/inbox/' + first.id, { body: { status: 'finished' }, headers: PG });
   ok('an unknown status -> 400', r.status === 400);
   r = await req('PATCH', '/api/inbox/' + pageId, { body: { kind: 'feature' }, headers: { ...ADMIN, ...PAGE } });
   ok('the page re-files a kind', r.status === 200 && r.data.item.kind === 'feature');
-  r = await req('PATCH', '/api/inbox/nosuchitem000', { body: { status: 'done' }, headers: auth(token1) });
+  r = await req('PATCH', '/api/inbox/nosuchitem000', { body: { status: 'done' }, headers: PG });
   ok('an unknown id -> 404', r.status === 404);
   r = await req('PATCH', '/api/inbox/' + pageId, { body: { status: 'done' }, headers: ADMIN });
   ok('a cookie PATCH without the page header -> 403', r.status === 403);
@@ -192,10 +200,10 @@ const auth = (t) => ({ authorization: 'Bearer ' + t });
   say('\nrate limit and revoking');
   r = await req('POST', '/api/inbox/token', { headers: { ...ADMIN, ...PAGE } });
   const token2 = r.data.token;
-  r = await req('GET', '/api/inbox?status=new', { headers: auth(token1) });
+  r = await req('GET', '/api/inbox/answers', { headers: auth(token1) });
   ok('a new token replaces the old: the old one -> 401', r.status === 401 && token2 !== token1);
   let statuses = [];
-  for (let i = 0; i < 31; i++) statuses.push((await req('GET', '/api/inbox?status=new', { headers: auth(token2) })).status);
+  for (let i = 0; i < 31; i++) statuses.push((await req('GET', '/api/inbox/answers', { headers: auth(token2) })).status);
   ok('30 a minute per token, then 429', statuses.slice(0, 30).every((s) => s === 200) && statuses[30] === 429, statuses.join(','));
   r = await req('GET', '/api/inbox?status=new', { headers: ADMIN });
   ok('...which does not lock the page out', r.status === 200);
@@ -258,6 +266,10 @@ const auth = (t) => ({ authorization: 'Bearer ' + t });
         { readTime: '2026-09-26T00:00:00Z' },
       ]), { status: 200 });
     }
+    if (opts.method === 'GET') {
+      const isAsk = /cccc3333/.test(String(url));
+      return new Response(JSON.stringify({ name: String(url), fields: { kind: { stringValue: isAsk ? 'ask' : 'bug' } } }), { status: 200 });
+    }
     const body = JSON.parse(opts.body);
     return new Response(JSON.stringify({ name: 'projects/p/databases/eriks-projects/documents/inbox/bbbb2222', fields: { text: { stringValue: 'newer' }, createdAt: { stringValue: '2026-09-02T00:00:00.000Z' }, ...body.fields } }), { status: 200 });
   };
@@ -267,14 +279,19 @@ const auth = (t) => ({ authorization: 'Bearer ' + t });
     && q.where.fieldFilter.value.stringValue === 'new' && !q.orderBy && calls[0].opts.headers.Authorization === 'Bearer ya29.test', calls[0].url + ' ' + JSON.stringify(q));
   ok('...decodes the documents, newest first', listed.length === 2 && listed[0].id === 'bbbb2222' && listed[1].tags[0] === 'x' && listed[0].tags.length === 0);
   const noted = await cli.note('bbbb2222', { status: 'seen', note: 'Read it. Want me to <b>build</b> it?' }, fakeFetch);
-  const patchCall = calls[1];
+  const patchCall = calls[2];
+  ok('note reads the item first', calls[1].opts.method === 'GET' && /inbox\/bbbb2222$/.test(calls[1].url), calls[1].url);
   ok('note PATCHes only status, claudeNote and updatedAt, and only an existing doc',
     patchCall.opts.method === 'PATCH' && /updateMask\.fieldPaths=status&updateMask\.fieldPaths=claudeNote&updateMask\.fieldPaths=updatedAt&currentDocument\.exists=true$/.test(patchCall.url),
     patchCall.url);
   ok('...and reads back the item', noted.status === 'seen' && /build/.test(noted.claudeNote));
   let threw = null;
   try { await cli.note('bbbb2222', { status: 'finished' }, fakeFetch); } catch (e) { threw = e.message; }
-  ok('an unknown status is refused before any request', /must be one of/.test(threw || '') && calls.length === 2);
+  ok('an unknown status is refused before any request', /must be one of/.test(threw || '') && calls.length === 3);
+  let askThrew = null;
+  try { await cli.note('cccc3333', { status: 'done', note: 'x' }, fakeFetch); } catch (e) { askThrew = e.message; }
+  ok('note refuses a Concierge ask (the site is its only writer) and never PATCHes it',
+    /Concierge ask/.test(askThrew || '') && !calls.some((c) => c.opts.method === 'PATCH' && /cccc3333/.test(c.url)), askThrew);
   fs.unlinkSync(tokFile);
 
   /* ---------- nothing secret was printed ---------- */

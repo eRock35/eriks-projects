@@ -209,6 +209,74 @@ Erik's one-time Apple steps, phase 2, the App Store review notes).
   approves that app's build**, or the button opens a page saying the beta
   is not taking testers. The links are in the public-links job log.
 
+## Concierge front door (2026-10-18)
+
+Erik's phone sends requests into the existing ideas inbox as **asks**
+(`kind: 'ask'`): the share sheet's "Do this" (selected text, a link, a
+picture), the Action button's "Snap this" (a screenshot) and "Hey Siri,
+Errand" (dictation). A Claude Code routine on his subscription (created
+separately, not from this repo) reads them with an agent token, does
+read-only work, and parks anything with a side effect as a question with at
+most three choices. He answers with "Hey Siri, Reply" or on `/admin/inbox`.
+**No model call anywhere in this feature** - the routine is the only reader,
+on its own budget. Logic in `lib/inbox.js`, doors in `server.js`, playbook in
+`.claude/skills/concierge/SKILL.md` (generic only; this repo is public),
+tests in `test/concierge.js`.
+
+- **Scoped tokens**, several at once, at `inbox-tokens/<sha256>` (`{scope,
+  label, ref, createdAt, lastUsedAt}`; a collection of its own, since
+  `control/inbox-tokens/<hash>` is not a document path). **Phone**: file
+  ideas and asks (`POST /api/inbox`, `/api/inbox/capture`), read
+  `GET /api/inbox/answers` (parked questions: id, k, question, choices,
+  hasAdd; the newest done note), answer `POST /api/inbox/:id/reply` - and
+  nothing else: no list, no idea, no capture, no PATCH. **Agent**: list asks
+  only, claim (`POST /:id/claim`, a conditional new -> doing, six a day),
+  read a claimed ask's capture (`GET /:id/context`) and its picture once
+  (`GET /:id/image`, deleted in that response), PATCH status / claudeNote /
+  ask on asks only; it cannot read ideas or mint, list or revoke tokens. The
+  admin page does everything. **The original `control/inbox-token` keeps
+  working as a phone token**, so the "Idea" Shortcut needs no change - but
+  it can no longer list or annotate the inbox (nothing used that: the daily
+  ideas run reads through `scripts/inbox.js`, which now skips asks).
+- **What is stored, and for how long.** `note` is Erik's own words and the
+  only instruction. `context` is other people's words: shared text (<=
+  20,000), an https link (origin + path + query), a title, and a picture at
+  `inbox-images/<id>` (JPEG or PNG by magic bytes, <= 700 KB, its own
+  document - no bucket). **Other people's words are read once and
+  deleted**: the text, title and picture go when the ask leaves `doing`, a
+  picture when it is fetched, and all of it 24 h after capture whatever the
+  status. That happens on read (`sweep()`, which every ask route calls; no
+  timer), plus asks past `expiresAt` become `expired` and a `doing` left for
+  90 minutes ends `expired`. What survives is the routine's validated note.
+- **Refusals in code, not copy.** A note, an errand or shared message text
+  carrying a one-time code, PIN, password or card number is a 422: "Finish
+  that in the provider's app - codes and cards never go through the inbox."
+  A reply is one of the question's own choices plus its `k`, never typed
+  text, and is refused after `expiresAt`. What the routine writes
+  (claudeNote <= 500, question, choices, add) has no markup, links only https
+  on `trip.strongtechnicalconsulting.com`, `strongtechnicalconsulting.com`,
+  `resy.com`, `opentable.com`, `exploretock.com` (exact or a dot-suffix), no
+  codes, cards, phone or long numbers, payment instructions, or a booking
+  code next to a name. Caps: 20 asks a day per phone token, one copy of the
+  same thing per 120 s, six claims a day.
+- **The phone writes the calendar.** An ask may carry `add` (an event or a
+  reminder, validated: IANA zone checked with `Intl.supportedValuesOf`, the
+  ISO offset must be that zone's at that moment, notes under the claudeNote
+  rules). When Erik picks the add choice, the reply returns it once and
+  records `addedAt`, and the Reply Shortcut runs Add New Event / Add New
+  Reminder. Nothing in the cloud holds an iCloud credential, and none should:
+  his pick is the confirmation, and his phone is the only thing that can
+  write his calendar. Answered on the page, an event downloads as `.ics`.
+- **Deliberately not built:** no booking, paying, messaging or cancelling by
+  anyone but Erik; no code or 2FA box of any kind; no Gmail on the routine
+  (its connector exposes send, and only a prompt would stand in the way); no
+  push from this site (the routine's own Claude-app push, and "Any answer?",
+  are the channels); no Back Tap or Lock Screen screenshot (a misfire sends
+  whatever is on screen); no reminder one-shots minted by the routine; no
+  bucket, no new secret, no new index. The routine's environment needs this
+  domain allowed and `INBOX_AGENT_TOKEN` as a secret - Erik's steps, never a
+  GCP or deploy credential.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

@@ -86,6 +86,22 @@ const DONE = 'Check your inbox to confirm.';
   listener({ target: { closest: () => null }, preventDefault: () => { throw new Error('no'); } });
   ok('other clicks are left alone', true);
 
+  /* ---------- the concierge's skill folder (2026-10-18) ---------- */
+  // The routine's playbook lives in this public repo, so it must stay
+  // generic: no address, no phone number, no street address, no token or
+  // key of any kind. Preferences belong in the routine's own prompt.
+  const skillDir = path.join(__dirname, '..', '.claude', 'skills', 'concierge');
+  const skillFiles = fs.readdirSync(skillDir).filter((f) => fs.statSync(path.join(skillDir, f)).isFile());
+  ok('the concierge skill folder has its playbook', skillFiles.includes('SKILL.md'));
+  for (const f of skillFiles) {
+    const text = fs.readFileSync(path.join(skillDir, f), 'utf8');
+    ok(`.claude/skills/concierge/${f}: no email address`, !(text.match(ADDRESS) || []).length && !/mailto:/i.test(text), (text.match(ADDRESS) || []).join(', '));
+    ok(`...no phone number`, !/(?:\+?\d{1,3}[ .-]?)?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b/.test(text));
+    ok(`...no street address`, !/\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Lane|Ln|Drive|Dr|Pl|Place)\b/.test(text));
+    ok(`...no token, key or secret`, !/ibx_[A-Za-z0-9_-]{16,}|sk-ant-|sk_live_|rk_live_|AIza[0-9A-Za-z_-]{20,}|ya29\.[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"private_key"/.test(text));
+    ok(`...the token is only ever the environment variable`, !/Bearer\s+(?!\$INBOX_AGENT_TOKEN)[A-Za-z0-9_]{8,}/.test(text));
+  }
+
   /* ---------- the signup form's traps ---------- */
   const idOf = (a) => tokens.emailId(a);
   let r = await subscribe({ email: 'honeypot@example.com', website: 'http://spam.example', t: later() });

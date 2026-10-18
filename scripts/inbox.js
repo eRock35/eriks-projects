@@ -105,6 +105,10 @@ async function list({ status = 'new', limit = inbox.LIST_LIMIT } = {}, fetchImpl
   const rows = await call('POST', `${BASE}:runQuery`, { structuredQuery: query }, fetchImpl);
   return (rows || [])
     .filter((r) => r && r.document)
+    // Asks (the concierge's) are never the ideas run's: they hold other
+    // people's words, read once by the run that claims them, through the
+    // site with an agent token - never through this deploy-token path.
+    .filter((r) => !(r.document.fields && r.document.fields.kind && r.document.fields.kind.stringValue === inbox.ASK))
     .map((r) => fromDocument(r.document))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
     .slice(0, limit);
@@ -121,6 +125,13 @@ async function note(id, { status, note: text } = {}, fetchImpl) {
   }
   if (text !== undefined) fields.claudeNote = inbox.cleanText(text, inbox.MAX_NOTE);
   if (!Object.keys(fields).length) throw new Error('Give --status and/or --note.');
+  // Asks are the Concierge routine's, written through the site with the
+  // agent token so the server's checks apply. This deploy-token path would
+  // skip them, so it refuses an ask.
+  const current = await call('GET', `${BASE}/${inbox.COLLECTION}/${encodeURIComponent(key)}`, undefined, fetchImpl);
+  if (current && current.fields && current.fields.kind && current.fields.kind.stringValue === inbox.ASK) {
+    throw new Error('That is a Concierge ask; it is only changed through the site.');
+  }
   fields.updatedAt = new Date().toISOString();
   const mask = Object.keys(fields).map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join('&');
   // currentDocument.exists=true: a typo in the id is an error, not a new

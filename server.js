@@ -1081,20 +1081,33 @@ async function inboxAuth(req, res, next) {
   if (!presented) return inboxRefuse(res, 401, 'No inbox token. Make one on the inbox page under Set up Siri.');
   const ip = req.ip || 'unknown';
   if (inboxBadTokens.blocked(ip)) return inboxRefuse(res, 429, 'Too many wrong tokens. Wait a minute.');
-  let hash = null;
+  let info = null;
   try {
-    hash = await inboxBook.checkToken(presented);
+    info = await inboxBook.checkScoped(presented);
   } catch (err) {
     console.error('inbox token check failed', err.code || 'error');
     return inboxRefuse(res, 503, 'The inbox is unavailable right now. Try again shortly.');
   }
-  if (!hash) {
+  if (!info) {
     inboxBadTokens.hit(ip);
     return inboxRefuse(res, 401, 'That inbox token did not work. Make a new one on the inbox page.');
   }
-  if (!inboxPerToken.hit(hash)) return inboxRefuse(res, 429, 'Slow down - that is 30 in a minute.');
-  req.inboxVia = 'token';
+  if (!inboxPerToken.hit(info.hash)) return inboxRefuse(res, 429, 'Slow down - that is 30 in a minute.');
+  // 'phone' or 'agent'. The original single token is a phone token.
+  req.inboxVia = info.scope;
+  req.inboxToken = info;
   return next();
+}
+
+/** Which doors a route admits. The admin session admits everything. */
+function inboxScopes(...allowed) {
+  return (req, res, next) => {
+    if (req.inboxVia === 'admin' || allowed.includes(req.inboxVia)) return next();
+    const what = req.inboxVia === 'phone'
+      ? 'This phone token can send and reply, not read the inbox.'
+      : 'The agent token reads and annotates asks, nothing else.';
+    return inboxRefuse(res, 403, what);
+  };
 }
 
 // JSON (the Shortcut's "Request Body: JSON"), a form, or bare text/plain.
@@ -1152,37 +1165,167 @@ app.delete('/api/inbox/token', requireAdmin, async (req, res) => {
   try { await inboxBook.revokeToken(); res.json({ ok: true }); } catch (err) { inboxError(res, err, 'DELETE /api/inbox/token'); }
 });
 
-app.post('/api/inbox', inboxAuth, inboxBody, async (req, res) => {
-  const input = inbox.readInput(req.body);
-  if (!input.text) return inboxRefuse(res, 400, 'Nothing to save - I did not catch any words.');
+app.post('/api/inbox', inboxAuth, inboxScopes('phone'), inboxBody, async (req, res) => {
+  const fromToken = req.inboxVia !== 'admin';
   try {
-    const item = await inboxBook.add({ ...input, source: req.inboxVia === 'token' ? 'siri' : 'page' });
-    if (req.inboxVia === 'token') await inboxBook.touchToken();
+    // "Errand: ..." / "Ask: ..." (or kind 'ask') is a request for the
+    // concierge rather than an idea.
+    const askNote = inbox.askNoteFrom(req.body);
+    if (askNote !== null) {
+      const out = await inboxBook.addAsk({
+        note: askNote, source: fromToken ? 'siri' : 'page',
+        by: fromToken ? req.inboxToken.ref : 'admin', limited: fromToken,
+      });
+      if (fromToken) await inboxBook.touchScoped(req.inboxToken);
+      return res.json({ ok: true, id: out.item.id, duplicate: out.duplicate, message: out.duplicate ? 'Already saved.' : inbox.savedAskMessage(out.item), item: out.item });
+    }
+    const input = inbox.readInput(req.body);
+    if (!input.text) return inboxRefuse(res, 400, 'Nothing to save - I did not catch any words.');
+    const item = await inboxBook.add({ ...input, source: fromToken ? 'siri' : 'page' });
+    if (fromToken) await inboxBook.touchScoped(req.inboxToken);
     res.json({ ok: true, id: item.id, message: inbox.savedMessage(item.text), item });
   } catch (err) {
     inboxError(res, err, 'POST /api/inbox');
   }
 });
 
+/* The concierge's front door: asks from the phone (share sheet, Action
+   button, Siri), worked by a Claude Code routine holding an agent token,
+   answered by Erik with one tap. No model call anywhere here. */
+
+// Up to 1.5 MB, for one shrunk screenshot - mounted on this route alone and
+// only after inboxAuth, so a stranger's megabyte is never read.
+const captureJson = express.json({ limit: inbox.CAPTURE_BODY_LIMIT });
+function captureBody(req, res, next) {
+  captureJson(req, res, (err) => {
+    if (err) {
+      return err.type === 'entity.too.large'
+        ? inboxRefuse(res, 413, 'That is too big for the inbox. Shrink the picture.')
+        : inboxRefuse(res, 400, 'That body could not be read.');
+    }
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return inboxRefuse(res, 400, 'Send JSON: {text, url, title, image, note}.');
+    return next();
+  });
+}
+
+app.post('/api/inbox/capture', inboxAuth, inboxScopes('phone'), captureBody, async (req, res) => {
+  const fromToken = req.inboxVia !== 'admin';
+  const b = req.body;
+  try {
+    const out = await inboxBook.addAsk({
+      note: typeof b.note === 'string' ? b.note : '',
+      capture: { text: b.text, url: b.url, title: b.title, app: b.app, image: b.image },
+      source: ['share', 'screen', 'siri'].includes(b.source) ? b.source : (fromToken ? 'share' : 'page'),
+      by: fromToken ? req.inboxToken.ref : 'admin',
+      limited: fromToken,
+    });
+    if (fromToken) await inboxBook.touchScoped(req.inboxToken);
+    res.json({ ok: true, id: out.item.id, duplicate: out.duplicate, message: out.duplicate ? 'Already saved.' : inbox.savedAskMessage(out.item) });
+  } catch (err) {
+    inboxError(res, err, 'POST /api/inbox/capture');
+  }
+});
+
+// The phone's only read: the questions waiting on Erik and the newest answer.
+app.get('/api/inbox/answers', inboxAuth, inboxScopes('phone'), async (req, res) => {
+  try {
+    if (req.inboxVia !== 'admin') await inboxBook.touchScoped(req.inboxToken);
+    res.json({ ok: true, ...(await inboxBook.answers()) });
+  } catch (err) {
+    inboxError(res, err, 'GET /api/inbox/answers');
+  }
+});
+
+// {k, choice}: one of the question's own choices, nothing typed.
+app.post('/api/inbox/:id/reply', inboxAuth, inboxScopes('phone'), inboxBody, async (req, res) => {
+  try {
+    const out = await inboxBook.reply(req.params.id, req.body, { via: req.inboxVia });
+    if (req.inboxVia !== 'admin') await inboxBook.touchScoped(req.inboxToken);
+    res.json({ ok: true, ...out });
+  } catch (err) {
+    inboxError(res, err, 'POST /api/inbox/:id/reply');
+  }
+});
+
+// The agent: claim (new -> doing, one run only), read the capture once, the
+// picture once, then PATCH the outcome.
+app.post('/api/inbox/:id/claim', inboxAuth, inboxScopes('agent'), async (req, res) => {
+  try {
+    const item = await inboxBook.claim(req.params.id);
+    if (req.inboxVia !== 'admin') await inboxBook.touchScoped(req.inboxToken);
+    res.json({ ok: true, item });
+  } catch (err) {
+    inboxError(res, err, 'POST /api/inbox/:id/claim');
+  }
+});
+
+app.get('/api/inbox/:id/context', inboxAuth, inboxScopes('agent'), async (req, res) => {
+  try {
+    res.json({ ok: true, item: await inboxBook.askDetail(req.params.id, { scope: req.inboxVia }) });
+  } catch (err) {
+    inboxError(res, err, 'GET /api/inbox/:id/context');
+  }
+});
+
+app.get('/api/inbox/:id/image', inboxAuth, inboxScopes('agent'), async (req, res) => {
+  try {
+    const img = await inboxBook.takeImage(req.params.id, { scope: req.inboxVia });
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.type(img.mediaType).send(img.buffer);
+  } catch (err) {
+    inboxError(res, err, 'GET /api/inbox/:id/image');
+  }
+});
+
+// Tokens: several at once, each for the phone or the agent. Admin only, and
+// 404 to anyone else like the rest of /admin; minting needs the page itself.
+app.get('/api/inbox/tokens', requireAdmin, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json({ ok: true, tokens: await inboxBook.listTokens() }); } catch (err) { inboxError(res, err, 'GET /api/inbox/tokens'); }
+});
+app.post('/api/inbox/tokens', requireAdmin, inboxBody, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!inboxPageWrite(req)) return inboxRefuse(res, 403, 'Use the inbox page for that.');
+  const b = req.body && typeof req.body === 'object' ? req.body : {};
+  // Shown once: the response is the only place the plaintext ever exists.
+  try { res.json({ ok: true, ...(await inboxBook.mintToken({ scope: b.scope, label: b.label })) }); } catch (err) { inboxError(res, err, 'POST /api/inbox/tokens'); }
+});
+app.delete('/api/inbox/tokens/:ref', requireAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!inboxPageWrite(req)) return inboxRefuse(res, 403, 'Use the inbox page for that.');
+  try { await inboxBook.revokeRef(req.params.ref); res.json({ ok: true }); } catch (err) { inboxError(res, err, 'DELETE /api/inbox/tokens/:ref'); }
+});
+
 // ?status=new|seen|doing|done|parked|all. Counts ride along for the filters.
-app.get('/api/inbox', inboxAuth, async (req, res) => {
+// ?status=...&kind=ideas|ask|all&order=newest|oldest|updated&limit=. The page
+// reads everything; the agent reads asks and only asks; the phone reads
+// nothing here. Counts ride along for the page's filters.
+app.get('/api/inbox', inboxAuth, inboxScopes('agent'), async (req, res) => {
   try {
     const status = String(req.query.status || 'all');
-    const [items, counts] = await Promise.all([
-      inboxBook.list({ status, limit: req.query.limit }),
-      inboxBook.counts(),
-    ]);
-    res.json({ items, counts });
+    const agent = req.inboxVia === 'agent';
+    const kind = agent ? inbox.ASK : (['ideas', 'ask', 'all'].includes(req.query.kind) ? req.query.kind : 'ideas');
+    const order = ['newest', 'oldest', 'updated'].includes(req.query.order) ? req.query.order : 'newest';
+    const items = await inboxBook.list({ status, kind, order, limit: req.query.limit });
+    if (agent) {
+      await inboxBook.touchScoped(req.inboxToken);
+      return res.json({ items });
+    }
+    res.json({ items, counts: await inboxBook.counts({ kind }) });
   } catch (err) {
     inboxError(res, err, 'GET /api/inbox');
   }
 });
 
-// {status, claudeNote, kind, tags} - the daily run's note, or a tap on the page.
-app.patch('/api/inbox/:id', inboxAuth, inboxBody, async (req, res) => {
+// {status, claudeNote, kind, tags} on an idea - a tap on the page. On an ask,
+// {status, claudeNote, ask: {question, choices, expiresAt, add}} - the agent's
+// outcome, validated (see lib/inbox.js).
+app.patch('/api/inbox/:id', inboxAuth, inboxScopes('agent'), inboxBody, async (req, res) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
-    res.json({ ok: true, item: await inboxBook.patch(req.params.id, body) });
+    const item = await inboxBook.patch(req.params.id, body, { scope: req.inboxVia });
+    if (req.inboxVia !== 'admin') await inboxBook.touchScoped(req.inboxToken);
+    res.json({ ok: true, item });
   } catch (err) {
     inboxError(res, err, 'PATCH /api/inbox/:id');
   }

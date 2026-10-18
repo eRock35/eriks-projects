@@ -36,6 +36,7 @@
     --st-doing-bg: #fbeed3; --st-doing-fg: #7a4a00;
     --st-done-bg: #dcf1e1;  --st-done-fg: #1a5e2a;
     --st-parked-bg: #ebeae7; --st-parked-fg: #4a4945;
+    --st-need-bg: #fde3df;  --st-need-fg: #8f1d14;
     --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05);
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -59,6 +60,7 @@
       --st-doing-bg: #3a2a0b; --st-doing-fg: #f3c56c;
       --st-done-bg: #143220;  --st-done-fg: #8ddca5;
       --st-parked-bg: #2c2c2e; --st-parked-fg: #c9c8c2;
+      --st-need-bg: #45160f;  --st-need-fg: #ffb4a8;
       --shadow: none;
     }
   }
@@ -73,6 +75,7 @@
     --st-doing-bg: #3a2a0b; --st-doing-fg: #f3c56c;
     --st-done-bg: #143220;  --st-done-fg: #8ddca5;
     --st-parked-bg: #2c2c2e; --st-parked-fg: #c9c8c2;
+    --st-need-bg: #45160f;  --st-need-fg: #ffb4a8;
     --shadow: none;
   }
 
@@ -193,6 +196,48 @@
     opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); text-align: center; z-index: 9;
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* Asks and tokens */
+  .ask .muted { color: var(--label-2); font-style: italic; }
+  .ctx { margin: -4px 0 10px; font-size: 14px; color: var(--label-2); overflow-wrap: anywhere; }
+  .ctx-title { color: var(--label); }
+  .ctx-url { font-size: 13.5px; }
+  .ctx-gone { font-style: italic; }
+  .question { border: 1px solid var(--sep); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }
+  .question .q, .add-slot .q { margin: 0 0 8px; font-weight: 600; font-size: 15.5px; overflow-wrap: anywhere; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choices .btn { min-height: 44px; font-size: 15px; padding: 0 14px; }
+  .answered { margin: 0 0 10px; font-size: 14.5px; color: var(--label-2); }
+  .answered strong { color: var(--label); }
+  .add-slot { background: var(--fill); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }
+  .add-slot .tip { margin: 0 0 8px; }
+  .pill.flat { padding: 0 11px; background-image: none; cursor: default; display: inline-flex; align-items: center; }
+  .st-need { background-color: var(--st-need-bg); color: var(--st-need-fg); }
+  .linkish { flex: none; background: none; border: 0; font: inherit; font-size: 14px; font-weight: 600; color: var(--tint); min-height: 40px; padding: 0 6px; cursor: pointer; }
+  .btn.small { min-height: 40px; font-size: 14.5px; padding: 0 12px; }
+  .tokens .lede { color: var(--label-2); font-size: 14.5px; margin: 0 0 12px; }
+  .toklist { list-style: none; margin: 0; padding: 0; }
+  .tok { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--sep); }
+  .tok:first-child { border-top: 0; }
+  .tok-main { flex: 1 1 0; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+  .tok-meta { display: block; font-size: 13px; color: var(--label-2); }
+  .toklist .empty { padding: 6px 0; }
+  .mint { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--sep); }
+  input.plain { font: inherit; font-size: 16px; color: var(--label); background: var(--fill); border: 0; border-radius: 10px; min-height: 44px; padding: 0 12px; }
+  input.plain::placeholder { color: var(--label-2); }
+  .grow { flex: 1 1 180px; min-width: 0; }
+  .field .endpoint { margin-bottom: 4px; }
+  .field .actions { margin-top: 8px; }
+  .hint.top { margin: 0 2px 10px; }
+  .recipes { display: grid; gap: 10px; }
+  .recipes > * { min-width: 0; }
+  ol.steps code { overflow-wrap: anywhere; }
+  details.recipe > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 17px; font-weight: 650; min-height: 32px; }
+  details.recipe > summary::-webkit-details-marker { display: none; }
+  details.recipe > summary .sub { font-size: 14px; font-weight: 500; color: var(--label-2); flex: 1 1 auto; }
+  details.recipe > summary::after { content: "Show"; font-size: 15px; font-weight: 600; color: var(--tint); }
+  details.recipe[open] > summary::after { content: "Hide"; }
+  details.recipe ol.steps { margin-top: 12px; }
   .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 </head>
@@ -201,7 +246,7 @@
   <!-- The same section bar as /admin and /admin/writing; keep them identical. -->
   <div class="adminbar">
     <h1>Admin</h1>
-    <p class="where">Ideas you have sent, and what Claude did with them.</p>
+    <p class="where">Ideas and errands you have sent, and what Claude did with them.</p>
     <nav class="adminseg" aria-label="Admin sections">
       <a href="/admin">Overview</a>
       <a href="/admin/writing">Writing</a>
@@ -210,9 +255,15 @@
     </nav>
   </div>
 
+  <h2 id="askHead">Asks for the concierge</h2>
+  <div class="filters" id="askFilters" role="group" aria-labelledby="askHead"></div>
+  <div class="list" id="asks" aria-live="polite"><p class="empty">Loading&hellip;</p></div>
+  <p class="hint">Sent from the share sheet, the Action button or &ldquo;Hey Siri, Errand&rdquo;. The concierge works them, does nothing with a side effect on its own, and asks you here or through &ldquo;Hey Siri, Reply&rdquo;. What it captured is deleted once it has read it, and after a day at most.</p>
+
+  <h2>Ideas</h2>
   <section class="card compose" aria-label="Add an idea">
     <label class="vh" for="text">Your idea</label>
-    <textarea id="text" maxlength="2000" autofocus placeholder="An idea, a bug, a feature for one of the apps&hellip;" enterkeyhint="done"></textarea>
+    <textarea id="text" maxlength="2000" placeholder="An idea, a bug, a feature for one of the apps&hellip;" enterkeyhint="done"></textarea>
     <div class="bar">
       <label for="kind">Kind
         <select id="kind" class="plain">
@@ -233,42 +284,121 @@
   <div class="filters" id="filters" role="group" aria-labelledby="listHead"></div>
   <div class="list" id="list" aria-live="polite"><p class="empty">Loading&hellip;</p></div>
 
-  <h2>Siri</h2>
-  <details class="card siri" id="siri">
-    <summary>Set up Siri</summary>
-    <p class="lede">Say &ldquo;Hey Siri, Idea&rdquo;, speak it, and it lands here. A Shortcut on your iPhone does the sending, with a token only it holds.</p>
-
-    <p class="state" id="tokenState">Checking&hellip;</p>
-    <div class="actions">
-      <button type="button" class="btn" id="genToken">Generate token</button>
-      <button type="button" class="btn warn" id="revokeToken" hidden>Turn off</button>
+  <h2>Tokens</h2>
+  <section class="card tokens" aria-labelledby="tokHead">
+    <p class="lede" id="tokHead">A <strong>phone</strong> token goes in the Shortcuts: it can send ideas and asks and answer questions, and read nothing else. An <strong>agent</strong> token goes in the concierge routine&rsquo;s environment: it reads and annotates asks, never ideas. Each is shown once; only its hash is kept.</p>
+    <ul class="toklist" id="tokens"><li class="empty">Loading&hellip;</li></ul>
+    <div class="mint">
+      <label class="vh" for="tokLabel">Label</label>
+      <input id="tokLabel" class="plain grow" maxlength="40" placeholder="Label, e.g. Erik&rsquo;s iPhone" autocomplete="off">
+      <label class="vh" for="tokScope">Scope</label>
+      <select id="tokScope" class="plain">
+        <option value="phone">Phone</option>
+        <option value="agent">Agent</option>
+      </select>
+      <button type="button" class="btn" id="mintToken">Make token</button>
     </div>
-
     <div class="reveal" id="tokenBox" hidden>
-      <strong>Header value &mdash; shown once. Copy it into the Shortcut now.</strong>
+      <strong id="tokenWhat">Shown once. Copy it now.</strong>
       <p class="secret" id="tokenValue"></p>
       <button type="button" class="btn ghost" id="copyHeader">Copy header value</button>
     </div>
-
     <div class="field">
-      <p class="k">URL</p>
+      <p class="k">Ideas and errands</p>
       <p class="endpoint" id="endpoint"></p>
-      <button type="button" class="btn ghost" id="copyUrl">Copy URL</button>
+      <p class="k">Shares and screenshots</p>
+      <p class="endpoint" id="captureUrl"></p>
+      <p class="k">Answers</p>
+      <p class="endpoint" id="answersUrl"></p>
+      <div class="actions">
+        <button type="button" class="btn ghost small" data-copy="endpoint" data-what="URL">Copy ideas URL</button>
+        <button type="button" class="btn ghost small" data-copy="captureUrl" data-what="URL">Copy capture URL</button>
+        <button type="button" class="btn ghost small" data-copy="answersUrl" data-what="URL">Copy answers URL</button>
+      </div>
     </div>
+    <p class="tip">Lost the phone? Revoke its token here and every Shortcut holding it stops at once; the agent&rsquo;s token is untouched.</p>
+  </section>
 
-    <ol class="steps">
-      <li>Open the <strong>Shortcuts</strong> app and tap <strong>+</strong>.</li>
-      <li>Tap the name at the top and call it <strong>Idea</strong> &mdash; that is what you will say to Siri.</li>
-      <li>Add the action <strong>Dictate Text</strong>.</li>
-      <li>Add <strong>Get Contents of URL</strong>. Paste the URL above. Tap the arrow to show more, then set <strong>Method</strong> to <code>POST</code>.</li>
-      <li>Under <strong>Headers</strong>, add one: key <code>Authorization</code>, value the header value above (it starts <code>Bearer&nbsp;ibx_</code>).</li>
-      <li>Set <strong>Request Body</strong> to <strong>JSON</strong> and add a Text field: key <code>text</code>, value the <strong>Dictated Text</strong> variable.</li>
-      <li>Add <strong>Get Dictionary Value</strong>: get the value for key <code>message</code> in <strong>Contents of URL</strong>.</li>
-      <li>Add <strong>Speak Text</strong> (or <strong>Show Result</strong>) with that <strong>Dictionary Value</strong>.</li>
-      <li>Done. Say <strong>&ldquo;Hey Siri, Idea&rdquo;</strong>, speak, and Siri answers &ldquo;Saved: &hellip;&rdquo;.</li>
-    </ol>
-    <p class="tip">Lost the phone, or pasted the token somewhere it should not be? Replace it here and the old one stops working at once.</p>
-  </details>
+  <h2>Shortcuts</h2>
+  <p class="hint top">Every Shortcut below uses <strong>Get Contents of URL</strong> with a header <code>Authorization</code> whose value is your phone token&rsquo;s header value (it starts <code>Bearer&nbsp;ibx_</code>). Set <strong>Request Body</strong> to <strong>JSON</strong> where there is a body.</p>
+  <div class="recipes">
+    <details class="card recipe">
+      <summary>Idea <span class="sub">&ldquo;Hey Siri, Idea&rdquo;</span></summary>
+      <ol class="steps">
+        <li>New Shortcut, named <strong>Idea</strong>. Add <strong>Dictate Text</strong>.</li>
+        <li><strong>Get Contents of URL</strong>: the ideas URL, Method <code>POST</code>, the header, JSON body: <code>text</code> = <strong>Dictated Text</strong>.</li>
+        <li><strong>Get Dictionary Value</strong> <code>message</code> from <strong>Contents of URL</strong>, then <strong>Speak Text</strong>. Siri says &ldquo;Saved: &hellip;&rdquo;.</li>
+      </ol>
+    </details>
+
+    <details class="card recipe">
+      <summary>Do this <span class="sub">share sheet: text, a link, a picture</span></summary>
+      <ol class="steps">
+        <li>New Shortcut, named <strong>Do this</strong>. Tap <strong>&#9432;</strong> and turn on <strong>Show in Share Sheet</strong>. In the first action, <strong>Receive</strong> <em>Images, Text, Rich text, URLs, Safari web pages</em> from <strong>Share Sheet</strong>; if there is no input, <strong>Stop and Respond</strong>.</li>
+        <li><strong>Get Images from Input</strong> (Shortcut Input). <strong>If</strong> <em>Images</em> <strong>has any value</strong>:
+          <strong>Resize Image</strong> to width <code>1280</code>; <strong>Convert Image</strong> to <code>JPEG</code>, Quality <code>60%</code>, Preserve Metadata off; <strong>Base64 Encode</strong>, Line Breaks <code>None</code>;
+          <strong>Get Contents of URL</strong>: the capture URL, <code>POST</code>, the header, JSON: <code>source</code> = <code>share</code>, <code>image</code> = Dictionary {<code>mediaType</code> = <code>image/jpeg</code>, <code>data</code> = <strong>Base64 Encoded</strong>}.</li>
+        <li><strong>Otherwise</strong>: <strong>Get URLs from Input</strong>. <strong>If</strong> <em>URLs</em> <strong>has any value</strong>: <strong>Get Details of Safari Web Page</strong> (<em>Name</em>) from Shortcut Input, then <strong>Get Contents of URL</strong> (capture URL, <code>POST</code>, header) with <code>source</code> = <code>share</code>, <code>url</code> = <strong>URLs</strong>, <code>title</code> = <strong>Name</strong>.</li>
+        <li><strong>Otherwise</strong>: <strong>Get Text from Input</strong>, then <strong>Get Contents of URL</strong> (capture URL, <code>POST</code>, header) with <code>source</code> = <code>share</code>, <code>text</code> = <strong>Text</strong>. <strong>End If</strong> twice.</li>
+        <li><strong>Get Dictionary Value</strong> <code>message</code> from <strong>If Result</strong>, then <strong>Show Notification</strong>.</li>
+      </ol>
+      <p class="tip">Messages: long-press a bubble, <em>More</em>, tick it, share, <em>Do this</em>. Mail: select the text first. For a version that takes a spoken line too, add <strong>Dictate Text</strong> first and a <code>note</code> = <strong>Dictated Text</strong> field to each body; only that note is ever read as your instruction.</p>
+    </details>
+
+    <details class="card recipe">
+      <summary>Snap this <span class="sub">the Action button</span></summary>
+      <ol class="steps">
+        <li>New Shortcut, named <strong>Snap this</strong>. Add <strong>Take Screenshot</strong>.</li>
+        <li><strong>Resize Image</strong> to width <code>1280</code>; <strong>Convert Image</strong> to <code>JPEG</code>, Quality <code>60%</code>, Preserve Metadata off; <strong>Base64 Encode</strong>, Line Breaks <code>None</code>.</li>
+        <li><strong>Get Contents of URL</strong>: the capture URL, <code>POST</code>, the header, JSON: <code>source</code> = <code>screen</code>, <code>image</code> = Dictionary {<code>mediaType</code> = <code>image/jpeg</code>, <code>data</code> = <strong>Base64 Encoded</strong>}.</li>
+        <li><strong>Get Dictionary Value</strong> <code>message</code>, then <strong>Show Notification</strong>.</li>
+        <li>Settings &rsaquo; <strong>Action Button</strong> &rsaquo; <strong>Shortcut</strong> &rsaquo; <em>Snap this</em>.</li>
+      </ol>
+      <p class="tip">It sends whatever is on screen, so it lives on the Action button only - not Back Tap, which fires by accident. A screen showing a code, a card, a password, a bank or a medical page is deleted unread. If it says the picture is too big, lower the quality.</p>
+    </details>
+
+    <details class="card recipe">
+      <summary>Errand <span class="sub">&ldquo;Hey Siri, Errand&rdquo;</span></summary>
+      <ol class="steps">
+        <li>New Shortcut, named <strong>Errand</strong>. Add <strong>Dictate Text</strong>.</li>
+        <li><strong>Get Contents of URL</strong>: the capture URL, <code>POST</code>, the header, JSON: <code>source</code> = <code>siri</code>, <code>note</code> = <strong>Dictated Text</strong>.</li>
+        <li><strong>Get Dictionary Value</strong> <code>message</code>, then <strong>Speak Text</strong>. Siri reads all of it back, so a misheard day is heard.</li>
+        <li>In <strong>&#9432;</strong>, turn on <strong>Show on Apple Watch</strong>, and allow it to run when locked if your iOS offers that.</li>
+      </ol>
+    </details>
+
+    <details class="card recipe">
+      <summary>Reply <span class="sub">&ldquo;Hey Siri, Reply&rdquo;</span></summary>
+      <ol class="steps">
+        <li>New Shortcut, named <strong>Reply</strong>. <strong>Get Contents of URL</strong>: the answers URL, Method <code>GET</code>, the header.</li>
+        <li><strong>Get Dictionary Value</strong> <code>next</code> from <strong>Contents of URL</strong>. <strong>If</strong> <em>Dictionary Value</em> <strong>does not have any value</strong>: <strong>Speak Text</strong> &ldquo;Nothing is waiting on you.&rdquo;, <strong>Stop This Shortcut</strong>. <strong>End If</strong>. <strong>Set Variable</strong> <em>Next</em>.</li>
+        <li><strong>Get Dictionary Value</strong> <code>question</code> from <em>Next</em>, <strong>Speak Text</strong>. <strong>Get Dictionary Value</strong> <code>choices</code> from <em>Next</em>, <strong>Choose from List</strong> (prompt: the question).</li>
+        <li><strong>Text</strong>: <code>https://strongtechnicalconsulting.com/api/inbox/</code><strong>[id from Next]</strong><code>/reply</code>. <strong>Get Contents of URL</strong>: that Text, <code>POST</code>, the header, JSON: <code>k</code> = <strong>[k from Next]</strong>, <code>choice</code> = <strong>Chosen Item</strong>.</li>
+        <li><strong>Get Dictionary Value</strong> <code>add</code> from <strong>Contents of URL</strong>, <strong>Set Variable</strong> <em>Add</em>. <strong>If</strong> <em>Add</em> <strong>has any value</strong>:
+          <strong>If</strong> <em>type</em> of Add is <code>event</code>: <strong>Get Dates from Input</strong> for <code>start</code> and for <code>end</code>, then <strong>Add New Event</strong> - Title <code>title</code>, Start Date, End Date, Location <code>location</code>, Notes <code>notes</code>, Alert nearest <code>alertMinutes</code> (1 hour before by default).
+          <strong>Otherwise</strong>: <strong>Get Dates from Input</strong> for <code>due</code>, then <strong>Add New Reminder</strong> - <code>title</code>, Remind Me At that date, Notes <code>notes</code>. <strong>End If</strong>. <strong>Speak Text</strong> &ldquo;Added&rdquo;.</li>
+        <li><strong>Otherwise</strong>: <strong>Get Dictionary Value</strong> <code>message</code>, <strong>Speak Text</strong>. <strong>End If</strong>.</li>
+      </ol>
+      <p class="tip">A menu, never typed text - so a code or a sentence cannot travel by it. Nothing is added to your calendar unless you pick the add choice, and the phone does the adding: no iCloud password is anywhere else.</p>
+    </details>
+
+    <details class="card recipe">
+      <summary>Any answer? <span class="sub">&ldquo;Hey Siri, Any answer?&rdquo;</span></summary>
+      <ol class="steps">
+        <li>New Shortcut, named <strong>Any answer?</strong>. <strong>Get Contents of URL</strong>: the answers URL, <code>GET</code>, the header.</li>
+        <li><strong>Get Dictionary Value</strong> <code>say</code>, then <strong>Speak Text</strong>. It speaks the question waiting on you, or the newest answer.</li>
+      </ol>
+    </details>
+
+    <details class="card recipe">
+      <summary>Add it <span class="sub">answering on this page</span></summary>
+      <ol class="steps">
+        <li>Pick the add choice on an ask above (it is the filled button).</li>
+        <li>An event shows <strong>Add to Calendar</strong>: tap it, and Calendar opens the event; tap <strong>Add</strong>.</li>
+        <li>A reminder shows <strong>Copy it for Reminders</strong>: paste it into a new reminder, or answer from <em>Reply</em> on the phone instead and it is added for you.</li>
+      </ol>
+    </details>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="/assets/inbox.js"></script>
