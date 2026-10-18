@@ -18,6 +18,17 @@ const { host, mounted, store } = require('../server');
   const ok = (name) => { n++; console.log('  ok  ' + name); };
 
   assert.ok(mounted.includes('spar')); ok('spar is mounted');
+  {
+    // 2026-10-18: 34 apps each loading their own copies ran a 512 MiB
+    // instance out of memory at start. The host shares one copy of each.
+    const cached = Object.keys(require.cache);
+    for (const [dep, entry] of [['express', /node_modules\/express\/index\.js$/], ['@google-cloud/firestore', /node_modules\/@google-cloud\/firestore\/build\/src\/index\.js$/], ['@anthropic-ai/sdk', /node_modules\/@anthropic-ai\/sdk\/index\.js$/], ['@simplewebauthn/server', /node_modules\/@simplewebauthn\/server\/(esm|script)\/index\.js$/]]) {
+      const copies = cached.filter((f) => entry.test(f));
+      assert.ok(copies.length <= 1, `${dep}: ${copies.length} copies loaded`);
+      assert.ok(copies.every((f) => !f.includes('/apps/')), `${dep} loaded from an app's own node_modules`);
+    }
+    ok('every app shares the host\'s one copy of express, Firestore, the Anthropic SDK and the passkey library');
+  }
   const cors = await fetch(base + '/api/lab', { headers: { Origin: 'https://www.strongtechnicalconsulting.com', 'Sec-Fetch-Site': 'same-site' } });
   assert.strictEqual(cors.headers.get('access-control-allow-origin'), 'https://www.strongtechnicalconsulting.com');
   const evil = await fetch(base + '/api/lab', { headers: { Origin: 'https://evil.example' } });

@@ -44,6 +44,27 @@ host.get('/:slug/ios-app.json', (req, res, next) => {
   res.json({ name, url: TESTFLIGHT_LINK.test(url) ? url : null });
 });
 
+// Every app ships the same four heavy dependencies at the same ranges, and
+// each used to load its own copy: at 34 apps that was ~300 MB of heap at
+// start, past the 512 MiB instance's limit, so cold starts died out of
+// memory (2026-10-17/18, 503s). An app's own source files now resolve these
+// from the host's node_modules - one copy for the whole lab. Anything inside
+// an app's node_modules still resolves as it always did, and an app run on
+// its own (its tests, `npm run dev`) never goes through this.
+const Module = require('module');
+const SHARED_DEPS = ['@google-cloud/firestore', '@anthropic-ai/sdk', '@simplewebauthn/server', 'express'];
+const APPS_DIR = path.join(__dirname, 'apps') + path.sep;
+const NM = `${path.sep}node_modules${path.sep}`;
+const baseResolve = Module._resolveFilename;
+Module._resolveFilename = function shareDeps(request, parent, ...rest) {
+  const from = parent && parent.filename;
+  if (from && from.startsWith(APPS_DIR) && !from.includes(NM)
+    && SHARED_DEPS.some((d) => request === d || request.startsWith(`${d}/`))) {
+    try { return baseResolve.call(this, request, module, ...rest); } catch { /* the app's own copy */ }
+  }
+  return baseResolve.call(this, request, parent, ...rest);
+};
+
 const mounted = [];
 for (const a of lab.APPS) {
   if (a.status !== 'testing') continue;

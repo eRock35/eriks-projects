@@ -451,6 +451,24 @@ card each.
 - Billed per request (`cpuIdle: true`) like everything else — never keep
   working after a response.
 
+### One copy of the heavy dependencies (2026-10-18)
+
+The instance has **512 MiB**, which gives Node about a 256 MB heap. Every app
+ships express, Firestore, the Anthropic SDK and the passkey library at the
+same ranges, and each loaded its own copy: ~8 MB of heap per app. At 34 apps
+(Sniff, 2026-10-17) a cold start needed ~305 MB, so instances died out of
+memory a second after "[lab] mounted" and visitors got 503s for a day;
+Boomerang's deploy then never became ready. Now `server.js` resolves those
+four packages, when an app's own source file requires them, from the host's
+`node_modules` (`SHARED_DEPS`): one copy for the lab, ~40 MB of heap at 35
+apps. The host's `package.json` lists all four at the apps' ranges, so a new
+app with the same dependencies costs almost nothing. `test/lab.js` fails if
+an app's own copy is loaded. An app run on its own (its tests, `npm run dev`
+in its folder) still uses its own `node_modules`. **A new app with a heavy
+dependency of its own** should either add it to the host and `SHARED_DEPS`,
+or be measured: `node --expose-gc -e "require('./server.js');gc();console.log(process.memoryUsage())"`.
+Raising the memory is a service setting, not a daily-run change.
+
 ## Security fixes (2026-09-27)
 
 A review of the lab found these; all fixed the same day.

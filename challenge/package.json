@@ -10,7 +10,9 @@
     "test": "node test/lab.js && node test/build-stats.js && node test/engage.js && node test/og.js && for d in apps/*/; do (cd \"$d\" && npm test) || exit 1; done"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
     "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.3",
     "express": "^4.19.2"
   },
   "devDependencies": {
