@@ -520,6 +520,20 @@ const APPS = [
     audience: 'Anyone with friends, family, roommates or neighbours',
     status: 'testing',
   },
+  {
+    slug: 'drill',
+    name: 'Drill',
+    emoji: '\u{1F6A8}',
+    // Alarm red to night navy. White text holds 6.5:1 and 14.3:1.
+    color: '#b4232a',
+    color2: '#1e2a44',
+    dropped: '2026-10-19',
+    tagline: 'Rehearse the bad day before it happens.',
+    blurb: 'For owners and managers of small businesses - 5 to 200 people - and whoever would be on the call: the IT person, the office manager, finance. Most have no incident plan and have never rehearsed one, yet insurers and auditors ask whether you have run a tabletop exercise, and consultants charge thousands to run one. Drill runs it for you: ransomware on a Monday, a leaked customer list, the payroll email that wasn’t from the CEO, an AI agent that emailed the wrong people, the website down on launch day. Timed injects land on a role, everyone votes from their own phone - no app, no account - the facilitator locks the call, and the story branches on what you chose. You leave with a readiness score per area, the three gaps to fix, an action list with owners and the timeline, as Markdown or a printable page. Try a 5-minute drill solo first; AI can write a scenario around your own business and tools.',
+    features: ['A 5-minute drill, solo, no setup', 'Run it as a room: everyone joins by code on their own phone', 'Branching injects to each role, votes, a decision clock', 'An after-action report you can hand your insurer'],
+    audience: 'Owners, managers and the IT person at small businesses (5-200 people)',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

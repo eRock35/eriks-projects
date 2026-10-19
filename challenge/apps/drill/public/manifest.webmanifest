@@ -1,0 +1,10 @@
+{
+  "name": "Drill",
+  "short_name": "Drill",
+  "description": "Rehearse the bad day before it happens. Tabletop incident drills for small teams.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#b4232a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
