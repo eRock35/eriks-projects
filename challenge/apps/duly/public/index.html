@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Duly — every bill on time</title>
+  <meta name="description" content="Every bill on time - without paying them yourself. List your household's bills, see which are on the provider's own AutoPay and how to switch the rest on, get a month calendar, a flag when a bill is higher than usual, and every due date in your own calendar. Duly never pays, never signs in to a bank and never holds an account number. Free, no account needed.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f1412" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f7f4" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Duly">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Duly — Every bill on time - without paying them yourself.">
+  <meta property="og:description" content="For anyone running a household’s bills who would love to never pay one by hand again. The safe version of that is every bill on its provider’s own AutoPay - and something that watches them and only speaks up when one is wrong, late, new or not on AutoPay. Add a bill in seconds (w">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/duly/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/duly.png?v=b439596c81">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Duly, drop #37 in the Challenge Lab: Every bill on time - without paying them yourself.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Duly — Every bill on time - without paying them yourself.">
+  <meta name="twitter:description" content="For anyone running a household’s bills who would love to never pay one by hand again. The safe version of that is every bill on its provider’s own AutoPay - and something that watches them and only speaks up when one is wrong, late, new or not on AutoPay. Add a bill in seconds (w">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/duly.png?v=b439596c81">
+  <meta name="twitter:image:alt" content="Duly, drop #37 in the Challenge Lab: Every bill on time - without paying them yourself.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to your bills</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28"><rect x="3" y="5" width="26" height="24" rx="6" fill="currentColor"/><rect x="3" y="5" width="26" height="7" rx="3" fill="#000" opacity=".18"/><path d="M10 19.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="2" width="3" height="7" rx="1.5" fill="currentColor"/><rect x="20" y="2" width="3" height="7" rx="1.5" fill="currentColor"/></svg></span>Duly</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small top-add" id="topAdd" type="button" data-act="add" hidden>+ Add a bill</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Home</span></button>
+      <button type="button" data-act="tab" data-tab="month"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Month</span></button>
+      <button type="button" data-act="tab" data-tab="bills"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Bills</span></button>
+      <button type="button" data-act="tab" data-tab="autopay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 12.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>AutoPay</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap dk-wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="duly-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

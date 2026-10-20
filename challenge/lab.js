@@ -534,6 +534,20 @@ const APPS = [
     audience: 'Owners, managers and the IT person at small businesses (5-200 people)',
     status: 'testing',
   },
+  {
+    slug: 'duly',
+    name: 'Duly',
+    emoji: '\u{1F4C5}',
+    // On-time green to calendar indigo. White text holds 6.5:1 and 10.0:1.
+    color: '#0b6b4f',
+    color2: '#2b3a8f',
+    dropped: '2026-10-20',
+    tagline: 'Every bill on time - without paying them yourself.',
+    blurb: 'For anyone running a household\u2019s bills who would love to never pay one by hand again. The safe version of that is every bill on its provider\u2019s own AutoPay - and something that watches them and only speaks up when one is wrong, late, new or not on AutoPay. Add a bill in seconds (who it\u2019s from, about how much, the due day - monthly, every few months, yearly or per statement) and Duly scores your AutoPay health with the steps to switch the rest on (statement balance, not the minimum; from checking; keep a buffer), draws the month with what is paid and still to come, flags an amount 20% over its usual, and puts every due date in your own calendar with a reminder. Duly never pays a bill, never signs in to a bank, card or utility, and never holds a password or an account number - it refuses them. Free and no account; sign in to have your bills on every phone, and AI can read a pasted bill or a photo of one.',
+    features: ['A sample household to try in one tap', 'AutoPay health, with the steps to turn on the rest', 'The month: paid, due soon, late - and \u201chigher than usual\u201d', 'Every due date in your own calendar (.ics), with a reminder'],
+    audience: 'Anyone running a household\u2019s bills',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
