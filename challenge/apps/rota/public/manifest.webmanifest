@@ -1,0 +1,10 @@
+{
+  "name": "Rota",
+  "short_name": "Rota",
+  "description": "Next week's shifts, fair and filled - without the group-chat chaos.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f1",
+  "theme_color": "#0e6170",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

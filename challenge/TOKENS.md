@@ -162,9 +162,11 @@ under-report output the same way as Week 3's (~2K, ~1K, ~2K, ~1K, ~2K, ~4K, ~5K)
 | Boomerang | one builder agent | 31.3M | 30.8M | ~200K | 1 | 36 min | in exact; out estimated |
 | Drill | one builder agent | 39.6M | 39.1M | ~235K | 1 | 42 min | in exact; out estimated |
 | Duly | one builder agent | 29.4M | 28.9M | ~200K | 1 | 37 min | in exact; out estimated |
+| Rota | one builder agent | 34.7M | 34.2M | ~220K | 1 | 40 min | in exact; out estimated |
 
-Sniff's, Boomerang's, Drill's and Duly's transcripts under-report output the same way (~4K, ~7K, ~8K, ~5K), so output is estimated from Tipout's rate over each one's agent time.
+Sniff's, Boomerang's, Drill's, Duly's and Rota's transcripts under-report output the same way (~4K, ~7K, ~8K, ~5K, ~8K), so output is estimated from Tipout's rate over each one's agent time.
 Visitors' AI use in the lab on 2026-10-16: none.
 Visitors' AI use in the lab on 2026-10-17: none.
 Visitors' AI use in the lab on 2026-10-18: none.
 Visitors' AI use in the lab on 2026-10-19: none.
+Visitors' AI use in the lab on 2026-10-20: not read (no deploy credential in this run's container).

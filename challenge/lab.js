@@ -548,6 +548,20 @@ const APPS = [
     audience: 'Anyone running a household\u2019s bills',
     status: 'testing',
   },
+  {
+    slug: 'rota',
+    name: 'Rota',
+    emoji: '\u{1F5D3}\u{FE0F}',
+    // Shift teal to rota plum. White text holds 7.1:1 and 9.9:1.
+    color: '#0e6170',
+    color2: '#5b2a86',
+    dropped: '2026-10-21',
+    tagline: 'Next week\u2019s shifts, fair and filled - without the group-chat chaos.',
+    blurb: 'For managers of small hourly teams - cafes, bars, restaurants, shops and clinic front desks, 4 to 30 people - who build the week by hand in a spreadsheet, collect availability by text and lose track of swaps in a group chat nobody can follow. Set up the week\u2019s shifts from a template or last week, and share one link: each person taps their name on their own phone - no app, no account - and marks can, prefer not or can\u2019t, with hours if they have them. Fill the gaps builds the week without ever breaking a can\u2019t, a role, an overlap, the rest between a close and an open, or anyone\u2019s max hours; it spreads closes and weekends across the month, moves people toward the hours they asked for, explains every placement and says plainly what it couldn\u2019t fill and why. A fairness panel shows who has been short-changed over four weeks. Publish, and everyone gets their shifts with Add to calendar, offers swaps to the teammates the rules allow, and you approve. AI can read the availability texts they already sent you.',
+    features: ['One link: staff mark availability on their own phones', 'Fill the gaps - every rule kept, every placement explained', 'A fairness panel over four weeks: hours, closes, weekends', 'Swaps only to eligible teammates, with Add to calendar'],
+    audience: 'Managers of small hourly teams: cafes, bars, restaurants, shops and front desks',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
