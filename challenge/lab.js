@@ -562,6 +562,20 @@ const APPS = [
     audience: 'Managers of small hourly teams: cafes, bars, restaurants, shops and front desks',
     status: 'testing',
   },
+  {
+    slug: 'kindly',
+    name: 'Kindly',
+    emoji: '\u{1F381}',
+    // Ribbon raspberry to gift-box plum. White text holds 7.2:1 and 9.9:1.
+    color: '#a3214a',
+    color2: '#5b2a86',
+    dropped: '2026-10-22',
+    tagline: 'Never miss the people who matter - and always know what to give.',
+    blurb: 'For anyone with friends and family whose birthdays and anniversaries slip by, whose gift ideas heard in July are gone by December, and who has a nagging feeling they gave the same scarf last year. Add the people and their dates - birthdays with or without the year, anniversaries, a dog’s gotcha day, Feb 29 kept on the 28th or the 1st - and Coming up counts down the next 60 days, flags the milestones (“turns 40”, the silver anniversary) and nudges you at each person’s lead time with “order by Oct 26 to arrive”. Save an idea with one tap the moment you hear it, mark it bought and given, and Kindly keeps what you gave each year and warns you before you repeat it, with a budget per occasion and what you have spent so far. Send someone a wishlist link - no app, no account, it shows only their first name and a box - and their ideas land on your list marked “from them”. Every date goes into your own calendar as a yearly event with a reminder. Free and on your phone with no account; sign in to sync, and AI can suggest five ideas from their notes - never told their name.',
+    features: ['Coming up: countdowns, milestones and “order by” nudges', 'Gift ideas all year, with a “given before” warning', 'A wishlist link they fill in - no app, no account', 'Every date in your own calendar (.ics), with a reminder'],
+    audience: 'Anyone with friends and family',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

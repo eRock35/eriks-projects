@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kindly — birthdays, dates and gift ideas</title>
+  <meta name="description" content="Never miss the people who matter - and always know what to give. Birthdays, anniversaries and any date that matters, with countdowns, a nudge when it's time to shop, gift ideas kept all year, what you gave before, budgets, and every date in your own calendar. Free, no account needed.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#141012" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbf7f4" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kindly">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Kindly — Never miss the people who matter - and always know what to give.">
+  <meta property="og:description" content="For anyone with friends and family whose birthdays and anniversaries slip by, whose gift ideas heard in July are gone by December, and who has a nagging feeling they gave the same scarf last year. Add the people and their dates - birthdays with or without the year, anniversaries,">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/kindly/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/kindly.png?v=3fa6b0557e">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kindly, drop #39 in the Challenge Lab: Never miss the people who matter - and always know what to give.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Kindly — Never miss the people who matter - and always know what to give.">
+  <meta name="twitter:description" content="For anyone with friends and family whose birthdays and anniversaries slip by, whose gift ideas heard in July are gone by December, and who has a nagging feeling they gave the same scarf last year. Add the people and their dates - birthdays with or without the year, anniversaries,">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/kindly.png?v=3fa6b0557e">
+  <meta name="twitter:image:alt" content="Kindly, drop #39 in the Challenge Lab: Never miss the people who matter - and always know what to give.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to your people</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28"><rect x="4" y="12" width="24" height="16" rx="4" fill="currentColor"/><rect x="2.5" y="8.5" width="27" height="6" rx="2.5" fill="currentColor"/><rect x="14.4" y="8.5" width="3.2" height="19.5" fill="#fff" opacity=".9"/><path d="M16 8.6c-1.6-3.6-6.4-5-7.4-2.4-.9 2.4 3.4 2.6 7.4 2.4zm0 0c1.6-3.6 6.4-5 7.4-2.4.9 2.4-3.4 2.6-7.4 2.4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg></span>Kindly</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small top-add" id="topAdd" type="button" data-act="quickidea" hidden>+ Idea</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="coming" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="15" r="1.8" fill="currentColor"/></svg><span>Coming up</span></button>
+      <button type="button" data-act="tab" data-tab="people"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15.5 5.2a3.3 3.3 0 0 1 0 6.6M18 14.8c2 .7 3.2 2.4 3.6 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>People</span></button>
+      <button type="button" data-act="tab" data-tab="ideas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="7" width="18" height="4" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v13.5M12 7c-1.2-2.8-4.8-3.8-5.5-1.8S9.5 7.2 12 7zm0 0c1.2-2.8 4.8-3.8 5.5-1.8S14.5 7.2 12 7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Gift ideas</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap dk-wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="kindly-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

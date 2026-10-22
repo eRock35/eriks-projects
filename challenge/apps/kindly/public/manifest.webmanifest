@@ -1,0 +1,10 @@
+{
+  "name": "Kindly",
+  "short_name": "Kindly",
+  "description": "Never miss the people who matter - and always know what to give. Birthdays, dates and gift ideas, all year.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbf7f4",
+  "theme_color": "#a3214a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
