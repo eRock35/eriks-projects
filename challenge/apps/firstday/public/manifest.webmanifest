@@ -1,0 +1,10 @@
+{
+  "name": "Firstday",
+  "short_name": "Firstday",
+  "description": "A new hire's first week, planned in ten minutes - and nobody forgets the laptop.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#a8401a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

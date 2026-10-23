@@ -576,6 +576,20 @@ const APPS = [
     audience: 'Anyone with friends and family',
     status: 'testing',
   },
+  {
+    slug: 'firstday',
+    name: 'Firstday',
+    emoji: '\u{1F44B}',
+    // Sunrise rust to welcome indigo. White text holds 6.1:1 and 7.9:1.
+    color: '#a8401a',
+    color2: '#4338ca',
+    dropped: '2026-10-23',
+    tagline: 'A new hire\u2019s first week, planned in ten minutes - and nobody forgets the laptop.',
+    blurb: 'For owners and managers of small businesses - 5 to 100 people, no HR team - hiring their next person. A new hire\u2019s first day is usually improvised: no laptop, no logins, nobody told the team, no plan - and people decide in the first week whether they\u2019ll stay. Pick a template (front of house, office, trades, remote or part-time), add their first name and start date, and Firstday lays out the whole thing: what to order and set up before day 1, day 1 hour by hour, days 2 to 5, and check-ins at 30, 60 and 90 days - every task with an owner and a due date counted in business days, skipping weekends and your holidays. A readiness meter says \u201c7 of 9 done - laptop not ordered, 3 days to go\u201d and calls out anything overdue. Send three links - no app, no account: the new hire gets a warm welcome page (where to go, when, who to ask for, what to bring, the week, their to-dos), the buddy and IT/admin see only their own tasks, and everyone can add theirs to a calendar. On day 5, 30, 60 and 90 the new hire answers three short questions on their link. First names and tasks only - salaries, bank and ID numbers are refused. Free with no account; sign in and AI can tailor a plan to your role and business.',
+    features: ['A whole first week from a template, dated in business days', 'A readiness meter: \u201c7 of 9 done - laptop not ordered\u201d', 'A welcome page for the new hire; the buddy sees only their tasks', 'Check-ins at day 5, 30, 60 and 90 - and AI can tailor the plan'],
+    audience: 'Owners and managers of small businesses (5-100 people) with no HR team',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
