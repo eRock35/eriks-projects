@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pawlog — fed, walked, meds given: the whole house knows</title>
+  <meta name="description" content="Fed? Walked? Meds given? The whole house knows. One tap marks it done, a second person gets “Already fed by Sam at 7:42 - do it again?”, medicines and vaccinations are never missed, and a sitter gets a link that closes when you’re back. Free, no account needed.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f1412" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pawlog">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Pawlog — Fed? Walked? Meds given? The whole house knows.">
+  <meta property="og:description" content="For households with a pet and more than one person - partners, families, flatmates - and the sitters and dog walkers who step in. “Did anyone feed the dog?” gets asked every day, so the dog is fed twice or not at all, a dose of medicine is missed, and the booster date is on a car">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/pawlog/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/pawlog.png?v=421233ae4a">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Pawlog, drop #41 in the Challenge Lab: Fed? Walked? Meds given? The whole house knows.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pawlog — Fed? Walked? Meds given? The whole house knows.">
+  <meta name="twitter:description" content="For households with a pet and more than one person - partners, families, flatmates - and the sitters and dog walkers who step in. “Did anyone feed the dog?” gets asked every day, so the dog is fed twice or not at all, a dose of medicine is missed, and the booster date is on a car">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/pawlog.png?v=421233ae4a">
+  <meta name="twitter:image:alt" content="Pawlog, drop #41 in the Challenge Lab: Fed? Walked? Meds given? The whole house knows.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to today</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28"><ellipse cx="16" cy="21" rx="7.2" ry="6.2" fill="currentColor"/><ellipse cx="7.4" cy="13.6" rx="3" ry="3.8" transform="rotate(-18 7.4 13.6)" fill="currentColor"/><ellipse cx="12.6" cy="8.2" rx="3" ry="4" transform="rotate(-6 12.6 8.2)" fill="currentColor"/><ellipse cx="19.4" cy="8.2" rx="3" ry="4" transform="rotate(6 19.4 8.2)" fill="currentColor"/><ellipse cx="24.6" cy="13.6" rx="3" ry="3.8" transform="rotate(18 24.6 13.6)" fill="currentColor"/></svg></span>Pawlog</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost who" id="who" type="button" data-act="who" hidden></button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="today" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 9.5l1.6 1.6L12.5 8M8 15.5l1.6 1.6 2.9-3.1M14.5 9.5H17M14.5 15.5H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Today</span></button>
+      <button type="button" data-act="tab" data-tab="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.2-7.5 10.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10.5v5M9.5 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Health</span></button>
+      <button type="button" data-act="tab" data-tab="week"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5.5" y="11" width="3" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="10.5" y="6" width="3" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="15.5" y="9" width="3" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Week</span></button>
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.5 20v-5.5h5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Home</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap dk-wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="pawlog-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

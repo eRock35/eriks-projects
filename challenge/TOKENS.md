@@ -172,3 +172,11 @@ Visitors' AI use in the lab on 2026-10-17: none.
 Visitors' AI use in the lab on 2026-10-18: none.
 Visitors' AI use in the lab on 2026-10-19: none.
 Visitors' AI use in the lab on 2026-10-20 to 2026-10-22: not read (no deploy credential in these runs' containers).
+
+## Week 6 (2026-10-24 to 2026-10-30)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Pawlog | one builder agent | 37.8M | 36.9M | 216K | 1 | 44 min | exact |
+
+Visitors' AI use in the lab on 2026-10-23: not read (no deploy credential in this run's container).

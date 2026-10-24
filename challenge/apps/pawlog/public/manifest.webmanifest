@@ -1,0 +1,10 @@
+{
+  "name": "Pawlog",
+  "short_name": "Pawlog",
+  "description": "Fed? Walked? Meds given? The whole house knows. Pet care for everyone in the household.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f6f2",
+  "theme_color": "#0d6b5a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

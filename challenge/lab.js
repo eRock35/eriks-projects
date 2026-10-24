@@ -590,6 +590,20 @@ const APPS = [
     audience: 'Owners and managers of small businesses (5-100 people) with no HR team',
     status: 'testing',
   },
+  {
+    slug: 'pawlog',
+    name: 'Pawlog',
+    emoji: '\u{1F43E}',
+    // Collar teal to biscuit brown. White text holds 6.4:1 and 8.4:1.
+    color: '#0d6b5a',
+    color2: '#7a3d12',
+    dropped: '2026-10-24',
+    tagline: 'Fed? Walked? Meds given? The whole house knows.',
+    blurb: 'For households with a pet and more than one person - partners, families, flatmates - and the sitters and dog walkers who step in. \u201cDid anyone feed the dog?\u201d gets asked every day, so the dog is fed twice or not at all, a dose of medicine is missed, and the booster date is on a card in a drawer. Pawlog gives each pet a routine from its kind - a dog\u2019s breakfast, dinner and two walks, a cat\u2019s meals and litter, a tank\u2019s weekly water change - each with a time window, and a Today board where one tap marks it done: \u201cFed by Sam 7:42am\u201d. Tap it again and Pawlog asks \u201cAlready fed by Sam at 7:42 - do it again?\u201d, the same for a medicine dose. Overdue jobs glow, and a tick can be undone for two minutes. Share one link and everyone at home opens the board on their own phone - no app, no account - picks their name and sees it update; make a sitter link that closes the day you\u2019re back and shows the pets, the routine, your notes and the vet\u2019s number. Medicine courses with an end date, vaccinations and flea and worm treatments with due dates and calendar reminders, a weight chart, and a week view (\u201cwalked 13 of 14 times\u201d) with streaks and a gentle who-did-what. Free with no account; sign in to keep your household on every phone, and AI can read a photo of the vet\u2019s paperwork - never storing your address or account numbers.',
+    features: ['One tap: \u201cFed by Sam 7:42am\u201d - and a guard against feeding twice', 'One household link, and a sitter link that closes on its own', 'Medicines, vaccinations and flea treatments, with calendar reminders', 'The week: \u201cwalked 13 of 14 times\u201d, streaks and who did what'],
+    audience: 'Households with pets, flatmates, pet sitters and dog walkers',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
