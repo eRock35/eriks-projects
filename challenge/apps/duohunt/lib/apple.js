@@ -3,6 +3,14 @@
 // part number and ZIP. Only on a person's tap, server-side, through
 // upstream.js's cache, in-flight sharing, cap and timeout.
 //
+// OFF unless `enabled` (server.js: DUOHUNT_APPLE_SERVER_CHECK=1). Apple
+// answered every request from Google's network with HTTP 541 - its bot
+// block, a ~128 KB HTML page - on 2026-10-24, browser headers, buy-page
+// cookies and all (CLAUDE.md, "Apple blocks servers (541)"). Asking anyway
+// would spend a fetch per tap to learn nothing, so off, check() answers
+// `blocked` at once, with Apple's page for the exact model, and asks nobody.
+// The code below is kept, and tested, for the day Apple stops blocking.
+//
 // The parser trusts nothing: it picks fields by name, keeps only the ones it
 // knows, strips and bounds every string, and treats a shape it does not
 // recognise as a failure ("Couldn't check Apple right now") rather than
@@ -19,17 +27,18 @@
 const Core = require('../public/duohunt-core');
 const { getJson, UpstreamError } = require('./upstream');
 
-const ENDPOINT = 'https://www.apple.com/shop/fulfillment-messages';
+const ENDPOINT = Core.APPLE_FULFILLMENT;
 const MAX_STORES = 12;
 
+/** The same URL the iPhone Shortcut recipe hands out (Core.fulfillmentUrl);
+ *  null for anything but an Apple part and a five-digit ZIP. */
 function requestUrl(part, zip) {
-  const q = new URLSearchParams({ pl: 'true', 'mts.0': 'regular', 'parts.0': part, location: zip });
-  return `${ENDPOINT}?${q.toString()}`;
+  return Core.fulfillmentUrl(part, zip);
 }
 
 function productUrl(part) {
   // A fake part (Z...) has no page on apple.com: link the buy page.
-  return part && !part.startsWith('Z') ? `https://www.apple.com/shop/product/${encodeURIComponent(part).replace(/%2F/g, '/')}` : Core.APPLE_BUY;
+  return part && !part.startsWith('Z') ? Core.appleProductUrl(part) : Core.APPLE_BUY;
 }
 
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
@@ -88,22 +97,28 @@ function parse(json, part) {
 const FAIL = 'Couldn’t check Apple right now - open Apple’s page.';
 const BUSY = 'Lots of people are checking Apple right now - try again in a few minutes, or open Apple’s page.';
 
+const BLOCKED = Core.APPLE_BLOCKED;
+
 /**
  * Check a pick near a ZIP. Never throws: every outcome is a card.
- * `source` is upstream.createSource(); `part` comes from parts.partFor.
+ * `source` is upstream.createSource(); `part` comes from parts.partFor and is
+ * the one the answer names and links; `ask` is the part put to Apple (a fake
+ * one under DUOHUNT_FAKE_UPSTREAM), `part` by default. `enabled` false - the
+ * default - is `blocked`, with no request of any kind.
  */
-async function check({ part, zip, source, fetchImpl, timeoutMs }) {
+async function check({ part, ask = part, zip, source, fetchImpl, timeoutMs, enabled = false }) {
   const link = productUrl(part);
   if (!part) {
     return { state: 'not-configured', message: 'Apple’s live check isn’t set up for this model yet - open Apple’s page to check pickup.', link: Core.APPLE_BUY };
   }
+  if (!enabled) return { state: 'blocked', part, message: BLOCKED, link };
   try {
-    const r = await source.get(`${part}|${zip}`, async () => parse(await getJson(requestUrl(part, zip), { fetchImpl, timeoutMs, headers: { Referer: Core.APPLE_BUY } }), part));
-    return { state: 'ok', stores: r.value.stores, available: r.value.available, checkedAt: r.at, cached: r.cached, link };
+    const r = await source.get(`${ask}|${zip}`, async () => parse(await getJson(requestUrl(ask, zip), { fetchImpl, timeoutMs, headers: { Referer: Core.APPLE_BUY } }), ask));
+    return { state: 'ok', part, stores: r.value.stores, available: r.value.available, checkedAt: r.at, cached: r.cached, link };
   } catch (err) {
     const busy = err && err.reason === 'busy';
-    return { state: busy ? 'busy' : 'error', message: busy ? BUSY : FAIL, link };
+    return { state: busy ? 'busy' : 'error', part, message: busy ? BUSY : FAIL, link };
   }
 }
 
-module.exports = { requestUrl, productUrl, parse, storeRow, check, FAIL, BUSY, ENDPOINT };
+module.exports = { requestUrl, productUrl, parse, storeRow, check, FAIL, BUSY, BLOCKED, ENDPOINT };

@@ -3,12 +3,17 @@
 //
 // What the server does, and all it does:
 //   - serves the page and the service worker;
-//   - POST /api/check: on a person's tap, asks Apple's public pickup JSON and
-//     Best Buy's Products API (when BESTBUY_API_KEY is set) about one model
-//     near one ZIP, in parallel, through lib/upstream.js (5-minute cache per
-//     key, one shared in-flight request, a per-address limit, an instance cap,
-//     a 6 s timeout). Never polled, never on a timer: the "Watch on this tab"
+//   - POST /api/check: on a person's tap, asks Best Buy's Products API (when
+//     BESTBUY_API_KEY is set) - and Apple's public pickup JSON only when
+//     DUOHUNT_APPLE_SERVER_CHECK=1 - about one model near one ZIP, in
+//     parallel, through lib/upstream.js (5-minute cache per key, one shared
+//     in-flight request, a per-address limit, an instance cap, a 6 s
+//     timeout). Never polled, never on a timer: the "Watch on this tab"
 //     re-check is the browser's, and only while the tab is open and visible;
+//   - Apple, by default, gets NO request: it answers anything on Google's
+//     network with HTTP 541, its bot block (measured 2026-10-24, CLAUDE.md).
+//     The card links Apple's page for the exact model and hands out an
+//     iPhone Shortcut recipe that asks Apple from the phone instead;
 //   - the shared account at /api/auth (the verify banner; nothing here needs
 //     an account).
 //
@@ -45,6 +50,10 @@ const fakeFetch = FAKE ? require('./lib/fixtures').createFakeFetch({
   bestbuy: process.env.DUOHUNT_FAKE_BESTBUY || 'ok',
   delayMs: Number(process.env.DUOHUNT_FAKE_DELAY_MS) || 0,
 }) : null;
+
+// Off unless switched on, read per request: Apple blocks Cloud Run (541), so
+// the request would only ever cost a fetch. For the day Apple stops blocking.
+const appleServerCheck = () => process.env.DUOHUNT_APPLE_SERVER_CHECK === '1';
 
 const LIMITS = {
   checksPerIp: Number(process.env.DUOHUNT_CHECKS_PER_IP) || 20,
@@ -104,8 +113,12 @@ let perInstance = identityLib.createLimiter({ max: LIMITS.checksPerInstance, win
 /** Run the live checks for one pick near one ZIP. Never throws. */
 async function runCheck(pick, zip, want = { apple: true, bestbuy: true }) {
   const fetchImpl = fakeFetch || undefined; // undefined: globalThis.fetch, read per call
+  // The card always names and links the real part; only the fake upstream is
+  // asked about a fake one.
+  const part = parts.partFor(pick);
+  const ask = FAKE ? parts.partFor(pick, { fake: true }) : part;
   const [a, b] = await Promise.all([
-    want.apple ? apple.check({ part: parts.partFor(pick, { fake: FAKE }), zip, source: sources.apple, fetchImpl }) : null,
+    want.apple ? apple.check({ part, ask, zip, source: sources.apple, fetchImpl, enabled: appleServerCheck() }) : null,
     want.bestbuy ? bestbuy.check({ pick, zip, search: sources.bbSearch, stores: sources.bbStores, fetchImpl }) : null,
   ]);
   return { apple: a, bestbuy: b };
@@ -135,16 +148,19 @@ app.post('/api/check', async (req, res) => {
 
 app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, stores: 'nothing', model: 'none' }));
 
-// What the page needs to draw the cards before any check.
+// What the page needs to draw the cards before any check: which sources the
+// server checks live, and each pick's Apple part number (Apple publishes
+// them on its own buy page) for "See this model on Apple" and the Shortcut.
 app.get('/api/meta', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  const configured = {};
+  const partsByPick = {};
   for (const s of Core.STORAGES) for (const c of Core.COLOURS) for (const k of Core.CARRIERS) {
-    configured[`${s.id}:${c.id}:${k.id}`] = Boolean(parts.partFor({ storage: s.id, colour: c.id, carrier: k.id }, { fake: FAKE }));
+    partsByPick[`${s.id}:${c.id}:${k.id}`] = parts.partFor({ storage: s.id, colour: c.id, carrier: k.id });
   }
   res.json({
     bestbuy: bestbuy.validKey(String(process.env.BESTBUY_API_KEY || '').trim()),
-    apple: configured,
+    appleServerCheck: appleServerCheck(),
+    parts: partsByPick,
     watchMinutes: Core.WATCH_MS / 60000,
   });
 });
@@ -184,7 +200,7 @@ if (require.main === module) {
     server.use(mount, app);
     server.get('/', (_req, res) => res.redirect(302, `${mount}/`));
   }
-  server.listen(PORT, () => console.log(`duohunt listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE ? ' (fake upstream)' : ''}`));
+  server.listen(PORT, () => console.log(`duohunt listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE ? ' (fake upstream)' : ''}${appleServerCheck() ? ' (Apple server check on)' : ''}`));
 }
 
 /** Tests only: fresh limits and caches. */
@@ -194,4 +210,4 @@ function _reset() {
   for (const s of Object.values(sources)) s._reset();
 }
 
-module.exports = { app, identity, identityStore, sources, LIMITS, runCheck, _reset, FAKE };
+module.exports = { app, identity, identityStore, sources, LIMITS, runCheck, appleServerCheck, _reset, FAKE };

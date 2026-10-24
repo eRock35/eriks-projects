@@ -20,6 +20,7 @@ if (process.env.DUOHUNT_MEMORY !== '1') {
 delete process.env.DUOHUNT_FAKE_UPSTREAM;
 delete process.env.DUOHUNT_FAKE_AI;
 delete process.env.BESTBUY_API_KEY;
+delete process.env.DUOHUNT_APPLE_SERVER_CHECK; // the default: Apple is not asked
 
 /* ---- every outbound request is seen here; only our own test server is real ---- */
 const realFetch = globalThis.fetch;
@@ -112,8 +113,37 @@ test('Apple: the request asks by part number and ZIP on apple.com, and the links
   assert.strictEqual(u.pathname, '/shop/fulfillment-messages');
   assert.strictEqual(u.searchParams.get('parts.0'), PART);
   assert.strictEqual(u.searchParams.get('location'), ZIP);
+  assert.strictEqual(apple.requestUrl(PART, ZIP), Core.fulfillmentUrl(PART, ZIP), 'the server asks exactly what the Shortcut recipe hands out');
+  assert.strictEqual(apple.requestUrl(PART, 'nope'), null);
   assert.strictEqual(apple.productUrl('MK1E4LL/A'), 'https://www.apple.com/shop/product/MK1E4LL/A');
+  assert.strictEqual(apple.productUrl('ZD000LL/A'), Core.APPLE_BUY, 'a fake part has no page on apple.com');
   assert.strictEqual(apple.productUrl(null), Core.APPLE_BUY);
+});
+
+test('Apple, by default: `blocked` at once, with the exact model’s page - no source, no fetch', async () => {
+  let fetched = 0, loaded = 0;
+  const fetchImpl = async () => { fetched++; return fx.respond(200, fx.appleAvailable(PART)); };
+  const source = { get: async () => { loaded++; throw new Error('never'); } };
+  for (const opts of [{}, { enabled: false }, { enabled: undefined }]) {
+    const r = await apple.check({ part: 'MK1E4LL/A', zip: ZIP, source, fetchImpl, ...opts });
+    assert.deepStrictEqual(r, { state: 'blocked', part: 'MK1E4LL/A', message: Core.APPLE_BLOCKED, link: 'https://www.apple.com/shop/product/MK1E4LL/A' });
+  }
+  assert.deepStrictEqual([fetched, loaded], [0, 0], 'nothing is asked of anyone');
+  assert.ok(/turns away stock checks from servers/.test(apple.BLOCKED));
+  assert.strictEqual(Core.summary({ apple: { state: 'blocked' } }), 'Apple: check from your iPhone');
+  assert.deepStrictEqual(Core.availableIn({ apple: { state: 'blocked' } }), [], 'blocked is never "available"');
+});
+
+test('Apple, switched on: the kept code path still asks once and parses the fixtures; a fake part is asked, the real one is named and linked', async () => {
+  const fake = fx.createFakeFetch();
+  const r = await apple.check({ part: 'MK1E4LL/A', ask: 'ZD000LL/A', zip: ZIP, source: upstream.createSource({ name: 'x' }), fetchImpl: fake, enabled: true });
+  assert.deepStrictEqual([r.state, r.part, r.available, r.stores.length, r.link], ['ok', 'MK1E4LL/A', 2, 4, 'https://www.apple.com/shop/product/MK1E4LL/A']);
+  assert.strictEqual(fake.calls.length, 1);
+  assert.strictEqual(new URL(fake.calls[0].url).searchParams.get('parts.0'), 'ZD000LL/A');
+  // What Apple really sends Google's network: HTTP 541 and a big HTML page. That is the friendly failure.
+  const blockPage = async () => fx.respond(541, '<!doctype html>' + 'x'.repeat(128 * 1024));
+  const b = await apple.check({ part: PART, zip: ZIP, source: upstream.createSource({ name: 'x' }), fetchImpl: blockPage, enabled: true });
+  assert.deepStrictEqual([b.state, b.message], ['error', apple.FAIL]);
 });
 
 /* ---------------- Best Buy's parser ---------------- */
@@ -211,16 +241,16 @@ test('getJson: a 6 s style timeout aborts, a non-JSON or error answer fails, oth
 
 test('Apple and Best Buy checks: a timeout, an outage or a parse failure become the friendly sentence with a link', async () => {
   const hang = (_u, o) => new Promise((_r, rej) => o.signal.addEventListener('abort', () => rej(new Error('aborted'))));
-  const a = await apple.check({ part: PART, zip: ZIP, source: upstream.createSource({ name: 'x' }), fetchImpl: hang, timeoutMs: 50 });
+  const a = await apple.check({ part: PART, zip: ZIP, source: upstream.createSource({ name: 'x' }), fetchImpl: hang, timeoutMs: 50, enabled: true });
   assert.deepStrictEqual([a.state, a.message], ['error', 'Couldn’t check Apple right now - open Apple’s page.']);
   assert.ok(a.link.startsWith('https://www.apple.com/'));
   for (const scenario of ['down', 'malformed', 'notjson']) {
-    const r = await apple.check({ part: PART, zip: ZIP, source: upstream.createSource({ name: 'x' }), fetchImpl: fx.createFakeFetch({ apple: scenario }) });
+    const r = await apple.check({ part: PART, zip: ZIP, source: upstream.createSource({ name: 'x' }), fetchImpl: fx.createFakeFetch({ apple: scenario }), enabled: true });
     assert.strictEqual(r.state, 'error', scenario);
     assert.strictEqual(r.message, apple.FAIL);
   }
   const busy = upstream.createSource({ name: 'x', capPerWindow: 0 });
-  assert.strictEqual((await apple.check({ part: PART, zip: ZIP, source: busy, fetchImpl: fx.createFakeFetch() })).state, 'busy');
+  assert.strictEqual((await apple.check({ part: PART, zip: ZIP, source: busy, fetchImpl: fx.createFakeFetch(), enabled: true })).state, 'busy');
   process.env.BESTBUY_API_KEY = 'testkey12345';
   try {
     const mk = () => ({ search: upstream.createSource({ name: 's' }), stores: upstream.createSource({ name: 't' }) });
@@ -239,18 +269,76 @@ test('Apple and Best Buy checks: a timeout, an outage or a parse failure become 
 
 /* ---------------- part numbers ---------------- */
 
-test('part numbers: nothing guessed - every row starts unset, so the live check says it is not set up; a filled row must look like an Apple US part', async () => {
+test('part numbers: all 32 picks carry Apple’s confirmed US part - one per storage and colour, the same for every carrier - from the buy page', async () => {
+  const CONFIRMED = {
+    '256gb:star-white': 'MK1E4LL/A', '256gb:night-sky': 'MK1F4LL/A',
+    '512gb:star-white': 'MK1G4LL/A', '512gb:night-sky': 'MK1H4LL/A',
+    '1tb:star-white': 'MK1J4LL/A', '1tb:night-sky': 'MK1L4LL/A',
+    '2tb:star-white': 'MK1Q4LL/A', '2tb:night-sky': 'MK1R4LL/A',
+  };
   assert.strictEqual(Object.keys(parts.PARTS).length, 32, 'every storage x colour x carrier');
-  assert.ok(Object.values(parts.PARTS).every((r) => r.part === null), 'no part number is shipped unconfirmed');
-  assert.strictEqual(parts.partFor({ storage: '256gb', colour: 'star-white', carrier: 'unlocked' }), null);
-  const t = { '256gb:star-white:unlocked': { part: 'mk1e4ll/a' }, '512gb:star-white:unlocked': { part: 'not a part' } };
+  let n = 0;
+  for (const s of Core.STORAGES) for (const c of Core.COLOURS) for (const k of Core.CARRIERS) {
+    const key = `${s.id}:${c.id}:${k.id}`;
+    const row = parts.PARTS[key];
+    assert.ok(row, key);
+    assert.deepStrictEqual(Object.keys(row).sort(), ['part', 'source'], `${key}: no leftover unconfirmed notes`);
+    assert.strictEqual(row.part, CONFIRMED[`${s.id}:${c.id}`], key);
+    assert.ok(parts.PART_RE.test(row.part) && Core.validPart(row.part), key);
+    assert.strictEqual(row.source, 'apple.com buy page products JSON, 2026-10-24');
+    assert.strictEqual(parts.partFor({ storage: s.id, colour: c.id, carrier: k.id }), row.part, key);
+    n++;
+  }
+  assert.strictEqual(n, 32);
+  assert.strictEqual(new Set(Object.values(parts.PARTS).map((r) => r.part)).size, 8, 'eight distinct parts');
+  assert.strictEqual(parts.PART_RE, Core.PART_RE, 'one rule for the server and the page');
+  // A row that does not look like an Apple US part is treated as unset.
+  const t = { '256gb:star-white:unlocked': { part: 'mk1e4ll/a' }, '512gb:star-white:unlocked': { part: 'not a part' }, '1tb:star-white:unlocked': { part: 'MK1J4LL/A&x=1' } };
   assert.strictEqual(parts.partFor({ storage: '256gb', colour: 'star-white', carrier: 'unlocked' }, { table: t }), 'MK1E4LL/A');
   assert.strictEqual(parts.partFor({ storage: '512gb', colour: 'star-white', carrier: 'unlocked' }, { table: t }), null);
+  assert.strictEqual(parts.partFor({ storage: '1tb', colour: 'star-white', carrier: 'unlocked' }, { table: t }), null);
+  assert.strictEqual(parts.partFor({ storage: '2tb', colour: 'star-white', carrier: 'unlocked' }, { table: t }), null);
   assert.ok(/^Z/.test(parts.partFor({ storage: '2tb', colour: 'night-sky', carrier: 'tmobile' }, { fake: true })), 'fakes start with Z, which no Apple part does');
-  const r = await apple.check({ part: null, zip: ZIP, source: upstream.createSource({ name: 'x' }) });
+  assert.ok(parts.PART_RE.test(parts.fakePart({ storage: '2tb', colour: 'night-sky', carrier: 'tmobile' })));
+  const r = await apple.check({ part: null, zip: ZIP, source: upstream.createSource({ name: 'x' }), enabled: true });
   assert.strictEqual(r.state, 'not-configured');
-  assert.ok(/isn’t set up for this model/.test(r.message));
   assert.strictEqual(r.link, Core.APPLE_BUY);
+});
+
+test('the Shortcut recipe’s URL: built from the pick’s part and the ZIP, encoded, and nothing else gets in', () => {
+  assert.strictEqual(Core.fulfillmentUrl('MK1E4LL/A', '94103'), 'https://www.apple.com/shop/fulfillment-messages?pl=true&mts.0=regular&parts.0=MK1E4LL/A&location=94103');
+  assert.strictEqual(Core.fulfillmentUrl('MK1R4LL/A', ' 10001-2345 '), 'https://www.apple.com/shop/fulfillment-messages?pl=true&mts.0=regular&parts.0=MK1R4LL/A&location=10001', 'ZIP+4 is cut to five');
+  for (const s of Core.STORAGES) for (const c of Core.COLOURS) for (const k of Core.CARRIERS) {
+    const part = parts.partFor({ storage: s.id, colour: c.id, carrier: k.id });
+    const u = new URL(Core.fulfillmentUrl(part, ZIP));
+    assert.strictEqual(u.origin + u.pathname, 'https://www.apple.com/shop/fulfillment-messages');
+    assert.deepStrictEqual([...u.searchParams.keys()], ['pl', 'mts.0', 'parts.0', 'location']);
+    assert.deepStrictEqual([u.searchParams.get('parts.0'), u.searchParams.get('location')], [part, ZIP]);
+  }
+  for (const [part, zip] of [['MK1E4LL/A&location=1', ZIP], ['MK1E4LL/A#x', ZIP], ['<b>MK1E4LL/A', ZIP], ['mk1e4ll/a', ZIP], [null, ZIP], ['MK1E4LL/A', '9410'], ['MK1E4LL/A', '94103&x=1'], ['MK1E4LL/A', '<script>'], ['MK1E4LL/A', null]]) {
+    assert.strictEqual(Core.fulfillmentUrl(part, zip), null, `${part} ${zip}`);
+  }
+  assert.strictEqual(Core.appleProductUrl('MK1H4LL/A'), 'https://www.apple.com/shop/product/MK1H4LL/A');
+  for (const bad of ['MK1H4LL/A/../../x', 'javascript:alert(1)', '', null, 42]) assert.strictEqual(Core.appleProductUrl(bad), Core.APPLE_BUY, String(bad));
+  assert.ok(Core.safeUrl(Core.fulfillmentUrl('MK1E4LL/A', ZIP), ['apple.com']), 'a link the page may draw');
+});
+
+test('Watch on this tab: off without Best Buy, with the one line that says why; on with Best Buy (and Apple only if its server check is on)', () => {
+  const off = Core.watchPlan({ bestbuy: false, appleServerCheck: false });
+  assert.deepStrictEqual([off.enabled, off.live, off.text], [false, [], 'Nothing live to watch until Best Buy is connected - use ‘Check from my iPhone’ for Apple.']);
+  assert.strictEqual(Core.watchPlan(null).enabled, false, 'not known yet is not on');
+  assert.strictEqual(Core.watchPlan({ bestbuy: 'yes' }).enabled, false, 'only a real true');
+  const bb = Core.watchPlan({ bestbuy: true, appleServerCheck: false });
+  assert.deepStrictEqual([bb.enabled, bb.live], [true, ['Best Buy']]);
+  assert.ok(/^Re-checks Best Buy every 5 minutes/.test(bb.text) && !/Apple/.test(bb.text));
+  assert.deepStrictEqual(Core.watchPlan({ bestbuy: true, appleServerCheck: true }).live, ['Apple', 'Best Buy']);
+  // The page obeys it: the switch starts disabled and drawWatch sets it from the plan.
+  const html = read('public/index.html');
+  assert.ok(/<button class="switch" id="watch"[^>]*\sdisabled[\s>]/.test(html), 'disabled until /api/meta says there is something live');
+  assert.ok(/aria-describedby="watchText"/.test(html), 'the reason is read with the switch');
+  const js = read('public/app.js');
+  assert.ok(/var plan = C\.watchPlan\(state\.meta\);\s*sw\.disabled = !plan\.enabled;\s*\$\('watchText'\)\.textContent = plan\.text;/.test(js));
+  assert.ok(/if \(!C\.watchPlan\(state\.meta\)\.enabled\) return;/.test(js), 'a click on a disabled switch does nothing');
 });
 
 /* ---------------- the shared core ---------------- */
@@ -337,6 +425,15 @@ test('the page: relative links, no inline script or handlers, the banner and pas
     assert.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/.test(read(f).replace(/@(google-cloud|simplewebauthn|anthropic-ai)\b/g, '')), `${f} carries an email address`);
     assert.ok(!/claude\.ai\/code\/session/.test(read(f)), `${f} carries a session link`);
   }
+  // The "Check from my iPhone" sheet: static markup filled by textContent, the URL only from the core's builder, said plainly untested.
+  assert.ok(/<dialog class="sheet" id="sheet"/.test(html));
+  assert.ok(/Not tested on a phone yet, and Apple may change the shape of its answer\. If this stops working, “See this model on Apple” still does\./.test(html));
+  for (const a of ['Get Contents of URL', 'Get Dictionary Value', 'Repeat with Each', 'partsAvailability', 'pickupDisplay', 'storeName', 'pickupSearchQuote', 'has any value', 'Show Notification', 'Open URLs', 'Time of Day', 'Run Immediately', 'body.content.pickupMessage.stores']) assert.ok(html.replace(/<wbr>/g, '').includes(a), a);
+  assert.ok(/\[hidden\] \{ display: none !important; \}/.test(read('public/app.css')), 'a hidden row stays hidden whatever its class displays as');
+  assert.ok(/recipe\.url = \(part && C\.fulfillmentUrl\(part, zip\)\) \|\| '';/.test(js), 'the recipe URL comes from the core, validated');
+  assert.ok(/var zip = C\.cleanZip\(\$\('zip'\)\.value\);/.test(js), 'the ZIP comes from the page’s ZIP box');
+  assert.ok(/'See this model on Apple'/.test(js) && /'Check from my iPhone'/.test(js) && /'Apple blocks server checks'/.test(js));
+  assert.ok(!/applestore:|com\.apple\.store/i.test(js + html), 'no guessed Apple Store app scheme');
   const sw = read('public/sw.js');
   assert.ok(/if \(rel\.indexOf\('api\/'\) === 0\) return;/.test(sw), 'the service worker never answers api/');
   const code = ['server.js', 'lib/apple.js', 'lib/bestbuy.js', 'lib/upstream.js', 'lib/parts.js', 'public/app.js'].map(read).join('\n');
@@ -377,29 +474,57 @@ async function call(method, p, body, ip) {
   return { status: res.status, data, text, headers: res.headers };
 }
 const PICK = { storage: '256gb', colour: 'star-white', carrier: 'unlocked' };
-function configure(on) {
-  for (const k of Object.keys(parts.PARTS)) parts.PARTS[k].part = null;
-  if (on) parts.PARTS['256gb:star-white:unlocked'].part = PART;
+/** DUOHUNT_APPLE_SERVER_CHECK, read per request: off is the default. */
+function appleLive(on) {
+  if (on) process.env.DUOHUNT_APPLE_SERVER_CHECK = '1';
+  else delete process.env.DUOHUNT_APPLE_SERVER_CHECK;
 }
 
-test('signed out, one tap: Apple is asked once by part and ZIP, two stores show; Best Buy with no key is "Not connected yet" and asked nothing', async () => {
-  server._reset(); configure(true); outbound.length = 0;
+test('by default, every pick: Apple is `blocked` with its exact page and part, and nothing at all is fetched (Best Buy has no key)', async () => {
+  server._reset(); appleLive(false); outbound.length = 0;
   upstreamHandler = fx.createFakeFetch();
-  const r = await call('POST', '/api/check', { ...PICK, zip: ZIP });
-  assert.strictEqual(r.status, 200, r.text);
-  assert.strictEqual(r.headers.get('cache-control'), 'no-store');
-  assert.deepStrictEqual([r.data.apple.state, r.data.apple.available, r.data.apple.stores.length], ['ok', 2, 4]);
-  assert.deepStrictEqual([r.data.bestbuy.state, r.data.bestbuy.message, r.data.bestbuy.link], ['not-connected', 'Not connected yet - open Best Buy to check.', Core.BESTBUY_SEARCH]);
-  assert.deepStrictEqual(outbound.map((o) => o.host), ['www.apple.com'], 'Best Buy is never asked without a key');
-  assert.ok(/^DuoHunt\//.test(outbound[0].headers['User-Agent']));
+  for (const s of Core.STORAGES) for (const c of Core.COLOURS) for (const k of Core.CARRIERS) {
+    const r = await call('POST', '/api/check', { storage: s.id, colour: c.id, carrier: k.id, zip: ZIP }, `192.0.2.${(ipN++ % 200) + 1}`);
+    assert.strictEqual(r.status, 200, r.text);
+    const part = parts.partFor({ storage: s.id, colour: c.id, carrier: k.id });
+    assert.deepStrictEqual(r.data.apple, { state: 'blocked', part, message: Core.APPLE_BLOCKED, link: `https://www.apple.com/shop/product/${part}` });
+    assert.strictEqual(r.data.bestbuy.state, 'not-connected');
+  }
+  assert.strictEqual(outbound.length, 0, 'no request to apple.com, or anywhere');
+  const one = await call('POST', '/api/check', { ...PICK, zip: ZIP });
+  assert.strictEqual(one.headers.get('cache-control'), 'no-store');
+  assert.deepStrictEqual([one.data.bestbuy.state, one.data.bestbuy.message, one.data.bestbuy.link], ['not-connected', 'Not connected yet - open Best Buy to check.', Core.BESTBUY_SEARCH]);
   const meta = await call('GET', '/api/meta');
-  assert.strictEqual(meta.data.bestbuy, false);
-  assert.strictEqual(meta.data.apple['256gb:star-white:unlocked'], true);
-  assert.strictEqual(meta.data.apple['2tb:night-sky:tmobile'], false);
+  assert.deepStrictEqual([meta.data.bestbuy, meta.data.appleServerCheck], [false, false]);
+  assert.strictEqual(Object.keys(meta.data.parts).length, 32);
+  assert.strictEqual(meta.data.parts['256gb:star-white:att'], 'MK1E4LL/A');
+  assert.strictEqual(meta.data.parts['2tb:night-sky:tmobile'], 'MK1R4LL/A');
+  assert.ok(!('apple' in meta.data), 'the old per-pick "configured" map is gone');
+  assert.strictEqual(outbound.length, 0);
 });
 
-test('a crowd: twenty people tapping the same model and ZIP at once are one request to Apple; a second ZIP is its own', async () => {
-  server._reset(); configure(true); outbound.length = 0;
+test('switched on (DUOHUNT_APPLE_SERVER_CHECK=1), one tap: Apple is asked once for the confirmed part and the ZIP, two stores show; Best Buy with no key is asked nothing', async () => {
+  server._reset(); appleLive(true); outbound.length = 0;
+  try {
+    upstreamHandler = fx.createFakeFetch();
+    const r = await call('POST', '/api/check', { ...PICK, zip: ZIP });
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual([r.data.apple.state, r.data.apple.part, r.data.apple.available, r.data.apple.stores.length], ['ok', 'MK1E4LL/A', 2, 4]);
+    assert.deepStrictEqual(outbound.map((o) => o.host), ['www.apple.com'], 'Best Buy is never asked without a key');
+    assert.strictEqual(outbound[0].url, Core.fulfillmentUrl('MK1E4LL/A', ZIP));
+    assert.ok(/^DuoHunt\//.test(outbound[0].headers['User-Agent']));
+    assert.strictEqual((await call('GET', '/api/meta')).data.appleServerCheck, true);
+    // What Google's network really gets: 541. The card says it couldn't check, with the model's page.
+    server._reset(); outbound.length = 0;
+    upstreamHandler = async () => fx.respond(541, '<!doctype html><title>blocked</title>');
+    const b = await call('POST', '/api/check', { ...PICK, zip: ZIP });
+    assert.deepStrictEqual([b.status, b.data.apple.state, b.data.apple.link], [200, 'error', 'https://www.apple.com/shop/product/MK1E4LL/A']);
+    assert.strictEqual(outbound.length, 1);
+  } finally { appleLive(false); }
+});
+
+test('a crowd (server check on): twenty people tapping the same model and ZIP at once are one request to Apple; a second ZIP is its own', async () => {
+  server._reset(); appleLive(true); outbound.length = 0;
   upstreamHandler = fx.createFakeFetch({ delayMs: 40 });
   const rs = await Promise.all(Array.from({ length: 20 }, (_, i) => call('POST', '/api/check', { ...PICK, zip: ZIP }, `198.51.100.${i + 1}`)));
   assert.ok(rs.every((r) => r.status === 200 && r.data.apple.available === 2));
@@ -408,10 +533,11 @@ test('a crowd: twenty people tapping the same model and ZIP at once are one requ
   assert.strictEqual(outbound.length, 2);
   await call('POST', '/api/check', { ...PICK, zip: '10001' });
   assert.strictEqual(outbound.length, 2, 'cached for five minutes');
+  appleLive(false);
 });
 
-test('Best Buy connected: the AT&T version online and two stores; the key never reaches the page or a log', async () => {
-  server._reset(); configure(true); outbound.length = 0;
+test('Best Buy connected: the AT&T version online and two stores; Apple still asked nothing; the key never reaches the page or a log', async () => {
+  server._reset(); appleLive(false); outbound.length = 0;
   process.env.BESTBUY_API_KEY = 'secretkey987654';
   try {
     upstreamHandler = fx.createFakeFetch();
@@ -420,10 +546,13 @@ test('Best Buy connected: the AT&T version online and two stores; the key never 
     const b = r.data.bestbuy;
     assert.deepStrictEqual([b.state, b.product.sku, b.product.online, b.stores.length], ['ok', '6612003', false, 2]);
     assert.ok(Core.safeUrl(b.link, ['bestbuy.com']));
-    assert.strictEqual(r.data.apple.state, 'not-configured', 'that version has no part number yet');
-    assert.deepStrictEqual(outbound.map((o) => o.host).sort(), ['api.bestbuy.com', 'api.bestbuy.com']);
+    assert.deepStrictEqual([r.data.apple.state, r.data.apple.part], ['blocked', 'MK1E4LL/A'], 'the AT&T version shares the part');
+    assert.deepStrictEqual(outbound.map((o) => o.host).sort(), ['api.bestbuy.com', 'api.bestbuy.com'], 'Best Buy only');
     assert.ok(!r.text.includes('secretkey987654'));
-    assert.strictEqual((await call('GET', '/api/meta')).data.bestbuy, true);
+    const meta = (await call('GET', '/api/meta')).data;
+    assert.strictEqual(meta.bestbuy, true);
+    assert.strictEqual(Core.watchPlan(meta).enabled, true, 'now there is something live to watch');
+    assert.strictEqual(Core.watchPlan({ ...meta, bestbuy: false }).enabled, false);
     // A failing Best Buy logs a reason word, never its URL (which holds the key and the ZIP).
     server._reset(); upstreamHandler = fx.createFakeFetch({ bestbuy: 'down' });
     const f = await call('POST', '/api/check', { storage: '256gb', colour: 'star-white', carrier: 'att', zip: '30301' });
@@ -432,8 +561,8 @@ test('Best Buy connected: the AT&T version online and two stores; the key never 
   } finally { delete process.env.BESTBUY_API_KEY; }
 });
 
-test('no request ever goes to AT&T, Verizon or T-Mobile, whatever is picked', async () => {
-  server._reset(); configure(true); outbound.length = 0;
+test('no request ever goes to AT&T, Verizon or T-Mobile, whatever is picked (Apple switched on, so every path runs)', async () => {
+  server._reset(); appleLive(true); outbound.length = 0;
   process.env.BESTBUY_API_KEY = 'secretkey987654';
   try {
     upstreamHandler = fx.createFakeFetch();
@@ -444,11 +573,12 @@ test('no request ever goes to AT&T, Verizon or T-Mobile, whatever is picked', as
     assert.ok(outbound.length > 0);
     assert.ok(outbound.every((o) => ['www.apple.com', 'api.bestbuy.com'].includes(o.host)), [...new Set(outbound.map((o) => o.host))].join(','));
     assert.ok(!outbound.some((o) => /att\.com|verizon\.com|t-mobile\.com/.test(o.host)));
-  } finally { delete process.env.BESTBUY_API_KEY; }
+    assert.strictEqual(new Set(outbound.filter((o) => o.host === 'www.apple.com').map((o) => new URL(o.url).searchParams.get('parts.0'))).size, 8, 'Apple is asked about the eight real parts');
+  } finally { delete process.env.BESTBUY_API_KEY; appleLive(false); }
 });
 
 test('the ZIP: five digits or a 400 before anything is asked; never logged, never stored, never in a URL our logs see', async () => {
-  server._reset(); configure(true); outbound.length = 0;
+  server._reset(); appleLive(true); outbound.length = 0;
   upstreamHandler = fx.createFakeFetch();
   for (const zip of ['1234', '123456', 'abcde', '', '<script>', '9410 3', null]) {
     const r = await call('POST', '/api/check', { ...PICK, zip });
@@ -470,10 +600,11 @@ test('the ZIP: five digits or a 400 before anything is asked; never logged, neve
   assert.ok(!/6061[456]/.test(all), '...without the ZIP');
   assert.ok(!/fulfillment-messages|location=/.test(all), '...or the URL');
   assert.ok(!/6061[456]|94103|10001/.test(server.identityStore._dump()), 'nothing stored');
+  appleLive(false);
 });
 
 test('limits: 20 checks per address in ten minutes, then a 429 that asks for nothing; another address still checks', async () => {
-  server._reset(); configure(true); outbound.length = 0;
+  server._reset(); appleLive(true); outbound.length = 0;
   upstreamHandler = fx.createFakeFetch();
   const ip = '203.0.113.250';
   for (let i = 0; i < 20; i++) assert.strictEqual((await call('POST', '/api/check', { ...PICK, zip: ZIP }, ip)).status, 200);
@@ -483,10 +614,11 @@ test('limits: 20 checks per address in ten minutes, then a 429 that asks for not
   assert.ok(/ten minutes/.test(r.data.error));
   assert.strictEqual(outbound.length, before);
   assert.strictEqual((await call('POST', '/api/check', { ...PICK, zip: ZIP }, '203.0.113.251')).status, 200);
+  appleLive(false);
 });
 
-test('Apple down or slow over HTTP: a 200 whose card says "Couldn’t check Apple right now" with the link - never a 500', async () => {
-  server._reset(); configure(true);
+test('Apple (switched on) down or slow over HTTP: a 200 whose card says "Couldn’t check Apple right now" with the link - never a 500', async () => {
+  server._reset(); appleLive(true);
   upstreamHandler = fx.createFakeFetch({ apple: 'down' });
   const r = await call('POST', '/api/check', { ...PICK, zip: ZIP });
   assert.strictEqual(r.status, 200);
@@ -495,6 +627,7 @@ test('Apple down or slow over HTTP: a 200 whose card says "Couldn’t check Appl
   server._reset();
   const h = await call('POST', '/api/check', { ...PICK, zip: ZIP });
   assert.ok(!ANGLE.test(JSON.stringify(h.data.apple)), 'hostile upstream strings never reach the page');
+  appleLive(false);
 });
 
 test('the shared account is mounted at api/auth; the page, worker and assets load under the base; security headers', async () => {

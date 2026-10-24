@@ -7,6 +7,11 @@
  * "I looked" notes (localStorage), the watch switch and this tab's last 20
  * checks (sessionStorage). Every storage access is wrapped: a private window
  * or blocked storage just means nothing is remembered.
+ *
+ * Apple blocks server checks, so its card links Apple's page for the exact
+ * part number and opens the "Check from my iPhone" sheet: a Shortcut recipe
+ * filled in with the part and the ZIP box's ZIP. Filling it sends nothing
+ * anywhere; the ZIP only reaches Apple, from the phone, when the Shortcut runs.
  */
 (function () {
   'use strict';
@@ -128,7 +133,8 @@
     state.zip = zip; persist();
     state.checking = true;
     var btn = $('checkBtn');
-    btn.disabled = true; btn.textContent = 'Checking Apple and Best Buy…';
+    var live = C.watchPlan(state.meta).live;
+    btn.disabled = true; btn.textContent = live.length ? 'Checking ' + live.join(' and ') + '…' : 'Checking…';
     drawCards();
     var prev = state.result;
     return fetch(BASE + 'api/check', {
@@ -174,7 +180,7 @@
     return el('article', { class: 'card src' + (opts.wide ? ' wide' : '') + (opts.carrier ? ' carrier' : '') + (opts.chosen ? ' chosen' : ''), 'aria-label': opts.name }, [
       el('div', { class: 'src-head' }, [
         el('h3', { class: 'src-name', text: opts.name }),
-        el('span', { class: 'kind' + (opts.live ? ' live' : ''), text: opts.live ? 'Live check' : 'Link - you check' }),
+        el('span', { class: 'kind' + (opts.live ? ' live' : ''), text: opts.kind || (opts.live ? 'Live check' : 'Link - you check') }),
       ]),
     ].concat(kids));
   }
@@ -192,17 +198,25 @@
   var APPLE_HOSTS = ['apple.com'];
   var BB_HOSTS = ['bestbuy.com'];
 
+  /** This pick's Apple part number: from the last check of this pick, else
+   *  from /api/meta. Only an Apple-shaped part is ever used. */
+  function currentPart() {
+    var r = state.result && state.result.pickKey === pickKey() && state.result.apple;
+    var p = (r && r.part) || (state.meta && state.meta.parts ? state.meta.parts[pickKey()] : null);
+    return C.validPart(p) ? p : null;
+  }
+
   function appleCard() {
     var r = state.result && state.result.apple;
+    var serverCheck = !!(state.meta && state.meta.appleServerCheck);
+    var part = currentPart();
     var kids = [];
-    if (state.checking) kids.push(pill('idle', 'Checking…'), el('div', { class: 'skeleton' }));
-    else if (!r) {
-      var configured = state.meta && state.meta.apple ? state.meta.apple[pickKey()] : true;
-      kids.push(pill('idle', configured === false ? 'Live check not set up for this model' : 'Not checked yet'));
-      kids.push(msg(configured === false
-        ? 'Apple’s live check needs this model’s part number, which isn’t set up yet. Apple’s page shows pickup for any store.'
-        : 'Tap Check everything to see pickup at Apple Stores near your ZIP.'));
-    } else if (r.state === 'ok') {
+    var live = false;
+    if (serverCheck && state.checking) {
+      live = true;
+      kids.push(pill('idle', 'Checking…'), el('div', { class: 'skeleton' }));
+    } else if (r && r.state === 'ok') {
+      live = true;
       var n = r.available;
       var later = r.stores.filter(function (s) { return s.status === 'quote'; }).length;
       kids.push(n ? pill('good', n + (n === 1 ? ' store has it today' : ' stores have it today'))
@@ -213,16 +227,27 @@
           return s.status === 'available' ? { cls: 'good', text: 'Available today' } : s.status === 'quote' ? { cls: 'warn', text: s.label } : { cls: 'idle', text: 'Unavailable' };
         }));
       } else kids.push(msg('Apple listed no stores near that ZIP.'));
-    } else {
-      kids.push(pill(r.state === 'not-configured' ? 'idle' : 'bad', r.state === 'not-configured' ? 'Live check not set up for this model' : 'Couldn’t check'));
+    } else if (r && (r.state === 'error' || r.state === 'busy')) {
+      live = true;
+      kids.push(pill('bad', 'Couldn’t check'));
       kids.push(msg(r.message));
+    } else if (r && r.state === 'not-configured') {
+      kids.push(pill('idle', 'Not set up for this model'));
+      kids.push(msg(r.message));
+    } else if (serverCheck && !r) {
+      live = true;
+      kids.push(pill('idle', 'Not checked yet'));
+      kids.push(msg('Tap Check everything to see pickup at Apple Stores near your ZIP.'));
+    } else {
+      // The usual case: Apple blocks server checks, so nothing was asked.
+      kids.push(pill('info', 'Apple blocks server checks'));
+      kids.push(msg(C.APPLE_BLOCKED));
     }
-    var href = r && r.link ? r.link : C.APPLE_BUY;
     kids.push(el('div', { class: 'actions' }, [
-      link(href, r && r.state === 'ok' && r.available ? 'Reserve on apple.com' : 'Open Apple’s page', 'primary', APPLE_HOSTS),
-      link(C.APPLE_STORES, 'Apple Stores', '', APPLE_HOSTS),
+      link(C.appleProductUrl(part), r && r.state === 'ok' && r.available ? 'Reserve on apple.com' : part ? 'See this model on Apple' : 'Open Apple’s page', 'primary', APPLE_HOSTS),
+      part ? el('button', { class: 'btn', type: 'button', id: 'shortcutBtn', 'aria-haspopup': 'dialog', text: 'Check from my iPhone' }) : null,
     ]));
-    return card({ name: 'Apple Store', live: true, wide: true }, kids);
+    return card({ name: 'Apple Store', live: live, kind: live ? null : 'Link + Shortcut', wide: true }, kids);
   }
 
   function bestbuyCard() {
@@ -297,14 +322,24 @@
     var sub = $('resultsSub');
     if (state.result) {
       $('resultsTitle').textContent = state.result.label || C.pickLabel(state.pick);
-      sub.textContent = 'Near ' + state.zip + '. Apple and Best Buy are live checks; the carriers are links.';
+      sub.textContent = 'Near ' + state.zip + '. ' + sourcesLine();
     } else {
       $('resultsTitle').textContent = 'Where to look';
-      sub.textContent = 'Apple and Best Buy are live checks; the carriers are links you tap through.';
+      sub.textContent = sourcesLine();
     }
+  }
+  /** What is live and what is a link, said once under the heading. */
+  function sourcesLine() {
+    var live = C.watchPlan(state.meta).live;
+    var a = live.indexOf('Apple') >= 0, b = live.indexOf('Best Buy') >= 0;
+    if (a && b) return 'Apple and Best Buy are live checks; the carriers are links.';
+    if (a) return 'Apple is a live check; Best Buy is a link until it’s connected, and the carriers are links.';
+    if (b) return 'Best Buy is a live check. Apple blocks server checks, so its card has an iPhone Shortcut; the carriers are links.';
+    return 'Apple blocks server checks, so its card has an iPhone Shortcut. Best Buy is a link until it’s connected; the carriers are links.';
   }
 
   $('cards').addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('#shortcutBtn')) { openSheet(); return; }
     var b = e.target.closest ? e.target.closest('button[data-note]') : null;
     if (!b) return;
     var id = b.getAttribute('data-note'), result = b.getAttribute('data-result');
@@ -313,6 +348,76 @@
     save('localStorage', 'duohunt-carriers', state.notes);
     drawCards();
     say(C.CARRIER_LINKS[id].name + ': noted.');
+  });
+
+  /* ---------------- "Check from my iPhone": the Shortcut recipe ---------------- */
+  var sheet = $('sheet');
+  var recipe = { url: '', part: '', product: '' };
+  var sheetToZip = false; // closed by "Add my ZIP": focus the ZIP box, not the opener
+  function fillSheet() {
+    var part = currentPart();
+    var zip = C.cleanZip($('zip').value);
+    recipe.part = part || '';
+    recipe.url = (part && C.fulfillmentUrl(part, zip)) || '';
+    recipe.product = C.appleProductUrl(part);
+    var values = { label: C.pickLabel(state.pick), part: recipe.part, zip: zip || '', zipOr: zip || 'your ZIP' };
+    sheet.querySelectorAll('[data-fill]').forEach(function (n) { n.textContent = values[n.getAttribute('data-fill')] || ''; });
+    sheet.querySelectorAll('[data-show]').forEach(function (n) {
+      var w = n.getAttribute('data-show');
+      n.hidden = w === 'zip' ? !recipe.url : w === 'nozip' ? !!recipe.url : false;
+    });
+    $('recipeUrl').textContent = recipe.url;
+    $('recipeProduct').textContent = recipe.product;
+  }
+  function openSheet() {
+    if (!currentPart()) return;
+    fillSheet();
+    try { if (sheet.showModal) sheet.showModal(); else sheet.setAttribute('open', ''); } catch (e) { sheet.setAttribute('open', ''); }
+    var body = sheet.querySelector('.sheet-body');
+    if (body) body.scrollTop = 0;
+    sheet.scrollTop = 0;
+  }
+  function closeSheet() {
+    try { if (sheet.close) sheet.close(); else sheet.removeAttribute('open'); } catch (e) { sheet.removeAttribute('open'); }
+  }
+  sheet.addEventListener('close', function () {
+    var b = $('shortcutBtn');
+    if (b && !sheetToZip) b.focus();
+    sheetToZip = false;
+  });
+  $('sheetClose').addEventListener('click', closeSheet);
+  // A tap on the dimmed backdrop (the dialog itself, outside its body) closes it.
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+  $('sheetZip').addEventListener('click', function () {
+    sheetToZip = true;
+    closeSheet();
+    $('zip').focus();
+  });
+  function copied(btn, ok) {
+    btn.textContent = ok ? 'Copied' : 'Press and hold to copy';
+    say(ok ? 'Copied.' : 'Couldn’t copy - press and hold the text to copy it.');
+    setTimeout(function () { btn.textContent = 'Copy'; }, 2200);
+  }
+  function copyText(text, btn) {
+    function fallback() {
+      // Inside the dialog: while it is modal, anything outside it is inert.
+      var ta = el('textarea', { readonly: true, class: 'copy-src', 'aria-hidden': 'true', tabindex: '-1' });
+      ta.value = text;
+      sheet.appendChild(ta);
+      var ok = false;
+      try { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      sheet.removeChild(ta);
+      copied(btn, ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { copied(btn, true); }, fallback);
+    } else fallback();
+  }
+  sheet.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button[data-copy]') : null;
+    if (!b) return;
+    var text = recipe[b.getAttribute('data-copy')];
+    if (text) copyText(text, b);
   });
 
   /* ---------------- history ---------------- */
@@ -349,6 +454,12 @@
   }
   function drawWatch() {
     var sw = $('watch');
+    // Only what the server checks live can be watched: Best Buy once it is
+    // connected (and Apple only if its server check is ever switched on).
+    var plan = C.watchPlan(state.meta);
+    sw.disabled = !plan.enabled;
+    $('watchText').textContent = plan.text;
+    if (!plan.enabled && state.watching) { state.watching = false; clearTimeout(timer); save('sessionStorage', 'duohunt-watch', false); }
     sw.setAttribute('aria-checked', state.watching ? 'true' : 'false');
     var s = $('watchStatus');
     if (!state.watching) { s.hidden = true; return; }
@@ -358,6 +469,7 @@
     s.textContent = state.checking ? 'Watching - checking now…' : 'Watching - next check in about ' + mins + ' min. Keep this tab open.';
   }
   $('watch').addEventListener('click', function () {
+    if (!C.watchPlan(state.meta).enabled) return;
     state.watching = !state.watching;
     save('sessionStorage', 'duohunt-watch', state.watching);
     if (state.watching) {
@@ -412,12 +524,16 @@
   drawPicker();
   drawCards();
   drawHistory();
-  fetch(BASE + 'api/meta', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (m) {
-    state.meta = { bestbuy: m.bestbuy === true, apple: m.apple && typeof m.apple === 'object' ? m.apple : null };
-    drawCards();
-  }).catch(function () { /* the cards still work as links */ });
-  if (load('sessionStorage', 'duohunt-watch', false) === true && state.zip) { state.watching = true; check('watch-start'); }
   drawWatch();
+  fetch(BASE + 'api/meta', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (m) {
+    var parts = {};
+    if (m && m.parts && typeof m.parts === 'object') Object.keys(m.parts).forEach(function (k) { if (C.validPart(m.parts[k])) parts[k] = m.parts[k]; });
+    state.meta = { bestbuy: m.bestbuy === true, appleServerCheck: m.appleServerCheck === true, parts: parts };
+    drawCards();
+    // A watch left on in this tab resumes only if there is still something live to watch.
+    if (load('sessionStorage', 'duohunt-watch', false) === true && state.zip && C.watchPlan(state.meta).enabled) { state.watching = true; check('watch-start'); }
+    drawWatch();
+  }).catch(function () { /* the cards still work as links */ });
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }

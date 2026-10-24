@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Duo Hunt — find an iPhone Duo near you</title>
-  <meta name="description" content="Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place. Live pickup checks at Apple and Best Buy, one-tap links to AT&amp;T, Verizon and T-Mobile. Free, no account.">
+  <meta name="description" content="Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place. Apple’s page for your exact model, an iPhone Shortcut that checks Apple pickup from your phone, Best Buy stock, and one-tap links to AT&amp;T, Verizon and T-Mobile. Free, no account.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#0e1118" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)">
@@ -43,7 +43,7 @@
   <main class="wrap dk-wrap" id="main" tabindex="-1">
     <section class="hero">
       <h1>Find an iPhone Duo near you</h1>
-      <p class="lede">Apple, Best Buy and the carriers in one place. Pick your model, add a ZIP, and check them all at once.</p>
+      <p class="lede">Apple, Best Buy and the carriers in one place. Pick your model, add a ZIP, and every store’s page for it is one tap away - plus an iPhone Shortcut that asks Apple for you.</p>
     </section>
 
     <div class="layout">
@@ -77,9 +77,9 @@
           <div class="watch-row">
             <div>
               <h2 class="h3" id="watchTitle">Watch on this tab</h2>
-              <p class="hint" id="watchText">Re-checks Apple and Best Buy every 5 minutes while this tab stays open, and alerts you when one turns up.</p>
+              <p class="hint" id="watchText">Re-checks Best Buy every 5 minutes while this tab stays open, and alerts you when it turns up.</p>
             </div>
-            <button class="switch" id="watch" type="button" role="switch" aria-checked="false" aria-labelledby="watchTitle"><span class="knob"></span></button>
+            <button class="switch" id="watch" type="button" role="switch" aria-checked="false" aria-labelledby="watchTitle" aria-describedby="watchText" disabled><span class="knob"></span></button>
           </div>
           <p class="watch-status" id="watchStatus" aria-live="polite" hidden></p>
         </section>
@@ -103,10 +103,10 @@
     <section class="card how" aria-labelledby="howTitle">
       <h2 class="h3" id="howTitle">How this works</h2>
       <ul class="how-list">
-        <li><strong>Apple</strong> is a live check: when you tap, our server asks the same pickup service apple.com’s own page uses, for your model near your ZIP. Answers are shared for 5 minutes, so a crowd tapping does not hammer Apple.</li>
+        <li><strong>Apple</strong> turns away stock checks from servers - it answered every one we sent from Google’s network with a block page - so our server doesn’t ask it. “See this model on Apple” opens Apple’s page for your exact model, where Check availability is one tap, and “Check from my iPhone” shows how to build a Shortcut that asks Apple from your phone instead.</li>
         <li><strong>Best Buy</strong> is a live check through Best Buy’s official Products API, when it is connected. Until then it is a link.</li>
         <li><strong>AT&amp;T, Verizon and T-Mobile</strong> are links. They have no public stock service and block automated checks, so we never ask them anything. Tap through, then mark what you saw so you remember when you last looked.</li>
-        <li><strong>Watching</strong> runs in this tab only, while it is open and on screen. There is no server timer and no push - close the tab and it stops.</li>
+        <li><strong>Watching</strong> re-checks Best Buy, so it needs Best Buy connected. It runs in this tab only, while it is open and on screen. There is no server timer and no push - close the tab and it stops.</li>
         <li>Your ZIP, picks and notes stay on this device. Nothing is stored on our side, and there is no AI in here.</li>
       </ul>
       <p class="fine">Not affiliated with Apple, Best Buy, AT&amp;T, Verizon or T-Mobile. Stock changes fast - a store’s own page always has the last word.</p>
@@ -114,6 +114,63 @@
   </main>
 
   <div class="vh" id="live" aria-live="assertive"></div>
+
+  <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+    <div class="sheet-body">
+      <div class="sheet-head">
+        <h2 class="h2" id="sheetTitle">Check Apple from your iPhone</h2>
+        <button class="btn" type="button" id="sheetClose">Done</button>
+      </div>
+      <p class="sheet-lede">Apple turns away checks from servers like ours, but a phone on a home or mobile network is a person. Build this once in the <strong>Shortcuts</strong> app and your iPhone asks Apple itself.</p>
+      <p class="sheet-model"><strong data-fill="label"></strong> <span class="sheet-part">Part <code data-fill="part"></code></span><span class="sheet-zip" data-show="zip"> · near <span data-fill="zip"></span></span></p>
+      <p class="sheet-warn">Not tested on a phone yet, and Apple may change the shape of its answer. If this stops working, “See this model on Apple” still does.</p>
+      <ol class="recipe">
+        <li>
+          <p>In Shortcuts, tap <strong>+</strong> and add a <strong>Text</strong> action. Paste this into it:</p>
+          <div class="copy-row" data-show="zip">
+            <code class="url" id="recipeUrl"></code>
+            <button class="btn copy" type="button" data-copy="url">Copy</button>
+          </div>
+          <div class="need-zip" data-show="nozip">
+            <p>This link needs your ZIP. Add it in the ZIP box first - it stays on this device.</p>
+            <button class="btn" type="button" id="sheetZip">Add my ZIP</button>
+          </div>
+        </li>
+        <li>
+          <p>Add <strong>Get Contents of URL</strong>. It takes the Text above; leave Method on <strong>GET</strong>.</p>
+        </li>
+        <li>
+          <p>Add <strong>Get Dictionary Value</strong> four times, each taking the one before: get the value for <code>body</code>, then <code>content</code>, then <code>pickupMessage</code>, then <code>stores</code>.</p>
+          <p class="alt">Shortcuts may also take the key path <code>body.<wbr>content.<wbr>pickupMessage.<wbr>stores</code> in one Get Dictionary Value. If that comes back empty, use the four.</p>
+        </li>
+        <li>
+          <p>Add <strong>Repeat with Each</strong> on those stores. Inside the repeat:</p>
+          <ul>
+            <li><strong>Get Dictionary Value</strong> <code>partsAvailability</code> from <em>Repeat Item</em>, then <span class="copy-inline"><code data-fill="part"></code><button class="btn copy small" type="button" data-copy="part">Copy</button></span> from that, then <code>pickupDisplay</code>.</li>
+            <li><strong>If</strong> that value <strong>is</strong> <code>available</code>: get <code>storeName</code> from <em>Repeat Item</em> and <code>pickupSearchQuote</code> from the <code data-fill="part"></code> value, put both in a <strong>Text</strong>, and <strong>Add to Variable</strong> <code>Found</code>.</li>
+          </ul>
+          <p class="alt">Or as key paths from <em>Repeat Item</em>: <code>partsAvailability.<wbr><span data-fill="part"></span>.<wbr>pickupDisplay</code> and <code>partsAvailability.<wbr><span data-fill="part"></span>.<wbr>pickupSearchQuote</code>.</p>
+        </li>
+        <li>
+          <p>After the repeat, add <strong>If</strong> <code>Found</code> <strong>has any value</strong>:</p>
+          <ul>
+            <li><strong>Show Notification</strong> “iPhone Duo in stock: <em>Found</em>”, then <strong>Open URLs</strong>:</li>
+          </ul>
+          <div class="copy-row">
+            <code class="url" id="recipeProduct"></code>
+            <button class="btn copy" type="button" data-copy="product">Copy</button>
+          </div>
+          <ul>
+            <li><strong>Otherwise</strong>: <strong>Show Notification</strong> “No iPhone Duo pickup near <span data-fill="zipOr"></span> yet” - or leave it empty in the scheduled version, so it only speaks up when it finds one.</li>
+          </ul>
+        </li>
+        <li>
+          <p>Make it automatic: <strong>Shortcuts → Automation → + → Time of Day</strong>, pick a time, <strong>Daily</strong>, <strong>Run Immediately</strong>, then choose this shortcut. Add a few - morning, lunchtime, evening - to check several times a day.</p>
+        </li>
+      </ol>
+      <p class="fine">Building this sends nothing to Duo Hunt: the ZIP goes from this page into your Shortcut, and from your phone straight to Apple.</p>
+    </div>
+  </dialog>
 
   <script src="duohunt-core.js"></script>
   <script src="passkey-client.js"></script>

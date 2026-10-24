@@ -1,10 +1,11 @@
 /* Duo Hunt - the rules both sides share. UMD: window.DuoCore in the page,
  * require() on the server and in the tests.
  *
- * The models, the carrier links, ZIP validation, "2 min ago", what counts as
- * "available" and the diff that fires the watch alert all live here, so the
- * page and the server cannot disagree about them. No clock of its own: "now"
- * is always handed in.
+ * The models, the carrier links, ZIP validation, Apple's URLs by part number
+ * (the iPhone Shortcut recipe's among them), what the watch can watch, "2 min
+ * ago", what counts as "available" and the diff that fires the watch alert
+ * all live here, so the page and the server cannot disagree about them. No
+ * clock of its own: "now" is always handed in.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -36,6 +37,15 @@
   // number (/shop/product/<part>) is the shape apple.com uses.
   var APPLE_BUY = 'https://www.apple.com/shop/buy-iphone/iphone-duo';
   var APPLE_STORES = 'https://www.apple.com/retail/';
+  // The pickup JSON apple.com's own product page asks when you tap "Check
+  // availability". Apple answers it with a block page (HTTP 541) to anything
+  // on Google's network (measured 2026-10-24), so the server only asks it
+  // when DUOHUNT_APPLE_SERVER_CHECK=1; the iPhone Shortcut asks it from the
+  // phone. Both build the URL here, so they ask the same question.
+  var APPLE_FULFILLMENT = 'https://www.apple.com/shop/fulfillment-messages';
+  // An Apple US part number: five letters or digits, then LL/A ("MK1E4LL/A").
+  var PART_RE = /^[A-Z0-9]{5}LL\/A$/;
+  var APPLE_BLOCKED = 'Apple turns away stock checks from servers, so we can’t ask it for you. Open Apple’s page for this model and tap Check availability, or let your iPhone ask.';
   var BESTBUY_SEARCH = 'https://www.bestbuy.com/site/searchpage.jsp?st=iphone+duo';
   var BESTBUY_STORES = 'https://www.bestbuy.com/site/store-locator';
 
@@ -102,6 +112,39 @@
     return s.slice(0, max || 120);
   }
 
+  /** A part number for a URL: encoded, the slash kept (legal in a path and a
+   *  query, and what apple.com itself writes). Only ever a PART_RE match. */
+  function encPart(part) { return encodeURIComponent(part).replace(/%2F/g, '/'); }
+  function validPart(part) { return typeof part === 'string' && PART_RE.test(part); }
+
+  /** Apple's page for one exact model; the buy page for anything else. */
+  function appleProductUrl(part) {
+    return validPart(part) ? 'https://www.apple.com/shop/product/' + encPart(part) : APPLE_BUY;
+  }
+
+  /** Apple's pickup question for one part near one ZIP - the URL the server
+   *  asks (when switched on) and the one the iPhone Shortcut recipe hands
+   *  out. Null unless the part is an Apple part and the ZIP five digits, so
+   *  nothing else can be smuggled into it. */
+  function fulfillmentUrl(part, zip) {
+    var z = cleanZip(zip);
+    if (!validPart(part) || !z) return null;
+    return APPLE_FULFILLMENT + '?pl=true&mts.0=regular&parts.0=' + encPart(part) + '&location=' + encodeURIComponent(z);
+  }
+
+  /** What "Watch on this tab" can watch: only what the server checks live.
+   *  Apple is live only when the server check is switched on; Best Buy only
+   *  once its key is connected. Nothing live -> the switch is off, with why. */
+  var WATCH_OFF = 'Nothing live to watch until Best Buy is connected - use ‘Check from my iPhone’ for Apple.';
+  function watchPlan(meta) {
+    var live = [];
+    if (meta && meta.appleServerCheck === true) live.push('Apple');
+    if (meta && meta.bestbuy === true) live.push('Best Buy');
+    if (!meta) return { enabled: false, live: live, text: 'Re-checks Best Buy every 5 minutes while this tab stays open, and alerts you when it turns up.' };
+    if (!live.length) return { enabled: false, live: live, text: WATCH_OFF };
+    return { enabled: true, live: live, text: 'Re-checks ' + live.join(' and ') + ' every 5 minutes while this tab stays open, and alerts you when it turns up.' };
+  }
+
   /** Only https links to a host we expect become links. */
   function safeUrl(u, hosts) {
     if (typeof u !== 'string' || u.length > 600) return null;
@@ -158,7 +201,8 @@
       if (a.state === 'ok') {
         var n = (a.stores || []).filter(function (s) { return s.status === 'available'; }).length;
         parts.push(n ? 'Apple: ' + n + (n === 1 ? ' store' : ' stores') + ' today' : 'Apple: none today');
-      } else if (a.state === 'not-configured') parts.push('Apple: not set up');
+      } else if (a.state === 'blocked') parts.push('Apple: check from your iPhone');
+      else if (a.state === 'not-configured') parts.push('Apple: not set up');
       else parts.push('Apple: couldn’t check');
     }
     var b = result.bestbuy;
@@ -198,6 +242,8 @@
   return {
     STORAGES: STORAGES, COLOURS: COLOURS, CARRIERS: CARRIERS, DEFAULT_PICK: DEFAULT_PICK,
     APPLE_BUY: APPLE_BUY, APPLE_STORES: APPLE_STORES, BESTBUY_SEARCH: BESTBUY_SEARCH, BESTBUY_STORES: BESTBUY_STORES,
+    APPLE_FULFILLMENT: APPLE_FULFILLMENT, PART_RE: PART_RE, APPLE_BLOCKED: APPLE_BLOCKED, WATCH_OFF: WATCH_OFF,
+    validPart: validPart, appleProductUrl: appleProductUrl, fulfillmentUrl: fulfillmentUrl, watchPlan: watchPlan,
     CARRIER_LINKS: CARRIER_LINKS, CARRIER_IDS: CARRIER_IDS, HISTORY_MAX: HISTORY_MAX, WATCH_MS: WATCH_MS,
     find: find, cleanPick: cleanPick, pickLabel: pickLabel, priceOf: priceOf, cleanZip: cleanZip,
     clean: clean, safeUrl: safeUrl, ago: ago, availableIn: availableIn, newlyAvailable: newlyAvailable,
