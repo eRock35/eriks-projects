@@ -1,0 +1,10 @@
+{
+  "name": "Duo Hunt",
+  "short_name": "Duo Hunt",
+  "description": "Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#3b3fc4",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

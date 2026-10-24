@@ -1,0 +1,17 @@
+{
+  "name": "duohunt",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "DUOHUNT_DEV_MOUNT=/duohunt DUOHUNT_MEMORY=1 DUOHUNT_FAKE_UPSTREAM=1 DUOHUNT_FAKE_DELAY_MS=700 PORT=8137 node server.js",
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 DUOHUNT_MEMORY=1 node test/run.js"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "express": "^4.19.2"
+  }
+}

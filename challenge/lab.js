@@ -604,6 +604,20 @@ const APPS = [
     audience: 'Households with pets, flatmates, pet sitters and dog walkers',
     status: 'testing',
   },
+  {
+    slug: 'duohunt',
+    name: 'Duo Hunt',
+    emoji: '\u{1F4F1}',
+    // Indigo to deep teal. White text holds 7.0:1 and 5.4:1.
+    color: '#3b3fc4',
+    color2: '#0e7490',
+    dropped: '2026-10-24',
+    tagline: 'Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place.',
+    blurb: 'Built on Erik’s own ask, the day after Apple’s first foldable went on sale and sold out to January. Apple’s online dates slipped to 2027, stores get a handful a day, and Best Buy, AT&T, Verizon and T-Mobile each have their own allocation - so finding one means five websites and a lot of refreshing. Pick the storage, colour and carrier, add your ZIP, and one tap checks Apple Store pickup near you and Best Buy online and in store, live, side by side: “Union Square 1.2 mi - Available today”. The carriers have no public stock check and block bots, so Duo Hunt never asks them anything: one tap opens each carrier’s iPhone Duo page or store finder, and you mark what you saw so you know when you last looked. Switch on Watch and the tab re-checks every five minutes while it stays open, with a notification and a flashing title the moment one turns up. Free, no account, no AI - your ZIP stays on your phone.',
+    features: ['One tap checks Apple Store pickup near your ZIP, live', 'Best Buy online and in-store stock, side by side', 'One-tap links to AT&T, Verizon and T-Mobile - and when you last looked', 'Watch on this tab: re-checks every 5 minutes and alerts you'],
+    audience: 'Anyone hunting for an iPhone Duo in the US',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

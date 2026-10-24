@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Duo Hunt — find an iPhone Duo near you</title>
+  <meta name="description" content="Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place. Live pickup checks at Apple and Best Buy, one-tap links to AT&amp;T, Verizon and T-Mobile. Free, no account.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0e1118" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Duo Hunt">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Duo Hunt — Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place.">
+  <meta property="og:description" content="Built on Erik’s own ask, the day after Apple’s first foldable went on sale and sold out to January. Apple’s online dates slipped to 2027, stores get a handful a day, and Best Buy, AT&amp;T, Verizon and T-Mobile each have their own allocation - so finding one means five websites and a">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/duohunt/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/duohunt.png?v=cb2d723df7">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Duo Hunt, drop #42 in the Challenge Lab: Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Duo Hunt — Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place.">
+  <meta name="twitter:description" content="Built on Erik’s own ask, the day after Apple’s first foldable went on sale and sold out to January. Apple’s online dates slipped to 2027, stores get a handful a day, and Best Buy, AT&amp;T, Verizon and T-Mobile each have their own allocation - so finding one means five websites and a">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/duohunt.png?v=cb2d723df7">
+  <meta name="twitter:image:alt" content="Duo Hunt, drop #42 in the Challenge Lab: Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to the check</a>
+  <header class="top">
+    <a class="brand" href="./"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28"><rect x="5" y="4" width="10" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="17" y="4" width="10" height="24" rx="3" fill="currentColor"/><circle cx="22" cy="9" r="1.6" fill="var(--bg)"/></svg></span>Duo Hunt</a>
+    <span class="top-note">No account needed</span>
+  </header>
+
+  <main class="wrap dk-wrap" id="main" tabindex="-1">
+    <section class="hero">
+      <h1>Find an iPhone Duo near you</h1>
+      <p class="lede">Apple, Best Buy and the carriers in one place. Pick your model, add a ZIP, and check them all at once.</p>
+    </section>
+
+    <div class="layout">
+      <div class="col-pick">
+        <form class="card picker" id="picker" novalidate>
+          <h2 class="h2">Your iPhone Duo</h2>
+          <fieldset class="group">
+            <legend>Storage</legend>
+            <div class="chips" id="storage"></div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Colour</legend>
+            <div class="chips" id="colour"></div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Carrier</legend>
+            <div class="chips" id="carrier"></div>
+            <p class="hint" id="carrierHint"></p>
+          </fieldset>
+          <div class="group">
+            <label class="label" for="zip">ZIP code</label>
+            <input class="input" id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}" maxlength="10" placeholder="e.g. 94103" aria-describedby="zipHint">
+            <p class="hint" id="zipHint">Kept on this device. Sent only with a check, never stored.</p>
+          </div>
+          <p class="price" id="price"></p>
+          <button class="btn primary big" id="checkBtn" type="submit">Check everything</button>
+          <p class="err" id="formErr" role="alert" hidden></p>
+        </form>
+
+        <section class="card watch" aria-labelledby="watchTitle">
+          <div class="watch-row">
+            <div>
+              <h2 class="h3" id="watchTitle">Watch on this tab</h2>
+              <p class="hint" id="watchText">Re-checks Apple and Best Buy every 5 minutes while this tab stays open, and alerts you when one turns up.</p>
+            </div>
+            <button class="switch" id="watch" type="button" role="switch" aria-checked="false" aria-labelledby="watchTitle"><span class="knob"></span></button>
+          </div>
+          <p class="watch-status" id="watchStatus" aria-live="polite" hidden></p>
+        </section>
+      </div>
+
+      <div class="col-results">
+        <div class="results-head">
+          <h2 class="h2" id="resultsTitle">Where to look</h2>
+          <p class="hint" id="resultsSub"></p>
+        </div>
+        <div class="cards" id="cards" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <section class="card history" aria-labelledby="histTitle">
+      <h2 class="h3" id="histTitle">This tab’s checks</h2>
+      <ol class="hist" id="hist"></ol>
+      <p class="hint" id="histEmpty">Nothing yet. Your last 20 checks show here until you close the tab.</p>
+    </section>
+
+    <section class="card how" aria-labelledby="howTitle">
+      <h2 class="h3" id="howTitle">How this works</h2>
+      <ul class="how-list">
+        <li><strong>Apple</strong> is a live check: when you tap, our server asks the same pickup service apple.com’s own page uses, for your model near your ZIP. Answers are shared for 5 minutes, so a crowd tapping does not hammer Apple.</li>
+        <li><strong>Best Buy</strong> is a live check through Best Buy’s official Products API, when it is connected. Until then it is a link.</li>
+        <li><strong>AT&amp;T, Verizon and T-Mobile</strong> are links. They have no public stock service and block automated checks, so we never ask them anything. Tap through, then mark what you saw so you remember when you last looked.</li>
+        <li><strong>Watching</strong> runs in this tab only, while it is open and on screen. There is no server timer and no push - close the tab and it stops.</li>
+        <li>Your ZIP, picks and notes stay on this device. Nothing is stored on our side, and there is no AI in here.</li>
+      </ul>
+      <p class="fine">Not affiliated with Apple, Best Buy, AT&amp;T, Verizon or T-Mobile. Stock changes fast - a store’s own page always has the last word.</p>
+    </section>
+  </main>
+
+  <div class="vh" id="live" aria-live="assertive"></div>
+
+  <script src="duohunt-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

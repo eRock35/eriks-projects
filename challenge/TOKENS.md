@@ -178,5 +178,6 @@ Visitors' AI use in the lab on 2026-10-20 to 2026-10-22: not read (no deploy cre
 | App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
 |---|---|---|---|---|---|---|---|
 | Pawlog | one builder agent | 37.8M | 36.9M | 216K | 1 | 44 min | exact |
+| Duo Hunt (Erik's request) | one builder agent | 15.7M | 15.4M | 95K | 1 | 21 min | exact |
 
 Visitors' AI use in the lab on 2026-10-23: not read (no deploy credential in this run's container).

@@ -165,9 +165,13 @@
       "inputs": "e2f6a2241697333b",
       "v": "421233ae4a"
     },
+    "duohunt": {
+      "inputs": "2a536fb51a457108",
+      "v": "cb2d723df7"
+    },
     "lab": {
-      "inputs": "c115fe0427c0683e",
-      "v": "4c29adb343"
+      "inputs": "848c8d2cbcdd64ae",
+      "v": "e335f1835a"
     }
   }
 }

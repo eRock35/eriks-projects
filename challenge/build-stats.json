@@ -411,16 +411,26 @@
       "wallMs": 2652991,
       "exact": true,
       "note": "One builder agent."
+    },
+    "duohunt": {
+      "in": 15673274,
+      "cached": 15353482,
+      "out": 94719,
+      "agents": 1,
+      "agentMs": 1258558,
+      "wallMs": 1258558,
+      "exact": true,
+      "note": "One builder agent; built on Erik's own request."
     }
   },
   "totals": {
-    "in": 1514239304,
-    "cached": 1416257683,
-    "out": 9914015,
-    "agents": 170,
-    "agentMs": 110659365,
-    "wallMs": 107803069,
-    "apps": 41,
+    "in": 1529912578,
+    "cached": 1431611165,
+    "out": 10008734,
+    "agents": 171,
+    "agentMs": 111917923,
+    "wallMs": 109061627,
+    "apps": 42,
     "estimated": 32,
     "cachedShare": 0.9739
   }
