@@ -618,6 +618,20 @@ const APPS = [
     audience: 'Anyone hunting for an iPhone Duo in the US',
     status: 'testing',
   },
+  {
+    slug: 'proof',
+    name: 'Proof',
+    emoji: '\u{1F575}\u{FE0F}',
+    // Receipt green to ink blue. White text holds 7.3:1 and 8.6:1.
+    color: '#14633f',
+    color2: '#1f4f78',
+    dropped: '2026-10-25',
+    tagline: 'Did the agent actually do it? Check its claims against its own receipts.',
+    blurb: 'For engineers and leads running coding and ops agents - Claude Code, Codex, Cursor-style or their own tool-calling agent - who get a confident “Done! All tests pass” and need to know whether it is true before they merge. Built for a problem Friction keeps hearing: no way to tell whether an agent run actually did what it was asked. Drop the run - a Claude Code transcript, a messages export, a tool log, or the terminal output pasted - and Proof reads it on your device (nothing is uploaded), pulls every claim out of the agent’s summary and matches each one to the run’s own receipts: did a test run after the last edit, and what did it say; which files really changed; which errors it walked past; did that PR or deploy ever happen. Each claim is Backed, Partly, No evidence or Contradicted, with the exact steps and lines. It flags the tricks - a failing test skipped, a weakened assertion, an empty catch, a failure hidden with || true, a mock of the thing under test, a hard-coded expected value - and ends with a trust score, its reasons and the three things to check before merging, ready to paste into the PR. Add your own acceptance criteria and it checks those too; signed in, AI can give a second opinion on just the snippets you confirm.',
+    features: ['Every claim matched to the run’s own receipts, step by step', 'Catches skipped tests, stale test runs, swallowed errors and scope creep', 'Your acceptance criteria checked too - plus an AI second opinion', 'A trust score and what to check, ready to paste into the PR'],
+    audience: 'Engineers and leads running coding or ops agents',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

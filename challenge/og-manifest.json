@@ -169,9 +169,13 @@
       "inputs": "2a536fb51a457108",
       "v": "cb2d723df7"
     },
+    "proof": {
+      "inputs": "3acb49e5a2221492",
+      "v": "904543e336"
+    },
     "lab": {
-      "inputs": "848c8d2cbcdd64ae",
-      "v": "e335f1835a"
+      "inputs": "4e8d5defb0b4e89c",
+      "v": "bf22582f0e"
     }
   }
 }
