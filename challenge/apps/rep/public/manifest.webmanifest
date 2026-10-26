@@ -1,0 +1,10 @@
+{
+  "name": "Rep",
+  "short_name": "Rep",
+  "description": "Lift, log, beat last time. A strength log with last time's sets beside every set, a rest timer and a plate calculator.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#1d4ed8",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

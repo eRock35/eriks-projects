@@ -632,6 +632,20 @@ const APPS = [
     audience: 'Engineers and leads running coding or ops agents',
     status: 'testing',
   },
+  {
+    slug: 'rep',
+    name: 'Rep',
+    emoji: '\u{1F3CB}\u{FE0F}',
+    // Bumper-plate blue to plate red. White text holds 6.7:1 and 6.5:1.
+    color: '#1d4ed8',
+    color2: '#b91c1c',
+    dropped: '2026-10-26',
+    tagline: 'Lift, log, beat last time.',
+    blurb: 'For anyone lifting at a gym or at home, beginner to intermediate, whose numbers live in a notes app or nowhere - so they guess what to put on the bar, rest too long or too short, and never see their progress. Rep puts last time’s sets greyed beside every set, with one rule for each lift: all reps done - try 82.5 kg; missed reps - stay; a third miss in a row - deload to 72.5 kg. Log a set with one thumb (big steppers, “same as last set” in one tap, an RPE if you track it), and the rest timer starts by itself, buzzes at zero and survives a locked screen. The plate calculator loads the bar in kg or lb from the plates you own - and gives the nearest weight below and above when yours can’t be made. PRs land as they happen (heaviest, most reps at a weight, estimated 1RM, volume), with an e1RM chart per lift, sets per muscle each week and a streak of weeks you hit your goal. Three starter routines, labelled as general templates; try a sample month first. Free, offline, no account; sign in to sync, and AI can plan your next four weeks from your numbers - never your name or notes.',
+    features: ['Last time’s sets beside every set, and what to try next', 'One-thumb logging and a rest timer that survives a locked screen', 'A plate calculator in kg or lb - and the nearest weight when it can’t be made', 'PRs as they happen, e1RM charts, sets per muscle and a weekly streak'],
+    audience: 'Anyone strength training at a gym or at home, beginner to intermediate',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

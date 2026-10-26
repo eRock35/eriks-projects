@@ -180,5 +180,6 @@ Visitors' AI use in the lab on 2026-10-20 to 2026-10-22: not read (no deploy cre
 | Pawlog | one builder agent | 37.8M | 36.9M | 216K | 1 | 44 min | exact |
 | Duo Hunt (Erik's request) | one builder agent | 15.7M | 15.4M | 95K | 1 | 21 min | exact |
 | Proof | one builder agent | 58.4M | 57.0M | 396K | 1 | 70 min | exact |
+| Rep | one builder agent | 58.6M | 57.2M | 336K | 1 | 63 min | exact |
 
-Visitors' AI use in the lab on 2026-10-23 and 2026-10-24: none (read 2026-10-25).
+Visitors' AI use in the lab on 2026-10-23 to 2026-10-25: none.

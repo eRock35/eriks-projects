@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Rep — lift, log, beat last time</title>
+  <meta name="description" content="A strength training log that works with one hand: last time's sets beside every set, a rest timer that survives a locked screen, a plate calculator, a beat-last-time suggestion for every lift, PRs and progress charts. Free, works offline, no account needed.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0d0f14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Rep">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Rep — Lift, log, beat last time.">
+  <meta property="og:description" content="For anyone lifting at a gym or at home, beginner to intermediate, whose numbers live in a notes app or nowhere - so they guess what to put on the bar, rest too long or too short, and never see their progress. Rep puts last time’s sets greyed beside every set, with one rule for ea">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/rep/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/rep.png?v=5cb9bb1d24">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Rep, drop #44 in the Challenge Lab: Lift, log, beat last time.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Rep — Lift, log, beat last time.">
+  <meta name="twitter:description" content="For anyone lifting at a gym or at home, beginner to intermediate, whose numbers live in a notes app or nowhere - so they guess what to put on the bar, rest too long or too short, and never see their progress. Rep puts last time’s sets greyed beside every set, with one rule for ea">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/rep.png?v=5cb9bb1d24">
+  <meta name="twitter:image:alt" content="Rep, drop #44 in the Challenge Lab: Lift, log, beat last time.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main">Skip to your log</a>
+  <header class="top" id="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="30" height="30"><rect x="2" y="11" width="4" height="10" rx="1.5" fill="currentColor"/><rect x="6" y="7" width="5" height="18" rx="2" fill="currentColor"/><rect x="11" y="14.5" width="10" height="3" rx="1.2" fill="currentColor"/><rect x="21" y="7" width="5" height="18" rx="2" fill="currentColor"/><rect x="26" y="11" width="4" height="10" rx="1.5" fill="currentColor"/></svg></span>Rep</a>
+    <nav class="top-links" aria-label="Account">
+      <button class="btn small ghost icon-btn" id="setBtn" type="button" data-act="settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="today" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.2h6l-1 8.3 8-10.7h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Today</span></button>
+      <button type="button" data-act="tab" data-tab="history"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8.5h8M8 12h8M8 15.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>History</span></button>
+      <button type="button" data-act="tab" data-tab="progress"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 19.5h17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4.5 15.5 9 11l3.5 3 7-7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19.5" cy="6.5" r="1.8" fill="currentColor"/></svg><span>Progress</span></button>
+      <button type="button" data-act="tab" data-tab="routines"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="2.5" width="6" height="4" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m8.5 12 1.8 1.8 3.4-3.6M8.5 17h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Routines</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap dk-wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="party" id="party" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="rep-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>
