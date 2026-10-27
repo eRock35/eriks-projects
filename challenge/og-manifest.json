@@ -177,9 +177,13 @@
       "inputs": "40fd1fd4820209fd",
       "v": "5cb9bb1d24"
     },
+    "canon": {
+      "inputs": "02b8e960f1639c55",
+      "v": "c14cb0ff89"
+    },
     "lab": {
-      "inputs": "6fbddc3b9b41138b",
-      "v": "61101a7d34"
+      "inputs": "6dd1172805c43a7f",
+      "v": "e54d2ee10a"
     }
   }
 }

@@ -1,0 +1,10 @@
+{
+  "name": "Canon",
+  "short_name": "Canon",
+  "description": "One definition of every metric - and a check on every AI answer that uses it.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e0f1a",
+  "theme_color": "#23206b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -646,6 +646,20 @@ const APPS = [
     audience: 'Anyone strength training at a gym or at home, beginner to intermediate',
     status: 'testing',
   },
+  {
+    slug: 'canon',
+    name: 'Canon',
+    emoji: '\u{1F4CF}',
+    // Ledger indigo to ink teal. White text holds 10.4:1 and 5.5:1.
+    color: '#3730a3',
+    color2: '#0f766e',
+    dropped: '2026-10-27',
+    tagline: 'One definition of every metric - and a check on every AI answer that uses it.',
+    blurb: 'For analytics and BI owners and data-savvy operators at small and mid-size companies whose teams now ask an AI for numbers - \u201crevenue last quarter\u201d - and get confident SQL that quietly counts refunds, test accounts or the wrong date. Built for a problem Friction keeps hearing: AI-written dashboards giving wrong answers without a maintained semantic layer. Write each metric down once: its other names, the measure, the filters that always apply, the date column and its time zone, the grain and what it can be split by, plus your tables and which ones fan out. Then paste the question and the SQL an AI (or a person) wrote, and Canon checks it on your device - nothing uploaded: does it sum the right column, keep out refunds and test orders (in any equivalent form, = false or NOT is_test), date by paid_at in New York time, cut off the last day with BETWEEN, count an order once per line after a join, use AVG where the canon divides, or group by something the metric does not allow. Each check is Matches, Missing, Different or Can\u2019t tell, with the SQL line and the definition side by side, one verdict line - \u201c2 problems: refunds included, test orders included\u201d - and a fix shown as a diff where it is safe. Export the canon as a Markdown glossary for your AI tool, dbt-style YAML or JSON, or share a read-only link with your team. Try it on a made-up coffee shop; sign in to sync, and AI can draft definitions from your schema or explain an answer in plain words.',
+    features: ['One written definition of every metric - measure, filters, date, time zone, grain', 'Paste the question and the SQL: each check side by side with the canon', 'Catches refunds, test rows, the wrong date, BETWEEN and join double counting - with a fix', 'Export for your AI tool (Markdown, dbt-style YAML, JSON) or share a read-only link'],
+    audience: 'Analytics and BI owners and data-savvy operators at small and mid-size companies',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

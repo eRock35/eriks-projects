@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Canon — one definition of every metric</title>
+  <meta name="description" content="Your team asks an AI for “revenue last quarter” and gets confident SQL that quietly counts refunds, test orders or the wrong date. Canon keeps one written definition of every metric - the measure, the filters that always apply, the date column and its time zone, the grain - and checks each answer’s SQL against it, line by line, on your device. Export the definitions for your AI tool, or share a read-only link with your team.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0e0f1a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f5fa" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Canon">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Canon — One definition of every metric - and a check on every AI answer that uses it.">
+  <meta property="og:description" content="For analytics and BI owners and data-savvy operators at small and mid-size companies whose teams now ask an AI for numbers - “revenue last quarter” - and get confident SQL that quietly counts refunds, test accounts or the wrong date. Built for a problem Friction keeps hearing: AI">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/canon/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/canon.png?v=c14cb0ff89">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Canon, drop #45 in the Challenge Lab: One definition of every metric - and a check on every AI answer that uses it.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Canon — One definition of every metric - and a check on every AI answer that uses it.">
+  <meta name="twitter:description" content="For analytics and BI owners and data-savvy operators at small and mid-size companies whose teams now ask an AI for numbers - “revenue last quarter” - and get confident SQL that quietly counts refunds, test accounts or the wrong date. Built for a problem Friction keeps hearing: AI">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/canon.png?v=c14cb0ff89">
+  <meta name="twitter:image:alt" content="Canon, drop #45 in the Challenge Lab: One definition of every metric - and a check on every AI answer that uses it.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">📏</span>Canon</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Check</span></button>
+      <button type="button" data-act="tab" data-tab="canon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5L19 8v11.5H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Canon</span></button>
+      <button type="button" data-act="tab" data-tab="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 13v6h14v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Export &amp; share</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="canon-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>
