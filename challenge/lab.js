@@ -660,6 +660,20 @@ const APPS = [
     audience: 'Analytics and BI owners and data-savvy operators at small and mid-size companies',
     status: 'testing',
   },
+  {
+    slug: 'tada',
+    name: 'Tada',
+    emoji: '\u{1F389}',
+    // Sunrise orange to bedtime violet. White text holds 5.2:1 and 11.0:1.
+    color: '#c2410c',
+    color2: '#4c1d95',
+    dropped: '2026-10-28',
+    tagline: 'Routines your kids tap through - out the door on time, into bed without the battle.',
+    blurb: 'For parents and carers of children about 3 to 10, twice a day: the school-morning scramble and the bedtime battle, where the paper chart on the fridge has stopped working. Tada turns a routine into one big picture and one big Done! button at a time - pajamas on, brush your teeth, story time - with a gentle ring timer that never buzzes and never turns red (past time it just says “take your time”), a soft chime, read-aloud for children who don’t read yet, and a sticker at the end. Pick morning or bedtime, a name and an age, and when lights go out or the bus comes: ready-made steps for that age appear with the start time worked back for you - “Start by 7:05 PM”. The parent view shows each child at a glance (“Maya: 4 of 6 - on track for 8:05”), with an editor for steps, pictures, minutes, order and days, a sticker book with a gentle streak, a fridge chart to print and a weekly “Start bedtime” in your calendar. Up to four children, side by side on a tablet. The clocks go back on Sunday: Tada spots the change itself and offers to ease bedtime 15 minutes a day over the four days before. Free, offline, nothing leaves the device; sign in to share it between your phone and the family tablet, and AI can build a routine from one sentence or turn a step into a game - never told your child’s name.',
+    features: ['One step at a time: a big picture, a big Done!, a sticker at the end', '“Start by 7:05 PM” worked back from lights-out or the school bus', 'Clocks changing? Bedtime eased 15 minutes a day, then put back', 'Up to four children, side by side on a tablet - plus a fridge chart and a calendar reminder'],
+    audience: 'Parents and carers of children about 3 to 10',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

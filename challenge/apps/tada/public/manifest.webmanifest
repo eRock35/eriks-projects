@@ -1,0 +1,10 @@
+{
+  "name": "Tada",
+  "short_name": "Tada",
+  "description": "Morning and bedtime routines your kids tap through - out the door on time, into bed without the battle.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8f0",
+  "theme_color": "#c2410c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
