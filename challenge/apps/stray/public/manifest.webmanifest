@@ -1,0 +1,10 @@
+{
+  "name": "Stray",
+  "short_name": "Stray",
+  "description": "Every stray payment home to the right account - with the reason it belongs there.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c1218",
+  "theme_color": "#0b4f6c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

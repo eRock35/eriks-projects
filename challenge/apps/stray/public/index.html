@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Stray — every stray payment home to the right account</title>
+  <meta name="description" content="Payments arrive with a wrong digit, a nickname or no reference at all, and sit in suspense. Stray reads your suspense list against your account list on your device - nothing is uploaded - and shows where each payment belongs and why: two digits swapped, the number hiding in the memo, OKAFOR WM for William Okafor, a co-borrower, two months at once, one check for a household's two loans. You accept each one, then export the posting file.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0c1218" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Stray">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Stray — Every stray payment home to the right account - with the reason it belongs there.">
+  <meta property="og:description" content="For loan servicing and cash-application teams at credit unions, community banks and auto and consumer lenders - and anyone whose customers pay without the right reference: property managers, schools, clubs, B2B receivables. Built for a problem Friction keeps hearing: payments tha">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/stray/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/stray.png?v=cc33cd6254">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Stray, drop #47 in the Challenge Lab: Every stray payment home to the right account - with the reason it belongs there.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Stray — Every stray payment home to the right account - with the reason it belongs there.">
+  <meta name="twitter:description" content="For loan servicing and cash-application teams at credit unions, community banks and auto and consumer lenders - and anyone whose customers pay without the right reference: property managers, schools, clubs, B2B receivables. Built for a problem Friction keeps hearing: payments tha">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/stray.png?v=cc33cd6254">
+  <meta name="twitter:image:alt" content="Stray, drop #47 in the Challenge Lab: Every stray payment home to the right account - with the reason it belongs there.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">🧭</span>Stray</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="settingsBtn" type="button" data-act="settings" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 13.5l1.6 1.2-1.9 3.3-1.9-.7a7.6 7.6 0 0 1-1.7 1l-.3 2h-3.8l-.3-2a7.6 7.6 0 0 1-1.7-1l-1.9.7-1.9-3.3 1.6-1.2a7.4 7.4 0 0 1 0-3l-1.6-1.2 1.9-3.3 1.9.7a7.6 7.6 0 0 1 1.7-1l.3-2h3.8l.3 2a7.6 7.6 0 0 1 1.7 1l1.9-.7 1.9 3.3-1.6 1.2a7.4 7.4 0 0 1 0 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="hide-sm">Settings</span></button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="queue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M17 16.5l1.8 1.8 3-3.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Queue</span></button>
+      <button type="button" data-act="tab" data-tab="files"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3.5v4h4M9 12h6M9 15.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Files</span></button>
+      <button type="button" data-act="tab" data-tab="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17v3h14v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Export</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="stray-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -185,9 +185,13 @@
       "inputs": "d6ac0ab93af54f27",
       "v": "2d4b785d4d"
     },
+    "stray": {
+      "inputs": "0a5fefb387ce51b6",
+      "v": "cc33cd6254"
+    },
     "lab": {
-      "inputs": "1fe6fe0d704bcec2",
-      "v": "4516a8107c"
+      "inputs": "e31e3bbd7786b9da",
+      "v": "24513e79b6"
     }
   }
 }

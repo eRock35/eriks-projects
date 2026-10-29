@@ -674,6 +674,20 @@ const APPS = [
     audience: 'Parents and carers of children about 3 to 10',
     status: 'testing',
   },
+  {
+    slug: 'stray',
+    name: 'Stray',
+    emoji: '\u{1F9ED}',
+    // Deep harbour blue to copper, a compass's two colours. White text holds 8.9:1 and 7.3:1.
+    color: '#0b4f6c',
+    color2: '#9a3412',
+    dropped: '2026-10-29',
+    tagline: 'Every stray payment home to the right account - with the reason it belongs there.',
+    blurb: 'For loan servicing and cash-application teams at credit unions, community banks and auto and consumer lenders - and anyone whose customers pay without the right reference: property managers, schools, clubs, B2B receivables. Built for a problem Friction keeps hearing: payments that can’t be matched to a loan account, held in suspense while the borrower thinks they paid. Load the suspense list and the account list (CSV or TSV, any columns - Stray guesses which is which and you check it), and Stray reads them on your device - nothing is uploaded - and scores every payment against every account: the account number exact, with leading zeros or dashes, one digit wrong or two digits swapped; the number hiding in the memo; the payer’s name in any order, by initial or nickname (“OKAFOR WM” is William Okafor), the co-borrower, a business paying for its owner; the amount as the scheduled payment, the past due, a late fee on top, two months at once or the payoff; and one check covering a household’s two loans, proposed as a split. Each payment is Match, Check, Split, Two possible or No match, with the reasons side by side: “Name matches; amount is the scheduled $412.37; account 104452 has two digits swapped from 104425”. A person accepts every one - J/K and A on a desktop, one thumb on a phone - while a meter fills and an ageing strip shows what has sat past your policy’s limit. Export a posting file for your servicing system, a research list and the day’s summary. Try it on a made-up credit union; sign in to keep your column layouts, and AI can draft the “which account is this for?” letter - told only the kind of letter, never a name or an amount.',
+    features: ['Account numbers a digit off or swapped, and the number hiding in the memo', 'Names in any order, initials, nicknames, co-borrowers and households', 'Match, Check, Split, Two possible or No match - with the reasons side by side', 'Read on your device, accepted one by one, exported as a posting file'],
+    audience: 'Loan servicing and cash-application teams at credit unions, banks and lenders',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
