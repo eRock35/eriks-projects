@@ -1,0 +1,10 @@
+{
+  "name": "Sorted",
+  "short_name": "Sorted",
+  "description": "Keep, sell, donate or toss - one swipe at a time.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1512",
+  "theme_color": "#0f6b52",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

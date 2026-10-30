@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sorted — keep, sell, donate or toss, one swipe at a time</title>
+  <meta name="description" content="Clearing out a closet, a garage, a kid's outgrown things or a whole home before a move? Swipe each thing: right to keep, left to toss, up to sell, down to donate. A 10-minute sprint keeps it moving, and each pile gets somewhere to go - listing text for the sell pile, bags for the charity shop, a link so friends can claim things first. Free, and it all stays on your phone.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f1512" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f6f1" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sorted">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Sorted — Keep, sell, donate or toss - one swipe at a time. Watch the clutter go and the cash add up.">
+  <meta property="og:description" content="For anyone clearing out a closet, a garage, a kid’s outgrown clothes and toys, or a whole home before a move - where it stalls on two things: deciding about every single thing, and the piles that never leave the house (the sell pile nobody lists, the donate bag that rides in the ">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/sorted/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/sorted.png?v=546c1651e2">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Sorted, drop #48 in the Challenge Lab: Keep, sell, donate or toss - one swipe at a time. Watch the clutter go and the cash add up.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sorted — Keep, sell, donate or toss - one swipe at a time. Watch the clutter go and the cash add up.">
+  <meta name="twitter:description" content="For anyone clearing out a closet, a garage, a kid’s outgrown clothes and toys, or a whole home before a move - where it stalls on two things: deciding about every single thing, and the piles that never leave the house (the sell pile nobody lists, the donate bag that rides in the ">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/sorted.png?v=546c1651e2">
+  <meta name="twitter:image:alt" content="Sorted, drop #48 in the Challenge Lab: Keep, sell, donate or toss - one swipe at a time. Watch the clutter go and the cash add up.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark emo" aria-hidden="true">🧺</span>Sorted</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5L12 5l8 6.5V20h-5.5v-5h-5v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Home</span></button>
+      <button type="button" data-act="tab" data-tab="sort"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 12h2M19.5 12h2M12 1.5v1.2M12 21.3v1.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Sort</span><b class="tab-badge" id="sortBadge" hidden></b></button>
+      <button type="button" data-act="tab" data-tab="piles"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 13.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Piles</span></button>
+      <button type="button" data-act="tab" data-tab="tally"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Tally</span></button>
+      <button type="button" data-act="tab" data-tab="grabs"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9" width="17" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 9h19M12 9v11M12 9c-1.5-4-6-4.5-6-2s4 2 6 2c2 0 6 .5 6-2s-4.5-2-6 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Grabs</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="sorted-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -184,5 +184,6 @@ Visitors' AI use in the lab on 2026-10-20 to 2026-10-22: not read (no deploy cre
 | Canon | one builder agent | 70.7M | 68.6M | 407K | 1 | 67 min | exact |
 | Tada | one builder agent | 89.2M | 88.1M | 343K | 1 | 68 min | exact |
 | Stray | one builder agent | 68.1M | 66.5M | 342K | 1 | 78 min | exact |
+| Sorted | one builder agent | 61.7M | 60.6M | 313K | 1 | 65 min | exact |
 
-Visitors' AI use in the lab on 2026-10-23 to 2026-10-28: none.
+Visitors' AI use in the lab on 2026-10-23 to 2026-10-29: none.

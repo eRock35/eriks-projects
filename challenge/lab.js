@@ -688,6 +688,20 @@ const APPS = [
     audience: 'Loan servicing and cash-application teams at credit unions, banks and lenders',
     status: 'testing',
   },
+  {
+    slug: 'sorted',
+    name: 'Sorted',
+    emoji: '\u{1F9FA}',
+    // Fresh-start green to donation plum. White text holds 6.5:1 and 8.0:1.
+    color: '#0f6b52',
+    color2: '#7a2f8f',
+    dropped: '2026-10-30',
+    tagline: 'Keep, sell, donate or toss - one swipe at a time. Watch the clutter go and the cash add up.',
+    blurb: 'For anyone clearing out a closet, a garage, a kid’s outgrown clothes and toys, or a whole home before a move - where it stalls on two things: deciding about every single thing, and the piles that never leave the house (the sell pile nobody lists, the donate bag that rides in the car boot for a month). Sorted makes the decision fast and playful: one big card at a time, swipe right to keep, left to toss, up to sell, down to donate, or tap Maybe - with buttons, arrow keys and Undo for anyone who would rather not swipe. Start a 10-minute sprint in one room (the clock pauses, never beeps), add things by name with a picture picked for you or by photo, and get a recap: “12 things in 10 minutes - 5 to donate, 3 to sell (about $85), 3 to toss, 1 kept”. Then each pile has somewhere to go: listing text in one tap, asking prices and a 15% drop after a week listed, money made; bags ticked off as they are dropped off, with your own estimated values for your records; plain hints for the toss pile; and a Maybe box that comes back in 30 days, with a calendar reminder. Before anything goes, send friends an “Up for grabs” link - they claim what they want with a first name, no account, first come first served. A tally by week and by room, a gentle streak, and a recap image to share. Try a made-up closet first; it is free and stays on your phone. Sign in to make a link, and AI can estimate what something could sell for from its photo.',
+    features: ['One swipe per thing: keep, toss, sell, donate - or the Maybe box', 'A 10-minute sprint per room, with a recap of what is leaving', 'Listing text, price drops, donation bags and toss hints - so it actually goes', '“Up for grabs”: friends claim things first, no account needed'],
+    audience: 'Anyone clearing out a closet, a garage, a kid’s room or a home before a move',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
