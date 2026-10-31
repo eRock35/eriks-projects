@@ -186,4 +186,10 @@ Visitors' AI use in the lab on 2026-10-20 to 2026-10-22: not read (no deploy cre
 | Stray | one builder agent | 68.1M | 66.5M | 342K | 1 | 78 min | exact |
 | Sorted | one builder agent | 61.7M | 60.6M | 313K | 1 | 65 min | exact |
 
-Visitors' AI use in the lab on 2026-10-23 to 2026-10-29: none.
+Visitors' AI use in the lab on 2026-10-23 to 2026-10-30: none.
+
+## Week 7 (2026-10-31 to 2026-11-06)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Haul (Halloween) | one builder agent | 45.4M | 44.5M | 241K | 1 | 47 min | exact |

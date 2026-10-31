@@ -1,6 +1,6 @@
 {
   "_about": "Written by scripts/token-ledger.py --stats. Apps only; totals are the sum of the apps. See challenge/TOKENS.md.",
-  "updated": "2026-10-30",
+  "updated": "2026-10-31",
   "apps": {
     "spar": {
       "in": 30000000,
@@ -481,17 +481,27 @@
       "wallMs": 3877045,
       "exact": true,
       "note": "One builder agent."
+    },
+    "haul": {
+      "in": 45424217,
+      "cached": 44535688,
+      "out": 240992,
+      "agents": 1,
+      "agentMs": 2811527,
+      "wallMs": 2811527,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 1936638388,
-    "cached": 1829677294,
-    "out": 12145378,
-    "agents": 177,
-    "agentMs": 136616475,
-    "wallMs": 133760179,
-    "apps": 48,
+    "in": 1982062605,
+    "cached": 1874212982,
+    "out": 12386370,
+    "agents": 178,
+    "agentMs": 139428002,
+    "wallMs": 136571706,
+    "apps": 49,
     "estimated": 32,
-    "cachedShare": 0.975
+    "cachedShare": 0.9751
   }
 }

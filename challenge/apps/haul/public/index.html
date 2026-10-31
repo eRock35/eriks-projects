@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Haul — tip out the bag, count it, trade it fair, make it last</title>
+  <meta name="description" content="Halloween night: tip out the trick-or-treat bags and count every piece with big tap-to-count tiles. Trade fair between siblings with a meter that says when it's even, plan how many a day so the stash lasts, set aside what your family can't have, and share a haul card. Free, no sign-in, and it all stays on this device.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#140a22" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fff6ec" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Haul">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Haul — Tip out the bag. Count it, trade it fair - and make it last.">
+  <meta property="og:description" content="The lab’s Halloween drop, for tonight and the days after: every trick-or-treating house ends the night with the bags tipped onto the floor, siblings haggling over a peanut butter cup, a “how many a day?” negotiation - and a stash that is mysteriously gone by Tuesday. Haul turns a">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/haul/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/haul.png?v=b0d3b6d771">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Haul, drop #49 in the Challenge Lab: Tip out the bag. Count it, trade it fair - and make it last.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Haul — Tip out the bag. Count it, trade it fair - and make it last.">
+  <meta name="twitter:description" content="The lab’s Halloween drop, for tonight and the days after: every trick-or-treating house ends the night with the bags tipped onto the floor, siblings haggling over a peanut butter cup, a “how many a day?” negotiation - and a stash that is mysteriously gone by Tuesday. Haul turns a">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/haul.png?v=b0d3b6d771">
+  <meta name="twitter:image:alt" content="Haul, drop #49 in the Challenge Lab: Tip out the bag. Count it, trade it fair - and make it last.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark emo" aria-hidden="true">🎃</span>Haul</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5L12 5l8 6.5V20h-5.5v-5h-5v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Home</span></button>
+      <button type="button" data-act="tab" data-tab="count"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Count</span></button>
+      <button type="button" data-act="tab" data-tab="trade"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Trade</span></button>
+      <button type="button" data-act="tab" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Make it last</span></button>
+      <button type="button" data-act="tab" data-tab="card"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8.2l1.3 2.6 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4z" fill="currentColor"/></svg><span>Card</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="haul-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

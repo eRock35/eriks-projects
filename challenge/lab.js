@@ -702,6 +702,20 @@ const APPS = [
     audience: 'Anyone clearing out a closet, a garage, a kid’s room or a home before a move',
     status: 'testing',
   },
+  {
+    slug: 'haul',
+    name: 'Haul',
+    emoji: '\u{1F383}',
+    // Pumpkin orange to night purple, the Halloween drop. White text holds 5.7:1 and 14.4:1.
+    color: '#b83d0b',
+    color2: '#3d0f66',
+    dropped: '2026-10-31',
+    tagline: 'Tip out the bag. Count it, trade it fair - and make it last.',
+    blurb: 'The lab’s Halloween drop, for tonight and the days after: every trick-or-treating house ends the night with the bags tipped onto the floor, siblings haggling over a peanut butter cup, a “how many a day?” negotiation - and a stash that is mysteriously gone by Tuesday. Haul turns all of it into a game. Add each trick-or-treater with a first name or nickname and a costume, then count with big tap-to-count tiles for 48 common treats (chocolate, fruity and sour, gummies, hard candy, the full-size bars everyone talks about, and the not-candy - stickers, pencils, toothbrushes, raisins), with a running total, a bar by category, search, an Other tile and Undo. Fair trade puts two children on one screen: each taps what they offer and a meter weighs it by a simple points tier the family can change - “Leo’s 2 peanut butter cups for Maya’s 6 lollipops is fair” - with a hint to even it up, a swap, and a trade log. Make it last sets pieces a day and which days, says “The stash lasts until Sun Nov 22”, and keeps count with an Eat one button; an optional Switch Witch or buyback says what trading in 20 pieces is worth. Set aside what your family can’t have - your own choices, no allergy claims, always read the label - and it stays out of the plan and out of trades. Then share a haul card: total, full-size, top three, rarest find and a title like “The Chocolate Baron”, drawn on the phone. Try a made-up haul first; it is free, needs no sign-in and stays on the device. Sign in and AI can count it from one photo of the candy spread out - shown as numbers you check before anything changes.',
+    features: ['Big tap-to-count tiles for 48 treats, by category, with Undo', 'A fair-trade meter for siblings: “2 peanut butter cups for 6 lollipops is fair”', 'Pieces a day, an Eat one button and the day the stash runs out', 'Set aside for allergies, and a haul card to share - “The Chocolate Baron”'],
+    audience: 'Families with trick-or-treaters, on Halloween night and the days after',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

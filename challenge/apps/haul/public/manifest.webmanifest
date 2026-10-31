@@ -1,0 +1,10 @@
+{
+  "name": "Haul",
+  "short_name": "Haul",
+  "description": "Tip out the bag. Count it, trade it fair - and make it last.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#140a22",
+  "theme_color": "#b83d0b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
