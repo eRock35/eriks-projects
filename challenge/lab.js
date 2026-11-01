@@ -716,6 +716,20 @@ const APPS = [
     audience: 'Families with trick-or-treaters, on Halloween night and the days after',
     status: 'testing',
   },
+  {
+    slug: 'sieve',
+    name: 'Sieve',
+    emoji: '\u{1F6E1}\u{FE0F}',
+    // Deep violet to gold, what is left in the pan after sieving. White text holds 8.7:1 and 6.9:1.
+    color: '#5b21b6',
+    color2: '#854d0e',
+    dropped: '2026-11-01',
+    tagline: 'Tune your agent’s guardrails until nothing leaks - and nothing legit gets blocked.',
+    blurb: 'For engineers, security and platform people shipping AI agents - internal or customer-facing - at small and mid-size companies. Built for a problem Friction keeps hearing: guardrails that either leak data or break the agent. The filters on what goes in to an agent and comes out are usually a pile of regexes nobody measures: too loose and a card number or an API key leaks, too tight and the agent refuses an order number that looks like a card. Sieve is the way out: a labelled test set and a score, re-run on every change. Switch on and tune the built-in detectors (cards with the Luhn check, IBANs with mod-97, SSNs with the impossible ranges skipped, emails, phones, AWS, GitHub, Slack and Stripe keys, private keys, JWTs, IPv4), write your own regexes and keyword lists, allow-list what is yours, and choose redact, block or flag for input, output or both. Every message in the set comes back Leak, Break, Partial or Correct, side by side with what was expected; the scoreboard (“Leaks 3 · Breaks 5 · 32 correct of 40”) and a chart of both move as you type. Suggested fixes are simulated first - “Turn on the Luhn check: −2 breaks, no new leaks” - and applied in one tap. Then Attack my rules rewrites every caught value ten ways people hide it (full-width digits, zero-width characters, look-alike letters, base64, words…) and shows what gets through, and what a normaliser would buy. Your regexes run in a background worker with a time limit, so a catastrophic one is stopped and named, never freezing the page. Test cases never leave the device. Try a made-up support agent’s naive rules and fix them to zero; sign in to keep your rule set across devices, and AI can write tricky test cases - told only the kind and one sentence about your agent.',
+    features: ['Leak, Break or Correct for every message, with the score re-run as you type', 'Fixes simulated before you apply them: “−2 breaks, no new leaks”', 'Attack my rules: ten evasion tricks, and what a normaliser buys', 'Your regexes in a worker with a time limit - on your device, nothing uploaded'],
+    audience: 'Engineers, security and platform teams shipping AI agents',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

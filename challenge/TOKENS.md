@@ -193,3 +193,6 @@ Visitors' AI use in the lab on 2026-10-23 to 2026-10-30: none.
 | App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
 |---|---|---|---|---|---|---|---|
 | Haul (Halloween) | one builder agent | 45.4M | 44.5M | 241K | 1 | 47 min | exact |
+| Sieve | one builder agent | 56.2M | 54.6M | 352K | 1 | 61 min | exact |
+
+Visitors' AI use in the lab on 2026-10-31: none.

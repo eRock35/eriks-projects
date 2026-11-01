@@ -1,0 +1,10 @@
+{
+  "name": "Sieve",
+  "short_name": "Sieve",
+  "description": "Tune your agent's guardrails until nothing leaks - and nothing legit gets blocked.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e0b1a",
+  "theme_color": "#5b21b6",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
