@@ -1,0 +1,10 @@
+{
+  "name": "Takeback",
+  "short_name": "Takeback",
+  "description": "Never miss a return window - and make sure the refund actually lands.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#11141c",
+  "theme_color": "#1e40af",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -730,6 +730,20 @@ const APPS = [
     audience: 'Engineers, security and platform teams shipping AI agents',
     status: 'testing',
   },
+  {
+    slug: 'takeback',
+    name: 'Takeback',
+    emoji: '\u21A9\uFE0F',
+    // Cobalt to raspberry, the return arrow's two colours. White text holds 8.7:1 and 6.0:1.
+    color: '#1e40af',
+    color2: '#be185d',
+    dropped: '2026-11-02',
+    tagline: 'Never miss a return window - and make sure the refund actually lands.',
+    blurb: 'For anyone who shops online or in stores - especially through the holidays - and has a “should I send this back?” pile, a return label they never printed, or a refund they never checked arrived. Return windows quietly close, and refunds go missing without anyone noticing. Takeback keeps both in view. Add a purchase in seconds - the store (with the ones you have used before one tap away), what you bought and the price, several items from one order at once - and pick the return window from the receipt: 14, 30, 60 or 90 days, or “until a date” for the longer holiday windows many stores run. Takeback never guesses a store’s policy. Everything is sorted by what needs you soonest - “Return by Fri Nov 6 · 4 days left”, amber under a week, red under two days - with Keep it and Send it back one tap away. Sending it back is a checklist that ends with the money: return started (with the store’s returns page), label printed, packed, dropped off (keep a photo of the drop-off receipt), then a refund expected ten business days later. The refund watch flags the one that never came - “No refund yet from Juniper Outfitters - 4 days late” - with what to do and a polite message to send them. Add reminders to your calendar for three days before and the morning of, note what you learned about each store, export it all as a spreadsheet, and see your money tally: “$642 recovered this year · $214 still returnable” - with a recap image to share. Try a made-up list first; it is free, needs no sign-in and stays on your phone. Sign in to sync a phone and a laptop, and AI can read a receipt or order email from one photo - shown for you to check before anything is added.',
+    features: ['A countdown on every purchase: amber under a week, red under two days', 'Keep it or send it back - a checklist from label to drop-off', 'A refund watch that flags the refund that never came', 'Calendar reminders, store notes and a yearly money tally'],
+    audience: 'Anyone with a “should I send this back?” pile, especially through the holidays',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

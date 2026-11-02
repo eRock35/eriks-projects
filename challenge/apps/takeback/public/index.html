@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Takeback — never miss a return window, and make sure the refund lands</title>
+  <meta name="description" content="Bought something you might send back? Add it in seconds with its return window, and Takeback counts down the days, walks you through the return (label, packed, dropped off) and watches for the refund - flagging the one that never arrived. Free, no sign-in, and it all stays on your phone.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#11141c" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f6fa" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Takeback">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Takeback — Never miss a return window - and make sure the refund actually lands.">
+  <meta property="og:description" content="For anyone who shops online or in stores - especially through the holidays - and has a “should I send this back?” pile, a return label they never printed, or a refund they never checked arrived. Return windows quietly close, and refunds go missing without anyone noticing. Takebac">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/takeback/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/takeback.png?v=33a570788b">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Takeback, drop #51 in the Challenge Lab: Never miss a return window - and make sure the refund actually lands.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Takeback — Never miss a return window - and make sure the refund actually lands.">
+  <meta name="twitter:description" content="For anyone who shops online or in stores - especially through the holidays - and has a “should I send this back?” pile, a return label they never printed, or a refund they never checked arrived. Return windows quietly close, and refunds go missing without anyone noticing. Takebac">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/takeback.png?v=33a570788b">
+  <meta name="twitter:image:alt" content="Takeback, drop #51 in the Challenge Lab: Never miss a return window - and make sure the refund actually lands.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M13 7L6 13.5l7 6.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 13.5h12.5a6.5 6.5 0 010 13H14" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg></span>Takeback</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5L4 10l5.5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 10h10a5 5 0 010 10H11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Returns</span><b class="tab-badge" id="homeBadge" hidden></b></button>
+      <button type="button" data-act="tab" data-tab="add"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Add</span></button>
+      <button type="button" data-act="tab" data-tab="money"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Money</span></button>
+      <button type="button" data-act="tab" data-tab="stores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5L5.5 4h13L20 9.5M4 9.5h16M4 9.5c0 1.7 1.3 3 3 3s2.5-1.3 2.5-3c0 1.7 1.1 3 2.5 3s2.5-1.3 2.5-3c0 1.7 1.3 3 2.5 3s3-1.3 3-3M5.5 12.3V20h13v-7.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><span>Stores</span></button>
+      <button type="button" data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Settings</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="takeback-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>
