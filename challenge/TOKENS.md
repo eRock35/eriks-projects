@@ -195,5 +195,6 @@ Visitors' AI use in the lab on 2026-10-23 to 2026-10-30: none.
 | Haul (Halloween) | one builder agent | 45.4M | 44.5M | 241K | 1 | 47 min | exact |
 | Sieve | one builder agent | 56.2M | 54.6M | 352K | 1 | 61 min | exact |
 | Takeback | one builder agent | 55.5M | 54.6M | 249K | 1 | 54 min | exact |
+| Lastday | one builder agent | 79.6M | 78.0M | 377K | 1 | 70 min | exact |
 
-Visitors' AI use in the lab on 2026-10-31 to 2026-11-01: none.
+Visitors' AI use in the lab on 2026-10-31 to 2026-11-02: none.

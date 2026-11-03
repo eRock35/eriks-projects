@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lastday — when someone leaves, every account leaves with them</title>
+  <meta name="description" content="Disabling someone in the identity provider does not reach apps that are not on single sign-on, does not end live sessions or API tokens, and does not reclaim the licence - so leavers keep access for months. Lastday finds the accounts left behind from your identity provider's export and each app's user list, and turns a leaver request into a timed checklist with evidence. Everything runs on your device; nothing is uploaded.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0f0d1a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f4f9" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Lastday">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Lastday — When someone leaves, every account leaves with them.">
+  <meta property="og:description" content="For IT managers, MSP technicians and office managers at small and mid-size companies who handle leavers. Built for two problems Friction keeps hearing: removing someone from the identity provider leaves orphaned accounts and live sessions in apps, and leaver requests arrive as pr">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/lastday/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lastday.png?v=4dba0458cc">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Lastday, drop #52 in the Challenge Lab: When someone leaves, every account leaves with them.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Lastday — When someone leaves, every account leaves with them.">
+  <meta name="twitter:description" content="For IT managers, MSP technicians and office managers at small and mid-size companies who handle leavers. Built for two problems Friction keeps hearing: removing someone from the identity provider leaves orphaned accounts and live sessions in apps, and leaver requests arrive as pr">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lastday.png?v=4dba0458cc">
+  <meta name="twitter:image:alt" content="Lastday, drop #52 in the Challenge Lab: When someone leaves, every account leaves with them.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">🚪</span>Lastday</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="find"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15 15l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Orphans</span></button>
+      <button type="button" data-act="tab" data-tab="people"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c.8-3.4 3.2-5 6-5s5.2 1.6 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 5.4a3.2 3.2 0 0 1 0 6M18.5 14.6c1.3.7 2.1 2.2 2.5 4.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>People</span></button>
+      <button type="button" data-act="tab" data-tab="leavers"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 4.5V3h6v1.5M8.5 11l2 2 4-4M8.5 16.5h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Leavers</span></button>
+      <button type="button" data-act="tab" data-tab="systems"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="6" rx="1.8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="14" width="17" height="6" rx="1.8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 7h.01M7 17h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><span>Systems</span></button>
+      <button type="button" data-act="tab" data-tab="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17v3h14v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Export</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="lastday-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

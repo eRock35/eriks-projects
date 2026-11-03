@@ -744,6 +744,21 @@ const APPS = [
     audience: 'Anyone with a “should I send this back?” pile, especially through the holidays',
     status: 'testing',
   },
+  {
+    slug: 'lastday',
+    name: 'Lastday',
+    emoji: '\u{1F6AA}',
+    // Dusk indigo to the last ember: Firstday's sunrise (rust to indigo)
+    // run backwards, as a sunset. White text holds 11.4:1 and 7.3:1.
+    color: '#312e81',
+    color2: '#9a3412',
+    dropped: '2026-11-03',
+    tagline: 'When someone leaves, every account leaves with them.',
+    blurb: 'For IT managers, MSP technicians and office managers at small and mid-size companies who handle leavers. Built for two problems Friction keeps hearing: removing someone from the identity provider leaves orphaned accounts and live sessions in apps, and leaver requests arrive as prose that gets re-typed into a ticket. Disabling someone in Okta, Entra ID or Google Workspace does not reach apps that are not on single sign-on, does not end live sessions or API tokens, and does not give the licence back - so leavers keep access for months, and nobody can prove otherwise. Drop in your identity provider’s user export and each app’s user list - read on your device, never uploaded - and Lastday matches them by address (case, plus-addressing and your alias domains folded) and then by name, flagged for you to check. Every app account comes back Orphan, Suspended in the identity provider but active here, External, Shared or service, Dormant or OK, admins with no active person behind them first: “7 orphaned accounts in 4 apps · 2 are admins · oldest leaver: 94 days”, and a per-person view - “Jordan Reyes: suspended in Okta since Aug 1 - still active in Accounting (admin), File share, Video meetings”. Then paste the leaver email - “Sam’s last day is Friday, keep their mailbox for the office manager” - and Lastday reads it into the leaver’s details, each with the words it came from, asks about what is missing, and builds a timed checklist from your system list: before the last day, at the moment they leave (or the moment of notice, when it is involuntary), within 24 hours and within 30 days, with the apps it found them in pre-filled. Tick each step with who did it, when and the evidence, then export it as CSV, JSON for your PSA, or Markdown for the ticket. Try a made-up dental practice; it is free and needs no sign-in. Sign in to keep your system list across devices, and AI can read a messy request - masked on your device first, so it never sees a name, an address or a phone number.',
+    features: ['Orphaned accounts found from your exports - admins first, on your device', 'A per-person view: who left, and everything they can still open', 'A pasted leaver email read into a timed checklist, every answer sourced', 'Who did each step, when and the evidence - out as CSV, JSON or Markdown'],
+    audience: 'IT managers, MSP technicians and office managers who handle leavers',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
