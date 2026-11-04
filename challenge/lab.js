@@ -759,6 +759,20 @@ const APPS = [
     audience: 'IT managers, MSP technicians and office managers who handle leavers',
     status: 'testing',
   },
+  {
+    slug: 'again',
+    name: 'Again',
+    emoji: '\u{1F35D}',
+    // Tomato to deep teal - the sauce and the plate. White text holds 6.6:1 and 7.9:1.
+    color: '#b4231a',
+    color2: '#0e5a63',
+    dropped: '2026-11-04',
+    tagline: 'Remember what you loved - and order it again.',
+    blurb: 'For anyone who eats out and forgets what was good last time - “what did we get here that we loved?”, “which one was the soggy fries?” - and anyone whose friends keep recommending dishes they then forget. Notes apps and photo rolls are where this memory goes to die. Again keeps it in one place, on your phone. Log a visit in seconds: pick the place (or type a new one, with its neighbourhood, city and cuisine), type each dish and tap how it was - ❤️ Order again, 👍 Fine or 👎 Skip - with a one-line note like “ask for it spicy”, the price, who you were with and a photo that never leaves the phone. Next time, search the place - “orzolino”, “hickory and hush”, even a typo - and get one big card: what to order again (biggest, the ones you keep ordering first), what was fine, what to skip and why, the last visit and who was there, and what friends said to try there. Want to try keeps every recommendation with who said it and when - “the mole at Casa Lunaria - from Priya” - and one tap after you try it says “Priya was right ❤️”. Browse by city and cuisine, see every ❤️ in Riverton, search for anything with short rib, and see the year so far: places tried, your favourite cuisine, the dish you order again most. Make a “My top dishes in Riverton” card to send, drawn on the phone, and export it all as JSON or CSV. Try a made-up list of ten places first; it is free, needs no sign-in and stays on your phone. Sign in to sync a phone and a laptop, to send a friend a read-only link to your ❤️ list for a city (they save dishes to their own Want to try with no account), and AI can read a menu from one photo - and, if you ask, pick up to three dishes from it based on what you loved and skipped elsewhere.',
+    features: ['“I’m here”: one big card - order again, fine, skip - with the last visit', 'Log a visit in seconds: one tap per dish, ❤️ 👍 or 👎', 'Want to try: friends’ picks with who said it - “Priya was right ❤️”', 'Every ❤️ in a city, a share card, and a link friends open with no account'],
+    audience: 'Anyone who eats out and forgets what was good last time',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

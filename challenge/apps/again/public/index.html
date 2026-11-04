@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Again — remember what you loved, and order it again</title>
+  <meta name="description" content="What did we get here that we loved? Log a dish in two taps - order again, fine or skip - and next time you are there, Again shows you what to get and what to skip, with what friends recommended. Free, no sign-in, and it all stays on your phone.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#15120f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#faf7f3" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Again">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Again — Remember what you loved - and order it again.">
+  <meta property="og:description" content="For anyone who eats out and forgets what was good last time - “what did we get here that we loved?”, “which one was the soggy fries?” - and anyone whose friends keep recommending dishes they then forget. Notes apps and photo rolls are where this memory goes to die. Again keeps it">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/again/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/again.png?v=8c7efea149">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Again, drop #53 in the Challenge Lab: Remember what you loved - and order it again.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Again — Remember what you loved - and order it again.">
+  <meta name="twitter:description" content="For anyone who eats out and forgets what was good last time - “what did we get here that we loved?”, “which one was the soggy fries?” - and anyone whose friends keep recommending dishes they then forget. Notes apps and photo rolls are where this memory goes to die. Again keeps it">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/again.png?v=8c7efea149">
+  <meta name="twitter:image:alt" content="Again, drop #53 in the Challenge Lab: Remember what you loved - and order it again.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip-link" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 25c-7-5-10-8.5-10-12.5C6 9.5 8.3 7.5 11 7.5c2 0 4 1.2 5 3 1-1.8 3-3 5-3 2.7 0 5 2 5 5 0 4-3 7.5-10 12.5z" fill="currentColor"/></svg></span>Again</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.1-6.5-11a6.5 6.5 0 0113 0c0 4.9-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>I’m here</span></button>
+      <button type="button" data-act="tab" data-tab="log"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Log</span></button>
+      <button type="button" data-act="tab" data-tab="want"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Want to try</span><b class="tab-badge" id="wantBadge" hidden></b></button>
+      <button type="button" data-act="tab" data-tab="browse"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="4" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="13" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Browse</span></button>
+      <button type="button" data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Settings</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="again-core.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>
