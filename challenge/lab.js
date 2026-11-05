@@ -773,6 +773,23 @@ const APPS = [
     audience: 'Anyone who eats out and forgets what was good last time',
     status: 'testing',
   },
+  {
+    slug: 'feedfix',
+    name: 'Feedfix',
+    emoji: '\u{1FA79}',
+    // Ledger green to the auditor's magenta pen - a long way from the
+    // newest cards (Again's tomato and teal, Lastday's indigo and ember,
+    // Takeback's cobalt and raspberry, Sieve's violet and gold). White text
+    // holds 6.6:1 and 7.4:1.
+    color: '#1b6b2a',
+    color2: '#a3136a',
+    dropped: '2026-11-05',
+    tagline: 'Your bank file imported zero rows? Find out why - and fix it.',
+    blurb: 'For bookkeepers, accountants and small-business owners who import bank statement files into QuickBooks Online, Xero, FreeAgent, Wave and the like when the bank feed is broken or missing. Importers turn a file away for reasons nobody can see - an invisible byte-order mark, semicolons instead of commas, the bank’s name and the period above the header, a closing-balance row, 03/04 dates that could be either way round, amounts written 1.234,56 or (84.12), two transactions sharing one FITID - and say only “0 transactions imported”, so people re-type the statement by hand. Drop the CSV, TSV, OFX, QFX or QIF file - read on your device, never uploaded - and Feedfix names every problem with its severity (Blocks import, Will import wrong, Worth knowing), the exact line and a before and after, asks the one question it cannot answer alone (day/month or month/day? with both readings, and the one that keeps the statement in order), checks the running balance row by row for a missing transaction, and flags duplicates without ever removing them silently. Pick your software - QuickBooks Online 3- or 4-column, Xero, a generic ISO-dated CSV or a rebuilt OFX 1.0.2 with unique FITIDs - and it writes the clean file, lists every fix with an Undo, reads the output back as a new file to prove it is clean, and shows the totals before and after: “19 rows · in €4,430.85 · out €1,796.90 · same as the original”. Export the fixed file, a masked diagnosis report and the duplicates list. Try three made-up broken files from Bank of Riverton, Lakeport Credit Union and Harbour Mutual; it is free and needs no sign-in. Sign in to keep your settings - which software you use, which way round each bank writes its dates - and AI can help read awkward columns from their names and shapes alone, never a value.',
+    features: ['Every problem named, with its line and a before and after', 'Day/month or month/day? Both readings, and the one that runs in order', 'A clean file for QuickBooks Online, Xero, ISO CSV or OFX 1.0.2', 'Re-checked, with totals before and after - same as the original'],
+    audience: 'Bookkeepers, accountants and small-business owners importing bank files',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

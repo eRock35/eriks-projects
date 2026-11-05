@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Feedfix — your bank file imported zero rows? Find out why, and fix it</title>
+  <meta name="description" content="Bank statement importers reject files for invisible reasons - a byte-order mark, semicolons, a title row, day/month dates, 1.234,56 amounts, duplicate transaction ids - and say only “0 transactions imported”. Feedfix reads your CSV, OFX, QFX or QIF file on your device, names the exact problem and line, and writes a clean file for QuickBooks Online, Xero or any importer. Nothing is uploaded.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0c1410" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f6f3" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Feedfix">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Feedfix — Your bank file imported zero rows? Find out why - and fix it.">
+  <meta property="og:description" content="For bookkeepers, accountants and small-business owners who import bank statement files into QuickBooks Online, Xero, FreeAgent, Wave and the like when the bank feed is broken or missing. Importers turn a file away for reasons nobody can see - an invisible byte-order mark, semicol">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/feedfix/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/feedfix.png?v=3a263ca188">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Feedfix, drop #54 in the Challenge Lab: Your bank file imported zero rows? Find out why - and fix it.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Feedfix — Your bank file imported zero rows? Find out why - and fix it.">
+  <meta name="twitter:description" content="For bookkeepers, accountants and small-business owners who import bank statement files into QuickBooks Online, Xero, FreeAgent, Wave and the like when the bank feed is broken or missing. Importers turn a file away for reasons nobody can see - an invisible byte-order mark, semicol">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/feedfix.png?v=3a263ca188">
+  <meta name="twitter:image:alt" content="Feedfix, drop #54 in the Challenge Lab: Your bank file imported zero rows? Find out why - and fix it.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">🩹</span>Feedfix</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="settingsBtn" type="button" data-act="settings">Settings</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.5l2 2 4-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Diagnosis</span></button>
+      <button type="button" data-act="tab" data-tab="fix"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9" width="17" height="6" rx="3" transform="rotate(-38 12 12)" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.6 10.2h.01M13.4 13.8h.01M10.6 13.8h.01M13.4 10.2h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Fix</span></button>
+      <button type="button" data-act="tab" data-tab="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17v3h14v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Export</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="dropcover" id="dropcover" hidden><div><b>Drop it to check it</b><span>Read on this device, never uploaded</span></div></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="feedfix-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>
