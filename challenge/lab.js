@@ -790,6 +790,23 @@ const APPS = [
     audience: 'Bookkeepers, accountants and small-business owners importing bank files',
     status: 'testing',
   },
+  {
+    slug: 'chapter',
+    name: 'Chapter',
+    emoji: '\u{1F516}',
+    // Aubergine cloth to a walnut shelf - a bound book and where it lives.
+    // Well away from the newest cards (Feedfix's green and magenta, Again's
+    // tomato and teal, Lastday's indigo and ember, Takeback's cobalt and
+    // raspberry). White text holds 10.5:1 and 7.4:1.
+    color: '#5b2a6e',
+    color2: '#7a4a1c',
+    dropped: '2026-11-06',
+    tagline: 'A book club that keeps up - and never spoils the ending.',
+    blurb: 'For book clubs of friends, neighbours, colleagues and families - especially the ones where people read at different speeds and the group chat ruins the twist. Every club has the same three problems: nobody knows who has read how far, the fast reader spoils it in the chat, and “what next?” becomes a forty-message thread. Chapter solves all three, free and with no accounts. Start a club with the book and its chapters, share a six-letter code, and friends join with a first name and an emoji. Everyone moves their bookmark as they read, and the board shows the whole club along the book - “Maya is 3 chapters ahead of you” - with the next meeting as the finish line and a nudge when you fall behind: “read 4 chapters a day to reach chapter 42 by Thu”. Notes, reactions and discussion questions are tagged with the chapter they are about, and stay locked until you have read that far - “4 notes waiting past chapter 18 🔒” - then open with a small reveal when you move your bookmark. The server never sends a note’s words to anyone who has not reached it. Plan the meetup with a place or a call link, RSVPs and a calendar file; nominate what to read next and tap every book you would read, with a clear winner and the tie-break shown; and keep a shelf of every book you have finished together, with each reader’s stars and the club average - plus a card to share, “Our club finished it - 4.2★ avg”, drawn on your phone. Try a made-up club reading Pride and Prejudice first. Sign in only if you want: to keep your clubs on your account across devices, and to have AI suggest discussion questions for the chapters you have read - told the title, author and chapter range and nothing else.',
+    features: ['A board of bookmarks: who is where, and “read 2 a day to finish by Thu”', 'Notes locked by chapter until you get there - enforced by the server', 'What’s next: approval voting with a clear winner and the tie-break shown', 'Meetups with RSVPs and a calendar file, and a shelf of club ratings'],
+    audience: 'Book clubs of friends, neighbours, colleagues and families',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

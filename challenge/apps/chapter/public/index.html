@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chapter — a book club that keeps up, and never spoils the ending</title>
+  <meta name="description" content="See who has read how far, share notes that stay locked until you reach that chapter, plan the meetup and vote on what to read next. Free, no accounts.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#16131a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Chapter">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Chapter — A book club that keeps up - and never spoils the ending.">
+  <meta property="og:description" content="For book clubs of friends, neighbours, colleagues and families - especially the ones where people read at different speeds and the group chat ruins the twist. Every club has the same three problems: nobody knows who has read how far, the fast reader spoils it in the chat, and “wh">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/chapter/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/chapter.png?v=c36aa5901f">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Chapter, drop #55 in the Challenge Lab: A book club that keeps up - and never spoils the ending.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Chapter — A book club that keeps up - and never spoils the ending.">
+  <meta name="twitter:description" content="For book clubs of friends, neighbours, colleagues and families - especially the ones where people read at different speeds and the group chat ruins the twist. Every club has the same three problems: nobody knows who has read how far, the fast reader spoils it in the chat, and “wh">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/chapter.png?v=c36aa5901f">
+  <meta name="twitter:image:alt" content="Chapter, drop #55 in the Challenge Lab: A book club that keeps up - and never spoils the ending.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip-link" href="#main">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 2.5h12v19l-6-4.6-6 4.6z" fill="currentColor"/></svg></span>Chapter</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill" id="offlinePill" hidden>✓ Opens offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Club" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="board"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M7 5.5h4v9l-2-1.6-2 1.6z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 9h4v9l-2-1.6-2 1.6z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><span>Board</span></button>
+      <button type="button" data-act="tab" data-tab="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5a2 2 0 012-2h11a2 2 0 012 2v9a2 2 0 01-2 2H10l-4.5 4v-4h-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Notes</span><b class="tab-badge" id="lockBadge" hidden></b></button>
+      <button type="button" data-act="tab" data-tab="meet"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Meet</span></button>
+      <button type="button" data-act="tab" data-tab="next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Next up</span></button>
+      <button type="button" data-act="tab" data-tab="shelf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17M6 20V6h3v14M10.5 20V4h3v16M15.5 20l-1-12.6 3-.4 1.4 12.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><span>Shelf</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="chapter-core.js"></script>
+  <script src="qr.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

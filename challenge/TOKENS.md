@@ -198,5 +198,6 @@ Visitors' AI use in the lab on 2026-10-23 to 2026-10-30: none.
 | Lastday | one builder agent | 79.6M | 78.0M | 377K | 1 | 70 min | exact |
 | Again | one builder agent (incl. a follow-up making the demo fictional) | 80.0M | 78.9M | 301K | 1 | 61 min | exact |
 | Feedfix | one builder agent | 64.6M | 63.5M | 362K | 1 | 65 min | exact |
+| Chapter | one builder agent | 65.2M | 64.1M | 305K | 1 | 61 min | exact |
 
-Visitors' AI use in the lab on 2026-10-31 to 2026-11-04: none.
+Visitors' AI use in the lab on 2026-10-31 to 2026-11-05: none.
