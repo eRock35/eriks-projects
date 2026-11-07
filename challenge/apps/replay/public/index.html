@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Replay — every automated decision, recorded well enough to replay and explain</title>
+  <meta name="description" content="When an examiner, an auditor or a customer asks why a decision was declined, the log has to say which model and prompt decided, on what inputs, for which reasons - and prove nobody edited it. Replay checks a lending or fraud decision log record by record on your device, says exactly what is missing, verifies the hash chain and builds the one-page answer for any decision. Nothing is uploaded.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0b1118" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f5f8" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Replay">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Replay — Every automated decision, recorded well enough to replay - and explain.">
+  <meta property="og:description" content="For risk, compliance and engineering teams at lenders, fintechs and fraud teams that let an AI model or a scoring system approve, decline, refer or flag. When an examiner, an auditor or a customer asks “why was this declined?”, teams find out their decision log never kept the mod">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/replay/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/replay.png?v=6531ec1645">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Replay, drop #56 in the Challenge Lab: Every automated decision, recorded well enough to replay - and explain.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Replay — Every automated decision, recorded well enough to replay - and explain.">
+  <meta name="twitter:description" content="For risk, compliance and engineering teams at lenders, fintechs and fraud teams that let an AI model or a scoring system approve, decline, refer or flag. When an examiner, an auditor or a customer asks “why was this declined?”, teams find out their decision log never kept the mod">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/replay.png?v=6531ec1645">
+  <meta name="twitter:image:alt" content="Replay, drop #56 in the Challenge Lab: Every automated decision, recorded well enough to replay - and explain.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">📼</span>Replay</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="settingsBtn" type="button" data-act="tab" data-tab="settings">Settings</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="report"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.5l2 2 4-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Report</span></button>
+      <button type="button" data-act="tab" data-tab="fields"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6M4 12h6M4 18h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13 6h7M13 12h7M13 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/></svg><span>Fields</span></button>
+      <button type="button" data-act="tab" data-tab="replay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 3.5v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 9.2v5.6l4.6-2.8z" fill="currentColor"/></svg><span>Replay</span></button>
+      <button type="button" data-act="tab" data-tab="sample"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="7" r="2.4" fill="currentColor"/><circle cx="17" cy="9" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="17" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="17.5" r="2.4" fill="currentColor"/></svg><span>Sample</span></button>
+      <button type="button" data-act="tab" data-tab="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17v3h14v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Export</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="dropcover" id="dropcover" hidden><div><b>Drop it to check it</b><span>Read on this device, never uploaded</span></div></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="replay-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

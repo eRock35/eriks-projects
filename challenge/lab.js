@@ -807,6 +807,23 @@ const APPS = [
     audience: 'Book clubs of friends, neighbours, colleagues and families',
     status: 'testing',
   },
+  {
+    slug: 'replay',
+    name: 'Replay',
+    emoji: '\u{1F4FC}',
+    // Graphite to a deep sky blue - a tape deck and its playback light.
+    // Well away from the newest cards (Chapter's aubergine and walnut,
+    // Feedfix's green and magenta, Again's tomato and teal, Lastday's indigo
+    // and ember). White text holds 14.6:1 and 5.9:1.
+    color: '#1e293b',
+    color2: '#0369a1',
+    dropped: '2026-11-07',
+    tagline: 'Every automated decision, recorded well enough to replay - and explain.',
+    blurb: 'For risk, compliance and engineering teams at lenders, fintechs and fraud teams that let an AI model or a scoring system approve, decline, refer or flag. When an examiner, an auditor or a customer asks “why was this declined?”, teams find out their decision log never kept the model version, the prompt version, the inputs or the reasons - or that nothing proves the log was not edited since. Drop the log - JSON Lines, a JSON array or CSV, nested keys and all, read on your device and never uploaded - confirm which key holds what, and Replay checks every record: against your must-record profile (with the share that can be replayed in full), declines with no reasons or with codes nobody can put into words, calls at a temperature above 0, the same inputs getting different outcomes, prompt and model changes that have no entry in your change log, a SHA-256 hash chain verified link by link with the first broken link named, missing, duplicate and out-of-order records, overrides with nobody’s name on them, and stretches with nothing logged at a normally busy time. Then build the one-page replay pack for any single decision - what went in, which model and prompt, the parameters, the tool calls, the reasons in words, who reviewed and overrode it, the hash proof, and what is missing to replay it - as Markdown or JSON with the case id masked. Draw a reproducible review sample stratified by outcome and version, from a seed you can write down, and export the findings, the flagged records and the sample. Try a made-up lender’s October first; it is free and needs no sign-in. Sign in to keep your checking settings - the profile, your reason codes, key-name presets - and AI can help map awkward fields from their names and shapes alone, never a value. A starting checklist, not legal advice.',
+    features: ['Every record against a must-record profile - and the share you can replay', 'Declines with no reasons, unlogged prompt changes, temperature above 0', 'A SHA-256 hash chain checked link by link, the first broken link named', 'A one-page replay pack for any decision, and a reproducible review sample'],
+    audience: 'Risk, compliance and engineering teams at lenders, fintechs and fraud teams',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

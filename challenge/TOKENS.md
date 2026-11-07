@@ -200,4 +200,10 @@ Visitors' AI use in the lab on 2026-10-23 to 2026-10-30: none.
 | Feedfix | one builder agent | 64.6M | 63.5M | 362K | 1 | 65 min | exact |
 | Chapter | one builder agent | 65.2M | 64.1M | 305K | 1 | 61 min | exact |
 
-Visitors' AI use in the lab on 2026-10-31 to 2026-11-05: none.
+Visitors' AI use in the lab on 2026-10-31 to 2026-11-06: none.
+
+## Week 8 (2026-11-07 to 2026-11-13)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Replay | one builder agent | 51.3M | 49.6M | 353K | 1 | 62 min | exact |

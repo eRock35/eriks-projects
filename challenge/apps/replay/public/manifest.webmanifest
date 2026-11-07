@@ -1,0 +1,10 @@
+{
+  "name": "Replay",
+  "short_name": "Replay",
+  "description": "Every automated decision, recorded well enough to replay - and explain.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1118",
+  "theme_color": "#1e293b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
