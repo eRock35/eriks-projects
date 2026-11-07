@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-counts="off">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Erik Strong · Sales intelligence, data &amp; AI apps</title>
-<meta name="description" content="Erik Strong leads sales intelligence at Equifax Workforce Solutions and builds AI apps for trips, football, beer and data, plus a new app daily in the Challenge." />
+<title>Erik Strong · Sales intelligence &amp; applied AI leader</title>
+<meta name="description" content="Erik Strong leads sales intelligence and customer insights at Equifax Workforce Solutions, building the analytics and applied AI that help revenue teams win. Two patents, and a new AI-built app every day in the Challenge." />
 <meta name="author" content="Erik Strong" />
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
@@ -16,8 +16,8 @@
 <meta property="og:site_name" content="Erik Strong" />
 <meta property="og:url" content="https://strongtechnicalconsulting.com/" />
 <meta property="og:locale" content="en_US" />
-<meta property="og:title" content="Erik Strong · Sales intelligence, data &amp; AI apps" />
-<meta property="og:description" content="Sales intelligence and customer insights at Equifax Workforce Solutions by day. Live AI apps on the side, and a new one every day in the Challenge." />
+<meta property="og:title" content="Erik Strong · Sales intelligence &amp; applied AI leader" />
+<meta property="og:description" content="Sales intelligence and applied AI leader at Equifax Workforce Solutions. I build the analytics and AI agents that help revenue teams win." />
 <!-- 1200x630, the shape every share card crops to. The square portrait
      (/assets/erik.jpg) lost the top of the head in a 2:1 crop. -->
 <meta property="og:image" content="https://strongtechnicalconsulting.com/assets/og-home.jpg" />
@@ -27,8 +27,8 @@
 <meta property="og:image:alt" content="Erik Strong: sales intelligence, data and AI apps" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:site" content="@sTechConsulting" />
-<meta name="twitter:title" content="Erik Strong · Sales intelligence, data &amp; AI apps" />
-<meta name="twitter:description" content="Sales intelligence and customer insights at Equifax Workforce Solutions by day. Live AI apps on the side, and a new one every day in the Challenge." />
+<meta name="twitter:title" content="Erik Strong · Sales intelligence &amp; applied AI leader" />
+<meta name="twitter:description" content="Sales intelligence and applied AI leader at Equifax Workforce Solutions. I build the analytics and AI agents that help revenue teams win." />
 <meta name="twitter:image" content="https://strongtechnicalconsulting.com/assets/og-home.jpg" />
 <meta name="twitter:image:alt" content="Erik Strong: sales intelligence, data and AI apps" />
 <!-- Who this page is about, for search engines. Only what the page itself
@@ -44,9 +44,10 @@
       "url": "https://strongtechnicalconsulting.com/",
       "image": "https://strongtechnicalconsulting.com/assets/erik.jpg",
       "jobTitle": "Sr. Director, Sales Intelligence & Customer Insights",
+      "description": "Leads sales intelligence, customer insights and applied AI at Equifax Workforce Solutions. Inventor on two patents for detecting synthetic fraud in the credit marketplace.",
       "worksFor": { "@type": "Organization", "name": "Equifax Workforce Solutions" },
       "homeLocation": { "@type": "Place", "name": "Atlanta, Georgia" },
-      "knowsAbout": ["Sales intelligence", "Customer insights", "Applied AI", "Agentic AI", "Go-to-market strategy", "Data engineering", "Fraud detection"],
+      "knowsAbout": ["Sales intelligence", "Customer insights", "Revenue analytics", "Applied AI", "Agentic AI", "Go-to-market strategy", "Solution selling", "Data engineering", "Fraud detection"],
       "sameAs": ["https://www.linkedin.com/in/eriksstrong", "https://github.com/eRock35"]
     },
     {
@@ -213,6 +214,16 @@
   .lede { font-size: 18px; color: var(--label-2); margin: 12px auto 0; max-width: 36ch; text-wrap: balance; }
   .lede .rot { color: var(--label); font-weight: 600; display: inline-block; transition: opacity 0.3s, transform 0.3s; }
   .lede .rot.out { opacity: 0; transform: translateY(-8px); }
+  .proof { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; margin: 0; padding: 0; }
+  .proof li { display: flex; flex-direction: column; align-items: center; min-width: 7.5em; }
+  .proof b { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .proof span { font-size: 13px; color: var(--label-2); margin-top: 2px; }
+  /* Small live numbers (votes, "opened by 2 people", weekly views) are off
+     while data-counts="off" sits on <html>: low counts read as low traction
+     to someone sizing up Erik's work. The "N apps live" count stays. Remove
+     the attribute to bring them all back; the scripts below check it too. */
+  [data-counts="off"] .cb-board, [data-counts="off"] .livefeed, [data-counts="off"] .trendbar, [data-counts="off"] .views { display: none !important; }
+  .contact-note { font-size: 15px; color: var(--label-2); margin: 0 0 12px; max-width: 46ch; }
   .cta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
   .btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 20px; border-radius: 14px; font-weight: 600; font-size: 16px; border: none; transition: transform 0.18s var(--ease), box-shadow 0.25s; }
   .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
@@ -702,9 +713,9 @@
     </div>
     <div>
       <p class="eyebrow">Atlanta, Georgia</p>
-      <h1 id="heroTitle">Hi, I'm Erik.</h1>
+      <h1 id="heroTitle">Erik Strong</h1>
       <p class="role">Sr. Director, Sales Intelligence &amp; Customer Insights<span>Equifax Workforce Solutions</span></p>
-      <p class="lede">I turn customer and market data into <span class="rot" id="rot">real business action</span>.</p>
+      <p class="lede">I build the sales intelligence and applied AI that help revenue teams win.</p>
     </div>
     <div class="facts">
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg>Sales intelligence</span>
@@ -714,17 +725,30 @@
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-briefcase"/></svg>Executive advisory</span>
       <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-db"/></svg>Data &amp; engineering</span>
     </div>
+    <!-- Proof, on the first screen. Only facts that are already public
+         (patents are public record; the Challenge is Erik's own). The
+         Equifax business figures below wait for Erik to confirm they are
+         cleared to publish - until then they stay switched off.
+         CONFIRM, then move these three into the list:
+           <li><b>$2.7B+</b><span>revenue supported</span></li>
+           <li><b>$50M+</b><span>revenue grown &amp; protected</span></li>
+           <li><b>1,700+</b><span>hours a week saved by AI agents</span></li> -->
+    <ul class="proof" role="list" aria-label="Highlights">
+      <li><b>2</b><span>patents in fraud detection</span></li>
+      <li><b>13+</b><span>years at Equifax</span></li>
+      <li><b>50+</b><span>AI-built apps shipped</span></li>
+    </ul>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>LinkedIn</a>
+      <a class="btn btn-primary" href="#contact" data-contact><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Get in touch</a>
+      <a class="btn btn-secondary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>LinkedIn</a>
       <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg>GitHub</a>
-      <a class="btn btn-secondary" href="#contact" data-contact><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Email</a>
     </div>
     <a class="cue" href="#projects" aria-label="Scroll to projects"><svg aria-hidden="true" focusable="false"><use href="#i-down"/></svg></a>
   </header>
 
   <div class="marquee">
     <ul class="marquee-track" id="marquee" role="list" aria-label="Tools and skills">
-      <li class="tag">Applied AI</li><li class="tag">Claude API</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">SAS</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">Node.js</li><li class="tag">Express</li><li class="tag">React</li><li class="tag">Google Cloud Run</li><li class="tag">Firestore</li><li class="tag">PHP</li><li class="tag">Perl</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Big data</li><li class="tag">Fraud detection</li>
+      <li class="tag">Applied AI</li><li class="tag">Agentic AI</li><li class="tag">Claude API</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">Node.js</li><li class="tag">React</li><li class="tag">Google Cloud Run</li><li class="tag">Firestore</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Fraud detection</li>
     </ul>
   </div>
 
@@ -1046,6 +1070,7 @@
 
   <section id="contact">
     <div class="section-head" data-reveal><h2>Get in touch</h2></div>
+    <p class="contact-note" data-reveal>Open to conversations about sales intelligence, revenue analytics and applied AI leadership.</p>
     <div class="list" data-reveal>
       <a class="row" href="#contact" data-contact>
         <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg></span>
@@ -1586,6 +1611,7 @@
  */
 (function () {
   'use strict';
+  if (document.documentElement.getAttribute('data-counts') === 'off') return;
   var STATS = '/api/stats/public';   // same origin: the counter lives here now
   function n(v) { return Number(v || 0).toLocaleString(); }
   // Labels and URLs come from the counter's own allowlist, not from this page,
@@ -1698,6 +1724,7 @@
  */
 (function () {
   'use strict';
+  if (document.documentElement.getAttribute('data-counts') === 'off') return;
   var feed = document.getElementById('liveFeed'), list = document.getElementById('lfList');
   var board = document.getElementById('cbBoard');
   if (!feed || !list) return;

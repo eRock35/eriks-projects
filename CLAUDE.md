@@ -277,6 +277,23 @@ tests in `test/concierge.js`.
   domain allowed and `INBOX_AGENT_TOKEN` as a secret - Erik's steps, never a
   GCP or deploy credential.
 
+## Landing page aimed at hiring executives (2026-11-07)
+
+Erik asked for the landing page to speak to recruiters and senior hiring
+leaders first. The hero now leads with his name, a one-line positioning and
+a proof row, then a "Get in touch" button (still `data-contact`: no address
+in the page).
+
+- **Proof row numbers.** Only public facts are on (2 patents, 13+ years at
+  Equifax, 50+ AI-built apps). The Equifax business figures ($2.7B+, $50M+,
+  1,700+ hours) sit in a comment beside the row until Erik confirms they are
+  cleared to publish. Do not switch them on without his word.
+- **Small live numbers are off.** `data-counts="off"` on `<html>` hides the
+  keep-or-kill standings, the "Live now" strip, "Most used this week" and the
+  per-card "N views this week", and the two scripts that fill them return
+  early. The "N apps live" count in the Challenge banner stays. Remove the
+  attribute to bring them all back.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
