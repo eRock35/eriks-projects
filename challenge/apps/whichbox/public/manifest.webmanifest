@@ -1,0 +1,10 @@
+{
+  "name": "Whichbox",
+  "short_name": "Whichbox",
+  "description": "Which box is the kettle in? Label it, scan it, find it.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#15130f",
+  "theme_color": "#3a3196",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

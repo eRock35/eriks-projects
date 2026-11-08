@@ -824,6 +824,23 @@ const APPS = [
     audience: 'Risk, compliance and engineering teams at lenders, fintechs and fraud teams',
     status: 'testing',
   },
+  {
+    slug: 'whichbox',
+    name: 'Whichbox',
+    emoji: '\u{1F3F7}\u{FE0F}',
+    // Parcel-tape kraft to a marker-pen violet blue - a box and the ink on
+    // its label. Well away from the newest cards (Replay's slate and sky,
+    // Chapter's aubergine and walnut, Feedfix's green and magenta, Again's
+    // tomato and teal). White text holds 6.3:1 and 10.2:1.
+    color: '#8a5300',
+    color2: '#3a3196',
+    dropped: '2026-11-08',
+    tagline: 'Which box is the kettle in? Label it, scan it, find it.',
+    blurb: 'For anyone moving house, and anyone with boxes in a loft, a garage, a basement or a storage unit - including the holiday-decorations boxes about to come down. “Which box is it in?” is the maddening question of every move and every December, and the answer is usually “one of the forty in the hall”. Whichbox gives every box a number. Add one in seconds as you pack: the room it goes to, what goes in (type and press Enter, with suggestions from what you have already listed), Fragile, Heavy, Open first or This way up, and a photo of the open box if you like - shrunk on your phone with its location removed, and kept there. Then print the labels, six to a page or two big ones, on Letter or A4: the number huge, the room as a coloured band in words, the flags in bold (it prints well in black and white too), and a QR code that opens that box. Tape a room sign on each door of the new place. Search “kettle” and get “Box 14 · Kitchen · Delivered” - plurals, accents and small typos are fine, and when nothing matches it says which boxes have nothing listed yet. On moving day, scan a label on the truck and tap Delivered, and watch each room fill up - “Kitchen: 12 of 14 delivered” - with the open-first boxes pinned and a list of what was loaded but never delivered. Share the move with helpers using a six-letter code - no accounts - so they can tick boxes off too; photos stay on your phone. Storage mode keeps a shelf and a season for each box: “Holiday decorations · Loft left · Box 3”. Export it all as a spreadsheet. Try a made-up move halfway through moving day first; it is free, needs no sign-in and stays on your phone. Sign in only if you want AI to list what is in a box from one photo - shown for you to check before anything is added.',
+    features: ['Numbered labels with a QR code and a colour band for the room - Letter or A4', 'Find anything: “kettle” → Box 14 · Kitchen · Delivered', 'Moving day: scan, tap Delivered, “Kitchen: 12 of 14 delivered”', 'Share with helpers by code - or keep the loft’s list: what’s where, by season'],
+    audience: 'Anyone moving house, or with boxes in a loft, garage or storage unit',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
