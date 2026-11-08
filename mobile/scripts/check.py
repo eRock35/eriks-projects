@@ -13,7 +13,8 @@ personal or account-specific (an email address, a Team ID) is in the folder.
 It also holds the workflows (check_workflows): the build job's signing,
 archive, upload and clean-up steps byte for byte, the read-only App Store
 Connect guard in the plan job before any macOS job, check_only stopping
-after it, and that no workflow prints a secret.
+after it, Lab Pulse's permissions and push, and that no workflow prints a
+secret. `npm run check` then runs scripts/test_pulse.py.
 What it cannot check - that Swift compiles and the app signs - is the macOS
 runner's job.
 """
@@ -322,8 +323,8 @@ def run_blocks(text):
 
 
 def check_workflows():
-    """ios.yml's guard and check_only, the held steps, and that no workflow
-    prints a secret. Text checks, so they also run on the macOS runner."""
+    """ios.yml's guard and check_only, the held steps, Lab Pulse, and that no
+    workflow prints a secret. Text checks, so they also run on the macOS runner."""
     print("== workflows")
     read = lambda f: open(os.path.join(WORKFLOWS, f)).read()  # noqa: E731
     ios = read("ios.yml")
@@ -353,6 +354,9 @@ def check_workflows():
     for jid, lines in jobs.items():
         if "macos" in (job_value(lines, "runs-on") or ""):
             ok("ios.yml: macOS job '%s' needs plan" % jid, job_value(lines, "needs") == "plan", job_value(lines, "needs"))
+    ok("ios.yml: plan's name is the one pulse.py reads", job_value(plan, "name") == "Check secrets, pick apps", job_value(plan, "name"))
+    ok("ios.yml: the matrix job is named by the app (pulse.py reads it)", job_value(build, "name") == "${{ matrix.app }}")
+    ok("ios.yml: the monthly schedule pulse.py and /pulse assume", "    - cron: '23 9 1 * *'" in ios)
 
     # check_only: a boolean, off by default, and it stops after plan.
     m = re.search(r"\n      check_only:\n((?:        .*\n)+)", ios)
@@ -367,12 +371,27 @@ def check_workflows():
        "!contains(github.event.workflow_run.display_title, 'check only')" in tf)
 
     # The guard and the gatherer only read.
-    for f in ("asc_read.py",):
+    for f in ("asc_read.py", "pulse.py"):
         src = open(os.path.join(ROOT, "scripts", f)).read()
         methods = re.findall(r"method=['\"](\w+)['\"]", src)
         ok("%s: only GET requests" % f, set(methods) <= {"GET"} and "data=" not in src and "asc_signing.api(" not in src, methods)
         ok("%s: prints no token, key or environment value" % f,
            not [l for l in src.split("\n") if "print(" in l and ("environ" in l or "token(" in l or "read_text" in l)])
+
+    # Lab Pulse.
+    pw = read("pulse.yml")
+    pj = wf_jobs(pw)
+    ok("pulse.yml: every three hours, and by hand", re.search(r"cron: '\d+ \*/3 \* \* \*'", pw) is not None and "workflow_dispatch:" in pw)
+    ok("pulse.yml: workflow permissions are actions: read, contents: write",
+       "\npermissions:\n  actions: read\n  contents: write\n" in pw)
+    ok("pulse.yml: the job holding the key cannot write to the repo",
+       "    permissions:\n      actions: read\n      contents: read\n" in "\n".join(pj.get("gather", [])))
+    pub = "\n".join(pj.get("publish", []))
+    ok("pulse.yml: publish checks the file and installs nothing",
+       "pulse.py --check" in pub and "pip" not in pub and "npm" not in pub and "secrets." not in pub)
+    ok("pulse.yml: pushes only the pulse-data branch",
+       re.findall(r"git push[^\n]*", pw) == ["git push --force --quiet origin pulse-data"], re.findall(r"git push[^\n]*", pw))
+    ok("pulse.yml: runs on ubuntu", all((job_value(l, "runs-on") or "").startswith("ubuntu-") for l in pj.values()))
 
     # Every workflow: current action majors, no secret printed, nothing personal.
     email = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}")

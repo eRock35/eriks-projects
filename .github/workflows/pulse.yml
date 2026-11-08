@@ -1,0 +1,113 @@
+name: Lab Pulse
+
+# Gathers what the iPhone builds, TestFlight and CI are doing into one small
+# file, pulse.json, for challenge.strongtechnicalconsulting.com/pulse
+# (challenge/pulse.js reads it and validates every field again).
+# mobile/scripts/pulse.py does the gathering and holds the schema.
+#
+# Read-only everywhere but one push:
+#   gather   GitHub's Actions API with this job's token (actions: read), and
+#            App Store Connect GETs with the same key as the build
+#            (APPSTORE_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_KEY_P8). This job
+#            cannot write to the repo.
+#   publish  checks the file against the schema again, with nothing installed
+#            (no pip, no npm), and pushes it to the `pulse-data` branch.
+#
+# `pulse-data` is an orphan branch holding pulse.json and nothing else. Each
+# run replaces it with a single new commit and force-pushes it: the file is
+# generated, so its history is worth nothing, and one commit keeps the branch
+# small. The first run creates the branch. A push made with this token starts
+# no other workflow, so ci.yml (on: push, every branch) does not run on it.
+
+on:
+  schedule:
+    - cron: '41 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: lab-pulse
+  cancel-in-progress: false
+
+jobs:
+  gather:
+    name: Gather pulse.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      pulse: ${{ steps.gather.outputs.pulse }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Optional: without the key, pulse.json says App Store Connect was not
+      # checked ("unset") and everything from GitHub is still there.
+      - name: App Store Connect key
+        env:
+          APPSTORE_KEY_P8: ${{ secrets.APPSTORE_KEY_P8 }}
+        run: |
+          umask 077
+          if [ -z "$APPSTORE_KEY_P8" ]; then
+            echo "No APPSTORE_KEY_P8: App Store Connect is recorded as not checked."
+            exit 0
+          fi
+          if printf '%s' "$APPSTORE_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$APPSTORE_KEY_P8" | tr -d '\r' > "$RUNNER_TEMP/AuthKey.p8"
+          else
+            printf '%s' "$APPSTORE_KEY_P8" | tr -d ' \r\n' | base64 --decode > "$RUNNER_TEMP/AuthKey.p8" || true
+          fi
+          if ! grep -q 'BEGIN PRIVATE KEY' "$RUNNER_TEMP/AuthKey.p8"; then
+            rm -f "$RUNNER_TEMP/AuthKey.p8"
+            echo "::warning title=APPSTORE_KEY_P8::It is not a .p8 key; App Store Connect is recorded as not checked."
+          fi
+
+      - name: Gather
+        id: gather
+        working-directory: mobile
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          # Not used to ask anything: only so pulse.py can check the file it
+          # writes does not contain it.
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet pyjwt cryptography
+          "$RUNNER_TEMP/asc/bin/python" scripts/pulse.py --out "$RUNNER_TEMP/pulse.json"
+          echo "pulse=$(base64 -w0 "$RUNNER_TEMP/pulse.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Remove the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+  publish:
+    name: Publish to pulse-data
+    needs: gather
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check it again
+        env:
+          PULSE: ${{ needs.gather.outputs.pulse }}
+        run: |
+          printf '%s' "$PULSE" | base64 --decode > "$RUNNER_TEMP/pulse.json"
+          python3 mobile/scripts/pulse.py --check "$RUNNER_TEMP/pulse.json"
+
+      - name: Push
+        run: |
+          git switch --orphan pulse-data
+          cp "$RUNNER_TEMP/pulse.json" pulse.json
+          git add pulse.json
+          git -c user.name='Lab Pulse' -c user.email= commit --quiet -m "pulse.json"
+          git push --force --quiet origin pulse-data
+          echo "Published pulse.json to the pulse-data branch." >> "$GITHUB_STEP_SUMMARY"

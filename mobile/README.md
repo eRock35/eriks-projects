@@ -210,6 +210,28 @@ archive, upload and clean-up steps byte for byte. It also checks that the
 guard runs before any macOS job, that check_only stops after it, and that no
 workflow prints a secret.
 
+## Lab Pulse
+
+`.github/workflows/pulse.yml` runs every three hours (and from the Actions
+tab). It runs `scripts/pulse.py` and writes `pulse.json` for the lab's
+`/pulse` page. The file holds each app's latest build result and run, its
+last upload, and its newest TestFlight build: version, build number, state,
+and the dates it was uploaded and expires. It also holds the latest CI
+result on main.
+
+Everything is read-only apart from one push. The job that holds the App
+Store Connect key cannot write to the repo. A second job checks the file
+against the schema again, with nothing installed, then force-pushes it to
+the orphan branch `pulse-data`. That branch holds only this generated file,
+so its history is not kept. The first run creates the branch.
+
+If App Store Connect refuses, the file still gets written. It records
+`{"ok": false, "reason": "agreement" | "auth" | "error" | "unset"}` in place
+of the TestFlight details. The file never contains the Team ID, the key id,
+the issuer id, a token, an email address or an App Store Connect id.
+`scripts/test_pulse.py` (in `npm run check`) tests the script against faked
+GitHub and App Store Connect responses, the agreement 403 included.
+
 ## Making changes
 
 - **Content and features** ship with the web app as they always have.

@@ -1,0 +1,208 @@
+{
+ "asc": {
+  "ok": true
+ },
+ "ci": {
+  "at": "2026-11-07T21:14:09Z",
+  "branch": "main",
+  "conclusion": "success",
+  "jobs": [
+   {
+    "conclusion": "success",
+    "failedStep": null,
+    "name": "test"
+   }
+  ],
+  "run": 112,
+  "url": "https://github.com/eRock35/eriks-projects/actions/runs/19034567812",
+  "workflow": "ci.yml"
+ },
+ "generatedAt": "2026-11-08T10:41:12Z",
+ "github": {
+  "ok": true
+ },
+ "iphone": {
+  "apps": [
+   {
+    "asc": {
+     "build": {
+      "daysToExpiry": 54,
+      "expired": false,
+      "expiresAt": "2027-01-01T14:14:00Z",
+      "external": "IN_BETA_TESTING",
+      "internal": "IN_BETA_TESTING",
+      "number": "5",
+      "processingState": "VALID",
+      "uploadedAt": "2026-10-03T14:14:00Z",
+      "version": "1.0"
+     },
+     "found": true,
+     "ok": true
+    },
+    "bundleId": "com.strongtechnicalconsulting.trip",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": {
+     "at": "2026-10-03T14:10:00Z",
+     "run": 5,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18210987601/job/51800000021"
+    },
+    "latest": {
+     "at": "2026-11-01T09:31:00Z",
+     "conclusion": "failure",
+     "failedStep": "Signing",
+     "failure": "agreement",
+     "run": 7,
+     "stoppedInPlan": false,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18911234501/job/53300000011"
+    },
+    "slug": "trip"
+   },
+   {
+    "asc": {
+     "build": {
+      "daysToExpiry": 54,
+      "expired": false,
+      "expiresAt": "2027-01-01T14:21:00Z",
+      "external": "WAITING_FOR_BETA_REVIEW",
+      "internal": "IN_BETA_TESTING",
+      "number": "5",
+      "processingState": "VALID",
+      "uploadedAt": "2026-10-03T14:21:00Z",
+      "version": "1.0"
+     },
+     "found": true,
+     "ok": true
+    },
+    "bundleId": "com.strongtechnicalconsulting.hopscotch",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": {
+     "at": "2026-10-03T14:17:00Z",
+     "run": 5,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18210987601/job/51800000022"
+    },
+    "latest": {
+     "at": "2026-11-01T09:34:01Z",
+     "conclusion": "failure",
+     "failedStep": "Signing",
+     "failure": "agreement",
+     "run": 7,
+     "stoppedInPlan": false,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18911234501/job/53300000012"
+    },
+    "slug": "hopscotch"
+   },
+   {
+    "asc": {
+     "build": {
+      "daysToExpiry": 54,
+      "expired": false,
+      "expiresAt": "2027-01-01T14:28:00Z",
+      "external": "BETA_APPROVED",
+      "internal": "IN_BETA_TESTING",
+      "number": "5",
+      "processingState": "VALID",
+      "uploadedAt": "2026-10-03T14:28:00Z",
+      "version": "1.0"
+     },
+     "found": true,
+     "ok": true
+    },
+    "bundleId": "com.strongtechnicalconsulting.flight",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": {
+     "at": "2026-10-03T14:24:00Z",
+     "run": 5,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18210987601/job/51800000023"
+    },
+    "latest": {
+     "at": "2026-11-01T09:37:02Z",
+     "conclusion": "failure",
+     "failedStep": "Signing",
+     "failure": "agreement",
+     "run": 7,
+     "stoppedInPlan": false,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18911234501/job/53300000013"
+    },
+    "slug": "flight"
+   },
+   {
+    "asc": {
+     "build": {
+      "daysToExpiry": 54,
+      "expired": false,
+      "expiresAt": "2027-01-01T15:35:00Z",
+      "external": "IN_BETA_TESTING",
+      "internal": "IN_BETA_TESTING",
+      "number": "5",
+      "processingState": "VALID",
+      "uploadedAt": "2026-10-03T15:35:00Z",
+      "version": "1.0"
+     },
+     "found": true,
+     "ok": true
+    },
+    "bundleId": "com.strongtechnicalconsulting.insidejoke",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": {
+     "at": "2026-10-03T15:31:00Z",
+     "run": 5,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18210987601/job/51800000024"
+    },
+    "latest": {
+     "at": "2026-11-01T09:40:03Z",
+     "conclusion": "failure",
+     "failedStep": "Signing",
+     "failure": "agreement",
+     "run": 7,
+     "stoppedInPlan": false,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18911234501/job/53300000014"
+    },
+    "slug": "insidejoke"
+   },
+   {
+    "asc": {
+     "build": {
+      "daysToExpiry": 54,
+      "expired": false,
+      "expiresAt": "2027-01-01T15:42:00Z",
+      "external": "READY_FOR_BETA_SUBMISSION",
+      "internal": "IN_BETA_TESTING",
+      "number": "5",
+      "processingState": "VALID",
+      "uploadedAt": "2026-10-03T15:42:00Z",
+      "version": "1.0"
+     },
+     "found": true,
+     "ok": true
+    },
+    "bundleId": "com.strongtechnicalconsulting.football",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": {
+     "at": "2026-10-03T15:38:00Z",
+     "run": 5,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18210987601/job/51800000025"
+    },
+    "latest": {
+     "at": "2026-11-01T09:43:04Z",
+     "conclusion": "failure",
+     "failedStep": "Signing",
+     "failure": "agreement",
+     "run": 7,
+     "stoppedInPlan": false,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/18911234501/job/53300000015"
+    },
+    "slug": "football"
+   }
+  ],
+  "lastRun": {
+   "at": "2026-11-01T09:27:41Z",
+   "checkOnly": false,
+   "conclusion": "failure",
+   "event": "schedule",
+   "number": 7,
+   "url": "https://github.com/eRock35/eriks-projects/actions/runs/18911234501"
+  },
+  "nextScheduled": "2026-12-01T09:23:00Z"
+ },
+ "schema": 1
+}
