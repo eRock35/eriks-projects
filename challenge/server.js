@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const lab = require('./lab');
+const pulse = require('./pulse');
 
 const PORT = process.env.PORT || 8080;
 const MEMORY = process.env.LAB_MEMORY === '1';
@@ -572,6 +573,31 @@ host.use((req, res, next) => {
   res.set('Content-Security-Policy', "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com");
   next();
 });
+/* ---------------- Lab Pulse: /pulse ---------------- */
+
+// How the lab and the five iPhone apps are doing (pulse.js, CLAUDE.md "Lab
+// Pulse"): the iPhone builds, TestFlight and the repo's CI from pulse.json on
+// the pulse-data branch - untrusted, so validated field by field and cached
+// five minutes - plus what this instance knows itself: every drop in lab.js,
+// which apps actually mounted here, and build-stats.json. Read-only: no model
+// call, no sign-in, no cookie, nothing stored. Fetched inside the request.
+const pulseSource = pulse.source({ fetch: (...args) => globalThis.fetch(...args) });
+host.get('/api/pulse', async (_req, res) => {
+  let body;
+  try {
+    body = pulse.view({ got: await pulseSource.get(), apps: lab.APPS, mounted, buildStats, now: new Date() });
+  } catch (err) {
+    console.error('[lab] pulse:', err.message);
+    body = pulse.view({ got: { status: 'invalid' }, apps: lab.APPS, mounted, buildStats, now: new Date() });
+  }
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(body);
+});
+host.get(['/pulse', '/pulse/'], (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(__dirname, 'public', 'pulse.html'));
+});
+
 host.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
 host.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 host.use((_req, res) => res.status(404).sendFile(path.join(__dirname, 'public', 'index.html')));
@@ -580,4 +606,4 @@ if (require.main === module) {
   host.listen(PORT, () => console.log(`[lab] listening on ${PORT}${MEMORY ? ' (memory)' : ''}`));
 }
 
-module.exports = { host, mounted, store, LIMITS, ipKey, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };
+module.exports = { host, mounted, store, pulseSource, LIMITS, ipKey, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };

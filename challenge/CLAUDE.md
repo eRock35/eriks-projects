@@ -501,6 +501,57 @@ A review of the lab found these; all fixed the same day.
   Snapquote, Chaser, Glowup, Rave, Booth and Pop Quiz** no longer pass a
   model provider's error to the page (Receipt's `fail()`).
 
+## Lab Pulse: /pulse (2026-11-08)
+
+After the 2026-11-01 iPhone builds all failed on an unaccepted Apple
+agreement and nothing said so anywhere Erik looks, he asked for one page
+showing the five iPhone apps and every lab app:
+`challenge.strongtechnicalconsulting.com/pulse`, public like the rest of the
+lab, linked from the landing footer. Read-only: no model call, no sign-in, no
+cookie, nothing stored. Logic in `pulse.js`, routes in `server.js`, page in
+`public/pulse.html`, `pulse.css`, `pulse-page.js`; tests in `test/pulse.js`.
+
+- **Two sources.** (1) `pulse.json` on this repo's orphan `pulse-data`
+  branch, written every three hours by `.github/workflows/pulse.yml`
+  (`mobile/scripts/pulse.py`, see `mobile/README.md`): per iPhone app, the
+  latest `ios.yml` job result with its run, the last successful upload,
+  and from App Store Connect (read-only) the newest build's version and
+  number, processing and beta state, upload and expiry dates; plus the
+  latest `ci.yml` run on main. (2) What this instance knows at request
+  time: every drop in `lab.js`, which apps it actually mounted, and
+  `build-stats.json`. The 57 lab rows never depend on (1).
+- **pulse.json is untrusted** (it comes from a git branch): fetched inside
+  the request from `raw.githubusercontent.com` (no timer), 3 s timeout,
+  256 KB cap, no redirects, then `validate()` field by field: known keys
+  only, enums, bounded patterns, `https://github.com/eRock35/eriks-projects/actions/...`
+  URLs only, a bundle ID that must match the host's own table. A bad field
+  is dropped and reported by path; no readable schema or date and the whole
+  file counts as missing. App names come from the host, never the data. The
+  page draws with `textContent` only and re-checks every link.
+- **Cached** in memory five minutes; a failed fetch is remembered for a
+  minute and keeps showing the last good copy, marked. Missing (before the
+  first workflow run), invalid or unreachable: `/api/pulse` still answers
+  200 with every lab row and says the build data is unavailable.
+- **The banners.** "Accept the updated Apple Developer Program License
+  Agreement at developer.apple.com (Account Holder), then re-run 'iPhone
+  apps to TestFlight'." when App Store Connect answered with the agreement
+  403 or the latest builds failed on it (the gatherer reads a failed job's
+  log once and keeps only one word). A second one when a newest TestFlight
+  build expires before the next scheduled build (1st of the month, 09:23
+  UTC; `test/pulse.js` fails if `ios.yml`'s cron moves).
+- **No per-app test result, on purpose.** `ci.yml` runs the landing's
+  suites, a syntax check and shared-file drift, not this folder's `npm
+  test`, so the page shows one CI line for the repo and says so. Adding the
+  lab's suites to CI would make that line mean more; it is not done.
+  Business/everyday "kind" is not in `lab.js`, so the page does not guess it.
+- **Never in pulse.json or on the page**: the Team ID, the key id, the
+  issuer id, any token, any email address, any App Store Connect numeric
+  id. Both the gatherer and the host check for them.
+- No app may be called `pulse` (apps mount ahead of the host's routes;
+  tested). Contrast is 4.5:1 or better for every text colour in both
+  themes (tested from the CSS tokens and measured in the browser), tap
+  targets 44 px, the table scrolls in its own box at 390 px.
+
 ## Commit and PR conventions
 
 Never put a Claude session link in anything pushed to GitHub. See the repo

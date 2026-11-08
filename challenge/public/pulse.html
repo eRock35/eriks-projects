@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lab Pulse — The Challenge Lab</title>
+  <meta name="description" content="How the Challenge Lab is doing right now: every drop, the five iPhone apps' builds and TestFlight, and CI. Read-only.">
+  <meta name="theme-color" content="#120f24">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/pulse.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="logo" href="/"><span class="flask" aria-hidden="true">🧪</span><span>The Challenge Lab</span></a>
+    <a class="nav-link" href="/">All the drops</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="dot" aria-hidden="true"></span> Lab Pulse</div>
+      <h1>How the lab is doing, right now.</h1>
+      <p class="lede">Every drop, the five iPhone apps’ builds and TestFlight, and CI, on one page. Read-only: nothing to sign in to, nothing stored.</p>
+      <p class="fresh" id="fresh" role="status">Checking…</p>
+    </section>
+
+    <div class="banners" id="banners"></div>
+
+    <section class="panel" aria-labelledby="iosTitle">
+      <div class="panel-head">
+        <h2 id="iosTitle">iPhone apps</h2>
+        <p id="iosMeta"></p>
+      </div>
+      <ul class="ios" id="iosList"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="labTitle">
+      <div class="panel-head">
+        <h2 id="labTitle">Lab apps</h2>
+        <p id="labMeta"></p>
+      </div>
+      <p class="ci-line" id="labCi"></p>
+      <p class="note">CI on <b>main</b> runs the landing site’s suites, a syntax check and a shared-file drift check. The lab’s own suites, one per app, run before each deploy and not in CI, so there is no per-app test result here. “Live here” is whether this server mounted the app just now.</p>
+      <div class="tbl" role="region" aria-label="Every lab app" tabindex="0">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="num">#</th>
+              <th scope="col">App</th>
+              <th scope="col">Dropped</th>
+              <th scope="col">Status</th>
+              <th scope="col">Live here</th>
+              <th scope="col" class="num">Tokens in / out</th>
+              <th scope="col" class="num">Agents</th>
+              <th scope="col" class="num">Agent time</th>
+            </tr>
+          </thead>
+          <tbody id="labRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Lab Pulse reads GitHub Actions and App Store Connect every three hours, read-only, and this server adds what it knows the moment you load the page. The raw data is at <a href="/api/pulse">/api/pulse</a>.</p>
+    <p><a href="/">Back to the lab</a> · Built in public by <a href="https://strongtechnicalconsulting.com/">Erik Strong</a>.</p>
+  </footer>
+
+  <noscript><p class="noscript">Lab Pulse draws with JavaScript. The same data is at <a href="/api/pulse">/api/pulse</a>.</p></noscript>
+  <script src="/pulse-page.js" defer></script>
+</body>
+</html>
