@@ -277,6 +277,25 @@ tests in `test/concierge.js`.
   domain allowed and `INBOX_AGENT_TOKEN` as a secret - Erik's steps, never a
   GCP or deploy credential.
 
+## Landing page aimed at hiring executives (2026-11-07)
+
+Erik asked for the landing page to speak to recruiters and senior hiring
+leaders first. The hero now leads with his name, a one-line positioning and
+a proof row, then a "Get in touch" button (still `data-contact`: no address
+in the page).
+
+- **Proof row numbers.** $2.7B+, $50M+, 1,700+ hours a week and 2 patents.
+  Erik cleared the EWS figures to publish on 2026-11-07 and said they are
+  higher now that he supports all of EWS; he will send new ones. They live
+  in four places (hero list, About stats, About paragraphs, Person
+  description): a comment above the hero list names them. Change all four
+  together, and only to figures Erik gives.
+- **Small live numbers are off.** `data-counts="off"` on `<html>` hides the
+  keep-or-kill standings, the "Live now" strip, "Most used this week" and the
+  per-card "N views this week", and the two scripts that fill them return
+  early. The "N apps live" count in the Challenge banner stays. Remove the
+  attribute to bring them all back.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
