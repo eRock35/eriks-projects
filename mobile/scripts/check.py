@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks the four iPhone projects without Xcode.
+"""Checks the five iPhone projects and their workflows without Xcode.
 
     cd mobile && npm run check        (or: python3 scripts/check.py)
 
@@ -10,10 +10,15 @@ every plist round-trips through plistlib, the storyboards and scheme parse as
 XML, the icons are opaque 1024px PNGs, the Xcode project's brackets balance
 and it names the right bundle ID, entitlements and sources, and nothing
 personal or account-specific (an email address, a Team ID) is in the folder.
+It also holds the workflows (check_workflows): the build job's signing,
+archive, upload and clean-up steps byte for byte, the read-only App Store
+Connect guard in the plan job before any macOS job, check_only stopping
+after it, and that no workflow prints a secret.
 What it cannot check - that Swift compiles and the app signs - is the macOS
 runner's job.
 """
 
+import hashlib
 import json
 import os
 import plistlib
@@ -218,7 +223,7 @@ def check_private():
     bad = []
     for base, dirs, files in os.walk(ROOT):
         # Skipped: installed packages, and what ios/.gitignore leaves out (sync output).
-        dirs[:] = [x for x in dirs if x not in ("node_modules", "public", ".git", "capacitor-cordova-ios-plugins")]
+        dirs[:] = [x for x in dirs if x not in ("node_modules", "public", ".git", "capacitor-cordova-ios-plugins", "__pycache__")]
         for f in files:
             if f.endswith((".png", ".jpg")):
                 continue
@@ -231,8 +236,166 @@ def check_private():
     ok("no email address or Team ID anywhere under mobile/", not bad, bad[:5])
 
 
+WORKFLOWS = os.path.join(os.path.dirname(ROOT), ".github", "workflows")
+
+# The build job's steps that sign, archive, export, upload and clean up, held
+# byte for byte (sha256 of each step's YAML, as it was on 2026-11-08). The
+# guard and check_only were added around them without touching them. A change
+# to one of these is a change to how the apps are signed: make it on purpose,
+# then put the new digest here.
+HELD_STEPS = {
+    "Version and build number": "072fb6c080929340302a8f01cafc41be184d60403ae05bce9fbc4d20178d9aee",
+    "App Store Connect key": "d573d08dea7c817beaac6e789ac9babc7db3d66934baad287941b5a5aec58053",
+    "Signing": "02b05b15d92ad001fe7bac0436bd321d9516435411552f6ac42811cbd2705288",
+    "Archive": "b541b2ad1aac687df155b20d03d3f90e173b908b64ee5cb06e905cd2b91e34ad",
+    "Upload to TestFlight": "92f2a9522a8f590119f4eb7bd425375ef220239ebe72b78c79fd3b2c7edbe127",
+    "Revoke the CI certificate": "36b50fd8b492c5e88d8277afdbe37b55d19668792ffc335ce988a500223fedf4",
+    "Remove the key": "b2e1d00c82257cb7778df9afac106a55e3e3d5527cdc1b02a95e18b174fc55ab",
+}
+SECRET_VARS = ("APPSTORE_KEY_P8", "APPSTORE_KEY_ID", "APPSTORE_ISSUER_ID", "APPLE_TEAM_ID", "GITHUB_TOKEN")
+
+
+def wf_jobs(text):
+    """{job id: [its lines]} for the top-level `jobs:` block (stdlib, no YAML)."""
+    out, cur, inside = {}, None, False
+    for line in text.split("\n"):
+        if line == "jobs:":
+            inside = True
+            continue
+        if inside:
+            m = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+            if m:
+                cur = m.group(1)
+                out[cur] = []
+            elif cur is not None:
+                out[cur].append(line)
+    return out
+
+
+def wf_steps(lines):
+    """[(name, its YAML)] for one job's steps; a comment above a step is not part of it."""
+    raw, cur = [], None
+    for line in lines:
+        if line.startswith("      - "):
+            cur = [line]
+            raw.append(cur)
+        elif cur is not None and (line.startswith("        ") or not line.strip() or line.startswith("      #")):
+            cur.append(line)
+        else:
+            cur = None
+    steps = []
+    for s in raw:
+        while s and (not s[-1].strip() or s[-1].lstrip().startswith("#")):
+            s.pop()
+        m = re.match(r"^      - (?:name: (.+)|uses: (.+))$", s[0])
+        steps.append(((m.group(1) or m.group(2)).strip() if m else s[0].strip(), "\n".join(s)))
+    return steps
+
+
+def job_value(lines, key):
+    for line in lines:
+        m = re.match(r"^    %s: (.+)$" % re.escape(key), line)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def run_blocks(text):
+    """The shell of every `run: |` block (and one-line `run:`), as lines."""
+    blocks, cur, indent = [], None, 0
+    for line in text.split("\n"):
+        m = re.match(r"^(\s*)run: (.*)$", line)
+        if m:
+            if m.group(2).strip() == "|":
+                cur, indent = [], len(m.group(1))
+                blocks.append(cur)
+            else:
+                blocks.append([m.group(2)])
+                cur = None
+            continue
+        if cur is not None:
+            if line.strip() and len(line) - len(line.lstrip()) <= indent:
+                cur = None
+            else:
+                cur.append(line)
+    return blocks
+
+
+def check_workflows():
+    """ios.yml's guard and check_only, the held steps, and that no workflow
+    prints a secret. Text checks, so they also run on the macOS runner."""
+    print("== workflows")
+    read = lambda f: open(os.path.join(WORKFLOWS, f)).read()  # noqa: E731
+    ios = read("ios.yml")
+    jobs = wf_jobs(ios)
+    ok("ios.yml: a plan job and a build job", set(jobs) == {"plan", "build"}, sorted(jobs))
+    plan, build = jobs.get("plan", []), jobs.get("build", [])
+    built = dict(wf_steps(build))
+    for name, digest in HELD_STEPS.items():
+        got = hashlib.sha256(built.get(name, "").encode()).hexdigest()
+        ok("ios.yml: build step '%s' is unchanged" % name, got == digest, got[:16])
+    order = [n for n, _ in wf_steps(build)]
+    ok("ios.yml: key, signing, archive, upload, revoke, remove, in that order",
+       [n for n in order if n in HELD_STEPS] == list(HELD_STEPS), order)
+
+    # The guard: on ubuntu, after the secrets check, before any macOS job.
+    ok("ios.yml: plan runs on ubuntu", (job_value(plan, "runs-on") or "").startswith("ubuntu-"), job_value(plan, "runs-on"))
+    names = [n for n, _ in wf_steps(plan)]
+    guard = "App Store Connect answers (read-only)"
+    ok("ios.yml: the guard comes after the secrets check and before the apps are picked",
+       guard in names and names.index("Check the four secrets are set") < names.index(guard) < names.index("Pick the apps"), names)
+    gstep = dict(wf_steps(plan)).get(guard, "")
+    ok("ios.yml: the guard runs asc_read.py preflight", "scripts/asc_read.py preflight" in gstep)
+    ok("ios.yml: the plan job removes its key copy, always",
+       "rm -f \"$RUNNER_TEMP/AuthKey.p8\"" in dict(wf_steps(plan)).get("Remove the key", "")
+       and "if: always()" in dict(wf_steps(plan)).get("Remove the key", ""))
+    ok("ios.yml: the plan job is not skipped by check_only", job_value(plan, "if") is None)
+    for jid, lines in jobs.items():
+        if "macos" in (job_value(lines, "runs-on") or ""):
+            ok("ios.yml: macOS job '%s' needs plan" % jid, job_value(lines, "needs") == "plan", job_value(lines, "needs"))
+
+    # check_only: a boolean, off by default, and it stops after plan.
+    m = re.search(r"\n      check_only:\n((?:        .*\n)+)", ios)
+    body = m.group(1) if m else ""
+    ok("ios.yml: check_only is a boolean input, default false",
+       "type: boolean" in body and "default: false" in body, body)
+    ok("ios.yml: check_only stops after the plan job", job_value(build, "if") == "${{ !inputs.check_only }}", job_value(build, "if"))
+    ok("ios.yml: a check_only run says 'check only' in its title",
+       re.search(r"^run-name: .*inputs\.check_only && '[^']*check only[^']*'", ios, re.M) is not None)
+    tf = read("testflight-public.yml")
+    ok("testflight-public.yml: does not follow a check_only run",
+       "!contains(github.event.workflow_run.display_title, 'check only')" in tf)
+
+    # The guard and the gatherer only read.
+    for f in ("asc_read.py",):
+        src = open(os.path.join(ROOT, "scripts", f)).read()
+        methods = re.findall(r"method=['\"](\w+)['\"]", src)
+        ok("%s: only GET requests" % f, set(methods) <= {"GET"} and "data=" not in src and "asc_signing.api(" not in src, methods)
+        ok("%s: prints no token, key or environment value" % f,
+           not [l for l in src.split("\n") if "print(" in l and ("environ" in l or "token(" in l or "read_text" in l)])
+
+    # Every workflow: current action majors, no secret printed, nothing personal.
+    email = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}")
+    for f in sorted(os.listdir(WORKFLOWS)):
+        text = read(f)
+        uses = re.findall(r"uses: (actions/(?:checkout|setup-node))@(\S+)", text)
+        ok("%s: checkout and setup-node are v7 (Node 24)" % f, all(v == "v7" for _, v in uses), uses)
+        printed = []
+        for block in run_blocks(text):
+            for line in block:
+                if "${{ secrets." in line or re.search(r"\bset -[a-z]*x", line):
+                    printed.append(line.strip())
+                if re.match(r"^\s*(echo|printf|cat)\b", line) and any("$" + v in line or "${" + v in line for v in SECRET_VARS):
+                    if not re.search(r"[|>]", line):
+                        printed.append(line.strip())
+        ok("%s: no secret is echoed (secrets only in env:, never printed)" % f, not printed, printed[:3])
+        ok("%s: no email address or Team ID" % f,
+           not email.search(text) and not re.search(r"\b[A-Z0-9]{10}\.com\.strongtechnicalconsulting\.", text))
+
+
 for slug, (name, bundle, url) in APPS.items():
     check_app(slug, name, bundle, url)
+check_workflows()
 check_private()
 
 print("\n%d passed, %d failed" % (passes, len(failures)))

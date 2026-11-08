@@ -33,7 +33,9 @@ concurrency:
 jobs:
   public:
     name: Public links
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # Not after a check_only run (ios.yml's run-name says "check only"): it
+    # built nothing, though it ends in success.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && !contains(github.event.workflow_run.display_title, 'check only'))
     runs-on: ubuntu-latest
     # Up to 40 minutes waiting for Apple to process a fresh build, then the
     # API calls for four apps.
@@ -42,7 +44,7 @@ jobs:
       APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
       APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: App Store Connect key
         env:

@@ -12,8 +12,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -33,13 +33,13 @@ jobs:
       # check one session opens all of them. Both repos are public. Checked out
       # after the syntax check so it does not walk their files.
       - name: Check out Trip Planner
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: eRock35/trip-planner
           path: siblings/trip-planner
 
       - name: Check out College Football
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: eRock35/college-football-app
           path: siblings/college-football-app

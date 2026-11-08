@@ -167,6 +167,49 @@ invites, no adding people by hand, up to 10,000 testers an app.
 - **Builds expire after 90 days.** The build workflow runs on the 1st of
   every month, so the public links always have a live build behind them.
 
+## When a build fails before it starts: the agreement check (2026-11-08)
+
+**What happened on 2026-11-01.** The scheduled build failed for all five
+apps at the **Signing** step. Apple refused to issue the distribution
+certificate (`POST /certificates -> 403: PLA Update available ... your
+team's Account Holder must agree to the latest Program License Agreement`).
+Nothing in the code was wrong. Apple had published an updated Program
+License Agreement, and until the Account Holder accepts it, Apple refuses
+these requests. The last good uploads are from 2026-10-03, so those
+TestFlight builds expire around 2027-01-01.
+
+**What to do when it happens:** sign in at developer.apple.com as the
+Account Holder, accept the agreement it shows, then run **iPhone apps to
+TestFlight** again.
+
+**The check that now runs first.** Before any macOS machine starts, the
+build asks App Store Connect two read-only questions with the same key
+(`scripts/asc_read.py preflight`: one app, one certificate). It stops the
+run on the cheap machine with a plain message when Apple says:
+
+- **401**: the key is wrong or revoked (check the three `APPSTORE_*`
+  secrets);
+- **403 naming the agreement**: the sentence above;
+- **any other 403**: the key cannot reach these resources (it needs Admin).
+
+If Apple simply does not answer, it warns and lets the build go on.
+
+**What it cannot promise yet.** On 2026-11-01 Apple refused a *write*. Nobody
+has yet seen whether it also refuses these *reads*. If reads still work, the
+check passes and says so ("read-only checks passed; an unaccepted agreement
+may still stop signing"), and the build fails at Signing as before.
+
+**Trying it without building anything.** Go to Actions, open **iPhone apps to
+TestFlight** and click **Run workflow**. Tick **check_only** and run it. It
+runs only the checks: no macOS job, no build, no upload. The TestFlight
+public links workflow skips a check-only run. Doing this while the agreement
+is still unaccepted shows whether the check catches it.
+
+`scripts/check.py` (in `npm run check`) holds the build job's signing,
+archive, upload and clean-up steps byte for byte. It also checks that the
+guard runs before any macOS job, that check_only stops after it, and that no
+workflow prints a secret.
+
 ## Making changes
 
 - **Content and features** ship with the web app as they always have.
