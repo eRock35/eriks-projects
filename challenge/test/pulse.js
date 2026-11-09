@@ -123,17 +123,19 @@ const respond = (body, init = {}) => new Response(typeof body === 'string' ? bod
     const mounted = lab.slugs().filter((s) => s !== 'tally');
     const v = pulse.view({ got: { status: 'ok', doc }, apps: lab.APPS, mounted, buildStats: stats, now: NOW });
     assert.strictEqual(v.lab.apps.length, lab.APPS.length);
-    assert.strictEqual(lab.APPS.length, 57);
+    // Every drop adds one, so the count comes from lab.js rather than a
+    // number to bump each day (it was 57 when Pulse shipped).
+    assert.ok(lab.APPS.length >= 57);
     v.lab.apps.forEach((a, i) => {
       const src = lab.APPS[i];
       assert.strictEqual(a.drop, i + 1); assert.strictEqual(a.slug, src.slug); assert.strictEqual(a.name, src.name);
       assert.strictEqual(a.emoji, src.emoji); assert.strictEqual(a.dropped, src.dropped); assert.strictEqual(a.status, src.status);
     });
-    ok('all 57 lab rows come from lab.js: drop number, emoji, name, date and status, in drop order');
+    ok('all ' + lab.APPS.length + ' lab rows come from lab.js: drop number, emoji, name, date and status, in drop order');
     assert.strictEqual(v.lab.apps.find((a) => a.slug === 'tally').mounted, false);
     assert.strictEqual(v.lab.apps.find((a) => a.slug === 'tally').href, null);
     assert.strictEqual(v.lab.apps.find((a) => a.slug === 'spar').href, '/spar/');
-    assert.strictEqual(v.lab.counts.mounted, 56);
+    assert.strictEqual(v.lab.counts.mounted, mounted.length);
     ok('"live here" is whether this instance mounted the app; only a mounted app gets a link');
     assert.deepStrictEqual(v.lab.apps.find((a) => a.slug === 'spar').build, { in: 30e6, out: 200e3, agents: 1, agentMs: 2.7e6, exact: false });
     assert.strictEqual(v.lab.apps.find((a) => a.slug === 'chaser').build, null);
@@ -189,7 +191,7 @@ const respond = (body, init = {}) => new Response(typeof body === 'string' ? bod
 
     const dm = pulse.view({ got: { status: 'missing' }, apps: lab.APPS, mounted, buildStats: stats, now: NOW });
     assert.strictEqual(dm.source.ok, false); assert.strictEqual(dm.source.status, 'missing');
-    assert.strictEqual(dm.lab.apps.length, 57); assert.deepStrictEqual(dm.banners, []); assert.strictEqual(dm.ci, null);
+    assert.strictEqual(dm.lab.apps.length, lab.APPS.length); assert.deepStrictEqual(dm.banners, []); assert.strictEqual(dm.ci, null);
     assert.ok(dm.iphone.apps.every((a) => a.latest === null && a.testflight.text === 'Unknown right now'));
     ok('pulse.json missing: degraded, the five iPhone rows say unknown, every lab row still drawn');
     const old = clone(FIXTURE); old.generatedAt = '2026-11-08T01:00:00Z';

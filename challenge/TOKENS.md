@@ -208,5 +208,6 @@ Visitors' AI use in the lab on 2026-10-31 to 2026-11-06: none.
 |---|---|---|---|---|---|---|---|
 | Replay | one builder agent | 51.3M | 49.6M | 353K | 1 | 62 min | exact |
 | Whichbox | one builder agent | 78.0M | 76.8M | 318K | 1 | 56 min | exact |
+| Muster | one builder agent | 80.2M | 78.3M | 382K | 1 | 87 min | exact |
 
-Visitors' AI use in the lab on 2026-11-07: none.
+Visitors' AI use in the lab on 2026-11-07 and 2026-11-08: none.
