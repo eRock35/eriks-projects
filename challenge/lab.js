@@ -858,6 +858,23 @@ const APPS = [
     audience: 'Servicing and compliance teams at banks, credit unions, auto lenders, card issuers and consumer-finance servicers',
     status: 'testing',
   },
+  {
+    slug: 'pencil',
+    name: 'Pencil',
+    emoji: '\u{270F}\u{FE0F}',
+    // Card-table felt to a playing-card red - the table and the hearts on
+    // it. Well away from the newest cards (Muster's olive and navy,
+    // Whichbox's kraft and violet-blue, Replay's slate and sky, Chapter's
+    // aubergine and walnut). White text holds 7.63:1 and 7.43:1.
+    color: '#0f5f48',
+    color2: '#a3222f',
+    dropped: '2026-11-10',
+    tagline: 'Keep score at game night - every game, every round, and who’s ahead all year.',
+    blurb: 'For families and friend groups who play cards, dice, darts, bowling or mini golf - especially the game nights of Thanksgiving week and the holidays. Every game night has the same stub of pencil in the box, a score sheet torn off a pad, somebody’s maths disputed, and nobody sure who won last time. Pencil is a scorekeeper that knows how each game is scored. Hearts checks every hand adds up to 26 and shoots the moon in one tap. Five dice shows what each box would score when you tap the dice, refuses an impossible score and says how far you are from the 35 bonus. Bowling works out strikes and spares, and its keypad only offers the pins still standing. Darts 501 calls the bust and suggests the checkout - “T20 T20 Bull”. Cribbage pegs a drawn board to 121 and calls the skunk. Mini golf keeps par. Rummy, Euchre, Card golf, a word game or any game you make up: high or low, to a target or a number of rounds. A big keypad, the leader crowned, the dealer moved round, undo and redo, and a late player caught up. At the end the winner is called (a tie said plainly), with a recap card to send the group - drawn on your phone. Show the table and everyone watches the scores land on their own phone with a six-letter code, no accounts; hand the pencil to someone else at any time. Our table keeps wins, streaks, records and head-to-head across every night: “Next to beat: Marcus’s 287 in Bowling”. Try a made-up family game night first; it is free, needs no sign-in and stays on your phone. Sign in only if you want AI to copy a paper score sheet in from a photo, for you to check.',
+    features: ['Knows the rules: Hearts, Five dice, Bowling, Darts 501, Cribbage, Mini golf and more', 'A big keypad, the leader crowned, undo, a recap card to send the group', 'Show the table: everyone watches the score live - hand the pencil on', 'Our table: wins, streaks, records, head to head, “Next to beat”'],
+    audience: 'Families and friend groups at game night',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

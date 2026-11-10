@@ -1,0 +1,10 @@
+{
+  "name": "Pencil",
+  "short_name": "Pencil",
+  "description": "Keep score at game night - every game, every round, and who's ahead all year.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#14201a",
+  "theme_color": "#1d5c3a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
