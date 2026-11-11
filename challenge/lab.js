@@ -875,6 +875,23 @@ const APPS = [
     audience: 'Families and friend groups at game night',
     status: 'testing',
   },
+  {
+    slug: 'waterfall',
+    name: 'Waterfall',
+    emoji: '\u{1F30A}',
+    // A deep cyan to a plum - the water and the ledger's ink. No card pairs
+    // these two; well away from the newest (Pencil's felt green and card
+    // red, Muster's olive and navy, Whichbox's kraft and violet-blue,
+    // Replay's slate and sky). White text holds 6.23:1 and 9.55:1.
+    color: '#036a7f',
+    color2: '#74275f',
+    dropped: '2026-11-11',
+    tagline: 'Billings in, revenue out - the deferred revenue schedule that ties to your ledger.',
+    blurb: 'For finance leads, controllers and bookkeepers at subscription and usage-billing companies - and the engineers who get pulled into month-end. The billing dashboard shows MRR and cash; the books need recognised and deferred revenue; and nobody can say line by line why the two never tie. Load a billing export - a Stripe invoice line-item export or any billing system’s CSV, read on your device and never uploaded - confirm which column is which, and Waterfall asks once about anything that reads two ways: whether a period ends on its last day or the next period’s first (it shows the evidence from your file), day or month first, cents or dollars, amounts before or after discount and tax. Choose a rule per product - over the service period by day, on the invoice date, over N months, or exclude - and every line is split across the months it is earned, to the cent: void invoices left out, uncollectible ones listed apart, tax never revenue, each currency its own schedule. You get recognised revenue by month with a chart, the waterfall triangle, the deferred revenue roll-forward (every closing equal to the next opening, checked), balanced journal entries, and a drill-down for any customer. Then type the month’s dashboard figure and your ledger’s revenue and deferred balance, and Waterfall explains every gap in buckets with the exact lines behind each - annual prepayments, prorations, usage billed in arrears, credits, discounts, voids, tax, other currencies. Export the schedule, the waterfall, the roll-forward and the journal as CSV, and a one-page close memo. Try a made-up company’s 14 months first; it is free and needs no sign-in. Sign in to keep your presets and rules, and AI can suggest a rule per product from the product names alone - never a customer, an amount or a date. Waterfall applies the rules you choose - your accountant decides the policy.',
+    features: ['Every invoice line split across the months it is earned, to the cent', 'The waterfall triangle, the roll-forward and balanced journal entries', 'Why the dashboard and the ledger disagree - buckets with the exact lines', 'Read on your device: billing exports are never uploaded'],
+    audience: 'Finance leads, controllers and bookkeepers at subscription and usage-billing companies',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

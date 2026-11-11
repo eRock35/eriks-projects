@@ -210,5 +210,6 @@ Visitors' AI use in the lab on 2026-10-31 to 2026-11-06: none.
 | Whichbox | one builder agent | 78.0M | 76.8M | 318K | 1 | 56 min | exact |
 | Muster | one builder agent | 80.2M | 78.3M | 382K | 1 | 87 min | exact |
 | Pencil | one builder agent | 88.0M | 87.2M | 377K | 1 | 70 min | exact |
+| Waterfall | one builder agent | 101.0M | 100.0M | 381K | 1 | 60 min | exact |
 
-Visitors' AI use in the lab from 2026-11-07 to 2026-11-09: none.
+Visitors' AI use in the lab from 2026-11-07 to 2026-11-10: none.
