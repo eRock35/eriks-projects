@@ -47,7 +47,7 @@ app.use((req, res, next) => {
   // Join codes and move links travel in the address's #fragment, which is
   // never sent anywhere - and nothing here needs a Referer either.
   res.set('Referrer-Policy', 'no-referrer');
-  if (/^\/api\/(c|clubs|join|move|account)(\/|$)/.test(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
+  if (/^\/api\/(c|clubs|join|move|account|library|isbn)(\/|$)/.test(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
   next();
 });
 
@@ -681,6 +681,149 @@ app.delete('/api/account/clubs/:id', identity.requireUser, route('Could not do t
 }));
 
 /* ------------------------------------------------------------------ *
+ * The personal library: per person, across clubs, seen by nobody else
+ *
+ *   libraries/<id> = {books: {<bid>: {isbn, title, author, pages, cover,
+ *                     source, special, signed, note, addedAt}}, createdAt,
+ *                     updatedAt, v}
+ *
+ * Whose: signed in, the account's (`a<tag>`); signed out, this phone's
+ * (`p<hash of the key>`, made on the first book). A signed-in member with
+ * books on the phone is offered "Keep them on my account", which moves them
+ * across. Nobody else can name another's library: the id comes from the
+ * request's own cookie or session, never from the URL or the body, so there
+ * is no other reader's library to ask for. A phone's library nobody opens in
+ * 400 days (as long as the key cookie lasts) is deleted by the read that
+ * finds it.
+ *
+ * Looking up an ISBN asks Open Library (lib/openlibrary.js) - the one
+ * outbound request in Chapter that is not the shared account's - inside the
+ * request, with one time budget; a miss or a failure is still a 200 that
+ * says which, and the page opens manual entry.
+ * ------------------------------------------------------------------ */
+
+const Lib = require('./public/library-core');
+const books = require('./lib/openlibrary').create();
+const lookups = lim(L.lookupsPerIp, L.lookupsWindowMs);
+const libWrites = lim(L.libraryWrites, L.libraryWritesWindowMs);
+
+/** Which library this request is: the account's when signed in, else the
+ *  phone's (null if this browser has no key yet). */
+function libOf(req) {
+  const tag = tagOf(req);
+  if (tag) return { id: K.accountLibId(tag), where: 'account' };
+  const key = readKey(req);
+  return { id: key ? K.phoneLibId(key) : null, where: 'phone' };
+}
+async function loadLib(id, where) {
+  if (!id) return null;
+  const doc = await store.get('libraries', id);
+  if (doc && where === 'phone' && K.libraryIdle(doc, Date.now())) { await store.remove('libraries', id); return null; }
+  return doc;
+}
+/** The library as its owner sees it, plus where it lives, and - signed in -
+ *  how many books are still only on this phone. */
+async function libView(req) {
+  const { id, where } = libOf(req);
+  const v = Lib.view(await loadLib(id, where));
+  v.where = where;
+  v.account = Boolean(SECRET());
+  v.phone = 0;
+  if (where === 'account') { const key = readKey(req); v.phone = key ? Lib.count(await loadLib(K.phoneLibId(key), 'phone')) : 0; }
+  return v;
+}
+/** Every library write: read it inside a transaction, let the rules decide,
+ *  write only the keys they changed. Only adding a book makes a library. */
+async function libWrite(req, res, fn, opts) {
+  countWrite(req);
+  let { id } = libOf(req);
+  if (!id) {
+    if (!(opts && opts.create)) throw httpError(404, 'That book isn’t in your library any more.');
+    id = K.phoneLibId(mintKey(req, res));
+  }
+  if (!libWrites.hit(id)) throw httpError(429, 'That’s a lot of changes. Wait a few minutes and try again.');
+  const now = Date.now();
+  if (opts && opts.create) {
+    const at = new Date(now).toISOString();
+    await store.transact('libraries', id, (cur) => (cur ? undefined : { books: {}, createdAt: at, updatedAt: at, v: 0 }));
+  }
+  let out = null;
+  await store.transactKeys('libraries', id, (cur) => {
+    if (!cur) throw httpError(404, 'That book isn’t in your library any more.');
+    out = fn(cur, now);
+    return { set: { ...out.patch.set, ...K.touchKeys(cur, now) }, del: out.patch.del };
+  });
+  return out;
+}
+const bookId = () => Core.newId('l', K.rand, 10);
+
+/** Title, author, pages and cover for an ISBN (ISBN-10 or 13, typed however),
+ *  and how many copies the asker already has. Not found or unavailable is a
+ *  200 that says which - the page opens manual entry with the ISBN filled in. */
+app.get('/api/isbn/:isbn', route('Could not look that up. You can type the book in instead.', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const isbn = Lib.toIsbn13(req.params.isbn);
+  if (!isbn) throw httpError(400, Lib.isbnProblem(req.params.isbn));
+  if (!lookups.hit(ipKey(req))) throw httpError(429, 'That’s a lot of lookups from here. Type the book in instead, or try again later.');
+  const r = await books.lookup(isbn);
+  const { id, where } = libOf(req);
+  const have = Lib.copiesOf(await loadLib(id, where), isbn);
+  if (r.found) return res.json({ isbn, found: true, book: r.book, have });
+  res.json({ isbn, found: false, reason: r.reason, book: { isbn, title: '', author: '', pages: null, cover: '' }, have });
+}));
+
+app.get('/api/library', route('Could not load your library.', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ library: await libView(req) });
+}));
+/** Add a book (looked up or typed in) with its edition tags. */
+app.post('/api/library/books', route('Could not add that book.', async (req, res) => {
+  const b = req.body || {};
+  const out = await libWrite(req, res, (cur, now) => Lib.addBook(cur, b, { id: bookId(), now }), { create: true });
+  res.json({ library: await libView(req), id: out.id });
+}));
+/** Special edition, signed, and a note about the edition. */
+app.patch('/api/library/books/:bid', route('Could not save that.', async (req, res) => {
+  const bid = String(req.params.bid);
+  await libWrite(req, res, (cur) => Lib.setTags(cur, bid, req.body || {}));
+  res.json({ library: await libView(req) });
+}));
+app.delete('/api/library/books/:bid', route('Could not remove that.', async (req, res) => {
+  const bid = String(req.params.bid);
+  await libWrite(req, res, (cur) => Lib.removeBook(cur, bid));
+  res.json({ library: await libView(req) });
+}));
+/** Delete the whole library (this account's, or this phone's). */
+app.delete('/api/library', route('Could not delete your library.', async (req, res) => {
+  countWrite(req);
+  const { id } = libOf(req);
+  if (id) await store.remove('libraries', id);
+  res.json({ library: await libView(req) });
+}));
+/** Signed in: move the books on this phone onto the account (new ids where
+ *  two would clash), then the phone's library goes. */
+app.post('/api/library/keep', identity.requireUser, route('Could not move your books.', async (req, res) => {
+  countWrite(req);
+  const tag = tagOf(req);
+  if (!tag) throw httpError(503, 'Keeping your library on an account isn’t available right now. Your books are safe on this phone.');
+  const key = readKey(req);
+  const pid = key ? K.phoneLibId(key) : null;
+  const phone = await loadLib(pid, 'phone');
+  if (!Lib.count(phone)) return res.json({ library: await libView(req), moved: 0 });
+  const aid = K.accountLibId(tag);
+  const now = Date.now(), at = new Date(now).toISOString();
+  await store.transact('libraries', aid, (cur) => (cur ? undefined : { books: {}, createdAt: at, updatedAt: at, v: 0 }));
+  let moved = 0;
+  await store.transactKeys('libraries', aid, (cur) => {
+    const r = Lib.mergeInto(cur, phone, bookId);
+    moved = r.moved;
+    return { set: { ...r.patch.set, ...K.touchKeys(cur, now) }, del: [] };
+  });
+  await store.remove('libraries', pid);
+  res.json({ library: await libView(req), moved });
+}));
+
+/* ------------------------------------------------------------------ *
  * The page
  * ------------------------------------------------------------------ */
 
@@ -724,4 +867,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`chapter listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store, fakeClient, LIMITS: K.LIMITS };
+module.exports = { app, identity, identityStore, store, fakeClient, books, LIMITS: K.LIMITS };

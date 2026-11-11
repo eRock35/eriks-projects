@@ -25,9 +25,14 @@
 //
 // Notes and questions are documents of their own: notes/<id> =
 //   {club, book, mid, kind, text, at, ai, reactions: {<mid>: emoji}, createdAt}
+//
+// A personal library (one per phone, or per account) is libraries/<id> =
+//   {books: {<bid>: {isbn, title, author, pages, cover, source, special,
+//                    signed, note, addedAt}}, createdAt, updatedAt, v}
 
 const crypto = require('crypto');
 const Core = require('../public/chapter-core');
+const Lib = require('../public/library-core');
 
 const ID_RE = /^[A-Za-z0-9_-]{16}$/;
 const SECRET_RE = /^[A-Za-z0-9_-]{22}$/;
@@ -49,6 +54,11 @@ const LIMITS = {
   movesPerMember: 5,                  // move links one member may make...
   movesWindowMs: 60 * 60 * 1000,      // ...an hour
   accountClubs: 30,                   // clubs one account may keep
+  lookupsPerIp: 60,                   // ISBN lookups (each may ask Open Library) per address...
+  lookupsWindowMs: 60 * 60 * 1000,    // ...an hour
+  libraryWrites: 240,                 // adds, tag changes and removals per library...
+  libraryWritesWindowMs: 10 * 60 * 1000,
+  libraryIdleMs: Lib.LIMITS.idleDays * 24 * 60 * 60 * 1000, // a phone's library nobody opens in 400 days goes
 };
 
 const httpError = Core.fail;
@@ -81,6 +91,13 @@ function accountTag(uid, secret) {
 }
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
+/** A personal library's document id. On a phone: a hash of the browser's
+ *  key under its own label, so it cannot be matched to the per-club hashes
+ *  (or the key). On an account: the account's tag - never the id or email. */
+function phoneLibId(key) { return `p${crypto.createHash('sha256').update(`chapter library v1:${key}`).digest('base64url').slice(0, 32)}`; }
+function accountLibId(tag) { return `a${tag}`; }
+function libraryIdle(doc, now) { return !doc || !doc.updatedAt || Date.parse(doc.updatedAt) + LIMITS.libraryIdleMs <= now; }
+
 function idle(doc, now) { return !doc || !doc.updatedAt || Date.parse(doc.updatedAt) + LIMITS.idleMs <= now; }
 /** The keys a write adds to bump the version with it. */
 function touchKeys(cur, now) { return { v: (cur.v || 0) + 1, updatedAt: new Date(now).toISOString() }; }
@@ -100,4 +117,5 @@ function actorOf(doc, key, tag) {
 module.exports = {
   LIMITS, httpError, newCode, newClubId, newKey, newSecret, rand, isClubId, isSecret,
   keyHash, secretHash, accountTag, same, idle, touchKeys, actorOf,
+  phoneLibId, accountLibId, libraryIdle,
 };
