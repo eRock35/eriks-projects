@@ -1,0 +1,10 @@
+{
+  "name": "Waterfall",
+  "short_name": "Waterfall",
+  "description": "Billings in, revenue out - the deferred revenue schedule that ties to your ledger.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1418",
+  "theme_color": "#036a7f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

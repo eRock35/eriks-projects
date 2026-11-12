@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Waterfall — billings in, revenue out: the deferred revenue schedule that ties to your ledger</title>
+  <meta name="description" content="For finance leads, controllers and bookkeepers at subscription and usage-billing companies. Waterfall splits every invoice line across the months it is earned, builds the deferred revenue schedule, the waterfall, the roll-forward and the journal entries, and shows line by line why the billing dashboard and the ledger disagree. Everything runs on your device - billing exports are never uploaded.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0b1418" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f6f7" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Waterfall">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Waterfall — Billings in, revenue out - the deferred revenue schedule that ties to your ledger.">
+  <meta property="og:description" content="For finance leads, controllers and bookkeepers at subscription and usage-billing companies - and the engineers who get pulled into month-end. The billing dashboard shows MRR and cash; the books need recognised and deferred revenue; and nobody can say line by line why the two neve">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/waterfall/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/waterfall.png?v=5f543020a9">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Waterfall, drop #60 in the Challenge Lab: Billings in, revenue out - the deferred revenue schedule that ties to your ledger.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Waterfall — Billings in, revenue out - the deferred revenue schedule that ties to your ledger.">
+  <meta name="twitter:description" content="For finance leads, controllers and bookkeepers at subscription and usage-billing companies - and the engineers who get pulled into month-end. The billing dashboard shows MRR and cash; the books need recognised and deferred revenue; and nobody can say line by line why the two neve">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/waterfall.png?v=5f543020a9">
+  <meta name="twitter:image:alt" content="Waterfall, drop #60 in the Challenge Lab: Billings in, revenue out - the deferred revenue schedule that ties to your ledger.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">🌊</span>Waterfall</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="settingsBtn" type="button" data-act="settings">Settings</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Steps" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18.5" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Rules</span></button>
+      <button type="button" data-act="tab" data-tab="schedule"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 17v-5M12 17V8M16 17v-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg><span>Schedule</span></button>
+      <button type="button" data-act="tab" data-tab="waterfall"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="5" height="4" rx="1" fill="currentColor"/><rect x="9.5" y="4" width="5" height="4" rx="1" fill="currentColor" opacity=".7"/><rect x="15.5" y="4" width="5" height="4" rx="1" fill="currentColor" opacity=".45"/><rect x="9.5" y="10" width="5" height="4" rx="1" fill="currentColor"/><rect x="15.5" y="10" width="5" height="4" rx="1" fill="currentColor" opacity=".7"/><rect x="15.5" y="16" width="5" height="4" rx="1" fill="currentColor"/></svg><span>Waterfall</span></button>
+      <button type="button" data-act="tab" data-tab="tieout"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7M4 17h7M13 7h7M13 17h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 7v10M16 7v10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2 2.5"/></svg><span>Tie out</span></button>
+      <button type="button" data-act="tab" data-tab="customers"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19.5c.8-3.4 3.2-5 6-5s5.2 1.6 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 5.5a3.4 3.4 0 0 1 0 6.4M18 14.6c1.6.7 2.6 2.2 3 4.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Customers</span></button>
+      <button type="button" data-act="tab" data-tab="close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.5l2 2 4-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Close</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="dropcover" id="dropcover" hidden><div><b>Drop it here</b><span>Read on this device, never uploaded</span></div></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+
+  <script src="waterfall-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="waterfall-store.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

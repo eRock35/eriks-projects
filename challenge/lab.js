@@ -841,6 +841,57 @@ const APPS = [
     audience: 'Anyone moving house, or with boxes in a loft, garage or storage unit',
     status: 'testing',
   },
+  {
+    slug: 'muster',
+    name: 'Muster',
+    emoji: '\u{1F396}\u{FE0F}',
+    // Olive drab to a dress-uniform navy - the field and the ribbon. Well
+    // away from the newest cards (Whichbox's kraft and violet-blue, Replay's
+    // slate and sky, Chapter's aubergine and walnut, Feedfix's green and
+    // magenta). White text holds 7.55:1 and 10.56:1.
+    color: '#4b5a1e',
+    color2: '#1c3d78',
+    dropped: '2026-11-09',
+    tagline: 'Find the servicemembers in your loan book - and apply the 6% cap with the paper trail.',
+    blurb: 'For servicing and compliance teams at banks, credit unions, auto lenders, card issuers and consumer-finance servicers checking their book under the Servicemembers Civil Relief Act. The check is a day of error-prone stitching: build DMDC’s fixed-width multiple-record request file by hand from an export of SSNs, dates of birth and names, match the results back to loans in a spreadsheet, decide who is owed the 6% cap, estimate what, and keep a trail an examiner can follow. Drop the portfolio export - read on your device, never uploaded, SSNs never saved - confirm which column is which (co-borrowers included), and Muster checks every row first: SSNs that were never issued, missing or implausible dates of birth, names cut to fit or folded to plain letters, with the exact rows. It builds the request file - one record per borrower per loan, every line 119 characters - with a ruler that colours each field and a layout table you can check and edit against DMDC’s current guide. When the results come back, read them as a CSV or map any fixed-width layout with the ruler, and every record is decided with the rule it rests on: eligible (with the one-year tail for a mortgage), released in the last 367 days, taken out during service, at or under 6%, a future call-up to watch, or check by hand. Each eligible case shows the 6% math in cents - interest above 6% owed so far and the monthly payment drop, fees counted as interest - as an estimate. Then a worklist (rate reduced, refund applied, letter sent, done) whose every change goes into a SHA-256-chained audit log, an exam pack (every loan and result as a CSV, a one-page summary, the log) and a borrower letter filled on your device. Try a made-up credit union’s book first; it is free and needs no sign-in. Sign in to keep your layouts and preferences, and AI can draft the letter in plain words from the decision’s dates and amounts alone - never a name, a loan number or an SSN. A starting checklist, not legal advice.',
+    features: ['Row checks before anything is sent: never-issued SSNs, names cut to fit', 'The DMDC request file, 119 characters a line, on a ruler you can check', 'Every result decided with its rule - and the 6% math in cents', 'A worklist with a SHA-256-chained audit log, and an exam pack'],
+    audience: 'Servicing and compliance teams at banks, credit unions, auto lenders, card issuers and consumer-finance servicers',
+    status: 'testing',
+  },
+  {
+    slug: 'pencil',
+    name: 'Pencil',
+    emoji: '\u{270F}\u{FE0F}',
+    // Card-table felt to a playing-card red - the table and the hearts on
+    // it. Well away from the newest cards (Muster's olive and navy,
+    // Whichbox's kraft and violet-blue, Replay's slate and sky, Chapter's
+    // aubergine and walnut). White text holds 7.63:1 and 7.43:1.
+    color: '#0f5f48',
+    color2: '#a3222f',
+    dropped: '2026-11-10',
+    tagline: 'Keep score at game night - every game, every round, and who’s ahead all year.',
+    blurb: 'For families and friend groups who play cards, dice, darts, bowling or mini golf - especially the game nights of Thanksgiving week and the holidays. Every game night has the same stub of pencil in the box, a score sheet torn off a pad, somebody’s maths disputed, and nobody sure who won last time. Pencil is a scorekeeper that knows how each game is scored. Hearts checks every hand adds up to 26 and shoots the moon in one tap. Five dice shows what each box would score when you tap the dice, refuses an impossible score and says how far you are from the 35 bonus. Bowling works out strikes and spares, and its keypad only offers the pins still standing. Darts 501 calls the bust and suggests the checkout - “T20 T20 Bull”. Cribbage pegs a drawn board to 121 and calls the skunk. Mini golf keeps par. Rummy, Euchre, Card golf, a word game or any game you make up: high or low, to a target or a number of rounds. A big keypad, the leader crowned, the dealer moved round, undo and redo, and a late player caught up. At the end the winner is called (a tie said plainly), with a recap card to send the group - drawn on your phone. Show the table and everyone watches the scores land on their own phone with a six-letter code, no accounts; hand the pencil to someone else at any time. Our table keeps wins, streaks, records and head-to-head across every night: “Next to beat: Marcus’s 287 in Bowling”. Try a made-up family game night first; it is free, needs no sign-in and stays on your phone. Sign in only if you want AI to copy a paper score sheet in from a photo, for you to check.',
+    features: ['Knows the rules: Hearts, Five dice, Bowling, Darts 501, Cribbage, Mini golf and more', 'A big keypad, the leader crowned, undo, a recap card to send the group', 'Show the table: everyone watches the score live - hand the pencil on', 'Our table: wins, streaks, records, head to head, “Next to beat”'],
+    audience: 'Families and friend groups at game night',
+    status: 'testing',
+  },
+  {
+    slug: 'waterfall',
+    name: 'Waterfall',
+    emoji: '\u{1F30A}',
+    // A deep cyan to a plum - the water and the ledger's ink. No card pairs
+    // these two; well away from the newest (Pencil's felt green and card
+    // red, Muster's olive and navy, Whichbox's kraft and violet-blue,
+    // Replay's slate and sky). White text holds 6.23:1 and 9.55:1.
+    color: '#036a7f',
+    color2: '#74275f',
+    dropped: '2026-11-11',
+    tagline: 'Billings in, revenue out - the deferred revenue schedule that ties to your ledger.',
+    blurb: 'For finance leads, controllers and bookkeepers at subscription and usage-billing companies - and the engineers who get pulled into month-end. The billing dashboard shows MRR and cash; the books need recognised and deferred revenue; and nobody can say line by line why the two never tie. Load a billing export - a Stripe invoice line-item export or any billing system’s CSV, read on your device and never uploaded - confirm which column is which, and Waterfall asks once about anything that reads two ways: whether a period ends on its last day or the next period’s first (it shows the evidence from your file), day or month first, cents or dollars, amounts before or after discount and tax. Choose a rule per product - over the service period by day, on the invoice date, over N months, or exclude - and every line is split across the months it is earned, to the cent: void invoices left out, uncollectible ones listed apart, tax never revenue, each currency its own schedule. You get recognised revenue by month with a chart, the waterfall triangle, the deferred revenue roll-forward (every closing equal to the next opening, checked), balanced journal entries, and a drill-down for any customer. Then type the month’s dashboard figure and your ledger’s revenue and deferred balance, and Waterfall explains every gap in buckets with the exact lines behind each - annual prepayments, prorations, usage billed in arrears, credits, discounts, voids, tax, other currencies. Export the schedule, the waterfall, the roll-forward and the journal as CSV, and a one-page close memo. Try a made-up company’s 14 months first; it is free and needs no sign-in. Sign in to keep your presets and rules, and AI can suggest a rule per product from the product names alone - never a customer, an amount or a date. Waterfall applies the rules you choose - your accountant decides the policy.',
+    features: ['Every invoice line split across the months it is earned, to the cent', 'The waterfall triangle, the roll-forward and balanced journal entries', 'Why the dashboard and the ledger disagree - buckets with the exact lines', 'Read on your device: billing exports are never uploaded'],
+    audience: 'Finance leads, controllers and bookkeepers at subscription and usage-billing companies',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

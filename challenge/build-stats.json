@@ -1,6 +1,6 @@
 {
   "_about": "Written by scripts/token-ledger.py --stats. Apps only; totals are the sum of the apps. See challenge/TOKENS.md.",
-  "updated": "2026-11-08",
+  "updated": "2026-11-11",
   "apps": {
     "spar": {
       "in": 30000000,
@@ -571,17 +571,47 @@
       "wallMs": 3368457,
       "exact": true,
       "note": "One builder agent."
+    },
+    "muster": {
+      "in": 80245802,
+      "cached": 78335653,
+      "out": 381738,
+      "agents": 1,
+      "agentMs": 5191968,
+      "wallMs": 5191968,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "pencil": {
+      "in": 87980932,
+      "cached": 87209345,
+      "out": 376634,
+      "agents": 1,
+      "agentMs": 4179721,
+      "wallMs": 4179721,
+      "exact": true,
+      "note": "One builder agent."
+    },
+    "waterfall": {
+      "in": 101014063,
+      "cached": 100016934,
+      "out": 381469,
+      "agents": 1,
+      "agentMs": 3608416,
+      "wallMs": 3608416,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 2512425297,
-    "cached": 2394316636,
-    "out": 15003689,
-    "agents": 186,
-    "agentMs": 168836287,
-    "wallMs": 165979991,
-    "apps": 57,
+    "in": 2781666094,
+    "cached": 2659878568,
+    "out": 16143530,
+    "agents": 189,
+    "agentMs": 181816392,
+    "wallMs": 178960096,
+    "apps": 60,
     "estimated": 32,
-    "cachedShare": 0.9763
+    "cachedShare": 0.9773
   }
 }
