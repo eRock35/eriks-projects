@@ -13,7 +13,7 @@
  * cache: only these files.
  */
 var CACHE = 'chapter-shell-v1';
-var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'chapter-core.js', 'qr.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
+var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'chapter-core.js', 'library-core.js', 'qr.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));

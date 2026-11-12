@@ -49,6 +49,12 @@ is started with a name and a book, everyone joins with a six-character code
 - **Moving to another phone**: a one-time link (below). **Leave club**
   removes the member's notes, questions, bookmark, ballot, nominations,
   RSVPs, reactions and ratings.
+- **My library** (added 2026-11-11, Erik's ask): a reader's own books,
+  across every club, seen by nobody else. Add one by **scanning the barcode**
+  on the back cover, by **typing the ISBN**, or **by hand**; title, author,
+  cover and pages come from **Open Library**. Each copy can be tagged
+  **special edition** and/or **signed**, with a short note. See "My
+  library" below.
 
 Built 2026-11-06 as an **everyday** drop: Feedfix (2026-11-05) was a
 business one, so today was the other kind. **Staging only**: no custom
@@ -164,6 +170,88 @@ Baskervilles, The Picture of Dorian Gray). Every tap works through the same
 core functions - move the bookmark and watch notes unlock, react, post,
 vote, close the vote, RSVP, rate - and nothing is saved. A ribbon says so,
 with "Start my own" and "Leave".
+
+## My library (2026-11-11)
+
+Erik asked for a personal library in the book club app, all in one round:
+add a book by ISBN from Open Library (manual entry when it finds nothing),
+edition tags (special edition and/or signed, with an optional note), and
+scanning the ISBN barcode with the phone camera, typing it when the camera
+is refused. Erik chose **per person, across clubs**.
+
+- **Whose.** Signed out, the library belongs to this phone: `libraries/p<…>`,
+  where `<…>` is `sha256("chapter library v1:" + key)` - its own label, so it
+  cannot be matched to the per-club `keyHash`es, and the key is never
+  stored. Made by the first book (that is when the key cookie is minted;
+  reading an empty library mints nothing). Signed in, it is the account's:
+  `libraries/a<account tag>`, the same tag "keep my clubs" uses - never the
+  email or account id. A signed-in reader with books still on the phone sees
+  "Move them to my account" (`POST /api/library/keep`): the books (and their
+  tags) are copied across, new ids where two would clash, and the phone's
+  library is deleted. Signed out again, that browser is a stranger to the
+  account's library. The move link for a club seat does **not** carry the
+  library; the page says to keep it on a free account instead.
+- **Nobody else's.** The library id comes only from the request's own
+  cookie or session, never from the URL or body, so there is no route that
+  could name someone else's; another reader's book id is a 404 (tested,
+  including `__proto__`). The library never appears in a club, and clubs
+  never see it.
+- **The lookup** (`GET /api/isbn/:isbn`, `lib/openlibrary.js`): ISBN-10 or 13
+  typed however, checked by its check digit (a wrong one is a 400 that says
+  why - "one digit may be off"), always kept as ISBN-13; only 978/979 are
+  books. The server asks `openlibrary.org/isbn/<isbn>.json`, then the
+  author (or the work, then its author, or the edition's "by" line). **Open
+  Library's answer is untrusted**: one 6 s budget for the whole lookup
+  (`AbortSignal.timeout`, no timer), 256 KB per body, the final URL must still
+  be openlibrary.org, a key is followed only if it is exactly an author or
+  work key, fields go through the club cleaners, and a cover is only
+  `https://covers.openlibrary.org/b/id/<number>-M.jpg`. Not found and
+  unavailable are both a 200 (`found: false, reason`) with the ISBN, and the
+  page opens manual entry with it filled in and says which. Cached in memory:
+  finds a week, misses an hour, failures never. 60 lookups per address an
+  hour. `have` says how many copies of that ISBN the asker already has.
+  The page never calls Open Library itself; covers load from its cover
+  host (`referrerpolicy="no-referrer"`). This reverses the earlier "book
+  search is new infrastructure for a daily drop": it is an ask, not a drop,
+  and it needs no key, secret or new service.
+- **Edition tags.** `special`, `signed` (only `true` is true) and `note`
+  (one plain line, 200 characters). A note belongs to a tagged copy: with
+  neither tag it is dropped. A tag change writes exactly three keys.
+  Adding the same ISBN twice keeps both copies (a signed one and a reading
+  copy is the point); the add sheet says "You already have a copy".
+- **Scanning.** `getUserMedia` for the back camera, no microphone, read on
+  the phone: `BarcodeDetector` where the browser has it, otherwise
+  `ChapterLibrary.decodeFrame` - an EAN-13 reader in `public/library-core.js`
+  (iPhone Safari has no BarcodeDetector). Rows across the middle, then
+  columns; smoothed and raw; either direction; ink spread measured on the
+  guard bars and taken out; a read counts only if its check digit holds,
+  and only after it is seen twice (two lines of one frame or two frames).
+  An EAN that is not 978/979 says so. The camera stops the moment a book is
+  read, the sheet closes or another sheet opens (`stopScan`). Refused
+  (`NotAllowedError`) or missing (no `mediaDevices`, not a secure context):
+  the ISBN sheet opens and says so, with how to allow the camera next time.
+  Frames never leave the phone; only the ISBN is sent.
+- **Limits.** 500 books a library; 240 library writes per library in 10
+  minutes; a phone's library nobody opens in **400 days** (as long as the
+  key cookie lasts) is deleted by the read that finds it. An account's is
+  kept.
+
+`public/library-core.js` is the rules file (UMD, `window.ChapterLibrary`,
+loaded after `chapter-core.js`): no clock, no dice, no network, no storage,
+like the core. Tests: `test/library.js` (ISBNs, entries and tags, the
+barcode reader on drawn barcodes from 1 to 8 px a module through ink
+spread, blur, noise, uneven light and low contrast, a damaged code never
+read as another book, frames held sideways; then over HTTP against a fake
+Open Library that fails the test if anything else is asked: found, author
+from the work, not found, an error, a timeout, a body too big, garbage, a
+redirect elsewhere, hostile fields and keys, the cache, bad ISBNs, the lookup
+limit, privacy between two phones, tags, manual entry, cross-site writes,
+the 500 cap, deleting the library, moving a phone's books onto an account,
+the 400-day expiry, and the page's own promises). **Not proven by a test:**
+a real phone camera and a real `BarcodeDetector` - the page's capture loop
+was not driven in a browser (the build machine's sandbox kept headless
+Chrome off the network), so try it on an iPhone and an Android phone before
+relying on it.
 
 ## Two phones, one club (trip-planner's packing lesson)
 
@@ -303,7 +391,8 @@ votes need the internet." Leaving or deleting a club clears it.
 
 ```
 npm run dev     # memory store + fake model, at http://localhost:8161/chapter/
-npm test        # the rules first, then end to end over HTTP under a /chapter mount
+npm test        # the rules first, then end to end over HTTP under a /chapter mount;
+                # then test/library.js (the library, with a fake Open Library)
 ```
 
 `CHAPTER_MEMORY=1` and `CHAPTER_FAKE_AI=1` both **throw on Cloud Run**
@@ -395,6 +484,9 @@ Pickup's copy of the vendored Kazuhiko Arase MIT "QRCode for JavaScript".
   reactions: {<mid>: emoji}, createdAt}`.
 - `accounts/<tag>` - `{clubs: {<club id>: <member id>}, updatedAt}`, only
   for a signed-in member who asked.
+- `libraries/p<hash of key>` or `libraries/a<account tag>` - `{books: {<bid>:
+  {isbn, title, author, pages, cover, source: openlibrary|manual, special,
+  signed, note, addedAt}}, createdAt, updatedAt, v}`. See "My library".
 
 No email, no account id, no browser key, no address anywhere (tested over
 the whole store). Queries are single-field equality (`code ==`, `club ==`),
@@ -415,15 +507,20 @@ book`, `POST|PATCH|DELETE meetings[/:mt]`, `POST vote/close`, `POST
 vote/reopen`, `POST next`, `POST host`, `DELETE members/:mid`, `POST code`,
 `DELETE /api/c/:id`. Signed in (free): `GET /api/account/clubs`,
 `PUT|DELETE /api/account/clubs/:id`. Metered: `POST /api/ai/questions`.
-The shared account at `/api/auth`.
+The shared account at `/api/auth`. The library (this phone's, or the
+signed-in account's): `GET /api/isbn/:isbn`, `GET|DELETE /api/library`,
+`POST /api/library/books`, `PATCH|DELETE /api/library/books/:bid`; signed
+in, `POST /api/library/keep`.
 
 ## What is deliberately not built
 
 - **Notifications** ("notes unlocked", "the vote is closed"): no sender on
   this platform; the iPhone app is where they belong.
-- **Book search / covers** (an ISBN lookup for title, author and chapter
-  count): a books API is new infrastructure for a daily drop. The member
-  types the book; the share card and shelf draw a letter on a spine.
+- **Book search for a club's book** (title, author and chapter count from an
+  ISBN): the personal library looks books up (above), but a club's book is
+  still typed - Open Library has page counts, not chapter counts, and
+  chapters are what the spoiler rule runs on. The share card and shelf
+  still draw a letter on a spine.
 - **Page-to-chapter mapping** for mixed editions (see "Chapters over
   pages").
 - **Reporting a note** to the host: the host removes what they can see; a
