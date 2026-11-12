@@ -13,8 +13,11 @@
  *
  * The requests this page makes: the club and its writes; joining; moving a
  * seat to another phone; sign-in and, only if a signed-in member asks,
- * keeping clubs on the account; and "Suggest discussion questions", whose
- * request is shown before it is sent.
+ * keeping clubs on the account; "Suggest discussion questions", whose
+ * request is shown before it is sent; and the member's own library (an ISBN
+ * looked up through the server, never by the page itself, and the books).
+ * The camera, when a member scans a barcode, is read on the phone: only the
+ * ISBN it finds is sent.
  *
  * Every string a member typed, the server answered or a model wrote is
  * escaped before it is drawn, and no handler is written into markup: clicks
@@ -153,6 +156,7 @@
     start: { emoji: null },
     card: { url: null, blob: null, bid: '' },
     ai: null, accountClubs: null, pendingDraw: false, picker: '',
+    library: null, libraryErr: '', scan: null,
   };
   function demoView() {
     var v = C.memberView(state.demo.club, state.demo.notes, state.demo.you, { today: today(), locale: LOCALE });
@@ -192,6 +196,7 @@
     if ((m = /^join(?:=(.*))?$/.exec(h))) return { view: 'join', arg: m[1] || '' };
     if ((m = /^move=(.+)$/.exec(h))) return { view: 'move', arg: m[1] };
     if (h === 'start') return { view: 'start' };
+    if (h === 'library') return { view: 'library' };
     if ((m = /^try(?:\/(\w+))?$/.exec(h))) return { view: 'try', tab: m[1] };
     if ((m = /^c\/([A-Za-z0-9_-]{16})(?:\/(\w+))?$/.exec(h))) return { view: 'club', arg: m[1], tab: m[2] };
     return { view: 'home' };
@@ -221,6 +226,7 @@
     state.view = r.view; state.clubId = ''; state.club = null;
     if (r.view === 'join') { state.joinCode = C.normalizeCode(r.arg); state.joinPreview = null; draw(); if (C.isCode(state.joinCode)) lookUp(state.joinCode); return; }
     if (r.view === 'move') { draw(); claimMove(r.arg); return; }
+    if (r.view === 'library') { state.libraryErr = ''; draw(); loadLibrary(); return; }
     draw();
     if (r.view === 'home' && signedIn()) loadAccountClubs();
   }
@@ -283,6 +289,7 @@
     tb.hidden = !inClub;
     if (state.view === 'home') main.innerHTML = myClubs().length || (state.accountClubs && state.accountClubs.length) ? viewHome() : viewFirst();
     else if (state.view === 'start') main.innerHTML = viewStart();
+    else if (state.view === 'library') main.innerHTML = viewLibrary();
     else if (state.view === 'join') main.innerHTML = viewJoin();
     else if (state.view === 'move') main.innerHTML = '<div class="card center"><div style="font-size:2rem">📲</div><h1>Moving your seat to this phone…</h1><p class="muted">One moment.</p></div>';
     else if (state.view === 'club') main.innerHTML = inClub ? viewClub() : state.gone ? viewGone() : '<div class="card center"><p class="muted">Opening the club…</p></div>';
@@ -293,6 +300,7 @@
   }
   function after() {
     if (state.view === 'start') bindStart();
+    if (state.view === 'library') bindLibrary();
     if (state.view === 'join') bindJoin();
     if (state.view === 'club' && (isDemo() || state.club)) bindClub();
     var rv = $$('.nt.reveal');
@@ -316,6 +324,7 @@
       '<h1>A book club that keeps up - and never spoils the ending.</h1>' +
       '<p>See who has read how far, leave notes that stay locked until each reader reaches that chapter, plan the meetup and vote on what’s next. Free, no accounts, no app to install.</p>' +
       '<div class="cta"><button class="btn big white" type="button" data-act="try">Try it</button><button class="btn big line" type="button" data-act="startform">Start a club</button><button class="btn big line" type="button" data-act="joinform">Join with a code</button></div>' +
+      '<p class="small" style="margin:14px 0 0"><button class="link-btn hero-link" type="button" data-act="library">📚 Or keep a library of your own books →</button></p>' +
       '</div>' + mockBoard() + '</div></section>' +
       '<section style="margin-top:22px"><h2>Every club has the same three problems</h2><div class="grid three">' +
       '<div class="card problem"><span class="q">“Who’s read how far?”</span><p class="muted small" style="margin:0">Half the club is on chapter 30, someone hasn’t started, and the meeting is Thursday.</p><span class="a">A board of bookmarks: who’s where, and how much a day gets you there.</span></div>' +
@@ -341,6 +350,7 @@
     (state.accountClubs || []).forEach(function (c) { if (!seen[c.id]) rows.push(clubRow(c.id, c.emoji, c.name, c.book + ' · on your account')); });
     return '<div class="sec-head"><h1>Your clubs</h1></div>' + rows.join('') +
       '<div class="row" style="margin-top:14px"><button class="btn" type="button" data-act="startform">Start a club</button><button class="btn ghost" type="button" data-act="joinform">Join with a code</button><button class="btn ghost" type="button" data-act="try">Try the example</button></div>' +
+      '<button class="crow" type="button" data-act="library" style="margin-top:18px"><span class="tile">📚</span><span><b>My library</b><small>Every book you own - scan the barcode to add one. Only you see it.</small></span><span aria-hidden="true">›</span></button>' +
       (signedIn() || !(state.me && state.me.account) ? '' : '<p class="small muted" style="margin-top:14px">Using another phone or a laptop too? <button class="link-btn" type="button" data-act="signin">Sign in (free)</button> and keep your clubs on your account - optional.</p>');
   }
   function clubRow(id, emoji, name, sub) {
@@ -726,6 +736,7 @@
   var lastFocus = null;
   function sheet(html, onOpen) {
     var s = $('#sheet'), back = $('#sheetBack');
+    stopScan();
     if (s.hidden) lastFocus = document.activeElement;
     s.innerHTML = '<button class="btn small ghost close" type="button" data-act="closesheet" aria-label="Close">Close</button>' + html;
     s.hidden = false; back.hidden = false; document.body.classList.add('sheet-open'); s.scrollTop = 0;
@@ -738,6 +749,7 @@
     setTimeout(function () { try { if (f && !s.contains(document.activeElement)) f.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 40);
   }
   function closeSheet(quiet) {
+    stopScan();
     if ($('#sheet').hidden) return;
     $('#sheet').hidden = true; $('#sheetBack').hidden = true; $('#sheet').innerHTML = '';
     document.body.classList.remove('sheet-open');
@@ -1102,6 +1114,7 @@
   function afterSignIn(then) {
     loadAccountClubs();
     if (state.view === 'club' && !isDemo()) loadClub(true);
+    if (state.view === 'library') loadLibrary();
     if (then) then(); else draw();
   }
   function openAccountSheet() {
@@ -1145,6 +1158,249 @@
 
   /* ---------------- clicks ---------------- */
 
+  /* ---------------- my library (per person, across clubs; nobody else sees it) ---------------- */
+
+  var LB = window.ChapterLibrary;
+  function loadLibrary() {
+    return api('GET', 'api/library').then(function (d) { state.library = d.library; if (state.view === 'library') draw(); })
+      .catch(function (e) { state.libraryErr = e.message; if (state.view === 'library') draw(); });
+  }
+  function setLibrary(lb) { state.library = lb; if (state.view === 'library') draw(); }
+  function coverHtml(b) {
+    var letter = esc((Array.from(b.title || '?')[0] || '?').toUpperCase());
+    return '<span class="lcover" aria-hidden="true">' + (b.cover ? '<img src="' + esc(b.cover) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : '') + '<span>' + letter + '</span></span>';
+  }
+  function tagChips(b) {
+    return LB.tagLabels(b).map(function (t) { return '<span class="pill ' + (t === 'Signed' ? 't-signed' : 't-special') + '">' + (t === 'Signed' ? '✍️ ' : '✨ ') + esc(t) + '</span>'; }).join('');
+  }
+  function bookLine(b) {
+    var bits = [];
+    if (b.author) bits.push(esc(b.author));
+    if (b.pages) bits.push(esc(b.pages) + ' pages');
+    return bits.join(' · ');
+  }
+  function viewLibrary() {
+    var head = '<div class="sec-head"><h1>My library</h1><button class="btn small ghost" type="button" data-act="home">Your clubs</button></div>';
+    var lb = state.library;
+    if (!lb) return head + '<div class="card center"><p class="muted">' + esc(state.libraryErr || 'Opening your library…') + '</p></div>';
+    var add = '<div class="card lib-add"><p class="lab">Add a book</p><div class="row">' +
+      '<button class="btn" type="button" data-act="libscan">📷 Scan the barcode</button>' +
+      '<button class="btn ghost" type="button" data-act="libisbn">Type the ISBN</button>' +
+      '<button class="btn ghost" type="button" data-act="libmanual">Add it by hand</button></div>' +
+      '<p class="small muted" style="margin:10px 0 0">Title, author, cover and pages come from Open Library. Only you see your library - not your clubs, not anyone else.</p></div>';
+    var where = lb.where === 'account'
+      ? '<p class="small muted">On your account - it opens on any device you sign in on.</p>' + (lb.phone ? '<div class="note row" style="justify-content:space-between"><span class="small"><b>' + esc(plural(lb.phone, 'book')) + '</b> on this phone aren’t on your account yet.</span><button class="btn small" type="button" data-act="libkeep">Move them to my account</button></div>' : '')
+      : (lb.account && !signedIn() ? '<p class="small muted">On this phone. <button class="link-btn" type="button" data-act="signin">Sign in (free)</button> to keep it on your account and see it on your other devices.</p>' : '<p class="small muted">On this phone.</p>');
+    var c = lb.counts;
+    var sum = c.total ? '<p class="lab" style="margin-top:16px">' + esc(plural(c.total, 'book')) + (c.special ? ' · ' + esc(plural(c.special, 'special edition')) : '') + (c.signed ? ' · ' + esc(c.signed) + ' signed' : '') + '</p>' : '';
+    var list = c.total ? '<div class="lbooks">' + lb.books.map(function (b) {
+      return '<button class="lbook" type="button" data-act="libbook" data-id="' + esc(b.id) + '">' + coverHtml(b) +
+        '<span class="lmeta"><b>' + esc(b.title) + '</b><small>' + bookLine(b) + '</small>' +
+        (b.special || b.signed ? '<span class="ltags">' + tagChips(b) + '</span>' : '') +
+        (b.note ? '<small class="lnote">' + esc(b.note) + '</small>' : '') + '</span><span aria-hidden="true">›</span></button>';
+    }).join('') + '</div>' : '<div class="card center" style="margin-top:14px"><div style="font-size:2rem">📚</div><p class="muted">Nothing here yet. Scan the barcode on the back of a book to add it.</p></div>';
+    var foot = c.total ? '<p class="small muted center" style="margin-top:18px"><button class="link-btn" type="button" data-act="libdelete">Delete my whole library</button></p>' : '';
+    return head + add + where + sum + list + foot;
+  }
+  function bindLibrary() {
+    $$('.lcover img').forEach(function (img) { img.addEventListener('error', function () { img.remove(); }); });
+  }
+
+  /* -- edition tags: the same three fields wherever a book is added or edited -- */
+
+  function tagFields(t) {
+    var on = Boolean(t && (t.special || t.signed));
+    return '<fieldset class="tagset"><legend class="lab">This copy</legend>' +
+      '<label class="check"><input type="checkbox" name="special"' + (t && t.special ? ' checked' : '') + '> ✨ Special edition</label>' +
+      '<label class="check"><input type="checkbox" name="signed"' + (t && t.signed ? ' checked' : '') + '> ✍️ Signed</label>' +
+      '<label class="field tagnote"' + (on ? '' : ' hidden') + '><span>About this edition <small class="hint">(optional)</small></span><input class="input" name="note" maxlength="200" placeholder="Folio Society, slipcase · Signed at the launch" value="' + esc((t && t.note) || '') + '"></label></fieldset>';
+  }
+  function bindTagFields(f) {
+    var sync = function () { $('.tagnote', f).hidden = !(f.special.checked || f.signed.checked); };
+    f.special.addEventListener('change', sync); f.signed.addEventListener('change', sync);
+  }
+  function readTags(f) { return { special: f.special.checked, signed: f.signed.checked, note: f.note.value }; }
+
+  /* -- adding: by ISBN (typed or scanned), confirmed, or by hand -- */
+
+  function openIsbn(prefill, why) {
+    sheet('<h2>Type the ISBN</h2>' + (why ? '<p class="note small" role="alert">' + esc(why) + '</p>' : '') +
+      '<form class="fields" id="isbnForm" autocomplete="off"><label class="field"><span>ISBN <small class="hint">(10 or 13 digits, above the barcode)</small></span><input class="input" name="isbn" inputmode="text" autocapitalize="characters" spellcheck="false" enterkeyhint="search" maxlength="24" placeholder="978-0141439518" value="' + esc(prefill || '') + '"></label>' +
+      '<div id="isbnErr"></div><button class="btn block" type="submit">Look it up</button></form>' +
+      '<div class="row" style="margin-top:12px"><button class="btn small ghost" type="button" data-act="libscan">📷 Scan instead</button><button class="btn small ghost" type="button" data-act="libmanual">Add it by hand</button></div>', function (root) {
+      var f = $('#isbnForm', root);
+      setTimeout(function () { try { f.isbn.focus(); } catch (e) { /* ignore */ } }, 60);
+      f.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var isbn = LB.toIsbn13(f.isbn.value);
+        if (!isbn) { $('#isbnErr').innerHTML = '<p class="err" role="alert">' + esc(LB.isbnProblem(f.isbn.value)) + '</p>'; return; }
+        lookupIsbn(isbn, $('button[type=submit]', f), $('#isbnErr'));
+      });
+    });
+  }
+  function lookupIsbn(isbn, btn, errBox) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Looking it up…'; }
+    return api('GET', 'api/isbn/' + encodeURIComponent(isbn)).then(function (d) {
+      if (d.found) return openConfirm(d);
+      openManual(d.book, d.reason === 'unavailable'
+        ? 'Open Library isn’t answering right now, so fill it in yourself - the ISBN is kept.'
+        : 'Open Library doesn’t know ' + LB.showIsbn(d.isbn) + '. Fill it in yourself - the ISBN is kept.', d.have);
+    }).catch(function (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Look it up'; }
+      if (e.offline || e.status === 429) return openManual({ isbn: isbn }, e.message);
+      showError(e, errBox);
+    });
+  }
+  function haveLine(n) { return n ? '<p class="note small">You already have ' + esc(n === 1 ? 'a copy' : n + ' copies') + ' of this edition - adding it again keeps both.</p>' : ''; }
+  function openConfirm(d) {
+    var b = d.book;
+    sheet('<h2>Add this book?</h2>' + haveLine(d.have) +
+      '<div class="lfound">' + coverHtml(b) + '<div><b>' + esc(b.title) + '</b><p class="small muted" style="margin:4px 0">' + (bookLine(b) || 'No author listed') + '</p><p class="small muted" style="margin:0">ISBN ' + esc(LB.showIsbn(b.isbn)) + ' · from Open Library</p></div></div>' +
+      '<form class="fields" id="confirmForm">' + tagFields(null) + '<div id="confirmErr"></div>' +
+      '<button class="btn block" type="submit">Add to my library</button></form>' +
+      '<p class="small center" style="margin-top:10px"><button class="link-btn" type="button" id="notRight">Not right? Edit the details</button></p>', function (root) {
+      var f = $('#confirmForm', root);
+      bindLibrary(); bindTagFields(f);
+      $('#notRight', root).addEventListener('click', function () { openManual(b, null, d.have); });
+      f.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var t = readTags(f);
+        addBook({ isbn: b.isbn, title: b.title, author: b.author, pages: b.pages, cover: b.cover, source: 'openlibrary', special: t.special, signed: t.signed, note: t.note }, $('button[type=submit]', f), $('#confirmErr'));
+      });
+    });
+  }
+  function openManual(pre, why, have) {
+    var p = pre || {};
+    sheet('<h2>Add a book by hand</h2>' + (why ? '<p class="note small" role="status">' + esc(why) + '</p>' : '') + haveLine(have) +
+      '<form class="fields" id="manualForm" autocomplete="off">' +
+      '<label class="field"><span>Title</span><input class="input" name="title" maxlength="140" required value="' + esc(p.title || '') + '"></label>' +
+      '<label class="field"><span>Author</span><input class="input" name="author" maxlength="120" value="' + esc(p.author || '') + '"></label>' +
+      '<div class="fields two"><label class="field"><span>Pages</span><input class="input" name="pages" inputmode="numeric" pattern="[0-9]*" maxlength="5" value="' + esc(p.pages || '') + '"></label>' +
+      '<label class="field"><span>ISBN <small class="hint">(optional)</small></span><input class="input" name="isbn" maxlength="24" spellcheck="false" value="' + esc(p.isbn ? LB.showIsbn(p.isbn) : '') + '"></label></div>' +
+      tagFields(null) + '<div id="manualErr"></div><button class="btn block" type="submit">Add to my library</button></form>', function (root) {
+      var f = $('#manualForm', root);
+      bindTagFields(f);
+      setTimeout(function () { try { (f.title.value ? f.author : f.title).focus(); } catch (e) { /* ignore */ } }, 60);
+      f.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var t = readTags(f);
+        // A cover only stays when the ISBN is still the one it was found for.
+        var keepCover = p.cover && LB.toIsbn13(f.isbn.value) === p.isbn;
+        addBook({ isbn: f.isbn.value, title: f.title.value, author: f.author.value, pages: f.pages.value.trim() || null, cover: keepCover ? p.cover : '', source: 'manual', special: t.special, signed: t.signed, note: t.note }, $('button[type=submit]', f), $('#manualErr'));
+      });
+    });
+  }
+  function addBook(body, btn, errBox) {
+    btn.disabled = true;
+    api('POST', 'api/library/books', body).then(function (d) {
+      closeSheet(true); setLibrary(d.library);
+      if (state.view !== 'library') go('library');
+      toast('Added to your library.', 2800, { label: 'Scan another', fn: function () { openScan(); } });
+    }).catch(function (e) { btn.disabled = false; showError(e, errBox); });
+  }
+
+  /* -- one book: its tags, or remove it -- */
+
+  function openBook(id) {
+    var b = state.library && state.library.books.filter(function (x) { return x.id === id; })[0];
+    if (!b) return;
+    sheet('<h2>' + esc(b.title) + '</h2><div class="lfound">' + coverHtml(b) + '<div><p class="small muted" style="margin:0 0 4px">' + (bookLine(b) || 'No author listed') + '</p>' +
+      (b.isbn ? '<p class="small muted" style="margin:0">ISBN ' + esc(LB.showIsbn(b.isbn)) + '</p>' : '') + '</div></div>' +
+      '<form class="fields" id="tagForm">' + tagFields(b) + '<div id="tagErr"></div><button class="btn block" type="submit">Save</button></form>' +
+      '<p class="small center" style="margin-top:12px"><button class="link-btn" type="button" id="libRemove">Remove from my library</button></p>', function (root) {
+      var f = $('#tagForm', root);
+      bindLibrary(); bindTagFields(f);
+      f.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var btn = $('button[type=submit]', f); btn.disabled = true;
+        api('PATCH', 'api/library/books/' + encodeURIComponent(id), readTags(f)).then(function (d) { closeSheet(); setLibrary(d.library); toast('Saved.'); })
+          .catch(function (e) { btn.disabled = false; showError(e, $('#tagErr')); });
+      });
+      $('#libRemove', root).addEventListener('click', function () {
+        if (!confirm('Remove ' + b.title + ' from your library?')) return;
+        api('DELETE', 'api/library/books/' + encodeURIComponent(id)).then(function (d) { closeSheet(); setLibrary(d.library); toast('Removed.'); }).catch(function (e) { showError(e); });
+      });
+    });
+  }
+
+  /* -- scanning the barcode with the camera --
+   * The back camera only, no microphone, switched off the moment the sheet
+   * closes or a book is read. Frames never leave the phone: they are read
+   * here (BarcodeDetector where the browser has one, ChapterLibrary's own
+   * EAN-13 reader where it does not - iPhone Safari), and only the ISBN is
+   * looked up. A refused or missing camera offers the typed ISBN instead. */
+
+  function stopScan() {
+    var s = state.scan;
+    if (!s) return;
+    state.scan = null;
+    clearTimeout(s.timer);
+    if (s.stream) s.stream.getTracks().forEach(function (t) { t.stop(); });
+  }
+  function openScan() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext) {
+      return openIsbn('', 'This browser can’t use the camera here. Type the ISBN instead - it’s printed above the barcode on the back.');
+    }
+    sheet('<h2>Scan the barcode</h2><p class="small muted">Point your camera at the barcode on the back cover - the one with 978 or 979 under it. Hold it level and fill the box.</p>' +
+      '<div class="scan"><video id="scanVideo" playsinline muted autoplay></video><div class="scan-aim" aria-hidden="true"></div></div>' +
+      '<p class="small" id="scanMsg" role="status">Starting the camera…</p>' +
+      '<div class="row"><button class="btn small ghost" type="button" data-act="libisbn">Type the ISBN instead</button></div>', function (root) {
+      var video = $('#scanVideo', root), msg = $('#scanMsg', root);
+      var me = { stream: null, timer: 0, last: '', hits: 0, detector: null };
+      state.scan = me;
+      var detect = ('BarcodeDetector' in window && window.BarcodeDetector.getSupportedFormats)
+        ? window.BarcodeDetector.getSupportedFormats().then(function (f) { return f.indexOf('ean_13') >= 0 ? new window.BarcodeDetector({ formats: ['ean_13'] }) : null; }).catch(function () { return null; })
+        : Promise.resolve(null);
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then(function (stream) {
+        if (state.scan !== me) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        me.stream = stream;
+        video.srcObject = stream;
+        var p = video.play(); if (p && p.catch) p.catch(function () { /* autoplay is muted */ });
+        msg.textContent = 'Looking for a barcode…';
+        return detect.then(function (d) { me.detector = d; tick(); });
+      }).catch(function (err) {
+        if (state.scan !== me) return;
+        stopScan();
+        var denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.name === 'PermissionDeniedError');
+        openIsbn('', denied
+          ? 'Camera access was denied. Type the ISBN instead - it’s printed above the barcode. (To scan next time, allow the camera for this site in your browser’s settings.)'
+          : 'No camera could be opened here. Type the ISBN instead - it’s printed above the barcode.');
+      });
+      var canvas = document.createElement('canvas'), g = canvas.getContext('2d', { willReadFrequently: true });
+      function found(code) {
+        if (!LB.isbn13Ok(code)) { msg.textContent = 'That barcode isn’t a book’s - look for the one starting 978 or 979.'; me.last = ''; me.hits = 0; return false; }
+        // Twice in a row (or on two lines of one frame) before it counts.
+        me.hits = code === me.last ? me.hits + 1 : 1; me.last = code;
+        if (me.hits < 2) return false;
+        stopScan();
+        try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* ignore */ }
+        msg.textContent = 'Found ' + LB.showIsbn(code) + ' - looking it up…';
+        lookupIsbn(code, null, msg);
+        return true;
+      }
+      function tick() {
+        if (state.scan !== me) return;
+        if (video.readyState >= 2 && video.videoWidth) {
+          var w = Math.min(960, video.videoWidth), h = Math.round(w * video.videoHeight / video.videoWidth);
+          canvas.width = w; canvas.height = h;
+          g.drawImage(video, 0, 0, w, h);
+          if (me.detector) {
+            me.detector.detect(canvas).then(function (codes) {
+              var c = codes && codes[0] && String(codes[0].rawValue || '');
+              if (!(c && found(c)) && state.scan === me) me.timer = setTimeout(tick, 160);
+            }).catch(function () { me.detector = null; if (state.scan === me) me.timer = setTimeout(tick, 160); });
+            return;
+          }
+          var img = g.getImageData(0, 0, w, h);
+          var r = window.ChapterLibrary.decodeFrame(LB.toGray(img.data, w, h), w, h);
+          if (r && r.votes >= 2) { me.last = r.code; me.hits = 1; }
+          if (r && found(r.code)) return;
+        }
+        me.timer = setTimeout(tick, 180);
+      }
+    });
+  }
+
   function confirmDemo(what) { toast(what + ' is for a real club - start your own to try it.', 3600, { label: 'Start', fn: function () { go('start'); } }); }
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-act]');
@@ -1153,6 +1409,18 @@
     var v = state.view === 'club' && (isDemo() || state.club) ? V() : null;
     switch (act) {
       case 'closesheet': closeSheet(); break;
+      case 'library': closeSheet(true); state.demo = null; go('library'); break;
+      case 'libscan': openScan(); break;
+      case 'libisbn': openIsbn('', null); break;
+      case 'libmanual': openManual(null, null, 0); break;
+      case 'libbook': openBook(id); break;
+      case 'libkeep':
+        api('POST', 'api/library/keep', {}).then(function (d) { setLibrary(d.library); toast(d.moved ? 'Moved ' + plural(d.moved, 'book') + ' to your account.' : 'Nothing to move.'); }).catch(function (err) { showError(err); });
+        break;
+      case 'libdelete':
+        if (!confirm('Delete your whole library? Every book and its notes go. This can’t be undone.')) break;
+        api('DELETE', 'api/library').then(function (d) { setLibrary(d.library); toast('Your library is deleted.'); }).catch(function (err) { showError(err); });
+        break;
       case 'home': e.preventDefault(); closeSheet(true); state.demo = null; go(''); break;
       case 'tab': closeSheet(true); go(clubHash(t.getAttribute('data-tab'))); break;
       case 'try': closeSheet(true); state.demo = null; go('try'); break;

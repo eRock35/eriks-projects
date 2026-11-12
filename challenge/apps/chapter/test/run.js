@@ -484,7 +484,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/sessionStorage|indexedDB|document\.cookie/.test(js), 'the member key is an HttpOnly cookie the page never reads');
   assert.ok(!/fetch\(['"]\//.test(js) && !/href="\//.test(js), 'every browser URL is relative to BASE');
   const calls = [...new Set([...js.matchAll(/api\('(GET|POST|PUT|PATCH|DELETE)', '([^']+)'/g)].map((m) => m[2]))].sort();
-  assert.deepStrictEqual(calls, ['api/account/clubs', 'api/account/clubs/', 'api/ai/questions', 'api/auth/', 'api/auth/billing', 'api/auth/logout', 'api/c/', 'api/clubs', 'api/join/', 'api/me', 'api/move'].sort(), 'the page asks for nothing else');
+  assert.deepStrictEqual(calls, ['api/account/clubs', 'api/account/clubs/', 'api/ai/questions', 'api/auth/', 'api/auth/billing', 'api/auth/logout', 'api/c/', 'api/clubs', 'api/isbn/', 'api/join/', 'api/library', 'api/library/books', 'api/library/books/', 'api/library/keep', 'api/me', 'api/move'].sort(), 'the page asks for nothing else');
   assert.match(js, /api\('POST', 'api\/ai\/questions', \{ club: v\.id, from: r\.from, to: r\.to \}\)/, 'the AI request is the club and a range');
   assert.match(js, /<b>Nothing else<\/b> - no names, no notes, nothing anyone in the club wrote\./, 'the AI sheet says what is never sent');
   assert.match(js, /AI-written - check before the meeting/);
@@ -492,7 +492,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.match(js, /'#move=' \+ d\.token/);
   assert.match(js, /You’re offline - this is the club as of/, 'offline, it says so and that writes need the network');
   assert.match(js, /Moving your bookmark, notes and votes need the internet\./);
-  for (const f of ['public/index.html', 'public/app.js', 'public/chapter-core.js', 'server.js', 'lib/ai.js', 'lib/fakeai.js', 'lib/clubs.js', 'lib/store.js', 'CLAUDE.md']) assert.ok(!/[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(read(f)), `no email address in ${f}`);
+  for (const f of ['public/index.html', 'public/app.js', 'public/chapter-core.js', 'public/library-core.js', 'server.js', 'lib/ai.js', 'lib/fakeai.js', 'lib/clubs.js', 'lib/store.js', 'lib/openlibrary.js', 'CLAUDE.md']) assert.ok(!/[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(read(f)), `no email address in ${f}`);
   const core = read('public/chapter-core.js');
   assert.ok(!/\bfetch\(|XMLHttpRequest|localStorage|sessionStorage|navigator\.|indexedDB|WebSocket/.test(core), 'the core touches no network or storage');
   assert.ok(!/Math\.random|Date\.now\(\)|new Date\(\)/.test(core), 'the core has no dice and no clock');
@@ -515,7 +515,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
 
 test('the copy: neutral wording (no he/she/his/her), no invisible characters in any source file, no key-shaped strings', () => {
   const strings = (src) => [...src.matchAll(/'([^'\\\n]|\\.){3,}'|`[^`]{3,}`|"[^"\n]{3,}"/g)].map((m) => m[0]).join('\n');
-  const all = strings(read('public/app.js')) + strings(read('public/chapter-core.js')) + read('public/index.html') + strings(read('server.js')) + strings(read('lib/ai.js')) + read('CLAUDE.md');
+  const all = strings(read('public/app.js')) + strings(read('public/chapter-core.js')) + strings(read('public/library-core.js')) + strings(read('lib/openlibrary.js')) + read('public/index.html') + strings(read('server.js')) + strings(read('lib/ai.js')) + read('CLAUDE.md');
   const gendered = all.match(/\b(he|she|his|hers|him|himself|herself)\b|\bher\b/gi);
   assert.strictEqual(gendered, null, `gendered: ${gendered}`);
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.name === 'node_modules' ? [] : d.isDirectory() ? walk(path.join(dir, d.name)) : [path.join(dir, d.name)]));
@@ -542,7 +542,7 @@ test('local-only switches throw on Cloud Run; the lab prefix is read; every quer
     "store.list('notes', { where: [['club', '==', clubId]] })",
     "store.list('notes', { where: [['club', '==', id]] })",
   ], 'single-field equality only: no composite index');
-  assert.deepStrictEqual([...new Set(server.match(/store\.\w+\('(\w+)'/g).map((s) => s.replace(/store\.\w+\(/, '')))].sort(), ["'accounts'", "'clubs'", "'notes'"], 'three collections');
+  assert.deepStrictEqual([...new Set(server.match(/store\.\w+\('(\w+)'/g).map((s) => s.replace(/store\.\w+\(/, '')))].sort(), ["'accounts'", "'clubs'", "'libraries'", "'notes'"], 'four collections');
 });
 
 /* ================================================================== *
@@ -600,7 +600,7 @@ test('signed out: the page works with zero model calls; strict headers; the AI r
   const anon = client();
   const before = await modelCalls();
   assert.strictEqual((await anon('GET', '/healthz')).data.ok, true);
-  for (const f of ['chapter-core.js', 'app.js', 'app.css', 'qr.js', 'verify-banner.js', 'passkey-client.js', 'desktop.css', 'icon.svg', 'manifest.webmanifest', 'sw.js']) assert.strictEqual((await fetch(`${base}/${f}`)).status, 200, f);
+  for (const f of ['chapter-core.js', 'library-core.js', 'app.js', 'app.css', 'qr.js', 'verify-banner.js', 'passkey-client.js', 'desktop.css', 'icon.svg', 'manifest.webmanifest', 'sw.js']) assert.strictEqual((await fetch(`${base}/${f}`)).status, 200, f);
   assert.strictEqual((await fetch(`${base}/sw.js`)).headers.get('cache-control'), 'no-cache');
   const page = await fetch(`${base}/`);
   assert.match(page.headers.get('content-security-policy'), /script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors/);
