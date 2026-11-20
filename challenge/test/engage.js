@@ -117,9 +117,11 @@ assert.deepStrictEqual([progress(null, reg, { ...none, a4: 'kill', a1: 'keep' })
   const week = weekDrops(lab.APPS);
   for (const [i, a] of week.entries()) {
     r = await keen('POST', `/api/lab/${a.slug}/vote`, { v: 'keep' });
-    assert.strictEqual(r.data.newBadges.includes('fullweek'), i === week.length - 1);
+    // The badge needs at least two drops in the week (server.js), so a week
+    // with one drop - a gap in the routine - earns nothing.
+    assert.strictEqual(r.data.newBadges.includes('fullweek'), i === week.length - 1 && week.length >= 2);
   }
-  ok(`badges: Full week lands on the last of this week's ${week.length} drops, not before`);
+  ok(`badges: Full week lands on the last of this week's ${week.length} drops, not before${week.length < 2 ? ' (one drop this week: no badge, it needs two)' : ''}`);
   r = await keen('GET', '/api/lab');
   assert.strictEqual(r.data.me.voted, week.length); assert.strictEqual(r.data.me.of, lab.APPS.filter((a) => a.status !== 'retired').length); ok('progress: /api/lab says how many drops you have voted on');
 

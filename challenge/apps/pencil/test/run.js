@@ -998,7 +998,10 @@ test('limits: 30 distinct wrong codes, then even the right one waits (a dead id 
   const scorer = client();
   const { tid, code } = await shareTable(scorer);
   const guesser = client();
-  for (let i = 0; i < 40; i++) await guesser('GET', `/api/t/${tid.slice(0, 15)}Z`);
+  // A dead id that always differs from the real one (a fixed last letter
+  // would BE the real id whenever the real one ends in it: 1 in 64).
+  const dead = tid.slice(0, 15) + (tid[15] === 'Z' ? 'Y' : 'Z');
+  for (let i = 0; i < 40; i++) await guesser('GET', `/api/t/${dead}`);
   assert.strictEqual((await guesser('GET', `/api/join/${code}`)).status, 200, 'one dead id polled forty times is one miss');
   const codes = [];
   while (codes.length < 29) { const c = K.newCode(); if (c !== code && !codes.includes(c)) codes.push(c); }
