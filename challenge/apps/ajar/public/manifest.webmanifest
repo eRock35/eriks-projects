@@ -1,0 +1,10 @@
+{
+  "name": "Ajar",
+  "short_name": "Ajar",
+  "description": "One little door a day to the big day - planned around your real week.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f1e8",
+  "theme_color": "#c2410c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

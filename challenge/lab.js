@@ -892,6 +892,26 @@ const APPS = [
     audience: 'Finance leads, controllers and bookkeepers at subscription and usage-billing companies',
     status: 'testing',
   },
+  {
+    slug: 'ajar',
+    name: 'Ajar',
+    emoji: '\u{1F31F}',
+    // A paper-chain orange to an ink indigo - the calendar's warm paper and
+    // the dark of a December evening. CIE Lab distance from the newest stops:
+    // the orange is 29.8 from Pencil's red #a3222f (its nearest), 33 from
+    // Whichbox's kraft, 40 from Chapter's walnut and 70+ from the rest; the
+    // indigo is 25.0 from Whichbox's violet-blue #3a3196 (its nearest), 46
+    // from Chapter's aubergine, 53 from Muster's navy and 58+ from the rest.
+    // White text holds 5.18:1 and 7.90:1.
+    color: '#c2410c',
+    color2: '#4338ca',
+    dropped: '2026-11-20',
+    tagline: 'One little door a day to the big day - planned around your real week.',
+    blurb: 'For families with kids - and anyone counting down to something - who want a countdown calendar of small things to do together, one little door a day, without the December scramble: twenty-four ideas to find, the busy Tuesday that gets the messy baking, the craft that needed glue nobody bought, the big outing that landed on a school night. 1 December is eleven days away and families set these up the weekend before. Pick the big day - Christmas, from the first Sunday of Advent, or any day with 3 to 31 doors: a birthday, a trip, the last day of school - and swipe through about a hundred small activities in plain words, or add your own. Tell Ajar which evenings are busy and what is fixed on the calendar, and it plans the doors around your real week: 5-minute ones and little jokes on busy evenings, the half-day ones at weekends, nothing that needs shopping on the first two days, no two messy ones in a row, the budget kept - and it says why each day has what it has. One shopping list with buy-by dates; doors that wiggle on their day and swing open; kid mode on the phone; door cards to print 8 to a sheet for a calendar you already have; and a recap card at the end. Free, no sign-in, works offline, and it stays on your phone - photos never leave it. Sign in to keep two parents’ phones in step, and AI can suggest more ideas from the kids’ ages - never their names.',
+    features: ['Planned around your week: quick doors on busy evenings, big ones at weekends', 'About a hundred ideas to swipe, a shopping list with buy-by dates', 'Doors that open on their day, kid mode, cards to print 8 a sheet', 'Free and on your phone; sign in to keep two parents in step'],
+    audience: 'Families with kids counting down to Christmas, a birthday, a trip - any big day',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

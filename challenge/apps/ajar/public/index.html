@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ajar — one little door a day to the big day, planned around your real week</title>
+  <meta name="description" content="A countdown calendar of small things to do together - one little door a day to Christmas, a birthday, a trip or any big day. Choose from about a hundred activities, and Ajar plans them around your family's real week: quick ones on busy evenings, big ones at weekends, the shopping in time, the budget kept. Free, no sign-in, works offline and stays on this phone.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#1a1512" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f1e8" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ajar">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Ajar — One little door a day to the big day - planned around your real week.">
+  <meta property="og:description" content="For families with kids - and anyone counting down to something - who want a countdown calendar of small things to do together, one little door a day, without the December scramble: twenty-four ideas to find, the busy Tuesday that gets the messy baking, the craft that needed glue ">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/ajar/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/ajar.png?v=197218a52f">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Ajar, drop #61 in the Challenge Lab: One little door a day to the big day - planned around your real week.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Ajar — One little door a day to the big day - planned around your real week.">
+  <meta name="twitter:description" content="For families with kids - and anyone counting down to something - who want a countdown calendar of small things to do together, one little door a day, without the December scramble: twenty-four ideas to find, the busy Tuesday that gets the messy baking, the craft that needed glue ">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/ajar.png?v=197218a52f">
+  <meta name="twitter:image:alt" content="Ajar, drop #61 in the Challenge Lab: One little door a day to the big day - planned around your real week.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">🌟</span>Ajar</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="kidBtn" type="button" data-act="kid" hidden>Kid mode</button>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Your calendar" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="doors"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5v17M3.5 12h17" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9.5" cy="15" r="1.2" fill="currentColor"/></svg><span>Doors</span></button>
+      <button type="button" data-act="tab" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M17 15.5l1.6 1.6 3-3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Plan</span></button>
+      <button type="button" data-act="tab" data-tab="shop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 10h10l2-7H7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19" r="1.6" fill="currentColor"/><circle cx="16.5" cy="19" r="1.6" fill="currentColor"/></svg><span>Shopping</span></button>
+      <button type="button" data-act="tab" data-tab="deck"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3.5" width="12" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 7v12.5a1 1 0 0 0 1 1h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Ideas</span></button>
+      <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></svg><span>More</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="kid" id="kid" role="dialog" aria-modal="true" aria-label="Kid mode" hidden></div>
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+  <div class="print" id="print" aria-hidden="true"></div>
+
+  <script src="ajar-deck.js"></script>
+  <script src="ajar-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="ajar-store.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

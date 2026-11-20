@@ -213,3 +213,17 @@ Visitors' AI use in the lab on 2026-10-31 to 2026-11-06: none.
 | Waterfall | one builder agent | 101.0M | 100.0M | 381K | 1 | 60 min | exact |
 
 Visitors' AI use in the lab from 2026-11-07 to 2026-11-10: none.
+
+## Week 9 (2026-11-14 to 2026-11-20)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Ajar | one builder agent | 96.5M | 95.3M | 390K | 1 | 69 min | exact |
+
+Eight builds from 2026-11-12 to 2026-11-19 (Spotted and Reset in Week 8; Trek,
+Stars, Ladle, Punch, Snug and Rush in Week 9) were lost with the build
+container before they were pushed. They are not in the lab, so they are not
+in these rows or in build-stats.json.
+
+Visitors' AI use in the lab from 2026-11-14 to 2026-11-20: not checked (the
+build session had no deploy key to read the usage records on 2026-11-20).
