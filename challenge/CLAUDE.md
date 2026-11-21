@@ -133,6 +133,31 @@ What he asked for, kept for the record:
    a crew leaderboard. If it can read a Hopscotch crawl or passport by its
    share link rather than duplicating it, better.
 
+### Rebuilding the lost drops, one a day (Erik, 2026-11-21)
+
+Eight drops built and reviewed from 2026-11-12 to 2026-11-19 were lost with
+their build container before they were pushed. Erik asked for them back one
+a day: **each rebuild takes that day's slot instead of a new app**, on the
+usual business/everyday alternation, and holidays still keep their own
+dates. Each is a fresh build from a brief, gets its own drop number and
+date, and its CLAUDE.md says it is a rebuild. Pick the most timely one of
+the day's kind; strike it here when it ships.
+
+- Business: ~~Rush~~ (rebuilt 2026-11-21) - holiday preorders for bakeries
+  and food shops: slots that fill, the bake list, a pickup line that moves;
+  **Stars** - find the stars on a restaurant menu, and the dogs eating its
+  margin; **Punch** - walk the job, pin every fix on a photo, close it out
+  with a before-and-after the client signs; **Reset** - every loan rate
+  reset worked out from the note: new rate, new payment, which cap bit.
+- Everyday: **Spotted** - the license plate game for the whole car, every
+  phone playing; **Trek** - a journey for a crew, every walk, run and ride
+  moving everyone along the map; **Ladle** - save the family recipe cards,
+  then scale, shop and cook from the phone; **Snug** - the boring jobs that
+  keep a home working, on time, and the breaker panel finally labelled.
+
+**Push the working branch as soon as a drop is committed.** Local-only
+commits are what was lost.
+
 ### Ideas from Friction (Erik, 2026-09-25)
 
 Before picking, the daily run reads what Friction is hearing:
