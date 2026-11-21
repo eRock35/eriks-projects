@@ -136,14 +136,14 @@ What he asked for, kept for the record:
 ### Rebuilding the lost drops, one a day (Erik, 2026-11-21)
 
 Eight drops built and reviewed from 2026-11-12 to 2026-11-19 were lost with
-their build container before they were pushed. Erik asked for them back one
-a day: **each rebuild takes that day's slot instead of a new app**, on the
-usual business/everyday alternation, and holidays still keep their own
-dates. Each is a fresh build from a brief, gets its own drop number and
-date, and its CLAUDE.md says it is a rebuild. Pick the most timely one of
-the day's kind; strike it here when it ships.
+their build container before they were pushed. Erik said yes to rebuilding
+all eight (2026-11-21), and **the Claude Code on his VM does the rebuilds**
+from the specs in the repo-root `HANDOFF.md` - the daily routine does not,
+and keeps building new apps. Each rebuild is a fresh build, gets its own
+drop number and date, and its CLAUDE.md says it is a rebuild. Strike it
+here when it lands.
 
-- Business: ~~Rush~~ (rebuilt 2026-11-21) - holiday preorders for bakeries
+- Business: ~~Rush~~ (rebuilt 2026-11-21, drop #62) - holiday preorders for bakeries
   and food shops: slots that fill, the bake list, a pickup line that moves;
   **Stars** - find the stars on a restaurant menu, and the dogs eating its
   margin; **Punch** - walk the job, pin every fix on a photo, close it out

@@ -6,6 +6,15 @@ the full rules. This file is a snapshot, not a second rulebook: where they
 disagree, the CLAUDE.md files win, except for the hold below, which is
 Erik's current instruction.
 
+## Who builds now (Erik, 2026-11-21)
+
+**The Claude Code on Erik's VM is the main builder** - new drops and the
+seven remaining rebuilds. The cloud lab session that wrote this file is the
+**backup** for when the VM is down, and starts nothing new unless Erik asks.
+The routine "Challenge Lab: new app every day" still fires into that cloud
+session at about 07:02 UTC; while the VM is the main builder it builds
+nothing on that prompt. Pausing or repointing the routine is Erik's call.
+
 ## The rules that matter most right now
 
 - **Erik's hold.** No push to `main`, no merge, no Cloud Run deploy, and
@@ -136,12 +145,13 @@ are in its prompt and `challenge/CLAUDE.md`; in short:
     the server's two-drop rule);
   - `3fdab0e` - **Ajar, drop #61** (2026-11-20, everyday);
   - `ebc631d` - the rebuild queue in `challenge/CLAUDE.md`;
-  - this file.
-- **In progress**: **Rush, drop #62** (2026-11-21, business), a rebuild,
-  in `challenge/apps/rush/`. Its builder finished (own suite 30/30; full
-  suite exit 0, 62 apps, 2,165 tests) after hitting the account's usage
-  limit twice; it was not yet reviewed or committed when this was written.
-  Next: review, ledger row, TOKENS row, commit, push the working branch.
+  - `305d149` - this file;
+  - `49f88d2` - **Rush, drop #62** (2026-11-21, business), the rebuild:
+    reviewed, own suite 30/30, full suite exit 0 (62 apps, 2,165 tests),
+    its build-stats and TOKENS rows (Week 10);
+  - then this file's update with the rebuild specs.
+- **Nothing is in progress.** Ajar and Rush wait only on Erik's yes to merge
+  to `main` and deploy (and on the key).
 
 ## What was lost on 2026-11-20
 
@@ -166,15 +176,17 @@ planner that works around busy evenings and shopping, kid mode, printable
 door cards, a recap card shared as a file. One metered AI call ("More
 ideas for us") that sends ages as numbers and chosen tags only. Full suite
 passed (61 apps, 2,135 tests). Built 96.5M tokens in, 390K out, one agent,
-69 minutes. **On the working branch; not deployed.**
+69 minutes. **Finished, reviewed and on the working branch (`3fdab0e`); not
+deployed.** Nothing is left to build. What remains is Erik's yes to merge
+and ship it (with the key back).
 
 ## Open decisions waiting on Erik
 
-1. **Rebuilding the eight lost apps.** On 2026-11-21 Erik answered in the
-   build session: rebuild them, one a day, each taking that day's slot on
-   the business/everyday alternation (queue in `challenge/CLAUDE.md`);
-   Rush first. A later request listed the choice as all, just Snug and
-   Rush, or none - confirm with Erik which stands before the next rebuild.
+1. **Rebuilding the eight lost apps - decided.** Erik said yes to all
+   eight (2026-11-21). **The Claude Code on Erik's VM does the rebuilds**,
+   from the specs below; the daily lab session does not. Rush was already
+   rebuilt in the lab session that morning, before that decision, and is
+   on the working branch - so seven remain.
 2. **HOA Desk** - the board-tool plan, which may add voting by text.
    Undecided. Its earlier local preview was lost in the reset; Erik said on
    2026-11-21 to let it go for now. His rules for that work: localhost
@@ -197,6 +209,121 @@ passed (61 apps, 2,135 tests). Built 96.5M tokens in, 390K out, one agent,
    deploy-key secret, the electronics retailer API key for Duohunt,
    Concierge setup, and deleting two older service-account keys (only on
    his explicit yes; never the key in current use).
+
+## Rebuild specs for the eight lost apps
+
+**What survived and what didn't.** For each app the lab kept its name,
+tagline, audience, kind, card colours, emoji, date and build cost (all
+below, as they were). The builders' briefs and code did not survive, except
+Snug's commit message (summarised below) and Rush's full spec (rebuilt).
+Everything under "Suggested spec" for the other six is a **reconstruction
+from the tagline and audience - a design to build, not a record of the
+original**; improve on it freely.
+
+Every rebuild follows `challenge/CLAUDE.md` and the newest reviewed app
+(`apps/ajar`): its own folder, `<SLUG>_MEMORY`/`<SLUG>_FAKE_AI` that throw on
+Cloud Run, the prefix, BASE-relative URLs, script CSP, the verify banner,
+free and offline first with no sign-in, a made-up demo with a guided tour,
+signed-in sync under an HMAC owner tag ("<slug> owner v1") with a 409 merge
+on the phone, at most one metered AI call behind `requireUser`,
+`requireBudget`, `requireDailyCap` then its own parser, a forced tool and a
+validated answer, contrast 4.5:1, 44 px targets, nothing sideways at 390 px,
+no brands, and no public links to anything personal. Each gets a new drop
+number and date; its CLAUDE.md says it is a rebuild. Colours and emoji are
+the originals - recheck them against the newest cards (20+ in CIE Lab) and
+for duplicates (Stars' star is Rave's too).
+
+### Spotted - everyday (was 2026-11-12)
+"The license plate game for the whole car - every phone playing, first to
+spot it scores." For families and friends on a road trip. 🚗 (U+1F697),
+`#b5420e` / `#2a2f78`. Suggested spec: a board of the 50 states and DC
+(provinces optional) to tick; a car game anyone joins with a short code and
+a first name (no account - Pencil's table pattern: an HttpOnly per-browser
+key, stored only as a per-game hash; polling while visible; the game
+deleted after a day idle); the first phone to tap a plate scores it, rarer
+plates score more; a live scoreboard, a drawn US map filling in, trip
+history on the phone, a recap card shared as a file. No AI on photos of
+other people's cars.
+
+### Reset - business (was 2026-11-13)
+"Every rate reset worked out from the note - new rate, new payment, which
+cap bit." For servicing and loan-accounting teams at small banks and credit
+unions. 📈 (U+1F4C8), `#6d5200` / `#33475b`. Suggested spec: a loan's
+rate-change terms (index, margin, rounding, lookback, reset frequency,
+floor, ceiling, periodic and lifetime caps, first-change cap) plus balance,
+remaining term and the index value give the new rate, the new payment
+(amortised in exact cents), and which rule bound it, with the working shown;
+a batch from CSV; a draft reset notice as text; future resets under a
+what-if index. Loans by nickname only - refuse names, nine-digit runs and
+account numbers. Metered AI: read the note's rate-change section (a photo
+or text) into terms for a person to confirm. Test with hand-worked cases.
+
+### Trek - everyday (was 2026-11-14)
+"A journey for your whole crew - every walk, run and ride moves you all
+along the map." For friends, families, coworkers and walking groups.
+🥾 (U+1F97E), `#2e7d32` / `#1f5fbf`. Suggested spec: pick a route (a
+long-distance trail or a coast-to-coast line, drawn as SVG - no tile
+service), crew members join by code (Pencil's pattern), each logs minutes
+or distance (walk, run, ride, swim converted fairly), the crew moves
+together with checkpoints and "postcards" along the way, a leaderboard
+that rewards showing up as much as distance, weekly streaks, and a recap
+card. No location tracking.
+
+### Stars - business (was 2026-11-15)
+"Find the stars on your menu - and the dogs eating your margin." For
+owners, chefs and managers of independent restaurants. ⭐ (U+2B50),
+`#b0175c` / `#5b3a29`. Suggested spec: menu items with price, plate cost
+and units sold (typed or a sales CSV), worked into contribution margin and
+popularity against the menu's averages; the classic four quadrants (stars,
+plowhorses, puzzles, dogs) as a chart; plain suggestions per item (reprice,
+reposition, rework, cut) with a what-if price; a printable report. Metered
+AI: read a menu photo into items and prices to confirm. Rush must not
+repeat any of this.
+
+### Ladle - everyday (was 2026-11-16)
+"Save the family recipes before the cards fade - then scale, shop and cook
+from your phone." For anyone with family recipes on index cards.
+🥄 (U+1F944), `#8e452c` / `#466e9e`. Suggested spec: photograph a recipe
+card (kept on the phone in IndexedDB, location stripped), metered AI
+transcribes it into ingredients and steps for the person to check, with the
+card shown beside it; whose recipe it is; scale servings with real fractions;
+unit conversion; a shopping list across recipes; cook mode (big steps,
+screen kept awake, timers); print a fresh card. Timely for Thanksgiving.
+
+### Punch - business (was 2026-11-17)
+"Walk the job, pin every fix on a photo, close it out with a before-and-
+after the client signs." For contractors, remodelers, builders and
+handymen. 📌 (U+1F4CC), `#d00000` / `#0044d6`. Suggested spec: a job with
+rooms; photograph each area and drop numbered pins on the photo, one per
+fix (trade, priority, due); open -> fixed -> verified with an "after" photo
+beside the "before"; a list by trade for each sub; the client signs on the
+phone (a canvas signature); a printable closeout. Photos stay on the phone;
+text syncs. Two phones on one job merge item by item.
+
+### Snug - everyday (was 2026-11-18)
+"The boring jobs that keep a home working, on time - and the breaker panel
+finally labelled." For homeowners and renters, first-time buyers especially.
+🏡 (U+1F3E1), `#701830` / `#647268`. From its surviving commit message: a
+few chips about the home (no address, never located) make a plan from 44
+rule-based jobs, each with why, how, how long and whether it is a pro's
+job; renters get the landlord's jobs marked with a polite note; Overdue /
+This week / This month, a house-shaped on-time ring and a Winter-ready
+checklist; a breaker panel map with search and a printable door label;
+house facts (photos stay on the phone, no codes); a house manual print and
+an .ics built on the phone. Signed in: one home synced under an HMAC owner
+tag with a 409 merge. Metered AI "Read the label": a photo of an
+appliance's rating plate, the body rebuilt to the image alone and checked
+by its bytes, one forced tool with no serial field; prices, recalls, safety
+verdicts and "replace it" are dropped. Demo appliance makers were coined
+(Corvane, Aldermoss, Brindlecote).
+
+### Rush - business (was 2026-11-19) - rebuilt
+Rebuilt in the lab session on 2026-11-21 (drop #62, `49f88d2`) and on the working
+branch; see `challenge/apps/rush/CLAUDE.md`. Not to be rebuilt again.
+
+### The lost test fix
+Re-applied on the working branch in `72ea57b` (Pencil's and Whichbox's
+dead-id test; nothing more to do).
 
 ## LinkedIn drafts waiting (Typefully, Erik's LinkedIn)
 
