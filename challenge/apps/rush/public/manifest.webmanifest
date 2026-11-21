@@ -1,0 +1,10 @@
+{
+  "name": "Rush",
+  "short_name": "Rush",
+  "description": "Holiday preorders without the chaos: slots that fill, the bake list, a pickup line that moves.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6efe3",
+  "theme_color": "#826c4a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -227,3 +227,13 @@ in these rows or in build-stats.json.
 
 Visitors' AI use in the lab from 2026-11-14 to 2026-11-20: not checked (the
 build session had no deploy key to read the usage records on 2026-11-20).
+
+## Week 10 (2026-11-21 to 2026-11-27)
+
+| App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
+|---|---|---|---|---|---|---|---|
+| Rush | one builder agent (a rebuild) | 97.0M | 94.1M | 349K | 1 | 63 min | tokens exact; time is active work only |
+
+Rush's builder stopped twice at the account's usage limit (about 7 hours in
+all) and was resumed; the agent time leaves those hours out, so its row is
+marked as an estimate in build-stats.json.

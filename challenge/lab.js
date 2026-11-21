@@ -912,6 +912,26 @@ const APPS = [
     audience: 'Families with kids counting down to Christmas, a birthday, a trip - any big day',
     status: 'testing',
   },
+  {
+    slug: 'rush',
+    name: 'Rush',
+    emoji: '\u{1F967}',
+    // A golden pie crust to a berry-box rose. The first build's crust,
+    // #866a44, was 17.4 in CIE Lab from Chapter's walnut #7a4a1c - under 20 -
+    // so it was nudged to #826c4a: now 20.7 from the walnut (its nearest),
+    // 24.4 from Muster's olive, 31.1 from Whichbox's kraft and 38+ from the
+    // rest. The rose is 27.1 from Waterfall's plum #74275f (its nearest),
+    // 33.2 from Chapter's aubergine and 36+ from the rest. White text holds
+    // 5.01:1 and 5.22:1.
+    color: '#826c4a',
+    color2: '#8a6078',
+    dropped: '2026-11-21',
+    tagline: 'Holiday preorders without the chaos: slots that fill, the bake list, a pickup line that moves.',
+    blurb: 'For small food businesses taking holiday preorders - bakeries and cafes, butchers, caterers, farm stands and home bakers. Thanksgiving is Thursday and this is the week the orders pile up on paper pads and in the till’s notes: twelve people booked into 2:00, the night-before scramble to work out how many pecan pies to bake, the pickup line where nobody can find order 47. Set up the pickup days and hours, slots of 15 to 60 minutes with so many orders each, and the menu with a cap a day for every item. Take an order with big steppers and the caps live beside each item; every pickup time is a little pie that fills slice by slice, and overselling is blocked with a way out. The bake list counts what must be ready by the first pickup in oven loads to tick; on the day, the pickup line puts Late first and the balance due big on every card; box labels print ten to a sheet. Free, no sign-in, works offline and stays on the phone - and it never asks for a customer’s phone number or email. Sign in to keep two phones at the counter in step, and AI can read a paper order slip into drafts you check and book.',
+    features: ['Pickup slots drawn as pies that fill, with a cap per item per day', 'The bake list in oven loads to tick, hour by hour', 'A pickup line that moves: Late first, balance due, box labels', 'Free and on the phone; sign in to keep two phones in step'],
+    audience: 'Bakeries, cafes, butchers, caterers and home bakers taking holiday preorders',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
