@@ -63,6 +63,16 @@ then re-run, or set GCP_VENV=<dir>."
 
 cmd_auth() {
   local key py
+  # Keyless: on a machine where gcloud is signed in and allowed to impersonate
+  # a deployer service account (Erik's VM: GCP_IMPERSONATE_SA, set outside the
+  # repo), mint a short-lived token as that account. No key file involved.
+  if [[ -n "${GCP_IMPERSONATE_SA:-}" ]]; then
+    gcloud auth print-access-token --impersonate-service-account="$GCP_IMPERSONATE_SA" \
+      2>/dev/null > "$STATE/token" && [[ -s "$STATE/token" ]] \
+      || die "could not impersonate $GCP_IMPERSONATE_SA (is gcloud signed in?)"
+    echo "token minted as $GCP_IMPERSONATE_SA (valid ~1h)"
+    return
+  fi
   key="$(find_key)" || die "no service account key found.
 Ask Erik to re-upload it — the key does NOT survive a new container.
 Do not improvise credentials, and do not put the key in the environment's
