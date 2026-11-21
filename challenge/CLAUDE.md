@@ -152,7 +152,7 @@ here when it lands.
 - Everyday: **Spotted** - the license plate game for the whole car, every
   phone playing; **Trek** - a journey for a crew, every walk, run and ride
   moving everyone along the map; **Ladle** - save the family recipe cards,
-  then scale, shop and cook from the phone; **Snug** - the boring jobs that
+  then scale, shop and cook from the phone; ~~Snug~~ (rebuilt 2026-11-21, drop #63) - the boring jobs that
   keep a home working, on time, and the breaker panel finally labelled.
 
 **Push the working branch as soon as a drop is committed.** Local-only

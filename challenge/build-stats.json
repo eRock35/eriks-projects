@@ -621,17 +621,27 @@
       "wallMs": 3780000,
       "exact": false,
       "note": "Tokens exact from the transcript; agent time is its 63 active minutes, leaving out about 7 hours stopped at the account's usage limit."
+    },
+    "snug": {
+      "in": 30560791,
+      "cached": 29632684,
+      "out": 209429,
+      "agents": 1,
+      "agentMs": 2457118,
+      "wallMs": 2457118,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 2975193739,
-    "cached": 2849258001,
-    "out": 16881992,
-    "agents": 191,
-    "agentMs": 189746870,
-    "wallMs": 186890574,
-    "apps": 62,
+    "in": 3005754530,
+    "cached": 2878890685,
+    "out": 17091421,
+    "agents": 192,
+    "agentMs": 192203988,
+    "wallMs": 189347692,
+    "apps": 63,
     "estimated": 33,
-    "cachedShare": 0.9774
+    "cachedShare": 0.9773
   }
 }

@@ -233,6 +233,7 @@ build session had no deploy key to read the usage records on 2026-11-20).
 | App | Built by | In | of which cached | Out | Agents | Agent time | Exact? |
 |---|---|---|---|---|---|---|---|
 | Rush | one builder agent (a rebuild) | 97.0M | 94.1M | 349K | 1 | 63 min | tokens exact; time is active work only |
+| Snug | one builder agent (a rebuild) | 30.6M | 29.6M | 209K | 1 | 41 min | exact |
 
 Rush's builder stopped twice at the account's usage limit (about 7 hours in
 all) and was resumed; the agent time leaves those hours out, so its row is

@@ -249,9 +249,13 @@
       "inputs": "3b4755c98afc2461",
       "v": "4140f1a40b"
     },
+    "snug": {
+      "inputs": "6b0c9395df682f8c",
+      "v": "05fcb481b6"
+    },
     "lab": {
-      "inputs": "e2a2405d532f44e6",
-      "v": "f83e6d1728"
+      "inputs": "744a7136f4f37eb4",
+      "v": "1d228cdc21"
     }
   }
 }

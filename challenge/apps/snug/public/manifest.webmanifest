@@ -1,0 +1,10 @@
+{
+  "name": "Snug",
+  "short_name": "Snug",
+  "description": "The boring jobs that keep a home working, on time - and the breaker panel finally labelled.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f3ee",
+  "theme_color": "#8a3a3e",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

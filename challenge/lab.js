@@ -932,6 +932,28 @@ const APPS = [
     audience: 'Bakeries, cafes, butchers, caterers and home bakers taking holiday preorders',
     status: 'testing',
   },
+  {
+    slug: 'snug',
+    name: 'Snug',
+    emoji: '\u{1F3E1}',
+    // A rebuild of the 2026-11-18 drop, which had a wine door #701830 and a
+    // sage grey #647268. Rechecked against today's cards, both were too
+    // close: the wine was 2.6 in CIE Lab from Tipout's #6b1530 (and 10.6 from
+    // Receipt's, 11.1 from Tells'), the sage 11.4 from Boxed's #405c55. The
+    // maroons are crowded, so the nearest wine 20+ from every card is a
+    // brick rose, #924a4c (moved 18.8): 20.4 from Tipout's #6b1530, 21.3
+    // from Tells', 21.5 from Receipt's, 22.2 from Rush's rose. The sage moved
+    // 15.9 to a slate #6c7484: 20.3 from Boxed's #405c55, 20.8 from Rush's
+    // rose and 21.6+ from the rest. White text holds 6.35:1 and 4.70:1.
+    color: '#924a4c',
+    color2: '#6c7484',
+    dropped: '2026-11-21',
+    tagline: 'The boring jobs that keep a home working, on time - and the breaker panel finally labelled.',
+    blurb: 'For homeowners and renters, first-time buyers especially - nobody hands you the list. Tap a few chips about your home (own or rent, how it is heated, gutters, a sump pump - never an address, never a location) and Snug makes a plan from 44 jobs, each with why it matters, how to do it, how long it takes and whether it is a pro’s job. Renters see the landlord’s jobs marked, with a polite note ready to send. Overdue, this week and this month, a house-shaped ring that fills as you stay on time, and a Winter-ready checklist before the first freeze. Map the breaker panel space by space, search it in the dark and print a label for the door; keep the house facts (where the water shutoff is - never a code or a password) with photos that stay on the phone; print a house manual and put every job in your calendar. Free, no sign-in, works offline. Sign in to keep two phones in step, and AI can read an appliance’s rating plate into a record you check - never the serial number.',
+    features: ['A plan from 44 jobs, each with why, how, how long and DIY or pro', 'Overdue, this week, a house-shaped on-time ring and Winter-ready', 'The breaker panel mapped, searchable, with a door label to print', 'House facts and a manual; photos stay on the phone, no codes'],
+    audience: 'Homeowners and renters, first-time buyers especially',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
