@@ -1,0 +1,10 @@
+{
+  "name": "Ladle",
+  "short_name": "Ladle",
+  "description": "Save the family recipes before the cards fade - then scale, shop and cook from your phone.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf5ee",
+  "theme_color": "#8e452c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

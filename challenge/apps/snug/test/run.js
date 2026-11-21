@@ -544,7 +544,7 @@ test('every text colour holds 4.5:1 on its surface in both themes, the ring and 
     for (const c of [other.color, other.color2]) assert.ok(labDist(lab.color, c) >= 20 && labDist(lab.color2, c) >= 20, `away from ${other.slug} ${c}: ${labDist(lab.color, c).toFixed(1)} / ${labDist(lab.color2, c).toFixed(1)}`);
     assert.notStrictEqual(other.emoji, lab.emoji, `${other.slug} has the same emoji`);
   }
-  assert.strictEqual(LAB.APPS[LAB.APPS.length - 1].slug, 'snug', 'the newest drop');
+  assert.strictEqual(LAB.APPS.findIndex((x) => x.slug === 'snug') + 1, 63, 'drop #63');
   assert.strictEqual(lab.features.length, 4);
 });
 

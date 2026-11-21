@@ -631,17 +631,27 @@
       "wallMs": 2457118,
       "exact": true,
       "note": "One builder agent."
+    },
+    "ladle": {
+      "in": 25475265,
+      "cached": 24245688,
+      "out": 183910,
+      "agents": 1,
+      "agentMs": 2280000,
+      "wallMs": 2280000,
+      "exact": false,
+      "note": "Tokens exact from the transcript; agent time is its 38 active minutes, leaving out about 2.4 hours stopped at the account's usage limit."
     }
   },
   "totals": {
-    "in": 3005754530,
-    "cached": 2878890685,
-    "out": 17091421,
-    "agents": 192,
-    "agentMs": 192203988,
-    "wallMs": 189347692,
-    "apps": 63,
-    "estimated": 33,
-    "cachedShare": 0.9773
+    "in": 3031229795,
+    "cached": 2903136373,
+    "out": 17275331,
+    "agents": 193,
+    "agentMs": 194483988,
+    "wallMs": 191627692,
+    "apps": 64,
+    "estimated": 34,
+    "cachedShare": 0.9771
   }
 }

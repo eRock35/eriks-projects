@@ -954,6 +954,32 @@ const APPS = [
     audience: 'Homeowners and renters, first-time buyers especially',
     status: 'testing',
   },
+  {
+    slug: 'ladle',
+    name: 'Ladle',
+    emoji: '\u{1F944}',
+    // A rebuild of the 2026-11-16 drop, which had a terracotta #8e452c and an
+    // index-card blue #466e9e. Rechecked against today's cards, both were
+    // too close: the terracotta was 10.5 in CIE Lab from Pawlog's #7a3d12
+    // (and 12.0 from Tally's, 14.0 from Chapter's walnut, 14.6 from
+    // Shadow's), the blue 8.9 from Replay's #0369a1 (13.5 from Proof's,
+    // 14.2 from Sprout's). The reds and browns that hold white text are
+    // crowded, so the nearest colour 20+ from every card is a cocoa, the
+    // wood of an old spoon, #644642 (moved 27.7): 20.3 from Flight's
+    // #3d1f0c, 20.4 from Snug's #924a4c, 21.1 from Rush's rose and 22.1+
+    // from the rest. The blue moved 12.9 to a faded-ink #706ea0: 20.5 from
+    // Replay's #0369a1, 20.7 from Snug's slate and 21.1+ from the rest.
+    // White text holds 8.41:1 and 4.74:1. The app itself keeps the
+    // original terracotta and blue.
+    color: '#644642',
+    color2: '#706ea0',
+    dropped: '2026-11-21',
+    tagline: 'Save the family recipes before the cards fade - then scale, shop and cook from your phone.',
+    blurb: 'For anyone with family recipes on index cards - Nana’s pie in faded pencil, the dressing nobody else can make, a card with a grease spot right over the oven temperature. Thanksgiving is Thursday, and this is the week those cards come out of the drawer. Photograph a card (the photo stays on your phone, its location stripped) and type it up - or, signed in, have AI type it up for you to check beside the card; it never reads a name off it and drops anything a card does not say. Say whose recipe it is. Then scale it with real fractions - serves 8, cooking for 14, ¾ cup becomes about 1 ⅓ cups, and a doubled 2 tbsp is said as ¼ cup - in US cups or metric, with the oven temperature in both. Pick the dishes and get one shopping list across all of them: the eggs and the butter added up exactly, sorted by aisle, ticked as you go and sent to whoever is shopping. Cook mode shows one big step at a time, keeps the screen awake where the phone allows and starts the timers the card mentions. Print a fresh card for the cousins. Free, no sign-in, works offline; sign in to keep two phones in step.',
+    features: ['A card typed up beside its photo - the photo stays on your phone', 'Scale with real fractions; US cups or metric in one tap', 'One shopping list across recipes, added up and sorted by aisle', 'Cook mode with big steps, timers and the screen kept awake'],
+    audience: 'Anyone with family recipes on index cards',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
