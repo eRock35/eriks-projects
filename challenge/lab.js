@@ -1059,6 +1059,33 @@ const APPS = [
     audience: 'Friends, families, coworkers and walking groups',
     status: 'testing',
   },
+  {
+    slug: 'stars',
+    name: 'Stars',
+    // The original ⭐ (U+2B50) is kept, though Rave has it too: no lab test
+    // forbids a shared emoji, and the HANDOFF spec keeps each rebuild's
+    // original. Stars' own test checks it is shared with Rave alone.
+    emoji: '\u2B50',
+    // A rebuild of the 2026-11-15 drop, which had a raspberry #b0175c and a
+    // walnut brown #5b3a29. Rechecked against today's cards, both were too
+    // close: the raspberry was 5.9 in CIE Lab from Takeback's #be185d (7.1
+    // from Jars's, 8.1 from Settle's), the brown 10.3 from Ladle's #644642
+    // (12.5 from Flight's). The nearest raspberry 20+ from every card is a
+    // brighter magenta, #da0185 (moved 21.4): 20.1 from Chaser's, 20.2 from
+    // Feedfix's, 20.6 from Takeback's. The nearest brown is a dark olive
+    // brown, #453702 (moved 19.9): 20.2 from Flight's and Muster's, 20.4
+    // from Chapter's. Both are 20+ from Snug's, Ladle's, Spotted's, Reset's
+    // and Trek's. White text holds 4.86:1 and 11.66:1. The app itself keeps
+    // the original raspberry and brown.
+    color: '#da0185',
+    color2: '#453702',
+    dropped: '2026-11-22',
+    tagline: 'Find the stars on your menu - and the dogs eating your margin.',
+    blurb: 'For owners, chefs and managers of independent restaurants who change the menu on gut feel. Type each dish’s price, plate cost and units sold - or open the till’s sales export and match its columns - and Stars works out every dish’s contribution margin, food cost and popularity against the rest of its section, the classic menu-engineering way: stars, plowhorses, puzzles and dogs, on a quadrant chart with a table beside it. Each dish gets plain suggestions - reprice, reposition, rework the plate cost or cut - with the exact price that would cross the margin line and a what-if to try it. Print the whole report for the kitchen meeting. Free, no sign-in, works offline; with a free account, AI reads a photo of your menu into dishes and prices for you to confirm - your costs and sales are never sent.',
+    features: ['Margin and popularity, section by section, in exact cents', 'Stars, plowhorses, puzzles and dogs on a quadrant chart', 'Plain suggestions with a what-if price that crosses the line', 'Sales CSV with a column mapper, AI menu reading, a printable report'],
+    audience: 'Owners, chefs and managers of independent restaurants',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

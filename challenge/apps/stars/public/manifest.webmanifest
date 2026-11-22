@@ -1,0 +1,10 @@
+{
+  "name": "Stars",
+  "short_name": "Stars",
+  "description": "Find the stars on your menu - and the dogs eating your margin.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf6f3",
+  "theme_color": "#b0175c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

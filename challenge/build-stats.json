@@ -671,17 +671,27 @@
       "wallMs": 1967769,
       "exact": true,
       "note": "One builder agent."
+    },
+    "stars": {
+      "in": 29370809,
+      "cached": 28038519,
+      "out": 164330,
+      "agents": 1,
+      "agentMs": 2315162,
+      "wallMs": 2315162,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 3110438577,
-    "cached": 2980158359,
-    "out": 17793198,
-    "agents": 196,
-    "agentMs": 201288017,
-    "wallMs": 198431721,
-    "apps": 67,
+    "in": 3139809386,
+    "cached": 3008196878,
+    "out": 17957528,
+    "agents": 197,
+    "agentMs": 203603179,
+    "wallMs": 200746883,
+    "apps": 68,
     "estimated": 34,
-    "cachedShare": 0.977
+    "cachedShare": 0.9767
   }
 }
