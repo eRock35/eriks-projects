@@ -28,7 +28,8 @@ if (process.env.CHAPTER_MEMORY !== '1' || process.env.CHAPTER_FAKE_AI !== '1') {
   process.exit(1);
 }
 
-const { app, identityStore, store, fakeClient } = require('../server');
+const { app, identityStore, store, fakeClient, reader } = require('../server');
+const Reader = require('../lib/reader');
 const C = require('../public/chapter-core');
 const K = require('../lib/clubs');
 const ai = require('../lib/ai');
@@ -415,8 +416,14 @@ test('the made-up club: Pride and Prejudice (public domain), six invented reader
   assert.ok(v.board.rows.some((r) => r.line === 'Maya is 3 chapters ahead of you'));
   assert.strictEqual(C.lockedLine(v.locked, d.club.book), '4 notes waiting past chapter 18');
   assert.strictEqual(v.board.nudge.kind, 'behind');
-  assert.strictEqual(v.meetings.length, 1);
-  assert.strictEqual(C.dayDiff(TODAY, v.meetings[0].date) >= 5 && new Date(v.meetings[0].date + 'T00:00:00Z').getUTCDay(), 4, 'a Thursday at least five days out');
+  // Two meetings since 2026-11-22: the last one (past, with its notes) and the next.
+  assert.deepStrictEqual(v.meetings.map((m) => m.past), [true, false]);
+  const next = v.meetings[1];
+  assert.strictEqual(C.dayDiff(TODAY, next.date) >= 5 && new Date(next.date + 'T00:00:00Z').getUTCDay(), 4, 'a Thursday at least five days out');
+  assert.strictEqual(v.board.finish.id, next.id, 'the finish line is still the next meeting');
+  assert.deepStrictEqual([v.meetings[0].notes.length, v.meetings[0].lockedNotes.total, v.meetings[0].notes[0].decision], [2, 1, true], 'meeting notes: two readable (the decision first), one locked past chapter 18');
+  assert.deepStrictEqual(v.notes.filter((n) => n.replies.length).map((n) => [n.id, n.replies.length]).sort(), [['n6char', 1], ['n9mrsb', 2]], 'threads: replies only under notes Alex can read');
+  assert.ok(!/walk around the room|gasped on the train|Charlotte argument/.test(JSON.stringify(v)), 'no reply or meeting note from past chapter 18');
   assert.strictEqual(v.shelf[0].title, 'Jane Eyre');
   assert.strictEqual(v.shelf[0].avg, 4.2);
   assert.strictEqual(v.vote.voted, 5);
@@ -981,6 +988,498 @@ test('keep my clubs on my account (signed in, optional): another device signed i
 });
 
 /* ---------------- run ---------------- */
+
+
+/* ================================================================== *
+ * 2026-11-22: threads, meeting notes, reading, buying, page-and-chapter -
+ * and the clubs that were already here
+ * ================================================================== */
+
+// Nothing in this suite may reach the network: a lookup that is not handed
+// a fake fails the test that made it.
+reader.fetchImpl = async (u) => { throw new Error(`unexpected outbound request: ${u}`); };
+
+test('threads: a reply is read exactly when its note is - a locked thread’s replies, their authors and reactions are left out and not even counted; a reply takes its thread’s chapter', () => {
+  const c = at(at(at(at(club(), 'mana', 12), 'mbo', 4), 'mcy', { done: true }), 'mdee', 12);
+  const early = note(c, 'mana', 3, 'The storm scene'), late = note(c, 'mana', 12, 'THREAD-SECRET reveal');
+  const r1 = Object.assign({ id: 'r1aaaa' }, C.newNote(c, 'mdee', { text: 'REPLY-SECRET I agree', at: 1, kind: 'question', ai: true }, { now: NOW + 1, parent: late }));
+  assert.deepStrictEqual([r1.kind, r1.re, r1.at, r1.ai], ['reply', late.id, 12, false], 'the thread’s chapter, whatever was sent');
+  r1.reactions = { mcy: C.REACTIONS[0] };
+  const r2 = Object.assign({ id: 'r2aaaa' }, C.newNote(c, 'mbo', { text: 'Early reply' }, { now: NOW + 2, parent: early }));
+  const r3 = Object.assign({ id: 'r3aaaa' }, C.newNote(c, 'mcy', { text: 'Second early reply' }, { now: NOW + 3, parent: early }));
+  const orphan = { id: 'r4aaaa', club: c.id, book: c.book.id, mid: 'mbo', kind: 'reply', re: 'ngone1', text: 'ORPHAN-REPLY', at: 1, reactions: {}, createdAt: new Date(NOW).toISOString() };
+  const all = [early, late, r1, r2, r3, orphan];
+  // Bo is at chapter 4: the chapter-12 thread is a count of one, and nothing of its reply.
+  const bo = C.memberView(c, all, 'mbo', { today: TODAY, locale: 'en-US' });
+  const json = JSON.stringify(bo);
+  for (const t of ['THREAD-SECRET', 'REPLY-SECRET', 'ORPHAN-REPLY', late.id, r1.id]) assert.ok(!json.includes(t), `${t} reached a reader who is not there yet`);
+  assert.deepStrictEqual(bo.locked, { total: 1, chapters: [[12, 1]], after: 4 }, 'replies are not counted');
+  assert.deepStrictEqual(bo.notes.map((n) => [n.text, n.replies.map((r) => r.text)]), [['The storm scene', ['Early reply', 'Second early reply']]], 'oldest reply first');
+  assert.deepStrictEqual([bo.notes[0].replies[0].kind, bo.notes[0].replies[0].own, bo.notes[0].replies[1].name], ['reply', true, 'Cy']);
+  // Dee wrote a reply under chapter 12, then moved the bookmark back: writing it does not keep the thread open.
+  const back = C.memberView(at(c, 'mdee', 2), all, 'mdee', { today: TODAY, locale: 'en-US' });
+  assert.ok(!/SECRET/.test(JSON.stringify(back)), 'a reply’s author sees it only with its thread');
+  // The thread’s own author keeps it (the existing rule), and so its replies.
+  const ana = C.memberView(at(c, 'mana', 1), all, 'mana', { today: TODAY, locale: 'en-US' });
+  assert.deepStrictEqual(ana.notes.find((n) => n.id === late.id).replies.map((r) => [r.text, r.reactions]), [['REPLY-SECRET I agree', [[C.REACTIONS[0], 1]]]]);
+  // Who may reply, and to what.
+  assert.throws(() => C.newNote(c, 'mbo', { text: 'Let me in' }, { now: NOW, parent: late }), (e) => e.status === 404 && /isn’t here any more/.test(e.message), 'not to a thread you cannot read');
+  assert.throws(() => C.newNote(c, 'mcy', { text: 'Nested' }, { now: NOW, parent: r2 }), (e) => e.status === 404, 'not to a reply');
+  assert.throws(() => C.newNote(c, 'mcy', { text: 'Other book' }, { now: NOW, parent: Object.assign({}, early, { book: 'bother' }) }), (e) => e.status === 404);
+  assert.throws(() => C.newNote(c, 'mcy', { text: ' ?! ' }, { now: NOW, parent: early }), /Write the reply first/);
+  assert.strictEqual(C.newNote(c, 'mcy', { text: 'x'.repeat(900) }, { now: NOW, parent: early }).text.length, C.LIMITS.reply);
+  assert.strictEqual(C.newNote(c, 'mcy', { text: '<img src=x onerror=alert(1)>hello\u202e' }, { now: NOW, parent: early }).text, 'hello');
+  // An ordinary note is stored exactly as it always was: no new field.
+  assert.deepStrictEqual(Object.keys(C.newNote(c, 'mana', { text: 'plain', at: 2 }, { now: NOW })).sort(), ['ai', 'at', 'book', 'club', 'createdAt', 'kind', 'mid', 'reactions', 'text']);
+  // The shelf keeps the rule for threads too.
+  const next = C.applyPatch(c, C.startNext(c, { book: { title: 'Persuasion', chapters: 24 } }, { today: TODAY, bookId: 'bnext1' }).patch);
+  const sb = C.shelfNotes(next, 'bfrank', all, 'mbo');
+  assert.ok(!/SECRET|ORPHAN/.test(JSON.stringify(sb)) && sb.notes[0].replies.length === 2 && sb.locked.total === 1);
+  assert.strictEqual(C.shelfNotes(next, 'bfrank', all, 'mcy').notes.find((n) => n.id === late.id).replies.length, 1);
+});
+
+test('meeting notes: what was discussed and decided, attached to a meetup and tagged by chapter - the same rule hides them; a count is all a reader behind gets', () => {
+  let c = at(at(at(club(), 'mana', 12), 'mbo', 4), 'mcy', { done: true });
+  c = C.applyPatch(c, C.addMeeting(c, 'mana', { date: C.addDays(TODAY, 3), time: '19:00', upTo: 12 }, 'tmeet1', { today: TODAY, now: NOW }).patch);
+  const meeting = { id: 'tmeet1', date: c.meetings.tmeet1.date };
+  const mk = (id, mid, body) => Object.assign({ id }, C.newNote(c, mid, body, { now: NOW, meeting }));
+  const plan = mk('k1aaaa', 'mana', { text: 'Next time: read to chapter 16', at: 1, decision: true });
+  const deep = mk('k2aaaa', 'mana', { text: 'MINUTES-SECRET we argued about the lake', at: 11 });
+  const end = mk('k3aaaa', 'mcy', { text: 'MINUTES-SECRET the ending, for finishers', at: 20, decision: true, kind: 'question', ai: true });
+  assert.deepStrictEqual([plan.kind, plan.meet, plan.meetDate, plan.decision, deep.decision, end.kind, end.ai], ['minutes', 'tmeet1', meeting.date, true, false, 'minutes', false]);
+  assert.throws(() => C.newNote(c, 'mbo', { text: 'Guessing', at: 9 }, { now: NOW, meeting }), /only tag up to where you are/, 'never tagged past its author');
+  assert.throws(() => C.newNote(at(c, 'mdee', 0), 'mdee', { text: 'Too soon', at: 1 }, { now: NOW, meeting }), /Set your bookmark first/);
+  const thread = note(c, 'mana', 2, 'An ordinary note');
+  const all = [plan, deep, end, thread];
+  const bo = C.memberView(c, all, 'mbo', { today: TODAY, locale: 'en-US' });
+  assert.ok(!/MINUTES-SECRET/.test(JSON.stringify(bo)) && !JSON.stringify(bo).includes(deep.id), 'a locked meeting note reached a reader before its chapter');
+  assert.deepStrictEqual(bo.meetings[0].notes.map((n) => [n.text, n.kind, n.decision, n.meet]), [['Next time: read to chapter 16', 'minutes', true, 'tmeet1']]);
+  assert.deepStrictEqual(bo.meetings[0].lockedNotes, { total: 2, chapters: [[11, 1], [20, 1]] });
+  assert.deepStrictEqual([bo.notes.map((n) => n.text), bo.locked.total], [['An ordinary note'], 0], 'meeting notes are not in the Notes tab, nor in its locked count');
+  const ana = C.memberView(c, all, 'mana', { today: TODAY, locale: 'en-US' });
+  assert.deepStrictEqual([ana.meetings[0].notes.map((n) => n.id), ana.meetings[0].lockedNotes.total], [['k1aaaa', 'k2aaaa'], 1], 'decisions first; the finisher’s note stays locked for chapter 12');
+  assert.strictEqual(C.memberView(c, all, 'mcy', { today: TODAY, locale: 'en-US' }).meetings[0].notes.length, 3);
+  // A note for a meeting that is gone is shown nowhere.
+  assert.ok(!JSON.stringify(C.memberView(C.applyPatch(c, { set: {}, del: ['meetings.tmeet1'] }), all, 'mcy', { today: TODAY, locale: 'en-US' })).includes('MINUTES-SECRET'));
+  // On the shelf they stay with the book, dated, under the rule.
+  const next = C.applyPatch(c, C.startNext(c, { book: { title: 'Persuasion', chapters: 24 } }, { today: TODAY, bookId: 'bnext1' }).patch);
+  const sb = C.shelfNotes(next, 'bfrank', all, 'mbo');
+  assert.ok(!/MINUTES-SECRET/.test(JSON.stringify(sb)) && sb.locked.total === 2);
+  assert.deepStrictEqual(sb.notes.map((n) => [n.kind, n.meetDate || '']).sort(), [['minutes', meeting.date], ['note', '']]);
+});
+
+test('page and chapter both: an optional page (or chapter) beside the bookmark, shown and never used by the rule; where everyone is at a glance; when each bookmark last moved', () => {
+  let c = club();
+  const p = C.setProgress(c, 'mbo', { pos: 7, alt: 142 }, NOW);
+  assert.deepStrictEqual(p.patch, { set: { 'members.mbo.pos': 7, 'members.mbo.done': false, 'members.mbo.at': new Date(NOW).toISOString(), 'members.mbo.alt': 142 }, del: [] });
+  c = C.applyPatch(c, p.patch);
+  assert.deepStrictEqual(C.setProgress(c, 'mbo', { pos: 8, alt: null }, NOW).patch.del, ['members.mbo.alt']);
+  assert.deepStrictEqual(C.setProgress(c, 'mana', { pos: 8, alt: '' }, NOW).patch.del, [], 'nothing to remove where there was none');
+  assert.deepStrictEqual(Object.keys(C.setProgress(c, 'mbo', { pos: 8 }, NOW).patch.set).length, 3, 'left alone when not sent');
+  for (const bad of [0, -1, 3001, 'lots', 1.5, {}]) assert.throws(() => C.setProgress(c, 'mbo', { pos: 7, alt: bad }, NOW), (e) => e.status === 400, String(bad));
+  assert.throws(() => C.setProgress(club({ chapters: null, pages: 300 }), 'mbo', { pos: 40, alt: 401 }, NOW), /chapter is a number from 1 to 400/);
+  // The page changes nothing about what is readable.
+  c = at(at(c, 'mana', 12), 'mcy', { done: true });
+  const n9 = note(c, 'mana', 9, 'PAGE-SECRET');
+  assert.strictEqual(C.canSee(n9, 'mbo', Object.assign({}, c.members.mbo, { alt: 3000 }), c.book), false);
+  const b = C.board(c, 'mbo', TODAY, 'en-US');
+  assert.deepStrictEqual(b.rows.map((r) => [r.name, r.alt]), [['Cy', null], ['Ana', null], ['Bo', 142], ['Dee', null]]);
+  assert.strictEqual(C.altShort(c.book, 142), 'p. 142');
+  assert.strictEqual(C.altShort({ pages: 300 }, 7), 'ch 7');
+  assert.strictEqual(C.altOf({ alt: 'x' }, c.book), null); assert.strictEqual(C.altOf({ alt: 99999 }, c.book), null); assert.strictEqual(C.altOf({}, c.book), null);
+  assert.deepStrictEqual(b.glance, { ahead: 2, same: 0, behind: 1, finished: 1, notStarted: 1, min: 0, max: 20, middle: 7, line: 'The club runs from the start to the end - the middle reader is at chapter 7.' });
+  assert.strictEqual(C.glance(club(), 'mana').line, 'Nobody has started yet.');
+  assert.strictEqual(C.glance(at(at(at(at(club(), 'mana', 5), 'mbo', 5), 'mcy', 5), 'mdee', 5), 'mana').line, 'Everyone is at chapter 5.');
+  assert.deepStrictEqual([C.movedLabel('2026-11-06T01:00:00.000Z', TODAY), C.movedLabel('2026-11-05T23:00:00.000Z', TODAY), C.movedLabel('2026-11-01T10:00:00.000Z', TODAY), C.movedLabel('2026-01-01T10:00:00.000Z', TODAY), C.movedLabel(null, TODAY), C.movedLabel('2026-11-08T10:00:00.000Z', TODAY)], ['today', 'yesterday', '5 days ago', 'a while ago', '', 'today']);
+  assert.strictEqual(b.rows.find((r) => r.name === 'Bo').moved, 'today');
+  // The next book starts everyone clean.
+  const nx = C.startNext(c, { book: { title: 'Persuasion', chapters: 24 } }, { today: TODAY, bookId: 'bnext1' });
+  assert.ok(nx.patch.del.includes('members.mbo.alt') && !nx.patch.del.includes('members.mana.alt'));
+  // No location of any kind: nothing in the page or the rules asks where a phone is.
+  assert.ok(!/geolocation|getCurrentPosition|watchPosition/.test(read('public/app.js') + read('public/chapter-core.js') + read('server.js')));
+});
+
+test('buying: plain links to a store’s own page; an affiliate id only from the environment and only when well-formed; an ISBN is optional and checked', () => {
+  const book = { title: 'The Left Hand & Other <b>Stories</b>', author: 'A. N. Author' };
+  const plainLinks = C.buyLinks(book, null);
+  assert.deepStrictEqual(plainLinks.map((l) => l.id), ['bookshop', 'bn', 'amazon', 'library'], 'the independent-bookshop option first');
+  assert.ok(plainLinks.every((l) => l.affiliate === false && /^https:\/\/(bookshop\.org|www\.barnesandnoble\.com|www\.amazon\.com|search\.worldcat\.org)\//.test(l.url) && !/[<>"' ]/.test(l.url)), JSON.stringify(plainLinks));
+  assert.strictEqual(plainLinks[0].url, 'https://bookshop.org/search?keywords=The%20Left%20Hand%20%26%20Other%20Stories%20A.%20N.%20Author');
+  assert.ok(!plainLinks.some((l) => /tag=|\/a\//.test(l.url)), 'no affiliate id without one configured');
+  const withIsbn = Object.assign({ isbn: '9780141439471' }, book);
+  const aff = C.buyLinks(withIsbn, { bookshop: '12345', amazon: 'ourclub-20' });
+  assert.strictEqual(aff[0].url, 'https://bookshop.org/a/12345/9780141439471');
+  assert.strictEqual(aff[2].url, 'https://www.amazon.com/s?k=9780141439471&i=stripbooks&tag=ourclub-20');
+  assert.deepStrictEqual(aff.map((l) => l.affiliate), [true, false, true, false]);
+  assert.deepStrictEqual(C.buyLinks(book, { bookshop: '12345', amazon: 'ourclub-20' }).map((l) => l.affiliate), [false, false, true, false], 'Bookshop’s affiliate link needs the exact edition');
+  for (const bad of [{ bookshop: '12/../x', amazon: 'x&y=1-20' }, { bookshop: 12345, amazon: ['a-20'] }, { bookshop: '', amazon: 'no-suffix' }, { bookshop: '1'.repeat(13), amazon: '"><script>-20' }]) {
+    const l = C.buyLinks(withIsbn, bad);
+    assert.ok(l.every((x) => !x.affiliate) && !/tag=|\/a\//.test(l.map((x) => x.url).join(' ')), JSON.stringify(bad));
+  }
+  // The ISBN: typed however, ISBN-10 or 13, check digit held; kept only when given.
+  assert.deepStrictEqual(['978-0-14-143947-1', '0141439475', '0-8044-2957-X', '9780141439472', '1234567890123', 'abc', {}, null].map(C.cleanIsbn), ['9780141439471', '9780141439471', '9780804429573', '', '', '', '', '']);
+  assert.deepStrictEqual(C.cleanBook({ title: 'X', chapters: 3, isbn: '0141439475' }), { title: 'X', author: '', chapters: 3, pages: null, isbn: '9780141439471' });
+  assert.deepStrictEqual(C.cleanBook({ title: 'X', chapters: 3, isbn: '' }), { title: 'X', author: '', chapters: 3, pages: null });
+  assert.throws(() => C.cleanBook({ title: 'X', chapters: 3, isbn: '9780141439472' }), /ISBN doesn’t check out/);
+  const c = club();
+  assert.deepStrictEqual(Object.keys(C.editBook(c, { title: 'Frankenstein!' }).patch.set).sort(), ['book.author', 'book.chapters', 'book.pages', 'book.title'], 'an edit that says nothing about the ISBN writes the four keys it always did');
+  const withBook = C.applyPatch(c, C.editBook(c, { isbn: '9780141439471' }).patch);
+  assert.strictEqual(withBook.book.isbn, '9780141439471');
+  assert.deepStrictEqual(C.editBook(withBook, { isbn: '' }).patch.del, ['book.isbn']);
+  assert.strictEqual(C.memberView(withBook, [], 'mana', { today: TODAY }).book.isbn, '9780141439471');
+  assert.strictEqual(C.memberView(c, [], 'mana', { today: TODAY }).book.isbn, '');
+  assert.strictEqual(C.applyPatch(withBook, C.startNext(withBook, { book: { title: 'Persuasion', chapters: 24 } }, { today: TODAY, bookId: 'bnext1' }).patch).shelf.bfrank.isbn, '9780141439471');
+  assert.ok(!('isbn' in C.applyPatch(c, C.startNext(c, { book: { title: 'Persuasion', chapters: 24 } }, { today: TODAY, bookId: 'bnext1' }).patch).shelf.bfrank));
+  // The page: outbound links open a new tab with no opener and no referrer; nothing else loads from a store.
+  const js = read('public/app.js');
+  for (const m of js.match(/<a class="(?:crow out|btn[^"]*)" href="' \+ esc\([^)]*\)+ \+ '"[^>]*>/g)) assert.ok(/target="_blank" rel="noopener noreferrer"/.test(m) || /b\.elsewhere|d\.topUpUrl/.test(m), m);
+  assert.ok(!/<img[^>]+(bookshop|amazon|barnesandnoble|worldcat)|<script[^>]+https?:|\.src\s*=\s*['"]https?:/.test(js + read('public/index.html')), 'no pixel and no script from a store');
+  assert.match(js, /Nothing is bought, paid for or tracked inside Chapter\./);
+  assert.match(js, /affiliate links: if you buy, the store may pay Chapter a small commission/);
+});
+
+/** A stand-in for Open Library's search and the Internet Archive's item
+ *  metadata: it answers only those two, and fails the test for anything else. */
+function fakeShelves(o) {
+  const log = [];
+  const docs = o.docs || [];
+  const impl = async (url, opts) => {
+    log.push({ url, ua: opts && opts.headers && opts.headers['User-Agent'], redirect: opts && opts.redirect, signal: Boolean(opts && opts.signal) });
+    const u = new URL(url);
+    const json = (body, status) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status: status || 200, headers: { 'Content-Type': 'application/json' } });
+    if (o.hang) return new Promise((_, reject) => { opts.signal.addEventListener('abort', () => reject(new Error('aborted'))); });
+    if (u.hostname === 'openlibrary.org' && u.pathname === '/search.json') {
+      if (o.search) return o.search(u, json);
+      return json({ docs });
+    }
+    if (u.hostname === 'archive.org' && /^\/metadata\/[A-Za-z0-9._-]+\/metadata$/.test(u.pathname)) {
+      const id = u.pathname.split('/')[2];
+      if (o.item) return o.item(id, json);
+      return json({ result: (o.items || {})[id] || { mediatype: 'texts', collection: ['americana'], date: '1849' } });
+    }
+    throw new Error(`the lookup asked for something else: ${url}`);
+  };
+  impl.log = log;
+  return impl;
+}
+const OPEN = { key: '/works/OL450063W', title: 'Frankenstein; or, The Modern Prometheus', author_name: ['Mary Shelley'], first_publish_year: 1818, ebook_access: 'public', public_scan_b: true, ia: ['frankensteinormo00shel_8', 'other00item'], lending_identifier_s: 'frankensteinormo00shel_8', editions: { docs: [{ ebook_access: 'public', ia: ['frankensteinormo00shel_8'] }] } };
+const LEND = { key: '/works/OL50548W', title: 'Frankenstein', author_name: ['Mary Shelley'], first_publish_year: 1987, ebook_access: 'borrowable', public_scan_b: false, ia: ['lendme0000shel'] };
+
+test('reading: the lookup asks Open Library and the Internet Archive only, says who it is, embeds only a scan anyone may read in full - and never fetches a book’s text', async () => {
+  const mk = (o) => { const f = fakeShelves(o); return { r: Reader.create({ fetchImpl: f, timeoutMs: o.timeoutMs }), f }; };
+  let { r, f } = mk({ docs: [LEND, OPEN] });
+  const hit = await r.lookup('Frankenstein', 'Mary Shelley');
+  assert.deepStrictEqual(hit, { kind: 'read', ia: 'frankensteinormo00shel_8', work: '/works/OL450063W', title: 'Frankenstein; or, The Modern Prometheus', author: 'Mary Shelley', year: 1849, reason: '' });
+  assert.deepStrictEqual(f.log.map((x) => new URL(x.url).hostname + new URL(x.url).pathname), ['openlibrary.org/search.json', 'archive.org/metadata/frankensteinormo00shel_8/metadata'], 'two requests: the search and that one item’s metadata - never a page of the book');
+  const q = new URL(f.log[0].url).searchParams;
+  assert.deepStrictEqual([q.get('title'), q.get('author'), q.get('limit')], ['Frankenstein', 'Mary Shelley', '5'], 'the title and author - nothing about the club or the reader');
+  assert.ok(f.log.every((x) => /^Chapter\/[\d.]+ \(book club app; https:\/\/challenge\.strongtechnicalconsulting\.com\/chapter\/\)$/.test(x.ua) && x.signal), 'an identified User-Agent and one time budget');
+  // Cached: the same book again asks nobody.
+  await r.lookup('  frankenstein ', 'MARY SHELLEY'); await r.lookup('Frankenstein', 'Mary Shelley');
+  assert.strictEqual(r.calls, 2);
+  // The Archive says the item is lent, restricted or not a text: never embedded.
+  for (const item of [{ mediatype: 'texts', collection: ['inlibrary', 'americana'] }, { mediatype: 'texts', collection: 'printdisabled' }, { mediatype: 'texts', 'access-restricted-item': 'true' }, { mediatype: 'movies' }, null]) {
+    ({ r, f } = mk({ docs: [OPEN, LEND], items: { frankensteinormo00shel_8: item } }));
+    if (item === null) ({ r, f } = mk({ docs: [OPEN, LEND], item: (_id, json) => json({}) }));
+    const res = await r.lookup('Frankenstein', 'Mary Shelley');
+    assert.deepStrictEqual([res.kind, res.ia, res.work], ['borrow', '', '/works/OL50548W'], JSON.stringify(item));
+  }
+  // Only what Open Library itself marks public is even asked about.
+  ({ r, f } = mk({ docs: [Object.assign({}, OPEN, { public_scan_b: false })] }));
+  assert.deepStrictEqual([(await r.lookup('Frankenstein', 'Mary Shelley')).kind, r.calls], ['none', 1]);
+  ({ r } = mk({ docs: [Object.assign({}, OPEN, { ebook_access: 'printdisabled' })] }));
+  assert.strictEqual((await r.lookup('Frankenstein', 'Mary Shelley')).kind, 'none');
+  // A different book that merely matches the words is not the club's book.
+  ({ r } = mk({ docs: [Object.assign({}, OPEN, { title: 'Frankenstein Unbound' }), Object.assign({}, OPEN, { title: 'Frankenstein', author_name: ['Someone Else'] }), Object.assign({}, OPEN, { title: 'The Annotated Frankenstein' })] }));
+  assert.strictEqual((await r.lookup('Frankenstein', 'Mary Shelley')).kind, 'none');
+  assert.ok(Reader.matches({ title: 'The Moonstone', author_name: ['Wilkie Collins'] }, 'Moonstone', 'collins') && Reader.matches({ title: 'Jane Eyre' }, 'JANE EYRE', '') && !Reader.matches({ title: '' }, 'x', ''));
+  // Hostile answers: ids and keys that are not exactly an item or a work, markup, huge fields.
+  ({ r, f } = mk({ docs: [Object.assign({}, OPEN, { key: '/works/../../admin', title: 'Frankenstein <script>alert(1)</script>', author_name: ['Mary <b>Shelley</b>'.repeat(30)], ia: ['../../etc/passwd', 'a b', '"><iframe>'], lending_identifier_s: 'https://evil.example/x', editions: { docs: [{ ebook_access: 'public', ia: ['javascript:alert(1)'] }] } })] }));
+  const hostile = await r.lookup('Frankenstein', 'Mary Shelley');
+  assert.deepStrictEqual([hostile.kind, hostile.ia, hostile.work, f.log.length], ['none', '', '', 1], 'nothing in an answer chooses where the next request goes');
+  assert.ok(!/[<>]/.test(JSON.stringify(hostile)) && hostile.author.length <= 60);
+  // Failures: unavailable, never thrown, never cached; a size cap; a time budget; no redirect elsewhere.
+  const fails = [
+    { search: (_u, json) => json({ error: 'no' }, 503) },
+    { search: (_u, json) => json('not json at all') },
+    { search: (_u, json) => json({ docs: [OPEN], pad: 'x'.repeat(300 * 1024) }) },
+    { search: () => ({ ok: true, status: 200, url: 'https://evil.example/search.json', headers: new Headers(), text: async () => JSON.stringify({ docs: [OPEN] }) }) },
+    { docs: [OPEN], item: () => ({ ok: true, status: 200, url: 'http://archive.org/metadata/x/metadata', headers: new Headers(), text: async () => '{}' }) },
+    { docs: [OPEN], item: (_id, json) => json({}, 500) },
+    { hang: true, timeoutMs: 60 },
+  ];
+  for (const o of fails) {
+    ({ r } = mk(o));
+    const t0 = Date.now();
+    const res = await r.lookup('Frankenstein', 'Mary Shelley');
+    assert.deepStrictEqual([res.kind, res.reason, r.size()], ['none', 'unavailable', 0], Object.keys(o).join());
+    assert.ok(Date.now() - t0 < 2000);
+  }
+  ({ r } = mk({ docs: [] }));
+  assert.deepStrictEqual([(await r.lookup('', 'x')).kind, r.calls], ['none', 0], 'no title, no request');
+  // The cache is bounded and small: memory only, no document anywhere.
+  ({ r } = mk({ docs: [] }));
+  for (let i = 0; i < Reader.CACHE_MAX + 40; i++) await r.lookup(`Book number ${i}`, 'Nobody');
+  assert.strictEqual(r.size(), Reader.CACHE_MAX);
+  // The biggest answer there can be is a few hundred bytes, so a full cache is a few hundred kilobytes at most.
+  const biggest = C.cleanRead({ kind: 'read', ia: 'i'.repeat(100), work: '/works/OL123456789012W', title: 'T'.repeat(500), author: 'A'.repeat(500), year: 1900 });
+  assert.ok(Reader.CACHE_MAX <= 500 && JSON.stringify(biggest).length < 400, String(JSON.stringify(biggest).length));
+  const src = read('lib/reader.js');
+  assert.ok(!/store\.|setTimeout|setInterval|gutenberg\.org\/(files|cache|ebooks\/\d)|standardebooks\.org\/ebooks\/[a-z]/.test(src.replace(/^\/\/.*$/gm, '')), 'no Firestore, no timer, and no book text fetched from anywhere');
+  // What the page may put in a frame: the Archive's reader for a well-formed item id, and nothing else.
+  assert.strictEqual(C.readerUrl('frankensteinormo00shel_8'), 'https://archive.org/embed/frankensteinormo00shel_8');
+  for (const bad of ['', 'ab', '../x', 'a/b', 'a b', 'x'.repeat(101), 'javascript:alert(1)', 'a..b', '-abc', null, 7, {}]) assert.strictEqual(C.readerUrl(bad) + C.readerPage(bad), '', String(bad));
+  assert.deepStrictEqual(C.cleanRead({ kind: 'read', ia: '"><script>', work: '/works/OL1W', title: '<b>T</b>', year: 'x' }), { kind: 'none', ia: '', work: '/works/OL1W', title: 'T', author: '', year: null, reason: '' });
+  assert.deepStrictEqual(C.cleanRead({ kind: 'borrow', work: 'https://evil.example' }).kind, 'none');
+  assert.ok(C.readLinks({ title: 'Emma', author: 'Jane Austen' }).every((l) => /^https:\/\/(www\.gutenberg\.org\/ebooks\/search\/\?query=|standardebooks\.org\/ebooks\?query=|openlibrary\.org\/search\?q=)Emma%20Jane%20Austen$/.test(l.url)), 'the other sources are searches a reader opens - links, not fetches');
+  const js = read('public/app.js');
+  assert.match(js, /<iframe class="reader-frame" src="' \+ esc\(src\) \+ '"[^>]*referrerpolicy="no-referrer"[^>]*sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"/, 'the one frame: the Archive’s reader, sandboxed, no referrer');
+  assert.strictEqual((js.match(/<iframe/g) || []).length, 1);
+  assert.match(js, /r = state\.reading, src = r \? C\.readerUrl\(r\.ia\) : '';\n\s+if \(!src\) return;/, 'and only from readerUrl');
+  assert.match(js, /data-act="readhere">Open the reader here/, 'it loads only after a tap');
+  // The lab's CSP sets no frame-src or default-src, so the frame needs no change to it - and this app adds none.
+  for (const f2 of ['server.js', '../../server.js']) assert.ok(/script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'/.test(read(f2)) && !/frame-src|default-src|child-src/.test(read(f2)), f2);
+});
+
+test('older clubs keep working: a club, its notes and its seats stored in the shape they had before 2026-11-22 load, draw, vote, RSVP and move progress - and nothing is rewritten', async () => {
+  // Written out by hand in yesterday's stored shape (lib/clubs.js at that commit): no `alt`, no `isbn`, no reply, no meeting note.
+  const id = 'oldClubAAAAAAA_1';
+  const keyA = 'A'.repeat(22), keyB = 'B'.repeat(22);
+  const old = {
+    name: 'The Old Guard', code: 'QLDCLB', tz: 'America/New_York', createdAt: '2026-11-07T14:00:00.000Z', updatedAt: new Date(Date.now() - 3 * 86400000).toISOString(), v: 41,
+    book: { id: 'boldbook', started: '2026-11-07', ratings: { mold2: 4 }, title: 'Middlemarch', author: 'George Eliot', chapters: 86, pages: null },
+    members: {
+      mold1: { name: 'Robin', emoji: '\u{1F989}', host: true, joinedAt: '2026-11-07T14:00:00.000Z', pos: 30, done: false, at: '2026-11-18T09:00:00.000Z', keyHash: K.keyHash(keyA, id) },
+      mold2: { name: 'Kit', emoji: '\u{1F41D}', host: false, joinedAt: '2026-11-07T15:00:00.000Z', pos: 86, done: true, at: '2026-11-20T09:00:00.000Z', keyHash: K.keyHash(keyB, id), acct: 'tag-of-some-account-000000', move: { hash: K.secretHash('S'.repeat(22)), exp: new Date(Date.now() + 20 * 60000).toISOString() } },
+      mold3: { name: 'Lou', emoji: '\u{1F422}', host: false, joinedAt: '2026-11-08T15:00:00.000Z', pos: 0, done: false, at: null, keyHash: 'someone-elses-hash' },
+    },
+    meetings: { toldmeet: { date: C.addDays(realToday(), 6), time: '19:00', place: 'The library', link: '', upTo: 40, rsvps: { mold2: 'yes' }, by: 'mold1', at: '2026-11-10T10:00:00.000Z' } },
+    vote: { noms: { nold0001: { title: 'Emma', author: 'Jane Austen', why: 'Lighter', chapters: 55, pages: null, by: 'mold2', at: '2026-11-12T10:00:00.000Z' }, nold0002: { title: 'Dracula', author: 'Bram Stoker', why: '', chapters: 27, pages: null, by: 'mold1', at: '2026-11-13T10:00:00.000Z' } }, ballots: { mold2: ['nold0002'] }, closed: null },
+    shelf: { boldshelf: { title: 'Persuasion', author: 'Jane Austen', chapters: 24, pages: null, started: '2026-09-01', finished: '2026-11-06', ratings: { mold1: 5 }, final: { mold1: 24, mold2: 10 }, order: 1 } },
+  };
+  const oldNotes = {
+    noldaaaaaaaaaaa1: { club: id, book: 'boldbook', mid: 'mold2', kind: 'note', text: 'OLD-EARLY the first chapters drag a little', at: 5, ai: false, reactions: { mold1: C.REACTIONS[0] }, createdAt: '2026-11-09T10:00:00.000Z' },
+    noldaaaaaaaaaaa2: { club: id, book: 'boldbook', mid: 'mold2', kind: 'question', text: 'OLD-LATE who saw that will coming?', at: 60, ai: true, reactions: {}, createdAt: '2026-11-15T10:00:00.000Z' },
+    noldaaaaaaaaaaa3: { club: id, book: 'boldshelf', mid: 'mold1', kind: 'note', text: 'OLD-SHELF the letter', at: 23, ai: false, reactions: {}, createdAt: '2026-10-30T10:00:00.000Z' },
+  };
+  await store.set('clubs', id, old);
+  for (const [nid, n] of Object.entries(oldNotes)) await store.set('notes', nid, n);
+  // The pure view of the stored document: every new field has a safe default.
+  const view = C.memberView(Object.assign({ id }, old), Object.entries(oldNotes).map(([nid, n]) => Object.assign({ id: nid }, n)), 'mold1', { today: realToday(), locale: 'en-US' });
+  assert.deepStrictEqual(view.notes.map((n) => [n.text, n.kind, n.replies]), [['OLD-EARLY the first chapters drag a little', 'note', []]]);
+  assert.deepStrictEqual([view.locked, view.book.isbn, view.meetings[0].notes, view.meetings[0].lockedNotes, view.board.rows.map((r) => r.alt)], [{ total: 1, chapters: [[60, 1]], after: 30 }, '', [], { total: 0, chapters: [] }, [null, null, null]]);
+  assert.deepStrictEqual(view.board.rows.map((r) => [r.name, r.pos, r.done, r.short]), [['Kit', 86, true, 'Finished'], ['Robin', 30, false, 'Chapter 30'], ['Lou', 0, false, '30 chapters behind you']]);
+  assert.strictEqual(view.board.nudge.kind, 'on-track');
+  // The same member, by the same cookie: the key and its per-club hash are unchanged.
+  const robin = client(), kit = client();
+  robin.cookies.chapter_k = keyA; kit.cookies.chapter_k = keyB;
+  const got = await robin('GET', `/api/c/${id}`);
+  assert.strictEqual(got.status, 200, JSON.stringify(got.data));
+  assert.deepStrictEqual([got.data.club.you, got.data.club.host, got.data.club.v, got.data.club.code, got.data.club.book.title, got.data.club.members.length], ['mold1', true, 41, 'QLDCLB', 'Middlemarch', 3]);
+  assert.ok(got.text.includes('OLD-EARLY') && !got.text.includes('OLD-LATE') && !/keyHash|tag-of-some-account|someone-elses-hash/.test(got.text));
+  assert.deepStrictEqual(got.data.club.stores.map((s) => s.id), ['bookshop', 'bn', 'amazon', 'library']);
+  assert.strictEqual((await robin('GET', `/api/c/${id}?since=41`)).data.same, true);
+  assert.strictEqual((await robin('GET', '/api/join/QLD-CLB')).data.already, id, 'the join code still finds it');
+  // Move progress, vote, RSVP, rate, react - each writes only its own keys.
+  const moved = await robin('PUT', `/api/c/${id}/progress`, { pos: 31 });
+  assert.deepStrictEqual([moved.status, moved.data.club.board.rows.find((r) => r.you).pos], [200, 31]);
+  assert.strictEqual((await robin('PUT', `/api/c/${id}/ballot`, { picks: ['nold0001', 'nold0002'] })).status, 200);
+  const rs = await robin('PUT', `/api/c/${id}/meetings/toldmeet/rsvp`, { a: 'maybe' });
+  assert.deepStrictEqual(rs.data.club.meetings[0].rsvps, { yes: ['Kit'], maybe: ['Robin'], no: [] });
+  assert.strictEqual((await kit('PUT', `/api/c/${id}/rating`, { book: 'boldbook', stars: 5 })).status, 200);
+  assert.strictEqual((await kit('PUT', `/api/c/${id}/notes/noldaaaaaaaaaaa1/react`, { emoji: C.REACTIONS[1] })).status, 200);
+  assert.strictEqual((await robin('PUT', `/api/c/${id}/notes/noldaaaaaaaaaaa2/react`, { emoji: C.REACTIONS[1] })).status, 404, 'the old locked note is still locked');
+  const closed = await robin('POST', `/api/c/${id}/vote/close`, {});
+  assert.match(closed.data.club.vote.closed.line, /^Dracula wins with 2 votes from 2 voters\.$/);
+  assert.strictEqual((await robin('POST', `/api/c/${id}/vote/reopen`, {})).status, 200);
+  await kit('PUT', `/api/c/${id}/ballot`, { picks: ['nold0001'] }); await robin('PUT', `/api/c/${id}/ballot`, { picks: ['nold0002'] });
+  assert.match((await robin('POST', `/api/c/${id}/vote/close`, {})).data.club.vote.closed.line, /Emma and Dracula tied on 1 vote - Emma wins the tie because it was nominated first\./, 'the first-nominated tie-break, on old nominations');
+  const stored = await store.get('clubs', id);
+  assert.deepStrictEqual(Object.keys(stored).sort(), ['book', 'code', 'createdAt', 'id', 'meetings', 'members', 'name', 'shelf', 'tz', 'updatedAt', 'v', 'vote'], 'no new top-level field, nothing renamed');
+  assert.deepStrictEqual(Object.keys(stored.members.mold1).sort(), ['at', 'done', 'emoji', 'host', 'joinedAt', 'keyHash', 'name', 'pos'], 'a seat gains nothing it was not given');
+  assert.deepStrictEqual([stored.members.mold1.keyHash, stored.members.mold2.keyHash, stored.members.mold2.acct, stored.members.mold3], [old.members.mold1.keyHash, old.members.mold2.keyHash, old.members.mold2.acct, old.members.mold3]);
+  assert.deepStrictEqual(Object.keys(stored.book).sort(), ['author', 'chapters', 'id', 'pages', 'ratings', 'started', 'title']);
+  assert.deepStrictEqual(Object.keys(stored.meetings.toldmeet).sort(), ['at', 'by', 'date', 'link', 'place', 'rsvps', 'time', 'upTo']);
+  assert.deepStrictEqual(await store.get('notes', 'noldaaaaaaaaaaa2'), Object.assign({ id: 'noldaaaaaaaaaaa2' }, oldNotes.noldaaaaaaaaaaa2), 'an old note is not rewritten');
+  // The new things work on the old club: a reply to an old note, a meeting note on an old meeting, a page beside the bookmark.
+  const reply = await robin('POST', `/api/c/${id}/notes`, { re: 'noldaaaaaaaaaaa1', text: 'They pick up, I promise' });
+  assert.deepStrictEqual([reply.status, reply.data.club.notes[0].replies.map((r) => r.text)], [200, ['They pick up, I promise']]);
+  assert.strictEqual((await robin('POST', `/api/c/${id}/notes`, { meet: 'toldmeet', text: 'Bring the map of the town', at: 1, decision: true })).status, 200);
+  assert.strictEqual((await robin('PUT', `/api/c/${id}/progress`, { pos: 32, alt: 410 })).data.club.board.rows.find((r) => r.you).alt, 410);
+  // The shelf, by where each reader had got to - as before.
+  const sh = await kit('GET', `/api/c/${id}/shelf/boldshelf/notes`);
+  assert.ok(!sh.text.includes('OLD-SHELF') && sh.data.locked.total === 1);
+  assert.ok((await robin('GET', `/api/c/${id}/shelf/boldshelf/notes`)).text.includes('OLD-SHELF'));
+  // A move link made before the deploy still moves the seat, once.
+  const phone = client();
+  const claim = await phone('POST', '/api/move', { token: `${id}.${'S'.repeat(22)}` });
+  assert.deepStrictEqual([claim.status, claim.data.me], [200, 'mold2']);
+  assert.strictEqual((await phone('GET', `/api/c/${id}`)).data.club.you, 'mold2');
+  assert.strictEqual((await kit('GET', `/api/c/${id}`)).status, 404, 'the old phone is out, as before');
+  assert.strictEqual((await client()('POST', '/api/move', { token: `${id}.${'S'.repeat(22)}` })).status, 404);
+  // The next book, then leaving: the old records go where they always went.
+  const nx = await robin('POST', `/api/c/${id}/next`, {});
+  assert.deepStrictEqual([nx.status, nx.data.club.book.title, nx.data.club.shelf.map((s) => s.title), nx.data.club.board.rows.map((r) => r.pos + (r.alt || 0))], [200, 'Emma', ['Middlemarch', 'Persuasion'], [0, 0, 0]]);
+  assert.strictEqual((await phone('DELETE', `/api/c/${id}/me`)).status, 200);
+  const left = (await store.list('notes', { where: [['club', '==', id]] })).map((n) => n.text).sort();
+  assert.deepStrictEqual(left, ['Bring the map of the town', 'OLD-SHELF the letter'], 'Kit’s notes went, and the reply under one of them with it');
+  // A club stored with the least it could have (an early one): still opens.
+  const bare = 'oldClubAAAAAAA_2';
+  await store.set('clubs', bare, { name: 'Bare', code: 'BARE22', createdAt: '2026-11-07T14:00:00.000Z', updatedAt: new Date().toISOString(), v: 1, book: { id: 'bbare001', title: 'Short', chapters: 3 }, members: { mbare1: { name: 'Sol', emoji: '\u{1F989}', host: true, joinedAt: '2026-11-07T14:00:00.000Z', keyHash: K.keyHash(keyA, bare) } } });
+  const b = await robin('GET', `/api/c/${bare}`);
+  assert.deepStrictEqual([b.status, b.data.club.meetings, b.data.club.notes, b.data.club.shelf, b.data.club.vote.noms, b.data.club.board.rows[0].pos], [200, [], [], [], [], 0]);
+  assert.strictEqual((await robin('PUT', `/api/c/${bare}/progress`, { pos: 1 })).status, 200);
+  assert.strictEqual((await robin('POST', `/api/c/${bare}/noms`, { title: 'Next one' })).status, 200);
+});
+
+test('the server never sends a locked thread: not its text, its replies, their authors or reactions - not in the club, a poll, a write’s answer, the shelf, or a reply, reaction or removal aimed at it', async () => {
+  const a = client(), b = client(), cc = client();
+  const made = await newClub(a);
+  const bo = await joinAs(b, made.club.code, 'Bo');
+  const cy = await joinAs(cc, made.club.code, 'Cy', '\u{1F98A}');
+  const U = `/api/c/${made.id}`;
+  await a('PUT', `${U}/progress`, { pos: 12 }); await cc('PUT', `${U}/progress`, { pos: 14 }); await b('PUT', `${U}/progress`, { pos: 3 });
+  const open = (await a('POST', `${U}/notes`, { text: 'Opening thought', at: 1 })).data.id;
+  const locked = (await a('POST', `${U}/notes`, { text: 'SECRET-THREAD at the lake', at: 11 })).data.id;
+  const r1 = await cc('POST', `${U}/notes`, { re: locked, text: 'SECRET-REPLY I never saw it coming', at: 1 });
+  assert.deepStrictEqual([r1.status, r1.data.club.notes.find((n) => n.id === locked).replies.map((r) => [r.text, r.name, r.at])], [200, [['SECRET-REPLY I never saw it coming', 'Cy', 11]]], 'the reply carries the thread’s chapter, not the 1 it was sent with');
+  const rid = r1.data.id;
+  assert.strictEqual((await a('PUT', `${U}/notes/${rid}/react`, { emoji: '\u{1F62E}' })).status, 200);
+  assert.strictEqual((await b('POST', `${U}/notes`, { re: open, text: 'Bo replies early' })).status, 200);
+  // Everything Bo can ask for, at chapter 3.
+  const answers = [
+    await b('GET', U), await b('GET', `${U}?since=0`), await b('PUT', `${U}/progress`, { pos: 3 }), await b('PUT', `${U}/progress`, { pos: 10, alt: 99 }),
+    await b('POST', `${U}/notes`, { text: 'Bo’s own note', at: 2 }), await b('PUT', `${U}/notes/${open}/react`, { emoji: '\u{1F602}' }), await b('PATCH', `${U}/me`, { name: 'Bo' }),
+    await b('POST', `${U}/notes`, { re: locked, text: 'let me in' }), await b('PUT', `${U}/notes/${locked}/react`, { emoji: '\u{1F62E}' }), await b('PUT', `${U}/notes/${rid}/react`, { emoji: '\u{1F62E}' }),
+    await b('DELETE', `${U}/notes/${rid}`), await b('DELETE', `${U}/notes/${locked}`), await b('POST', `${U}/notes`, { re: rid, text: 'reply to the reply' }),
+    await b('POST', `${U}/noms`, { title: 'Emma' }), await b('PUT', `${U}/ballot`, { picks: [] }), await b('GET', `${U}/read`),
+  ];
+  for (const r of answers) {
+    assert.ok(!/SECRET/.test(r.text) && !r.text.includes(locked) && !r.text.includes(rid), `a locked thread reached a reader before its chapter: ${r.text.slice(0, 200)}`);
+    if (r.data.club) assert.deepStrictEqual([r.data.club.locked.total, r.data.club.locked.chapters], [1, [[11, 1]]], 'one locked thread - its reply is not counted');
+  }
+  assert.deepStrictEqual(answers.slice(7, 13).map((r) => [r.status, r.data.error]), Array(6).fill([404, 'That note isn’t here any more.']), 'a reply, a reaction or a removal aimed at it is the 404 a missing note gets, word for word');
+  assert.strictEqual((await b('PUT', `${U}/notes/${'n' + 'z'.repeat(15)}/react`, { emoji: '\u{1F62E}' })).data.error, 'That note isn’t here any more.');
+  // The reply's author moves the bookmark back: it goes dark for them too.
+  const cyBack = await cc('PUT', `${U}/progress`, { pos: 5 });
+  assert.ok(!/SECRET/.test(cyBack.text) && (await cc('PUT', `${U}/notes/${rid}/react`, { emoji: '\u{1F62E}' })).status === 404 && (await cc('DELETE', `${U}/notes/${rid}`)).status === 404);
+  await cc('PUT', `${U}/progress`, { pos: 14 });
+  // Reaching chapter 11 opens the thread, whole.
+  const up = await b('PUT', `${U}/progress`, { pos: 11 });
+  const t = up.data.club.notes.find((n) => n.id === locked);
+  assert.deepStrictEqual([t.text, t.replies.map((r) => [r.text, r.name, r.reactions, r.canRemove])], ['SECRET-THREAD at the lake', [['SECRET-REPLY I never saw it coming', 'Cy', [['\u{1F62E}', 1]], false]]]);
+  assert.strictEqual((await b('PUT', `${U}/notes/${rid}/react`, { emoji: '\u{2764}\u{FE0F}' })).status, 200);
+  assert.strictEqual((await b('DELETE', `${U}/notes/${rid}`)).status, 403, 'only its author or the host removes a reply');
+  const br = await b('POST', `${U}/notes`, { re: locked, text: 'Now I see it' });
+  assert.strictEqual(br.status, 200);
+  // The shelf, by where each reader stopped.
+  await b('PUT', `${U}/progress`, { pos: 2 });
+  // ...but first: removing a thread takes its replies; a member leaving takes their replies and the threads' replies.
+  const extra = (await a('POST', `${U}/notes`, { text: 'A thread to remove', at: 2 })).data.id;
+  await cc('POST', `${U}/notes`, { re: extra, text: 'gone with it' });
+  assert.strictEqual((await a('DELETE', `${U}/notes/${extra}`)).status, 200);
+  assert.ok(!(await notesText(made.id)).some((x) => /gone with it|A thread to remove/.test(x)));
+  assert.strictEqual((await a('POST', `${U}/next`, { book: { title: 'Persuasion', chapters: 24 } })).status, 200);
+  const bid = (await a('GET', U)).data.club.shelf[0].id;
+  const sb = await b('GET', `${U}/shelf/${bid}/notes`);
+  assert.ok(!/SECRET|Now I see it/.test(sb.text) && sb.data.locked.total === 1, 'Bo stopped at chapter 2: the thread and every reply under it stay locked - Bo’s own reply too');
+  assert.deepStrictEqual((await a('GET', `${U}/shelf/${bid}/notes`)).data.notes.find((n) => n.id === locked).replies.map((r) => r.text), ['SECRET-REPLY I never saw it coming', 'Now I see it']);
+  assert.strictEqual((await cc('DELETE', `${U}/me`)).status, 200);
+  const after = await notesText(made.id);
+  assert.ok(!after.some((x) => /SECRET-REPLY/.test(x)) && after.some((x) => /SECRET-THREAD/.test(x)) && bo.me && cy.me);
+  assert.strictEqual((await a('DELETE', `${U}/members/${bo.me}`)).status, 200);
+  assert.deepStrictEqual((await notesText(made.id)).sort(), ['Opening thought', 'SECRET-THREAD at the lake'], 'Bo’s notes and replies went; nobody else’s');
+});
+async function notesText(clubId) { return (await store.list('notes', { where: [['club', '==', clubId]] })).map((n) => n.text); }
+
+test('threads and meeting notes over HTTP: caps, hostile fields, a meeting’s notes locked by chapter and removed with the meeting', async () => {
+  const a = client(), b = client();
+  const made = await newClub(a);
+  await joinAs(b, made.club.code, 'Bo');
+  const U = `/api/c/${made.id}`;
+  await a('PUT', `${U}/progress`, { pos: 12 }); await b('PUT', `${U}/progress`, { pos: 3 });
+  const day = C.addDays(realToday(), 4);
+  const mt = (await a('POST', `${U}/meetings`, { date: day, time: '19:00', place: 'The library', upTo: 12 })).data.club.meetings[0].id;
+  const plan = await a('POST', `${U}/notes`, { meet: mt, text: 'We meet again in two weeks', at: 1, decision: true });
+  assert.strictEqual(plan.status, 200, JSON.stringify(plan.data));
+  const deep = await a('POST', `${U}/notes`, { meet: mt, text: 'SECRET-MINUTES the lake scene split the room', at: 11 });
+  assert.deepStrictEqual(deep.data.club.meetings[0].notes.map((n) => [n.text, n.decision, n.at]), [['We meet again in two weeks', true, 1], ['SECRET-MINUTES the lake scene split the room', false, 11]]);
+  assert.strictEqual((await a('POST', `${U}/notes`, { meet: mt, text: 'Past where I am', at: 13 })).status, 400);
+  for (const bad of ['tnope0000', '__proto__', 'constructor', '', 'x'.repeat(300)]) assert.strictEqual((await a('POST', `${U}/notes`, { meet: bad, text: 'Nowhere', at: 1 })).status, 404, bad);
+  for (const r of [await b('GET', U), await b('GET', `${U}?since=0`), await b('PUT', `${U}/meetings/${mt}/rsvp`, { a: 'yes' }), await b('POST', `${U}/notes`, { meet: mt, text: 'Bo was there', at: 3 }), await b('PUT', `${U}/notes/${deep.data.id}/react`, { emoji: '\u{1F62E}' }), await b('DELETE', `${U}/notes/${deep.data.id}`), await b('POST', `${U}/notes`, { re: deep.data.id, text: 'thread on minutes' })]) {
+    assert.ok(!/SECRET/.test(r.text) && !r.text.includes(deep.data.id), 'a locked meeting note reached a reader before its chapter');
+    if (r.data.club) assert.deepStrictEqual(r.data.club.meetings[0].lockedNotes, { total: 1, chapters: [[11, 1]] });
+  }
+  assert.strictEqual((await a('POST', `${U}/notes`, { re: plan.data.id, text: 'No threads on meeting notes' })).status, 404);
+  assert.ok((await b('PUT', `${U}/progress`, { pos: 11 })).text.includes('SECRET-MINUTES'), 'reaching the chapter opens it');
+  assert.strictEqual((await b('DELETE', `${U}/notes/${plan.data.id}`)).status, 403);
+  // Hostile text is cleaned like any note.
+  const h = await a('POST', `${U}/notes`, { meet: mt, text: '<script>alert(1)</script>Decided\u202e: <b>cake</b>\u200b', at: 1, decision: 'yes' });
+  assert.deepStrictEqual(h.data.club.meetings[0].notes.map((n) => [n.text, n.decision]).find((x) => /cake/.test(x[0])), ['alert(1) Decided: cake', false]);
+  const hr = await a('POST', `${U}/notes`, { text: 'A thread', at: 1 });
+  const rr = await a('POST', `${U}/notes`, { re: hr.data.id, text: '<img src=x onerror=alert(1)>Fine\u202e reply', kind: 'question', ai: true, meet: mt, decision: true });
+  assert.deepStrictEqual(rr.data.club.notes.find((n) => n.id === hr.data.id).replies.map((r) => [r.text, r.kind, r.ai, r.meet]), [['Fine reply', 'reply', false, undefined]]);
+  for (const bad of [{ re: {} }, { re: ['x'] }, { re: '__proto__' }, { re: 'n' + 'q'.repeat(15) }, { re: made.id }]) assert.strictEqual((await a('POST', `${U}/notes`, Object.assign({ text: 'x y z' }, bad))).status, 404, JSON.stringify(bad));
+  assert.ok(!/<|\u202e|\u200b/.test(await store._dump().replace(/\\u003c/g, '<')), 'nothing hostile is stored');
+  // Thirty notes on one meeting, forty replies on one thread - then a 409 (written to the store: the hourly limit is per reader).
+  for (let i = 0; i < C.LIMITS.meetingNotes; i++) await store.set('notes', `kcap${String(i).padStart(11, '0')}`, { club: made.id, book: made.club.book.id, mid: made.club.you, kind: 'minutes', meet: mt, meetDate: day, decision: false, text: `filler ${i}`, at: 1, ai: false, reactions: {}, createdAt: new Date().toISOString() });
+  assert.strictEqual((await a('POST', `${U}/notes`, { meet: mt, text: 'One too many', at: 1 })).status, 409);
+  for (let i = 0; i < C.LIMITS.repliesPerThread; i++) await store.set('notes', `rcap${String(i).padStart(11, '0')}`, { club: made.id, book: made.club.book.id, mid: made.club.you, kind: 'reply', re: hr.data.id, text: `filler ${i}`, at: 1, ai: false, reactions: {}, createdAt: new Date().toISOString() });
+  assert.strictEqual((await a('POST', `${U}/notes`, { re: hr.data.id, text: 'One too many' })).status, 409);
+  assert.strictEqual((await a('POST', `${U}/notes`, { text: 'Threads are not capped by replies', at: 1 })).status, 200);
+  // Removing the meeting (host only) takes its notes; other notes stay.
+  assert.strictEqual((await b('DELETE', `${U}/meetings/${mt}`)).status, 403);
+  assert.strictEqual((await a('DELETE', `${U}/meetings/${mt}`)).status, 200);
+  const left = await store.list('notes', { where: [['club', '==', made.id]] });
+  assert.ok(left.length > 0 && left.every((n) => !n.meet), 'the meeting’s notes went with it');
+});
+
+test('reading and buying over HTTP: members only; the lookup is told the book and nothing else; stores carry an affiliate id only when the environment gives a well-formed one', async () => {
+  const a = client(), stranger = client();
+  const made = await newClub(a);
+  const U = `/api/c/${made.id}`;
+  const f = fakeShelves({ docs: [OPEN] });
+  reader.fetchImpl = f; reader.clear();
+  try {
+    assert.deepStrictEqual([(await stranger('GET', `${U}/read`)).status, f.log.length], [404, 0], 'a stranger gets the club’s 404 and no lookup is made');
+    const r = await a('GET', `${U}/read`);
+    assert.deepStrictEqual([r.status, r.data.read.kind, r.data.read.ia, r.headers.get('cache-control')], [200, 'read', 'frankensteinormo00shel_8', 'no-store']);
+    const sent = f.log.map((x) => x.url).join(' ');
+    assert.ok(/title=Frankenstein&/.test(sent) && /author=Mary\+Shelley/.test(sent) && !sent.includes(made.id) && !/Elm|Ana/.test(sent), sent);
+    await a('GET', `${U}/read`);
+    assert.strictEqual(f.log.length, 2, 'cached: asked once');
+    assert.strictEqual(await store._dump().includes('frankensteinormo00shel_8'), false, 'nothing about it is stored');
+    // The services are down: a 200 that says so, and the page falls back to links.
+    reader.fetchImpl = fakeShelves({ search: (_u, json) => json({}, 503) }); reader.clear();
+    assert.deepStrictEqual((await a('GET', `${U}/read`)).data.read, { kind: 'none', ia: '', work: '', title: '', author: '', year: null, reason: 'unavailable' });
+    // Buying.
+    const plainStores = (await a('GET', U)).data.club.stores;
+    assert.ok(plainStores.length === 4 && plainStores.every((s) => !s.affiliate && /^https:\/\//.test(s.url)) && /bookshop\.org\/search\?keywords=Frankenstein%20Mary%20Shelley$/.test(plainStores[0].url));
+    assert.strictEqual((await a('PATCH', `${U}/book`, { isbn: '978-0-14-143947-1' })).data.club.book.isbn, '9780141439471');
+    assert.strictEqual((await a('PATCH', `${U}/book`, { isbn: '9780141439472' })).status, 400);
+    process.env.CHAPTER_BOOKSHOP_ID = '4242'; process.env.CHAPTER_AMAZON_TAG = 'ourclub-20';
+    const aff = (await a('GET', U)).data.club.stores;
+    assert.deepStrictEqual([aff[0].url, aff[2].url, aff.map((s) => s.affiliate)], ['https://bookshop.org/a/4242/9780141439471', 'https://www.amazon.com/s?k=9780141439471&i=stripbooks&tag=ourclub-20', [true, false, true, false]]);
+    process.env.CHAPTER_BOOKSHOP_ID = '42/../x'; process.env.CHAPTER_AMAZON_TAG = 'x"><script>-20';
+    assert.ok((await a('GET', U)).data.club.stores.every((s) => !s.affiliate && !/script|\.\./.test(s.url)), 'a malformed id is ignored, never printed');
+    // The lookup is limited per address.
+    reader.fetchImpl = fakeShelves({ docs: [OPEN] });
+    const busy = client('203.0.113.77');
+    const club2 = await newClub(busy);
+    let last = 200;
+    for (let i = 0; i < K.LIMITS.readsPerIp + 1; i++) last = (await busy('GET', `/api/c/${club2.id}/read`)).status;
+    assert.strictEqual(last, 429);
+  } finally {
+    delete process.env.CHAPTER_BOOKSHOP_ID; delete process.env.CHAPTER_AMAZON_TAG;
+    reader.fetchImpl = async (u) => { throw new Error(`unexpected outbound request: ${u}`); }; reader.clear();
+  }
+  const src = read('server.js');
+  assert.match(src, /process\.env\.CHAPTER_BOOKSHOP_ID/); assert.match(src, /process\.env\.CHAPTER_AMAZON_TAG/);
+  assert.ok(/CHAPTER_BOOKSHOP_ID/.test(read('CLAUDE.md')) && /CHAPTER_AMAZON_TAG/.test(read('CLAUDE.md')), 'the variables are documented');
+  // A view saved on a phone before this (offline, or the tab left open) still draws: every new field is read with a default.
+  const js = read('public/app.js');
+  for (const guard of ['(n.replies || [])', 'n.replies || []', 'm.notes || []', "m.lockedNotes || { total: 0, chapters: [] }", 'G && B.rows.length > 1', 'v.stores && v.stores.length ? v.stores : C.buyLinks(book, null)']) assert.ok(js.includes(guard), guard);
+});
 
 (async () => {
   const hostApp = express();

@@ -56,6 +56,14 @@ is started with a name and a book, everyone joins with a six-character code
   **special edition** and/or **signed**, with a short note. See "My
   library" below.
 
+- **The 2026-11-22 upgrade** (Erik's brief, a real club is using it): page
+  *and* chapter on the board with "where's everyone" at a glance; **threads**
+  (a note can get replies) and **meeting notes** on a meetup, both under the
+  spoiler rule; **Read it** (the Internet Archive's reader for a
+  public-domain scan, otherwise links out); **Buy this book** (a store's own
+  page, optional affiliate id). See "The club upgrade" below - and its
+  first section, "Clubs that were already here".
+
 Built 2026-11-06 as an **everyday** drop: Feedfix (2026-11-05) was a
 business one, so today was the other kind. **Staging only**: no custom
 domain until Erik decides it is worth one.
@@ -161,7 +169,10 @@ six invented readers - Alex (you, the host, chapter 18), Maya (21), Theo
 (30), Priya (finished), Jordan (15), Sam (9); a Thursday meeting at an
 invented café, five to eleven days out, "read to chapter 42", with RSVPs;
 ten notes and questions in the readers' own words that **quote nothing**
-(tested: no quotation marks at all), four of them locked past chapter 18; a
+(tested: no quotation marks at all), four of them locked past chapter 18;
+five replies (two of them under locked threads, so never sent) and last
+week's meeting with three meeting notes (one locked); "Read it" opens a
+public-domain scan of the book at the Internet Archive; a
 vote under way among four public-domain classics (Frankenstein, Middlemarch,
 The Moonstone, Little Women) in which **your vote for The Moonstone makes a
 tie that Frankenstein wins because it was nominated first** - the tie-break
@@ -170,6 +181,185 @@ Baskervilles, The Picture of Dorian Gray). Every tap works through the same
 core functions - move the bookmark and watch notes unlock, react, post,
 vote, close the vote, RSVP, rate - and nothing is saved. A ribbon says so,
 with "Start my own" and "Leave".
+
+## The club upgrade (2026-11-22)
+
+Erik's brief: make it a much better club app - progress, in-app reading
+where a legal source exists, a buy button, per-chapter threads and meeting
+notes - **without breaking the club that already uses it**.
+
+### Clubs that were already here (the non-negotiable)
+
+There is **no migration step** and nothing is rewritten on read. Every new
+field is optional, written only when someone uses the new thing, and read
+with a default when absent:
+
+| New field | Where | Absent means |
+|---|---|---|
+| `members.<mid>.alt` | club | no page/chapter beside the bookmark (`null`) |
+| `book.isbn`, `shelf.<bid>.isbn` | club | buy links search by title and author |
+| `re` (+ `kind: 'reply'`) | a `notes` document | an ordinary note or question |
+| `meet`, `meetDate`, `decision` (+ `kind: 'minutes'`) | a `notes` document | an ordinary note or question |
+
+No collection is new or renamed (still `clubs`, `notes`, `accounts`,
+`libraries`; replies and meeting notes are `notes` documents, found by the
+same single-field `club ==` query, so still **no composite index**). No
+existing key changed meaning. The member key cookie, its per-club hash,
+the account tag and pending move links are untouched. An ordinary note is
+stored with exactly the nine keys it always had, a bookmark move without a
+page writes the same three keys, an edit that says nothing about the ISBN
+writes the same four (all tested). The view the server sends only gained
+fields (`board.glance`, `rows[].alt`/`moved`, `notes[].replies`,
+`meetings[].notes`/`lockedNotes`, `book.isbn`, `stores`), and the page reads
+each of those with a default - a view saved on a phone before the deploy
+(the offline copy in `chapter-last-v1`, or a tab left open) still draws.
+
+`test/run.js` "older clubs keep working" stores a club, three notes and a
+pending move link **written out by hand in the shape they had before this
+change** (plus a second club holding the least a club could hold), then
+over HTTP with the old cookie: loads it, checks the board, the locked
+count and the nudge, moves a bookmark, votes into the first-nominated
+tie-break, RSVPs, rates, reacts, reads the shelf under the rule, claims
+the old move link once, starts the next book and leaves - and checks that
+the stored documents gained no field they were not given and that an old
+note was not rewritten. Never read or touch production data to check any
+of this: the fixtures are the check.
+
+### Progress: page and chapter both
+
+The spoiler rule still runs on **one** unit per book (chapters when given),
+for the reason under "Chapters over pages". What is new is `alt`: a reader
+may add **the page in their own copy** (for a chapter book; the chapter, for
+a page book) in the bookmark sheet. It is shown beside the bookmark and on
+the board ("ch 14 / p. 151") and **decides nothing** - `canSee` never reads
+it (tested). "+1 chapter" clears a page that would now be stale. The board
+also gained `glance` ("2 ahead of you, 1 with you, 1 behind, 1 finished" and
+"The club runs from chapter 3 to the end - the middle reader is at chapter
+12") and when each bookmark last moved ("moved 2 days ago", from the `at`
+the seat always had). **No location of any kind**: nothing asks where a
+phone is, and a test fails if `geolocation` ever appears.
+
+### Threads: a note can get replies
+
+A reply is a `notes` document with `kind: 'reply'` and `re: <note id>`. **The
+extension of the spoiler rule: a reply is read exactly when its thread is.**
+
+- It carries the thread's chapter (`at` is copied from the note by the
+  core, whatever the client sent), never one of its own.
+- Only a member who can read the note can reply to it. A reply, a reaction
+  or a removal aimed at a locked thread - or at a reply under one - is the
+  same 404 a missing note gets, word for word.
+- `threadsFor` (the one place) decides visibility with `canSee` **on the
+  thread's note**, then attaches its replies. So a locked thread's text,
+  author, replies, the replies' authors and reactions are in no response;
+  the locked count is threads only (replies are not even counted).
+  "The author always sees their own" applies to the thread's note, not to
+  a reply: someone who replied under chapter 12 and then moved their
+  bookmark back to 5 loses the thread, their own reply included.
+- A reply never outlives its thread: removing a note removes its replies;
+  a member leaving or being removed takes their notes, their replies, and
+  every reply under their notes. A reply whose note is somehow gone is
+  never shown. No replies to replies, none to meeting notes.
+- Limits: 300 characters, 40 replies a thread, 600 a book, and the same 40
+  posts an hour per reader as notes. The 400-notes-a-book cap counts
+  threads and meeting notes, not replies.
+- The Notes tab groups threads by chapter ("Chapter 11 - 2 threads") with
+  a jump-to-chapter picker over the chapters this reader has reached.
+
+### Meeting notes
+
+On each meeting card: what was discussed, and what was **decided** (a tick
+box; decisions list first). Any member can add one - during the meeting or
+after. A meeting note is a `notes` document with `kind: 'minutes'`,
+`meet: <meeting id>`, `meetDate` and `decision`, **tagged with a chapter
+like any note and hidden by the same `canSee`**: never past where its
+author is; a reader behind gets "2 meeting notes waiting past chapter 3"
+and a count per chapter, never the text. "Who was there" is the RSVP list
+the meeting already had. The sheet says to pick an early chapter for plans
+that spoil nothing. They are not in the Notes tab or its locked count.
+Removing a meeting (or one dropped to make room for a ninth) removes its
+notes (`sweepMeetingNotes`); when the club moves to the next book they stay
+with the shelved book, dated, under the rule. 30 a meeting.
+
+`test/run.js` greps every response a reader behind can get - the club, a
+poll, their own writes' answers, the shelf, a reply/reaction/removal
+attempt - for the locked thread's text, its reply's text and both ids, and
+the same for a locked meeting note.
+
+### Read it: a legal copy, or a link out
+
+Chapter **never hosts, copies or proxies a book's text.** `GET
+/api/c/:id/read` (members only, 40 an hour per address) runs
+`lib/reader.js`:
+
+1. Open Library's `search.json` for the book's title and author - nothing
+   about the club or the reader;
+2. if the matching work is `ebook_access: public` with `public_scan_b`, one
+   request for that Internet Archive item's metadata: it must be a text,
+   not `access-restricted-item`, and in no lending or print-disabled
+   collection;
+3. the answer is `{kind: 'read', ia}`, `{kind: 'borrow', work}` or `{kind:
+   'none'}`.
+
+For `read`, the page shows "Free to read" and - **only after a tap** - puts
+the Archive's own reader (`https://archive.org/embed/<id>`, the form Open
+Library documents for embedding) in a sandboxed frame with no referrer.
+The text goes from the Archive to the reader's browser. A "+1 chapter"
+button sits above the frame. `borrow` and `none` are links out (Open
+Library, a library search, the buy sheet). Project Gutenberg and Standard
+Ebooks are always offered as **search links the reader opens** - never
+fetched from here: Gutenberg's site is for people, not programs (its
+policy pages answered this build's fetch with 503 and a six-hour
+Retry-After; it sends robots to mirrors and an offline catalogue, too much
+for a shared 512 MiB instance), and Standard Ebooks keeps feeds and bulk
+downloads for its patrons and disallows fetching its text pages.
+
+What the two services ask of automated callers, and what is done: say who
+you are (one `User-Agent` naming the app and its address - not an email,
+which stays out of this public repo), cache (found a week, not found a
+day, failures never), go slowly (at most two requests per uncached
+lookup). **Cost, measured:** no Firestore read or write at all; the cache
+holds 500 answers of a few hundred bytes - 0.85 MB of heap completely full
+of the longest answers possible, and the module itself about 0.26 MB.
+Everything that comes back is a stranger's data: one 6 s budget for the
+whole lookup, 256 KB a body, the final address must still be the host
+asked, an id or key is used only if it is exactly an Archive item id or an
+Open Library work key, and the page re-checks the answer (`cleanRead`,
+`readerUrl`) before it builds the one `<iframe>` in the app. The title must
+match (or be the part before a subtitle - "Frankenstein Unbound" is another
+book) and an author's name must be in common. A failure is `{kind: 'none',
+reason: 'unavailable'}` and the links still work.
+
+**CSP:** the lab host's policy and this app's (`script-src 'self';
+object-src 'none'; base-uri 'self'; frame-ancestors ...`) set no `frame-src`
+or `default-src`, so the frame needed **no change** to either, and none
+was made (tested). If the lab ever adds a `frame-src` or `default-src`, it
+must allow `https://archive.org` or "Open the reader here" stops working
+(the "Open in a new tab" link beside it still would).
+
+### Buy this book
+
+A sheet of plain links, each opening **the store's own page in a new tab**
+(`rel="noopener noreferrer"`): Bookshop.org first (it pays independent
+bookshops), Barnes & Noble, Amazon, and "A library near you" (WorldCat). No
+payment in the app, no pixel, no store script (tested). The server builds
+them (`Core.buyLinks`) into the member's view as `stores`.
+
+**Affiliate ids are optional and come from two plain environment variables
+on the `challenge` service** (not secrets - they are printed in every
+link):
+
+- `CHAPTER_BOOKSHOP_ID` - a Bookshop.org affiliate number (digits). Used
+  only when the book has an ISBN: `https://bookshop.org/a/<id>/<isbn13>`.
+- `CHAPTER_AMAZON_TAG` - an Amazon Associates tag (`something-20`), added
+  as `&tag=`.
+
+Unset (today: no affiliate account exists) or malformed, the links are
+ordinary store searches. Read per request, so setting one needs no code
+change: `gcpdeploy` with the variable added to the service. When any link
+carries an id the sheet says so ("the store may pay Chapter a small
+commission"). The host can add the book's **ISBN** under Club -> Edit the
+book (optional, check digit verified) so the links open the exact edition.
 
 ## My library (2026-11-11)
 
@@ -405,7 +595,14 @@ force a tool, keeps every request (`fakeClient.calls`), and takes
 `fakeClient.mode` for one call: `blank`, `unknown`, `inject`, `maxtokens`,
 `upstreamNNN`.
 
-`test/run.js` (33 tests): text and hostile input (markup, bidi, zero-width,
+`test/run.js` (42 tests; the nine added 2026-11-22 are threads, meeting
+notes, page-and-chapter, buying, the reading lookup against a stand-in for
+Open Library and the Archive that fails the test if anything else is
+asked, older clubs, the locked thread over HTTP, caps and hostile fields,
+and reading and buying over HTTP - no test reaches the network). One
+existing test changed on purpose: the made-up club now has two meetings
+(the last one, with its notes, and the next), so "one meeting" became "a
+past one and the next". The original 33: text and hostile input (markup, bidi, zero-width,
 objects, long strings), the code alphabet and the server's draws, the book
 and positions, progress and the board's lines, the nudge with a fixed clock
 (behind, on track, ready, late, done, none; the whole book; across a clock
@@ -463,6 +660,21 @@ chapter 1, the spine's labels shifted when one was hidden, the share card's
 average overflowed its box, and on a phone the newly unlocked notes sat
 below the compose card (it now scrolls to them).
 
+**The 2026-11-22 upgrade** was rendered in headless Chrome over CDP
+(Playwright is not on that machine) at 390 and 1280 px, light and dark: a
+four-reader club at chapters 3, 12, 14 and finished - the board with its
+glance and pages, a locked thread and a locked meeting note for the reader
+at chapter 3 (checked absent from the page's text), the same threads open
+for the others, a reply posted, the meeting-note and bookmark sheets, the
+buy sheet, "Read it" against the real Open Library and Internet Archive
+(Frankenstein: found, and the Archive's reader loaded in the frame), "+1
+chapter" from the reader, the ISBN field, and the made-up club's board,
+notes, meeting and reader. No console error or CSP violation, nothing
+past the edge at 390 px, every visible control 44 px or more - which found
+two older misses, fixed here: the meeting card's "Map" link and the
+desktop tab buttons (42 px in the shared `desktop.css`, raised from
+`app.css`).
+
 The shared files (`lib/identity.js`, `identity-store.js`, `byok.js`,
 `stripe.js`, `webauthn.js`; `public/desktop.css`, `passkey-client.js`,
 `verify-banner.js`) are synced copies - edit them in `eriks-projects/shared/`
@@ -481,7 +693,12 @@ Pickup's copy of the vendored Kazuhiko Arase MIT "QRCode for JavaScript".
   tied} | null}, shelf: {<bid>: {title, author, chapters, pages, started,
   finished, ratings, final: {<mid>: pos}, order}}}`.
 - `notes/<id>` - `{club, book, mid, kind: note|question, text, at, ai,
-  reactions: {<mid>: emoji}, createdAt}`.
+  reactions: {<mid>: emoji}, createdAt}`. Since 2026-11-22 also a reply
+  (`kind: reply`, `re: <note id>`, `at` = the thread's chapter) and a
+  meeting note (`kind: minutes`, `meet: <meeting id>`, `meetDate`,
+  `decision`). Optional on a club since then: `members.<mid>.alt`,
+  `book.isbn`, `shelf.<bid>.isbn`. Older documents have none of these and
+  need none.
 - `accounts/<tag>` - `{clubs: {<club id>: <member id>}, updatedAt}`, only
   for a signed-in member who asked.
 - `libraries/p<hash of key>` or `libraries/a<account tag>` - `{books: {<bid>:
@@ -500,7 +717,8 @@ access wrapped in try/catch, and the page works without them.
 Public: `GET /api/health`, `/healthz`, `/api/me`, the page, `sw.js`. No
 account: `POST /api/clubs`, `GET|POST /api/join/:code`, `POST /api/move`.
 Members (`/api/c/:id`): `GET` (`?since=v`), `PUT progress`, `PATCH me`,
-`POST notes`, `DELETE notes/:nid`, `PUT notes/:nid/react`, `PUT
+`POST notes` (a note or question; with `re` a reply; with `meet` a meeting
+note), `DELETE notes/:nid`, `PUT notes/:nid/react`, `GET read`, `PUT
 meetings/:mt/rsvp`, `POST noms`, `DELETE noms/:nid`, `PUT ballot`, `PUT
 rating`, `GET shelf/:bid/notes`, `POST move`, `DELETE me`. Host: `PATCH
 book`, `POST|PATCH|DELETE meetings[/:mt]`, `POST vote/close`, `POST
@@ -522,7 +740,14 @@ in, `POST /api/library/keep`.
   chapters are what the spoiler rule runs on. The share card and shelf
   still draw a letter on a spine.
 - **Page-to-chapter mapping** for mixed editions (see "Chapters over
-  pages").
+  pages"). A reader can now show their page beside their chapter, but it
+  unlocks nothing.
+- **Fetching and caching public-domain text here** (Gutenberg, Standard
+  Ebooks): their terms point programs elsewhere, and the Archive's
+  embeddable reader does the job with no text passing through the lab. See
+  "Read it".
+- **Payments, a cart, price comparison, tracking of who tapped Buy**: the
+  button is a link.
 - **Reporting a note** to the host: the host removes what they can see; a
   report queue would be moderation infrastructure for a club of friends.
 - **Several clubs reading at once / a reading schedule per week**: one book

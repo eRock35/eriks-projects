@@ -475,6 +475,12 @@ card each.
 - Every deploy after: `gcpdeploy ship challenge`.
 - Billed per request (`cpuIdle: true`) like everything else — never keep
   working after a response.
+- **Optional, plain (not secret) settings on the service:**
+  `CHAPTER_BOOKSHOP_ID` and `CHAPTER_AMAZON_TAG` - affiliate ids for
+  Chapter's "Buy this book" links (2026-11-22). Unset, the links are
+  ordinary store searches; see `apps/chapter/CLAUDE.md`. Chapter's "Read it"
+  frames `https://archive.org` - allowed today because the host's CSP sets
+  no `frame-src` or `default-src`; adding either must allow that origin.
 
 ### One copy of the heavy dependencies (2026-10-18)
 

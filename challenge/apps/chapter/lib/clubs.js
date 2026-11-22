@@ -10,6 +10,9 @@
 //    members: {<mid>: {name, emoji, host, joinedAt, pos, done, at,
 //                      keyHash, acct?, move?: {hash, exp}}},
 //    meetings: {<id>: {date, time, place, link, upTo, rsvps: {<mid>: yes|maybe|no}, by, at}},
+//   (optional, added 2026-11-22, absent on older clubs: book.isbn, shelf.<bid>.isbn
+//    and members.<mid>.alt - the member's page in a chapter book, or chapter
+//    in a page book; shown, never used by the spoiler rule)
 //    vote: {noms: {<nid>: {title, author, why, chapters, pages, by, at}},
 //           ballots: {<mid>: [nid]}, closed: {at, winner, line, counts, voters, tied} | null},
 //    shelf: {<bid>: {title, author, chapters, pages, started, finished, ratings, final: {<mid>: pos}, order}}}
@@ -25,6 +28,9 @@
 //
 // Notes and questions are documents of their own: notes/<id> =
 //   {club, book, mid, kind, text, at, ai, reactions: {<mid>: emoji}, createdAt}
+// plus, only on the new kinds (2026-11-22): a reply has kind 'reply' and
+// `re` (its thread's note id; `at` is the thread's chapter); a meeting note
+// has kind 'minutes', `meet` (the meeting id), `meetDate` and `decision`.
 //
 // A personal library (one per phone, or per account) is libraries/<id> =
 //   {books: {<bid>: {isbn, title, author, pages, cover, source, special,
@@ -54,6 +60,8 @@ const LIMITS = {
   movesPerMember: 5,                  // move links one member may make...
   movesWindowMs: 60 * 60 * 1000,      // ...an hour
   accountClubs: 30,                   // clubs one account may keep
+  readsPerIp: 40,                     // "is there a copy to read?" lookups per address...
+  readsWindowMs: 60 * 60 * 1000,      // ...an hour (answers are cached; a miss asks two services once)
   lookupsPerIp: 60,                   // ISBN lookups (each may ask Open Library) per address...
   lookupsWindowMs: 60 * 60 * 1000,    // ...an hour
   libraryWrites: 240,                 // adds, tag changes and removals per library...

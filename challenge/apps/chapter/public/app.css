@@ -370,6 +370,36 @@ input[type="range"].slide { width: 100%; min-height: 44px; accent-color: var(--a
   .tabbar .tab-badge { position: static; margin-left: auto; }
 }
 
+/* Where's everyone, at a glance; threads; meeting notes; reading and buying (2026-11-22). */
+.glance { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.glance span { font-size: .86rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--card2); color: var(--text); }
+.glance i { font-style: normal; }
+.mrow .at small { display: block; color: var(--muted); font-weight: 650; font-size: .8rem; text-align: right; }
+.thread { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.th-count { margin: 2px 0 0; font-size: .8rem; font-weight: 850; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.thread > .link-btn { justify-self: start; font-size: .92rem; }
+.rp { background: var(--card2); border-radius: 14px; padding: 10px 12px; margin-left: 14px; display: grid; gap: 6px; }
+.rp .hd { font-size: .94rem; }
+.rp .tx { font-size: .98rem; font-weight: 500; }
+.reply-form { display: grid; gap: 8px; }
+.reply-form textarea.input { min-height: 76px; }
+.jump { margin: 2px 0; }
+.mnotes { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.mn { background: var(--card2); border-radius: 14px; padding: 10px 12px; display: grid; gap: 4px; justify-items: start; }
+.mn.dec { background: var(--ok-bg); }
+.mn .tx { margin: 0; white-space: pre-line; overflow-wrap: anywhere; font-weight: 600; }
+.mn small { color: var(--muted); font-weight: 650; }
+.mn-lock { margin: 0; background: var(--lock-bg); color: var(--lock); border-radius: 14px; padding: 10px 12px; font-weight: 800; }
+.mn-lock .chips { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+.mn-lock .chips span { font-size: .8rem; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: var(--card); color: var(--text); }
+a.crow.out { text-decoration: none; }
+.reader-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 0 0 10px; clear: both; }
+.reader-frame { display: block; width: 100%; height: calc(100vh - 250px); min-height: 380px; border: 1px solid var(--line); border-radius: 14px; background: var(--card2); }
+.sheet.tall { max-height: 96vh; }
+@media (min-width: 900px) { body.dk .sheet.tall { width: min(1040px, 96vw); max-width: 96vw; max-height: 94vh; } .sheet.tall .reader-frame { height: calc(94vh - 270px); } }
+/* Small links and the desktop tabs, brought up to a 44px target. */
+.meet-line a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; }
+@media (min-width: 900px) { body.dk nav.dk-tabbar button { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

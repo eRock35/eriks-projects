@@ -14,7 +14,10 @@
  * The requests this page makes: the club and its writes; joining; moving a
  * seat to another phone; sign-in and, only if a signed-in member asks,
  * keeping clubs on the account; "Suggest discussion questions", whose
- * request is shown before it is sent; and the member's own library (an ISBN
+ * request is shown before it is sent; "Read it", which asks the server
+ * whether a legal copy exists (and only after a tap puts the Internet
+ * Archive's own reader in a frame - the book never passes through Chapter);
+ * and the member's own library (an ISBN
  * looked up through the server, never by the page itself, and the books).
  * The camera, when a member scans a barcode, is read on the phone: only the
  * ISBN it finds is sent.
@@ -157,7 +160,19 @@
     card: { url: null, blob: null, bid: '' },
     ai: null, accountClubs: null, pendingDraw: false, picker: '',
     library: null, libraryErr: '', scan: null,
+    chapter: 'all', replyTo: '', replyText: '',
   };
+  // The made-up club's book is public domain: its "Read it" opens this scan
+  // at the Internet Archive (checked like any answer from the server).
+  var DEMO_READ = { kind: 'read', ia: 'bwb_KS-179-237', work: '/works/OL66554W', title: 'Pride and Prejudice', author: 'Jane Austen', year: 1900 };
+  /** A note, a reply or a meeting note this reader has been sent, by id. */
+  function findNote(v, id) {
+    var hit = null;
+    function look(n) { if (n.id === id) hit = n; (n.replies || []).forEach(look); }
+    (v.notes || []).forEach(look);
+    (v.meetings || []).forEach(function (m) { (m.notes || []).forEach(look); });
+    return hit;
+  }
   function demoView() {
     var v = C.memberView(state.demo.club, state.demo.notes, state.demo.you, { today: today(), locale: LOCALE });
     v.demo = true; v.kept = false; v.account = false;
@@ -218,7 +233,7 @@
     if (r.view === 'club') {
       var same = state.clubId === r.arg && state.club && state.club.id === r.arg;
       state.view = 'club'; state.clubId = r.arg;
-      if (!same) { state.club = null; state.seen = null; state.compose = { kind: 'note', text: '', at: null }; }
+      if (!same) { state.club = null; state.seen = null; state.compose = { kind: 'note', text: '', at: null }; state.chapter = 'all'; state.replyTo = ''; state.replyText = ''; }
       draw();
       loadClub(!same);
       return;
@@ -513,7 +528,7 @@
       party = '<div class="party">' + (first ? '<div class="confetti" aria-hidden="true">🎉📚🎉</div>' : '') + '<h2>Everyone has finished ' + esc(book.title) + '</h2><p>' + (book.avg ? 'The club average so far: ' + esc(book.avg.toFixed(1)) + '★ from ' + esc(plural(book.rated, 'rating')) + '.' : 'Rate it, then pick what’s next.') + '</p>' +
         '<div class="row" style="justify-content:center"><button class="btn white" type="button" data-act="card" data-id="' + esc(book.id) + '">Share card</button><button class="btn white" type="button" data-act="tab" data-tab="next">What’s next</button></div></div>';
     }
-    var where = me ? '<div class="card"><div class="where"><div><p class="lab" style="margin:0">Your bookmark</p><div class="big">' + (me.done ? 'Finished 🎉' : me.pos ? esc(C.atLabel(book, me.pos).replace(/^./, function (c) { return c.toUpperCase(); })) : 'Not started') + '</div><span class="of">' + (me.done ? 'of ' + esc(book.title) : 'of ' + esc(C.units(book, book.total))) + '</span></div>' +
+    var where = me ? '<div class="card"><div class="where"><div><p class="lab" style="margin:0">Your bookmark</p><div class="big">' + (me.done ? 'Finished 🎉' : me.pos ? esc(C.atLabel(book, me.pos).replace(/^./, function (c) { return c.toUpperCase(); })) : 'Not started') + '</div><span class="of">' + (me.done ? 'of ' + esc(book.title) : 'of ' + esc(C.units(book, book.total)) + (me.pos && me.alt ? ' · ' + esc(C.altShort(book, me.alt)) + ' in your copy' : '')) + '</span></div>' +
       '<button class="btn" type="button" data-act="progress">Update</button></div>' +
       (me.done ? '' : '<div class="row" style="margin-top:10px"><button class="btn small soft" type="button" data-act="plus1">+1 ' + esc(C.unitWord(book, 1)) + '</button><button class="btn small ghost" type="button" data-act="finished">I’ve finished</button></div>') +
       (me.done ? '<div style="margin-top:10px"><p class="lab" style="margin:0 0 4px">Your rating</p>' + rateHtml(book.id, book.myRating) + '</div>' : '') + '</div>' : '';
@@ -523,15 +538,28 @@
     var meetCard = meet ? '<button class="crow" type="button" data-act="tab" data-tab="meet"><span class="tile">📅</span><span><b>' + esc(cap(C.dayLabel(meet.date, today(), LOCALE))) + (meet.time ? ' · ' + esc(C.timeLabel(meet.time, LOCALE)) : '') + '</b><small>' + esc(meet.place || (meet.link ? 'Video call' : 'Meeting')) + ' · read to ' + esc(C.atLabel(book, meet.target)) + ' · ' + esc(meet.rsvps.yes.length) + ' going</small></span><span aria-hidden="true">›</span></button>' :
       (v.host ? '<button class="crow" type="button" data-act="meetform"><span class="tile">📅</span><span><b>Plan the meeting</b><small>It becomes the finish line on this board.</small></span><span aria-hidden="true">›</span></button>' : '');
     var list = B.rows.map(function (r) {
+      var alt = !r.done && r.pos && r.alt ? '<small>' + esc(C.altShort(book, r.alt)) + '</small>' : '';
       return '<div class="mrow' + (r.you ? ' you' : '') + '"><span class="av" style="background:' + esc(colorOf(v, r.id)) + '">' + esc(r.emoji) + '</span><div style="min-width:0"><span class="nm">' + esc(r.name) + '</span>' + (r.host ? ' <span class="pill t-host">Host</span>' : '') +
-        '<span class="ln">' + esc(r.short) + '</span><div class="bar"><i style="width:' + r.pct + '%"></i></div></div><span class="at">' + (r.done ? '✓ Done' : esc(C.atShort(book, r.pos))) + '</span></div>';
+        '<span class="ln">' + esc(r.short) + (r.moved && r.pos ? ' · moved ' + esc(r.moved) : '') + '</span><div class="bar"><i style="width:' + r.pct + '%"></i></div></div><span class="at">' + (r.done ? '✓ Done' : esc(C.atShort(book, r.pos))) + alt + '</span></div>';
     }).join('');
+    // Where's everyone, at a glance (older saved views have none: skip it).
+    var G = B.glance, glance = '';
+    if (G && B.rows.length > 1) {
+      var chips = [[G.finished, '🏁', 'finished'], [G.ahead, '⬆', 'ahead of you'], [G.same, '＝', 'with you'], [G.behind, '⬇', 'behind you'], [G.notStarted, '💤', 'not started']]
+        .filter(function (c) { return c[0]; }).map(function (c) { return '<span><i aria-hidden="true">' + c[1] + '</i> <b>' + esc(c[0]) + '</b> ' + c[2] + '</span>'; }).join('');
+      glance = '<div class="glance">' + chips + '</div>' + (G.line ? '<p class="small muted" style="margin:6px 0 0">' + esc(G.line) + '</p>' : '');
+    }
     var summary = B.finish ? plural(B.ready, 'reader') + ' of ' + B.rows.length + ' ready for ' + C.atShort(book, B.finish.at) : plural(B.finished, 'reader') + ' of ' + B.rows.length + ' finished';
     return '<div class="grid split">' +
       '<div class="stack">' + party + nudge + where + '<div class="card"><div class="sec-head"><h2>Who’s where</h2><span class="small muted">' + esc(summary) + '</span></div>' +
-      (B.headline ? '<p class="headline">' + esc(B.headline) + '</p>' : '') +
+      (B.headline ? '<p class="headline">' + esc(B.headline) + '</p>' : '') + glance +
       spineHtml(marks, finish, me ? me.pct : null, 'Start', C.atShort(book, book.total)) + '<div style="margin-top:8px">' + list + '</div></div></div>' +
-      '<div class="stack">' + meetCard + locked + inviteMini(v) + '</div></div>';
+      '<div class="stack">' + meetCard + locked + bookCard() + inviteMini(v) + '</div></div>';
+  }
+  /** Read it (free, where a legal copy exists) and buy it (a store's own page). */
+  function bookCard() {
+    return '<div class="card"><p class="lab">The book</p><div class="row"><button class="btn soft" type="button" data-act="read">📖 Read it</button><button class="btn ghost" type="button" data-act="buy">🛒 Buy this book</button></div>' +
+      '<p class="small muted" style="margin:10px 0 0">Free to read here when a public-domain copy exists. Otherwise: where to borrow or buy it.</p></div>';
   }
   function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
   function inviteMini(v) {
@@ -546,23 +574,39 @@
 
   /* -- notes -- */
 
-  function noteHtml(n, book, v, grouped) {
+  function reactsHtml(n) {
     var open = state.picker === n.id;
     var counts = {};
     n.reactions.forEach(function (x) { counts[x[0]] = x[1]; });
-    var reacts = C.REACTIONS.filter(function (e) { return open || counts[e] || n.mine === e; }).map(function (e) {
+    return C.REACTIONS.filter(function (e) { return open || counts[e] || n.mine === e; }).map(function (e) {
       var c = counts[e] || 0;
       return '<button type="button" data-act="react" data-id="' + esc(n.id) + '" data-e="' + esc(e) + '" aria-pressed="' + (n.mine === e ? 'true' : 'false') + '" aria-label="' + esc(e) + (c ? ', ' + c : '') + '">' + esc(e) + (c ? '<span class="n">' + esc(c) + '</span>' : '') + '</button>';
     }).join('') + (open ? '' : '<button type="button" class="add" data-act="picker" data-id="' + esc(n.id) + '" aria-label="Add a reaction">🙂+</button>');
+  }
+  /** A note's thread: its replies (sent only with a note this reader can
+   *  see) and the box to add one. */
+  function threadHtml(n) {
+    var rs = n.replies || [];
+    var list = rs.map(function (r) {
+      return '<div class="rp" data-nt="' + esc(r.id) + '"><div class="hd"><span class="e" aria-hidden="true">' + esc(r.emoji) + '</span><span>' + esc(r.own ? r.name + ' (you)' : r.name) + '</span></div><p class="tx">' + esc(r.text) + '</p>' +
+        '<div class="ft"><div class="reacts">' + reactsHtml(r) + '</div>' + (r.canRemove ? '<button class="link-btn" type="button" data-act="delnote" data-id="' + esc(r.id) + '">' + (r.own ? 'Delete' : 'Remove') + '</button>' : '') + '</div></div>';
+    }).join('');
+    var box = state.replyTo === n.id
+      ? '<form class="reply-form" data-re="' + esc(n.id) + '"><label class="field"><span class="vh">Your reply</span><textarea class="input" maxlength="' + C.LIMITS.reply + '" placeholder="Reply - seen by the same readers as the note">' + esc(state.replyText) + '</textarea></label><div class="rerr"></div><div class="row"><button class="btn small" type="submit">Reply</button><button class="btn small ghost" type="button" data-act="replycancel">Cancel</button></div></form>'
+      : '<button class="link-btn" type="button" data-act="reply" data-id="' + esc(n.id) + '">💬 ' + (rs.length ? 'Reply' : 'Reply to start a thread') + '</button>';
+    return '<div class="thread">' + (rs.length ? '<p class="th-count">' + esc(plural(rs.length, 'reply', 'replies')) + '</p>' : '') + list + box + '</div>';
+  }
+  function noteHtml(n, book, v, grouped) {
+    var reacts = reactsHtml(n);
     return '<article class="nt' + (n.kind === 'question' ? ' q' : '') + (state.reveal[n.id] ? ' reveal' : '') + '" data-nt="' + esc(n.id) + '"><div class="hd"><span class="e" aria-hidden="true">' + esc(n.emoji) + '</span><span>' + esc(n.own ? n.name + ' (you)' : n.name) + '</span>' +
       (n.kind === 'question' ? '<span class="pill t-q">Question</span>' : '') + (n.ai ? '<span class="pill t-lock">AI-written - check before the meeting</span>' : '') + (grouped ? '' : '<small>· ' + esc(C.atShort(book, n.at)) + '</small>') + '</div>' +
-      '<p class="tx">' + esc(n.text) + '</p><div class="ft"><div class="reacts">' + reacts + '</div>' + (n.canRemove ? '<button class="link-btn" type="button" data-act="delnote" data-id="' + esc(n.id) + '">' + (n.own ? 'Delete' : 'Remove') + '</button>' : '') + '</div></article>';
+      '<p class="tx">' + esc(n.text) + '</p><div class="ft"><div class="reacts">' + reacts + '</div>' + (n.canRemove ? '<button class="link-btn" type="button" data-act="delnote" data-id="' + esc(n.id) + '">' + (n.own ? 'Delete' : 'Remove') + '</button>' : '') + '</div>' + threadHtml(n) + '</article>';
   }
   function notesList(list, book, v, empty) {
     if (!list.length) return '<div class="card center muted">' + esc(empty) + '</div>';
     var out = '', last = null;
     list.forEach(function (n) {
-      if (n.at !== last) { out += '<p class="ch-head">' + esc(cap(C.atLabel(book, n.at))) + '</p>'; last = n.at; }
+      if (n.at !== last) { var inCh = list.filter(function (x) { return x.at === n.at; }); out += '<p class="ch-head">' + esc(cap(C.atLabel(book, n.at))) + ' · ' + esc(plural(inCh.length, 'thread')) + '</p>'; last = n.at; }
       out += noteHtml(n, book, v, true);
     });
     return out;
@@ -575,7 +619,13 @@
   }
   function viewNotes(v) {
     var book = v.book, pos = myPos(v), cm = state.compose;
-    var list = v.notes.filter(function (n) { return state.filter === 'all' || n.kind === state.filter; });
+    var chs = [];
+    v.notes.forEach(function (n) { if (chs.indexOf(n.at) < 0) chs.push(n.at); });
+    chs.sort(function (a, b) { return b - a; });
+    if (state.chapter !== 'all' && chs.indexOf(state.chapter) < 0) state.chapter = 'all';
+    var list = v.notes.filter(function (n) { return (state.filter === 'all' || n.kind === state.filter) && (state.chapter === 'all' || n.at === state.chapter); });
+    var jump = chs.length > 1 ? '<label class="field jump"><span class="vh">Jump to a ' + (book.unit === 'ch' ? 'chapter' : 'page') + '</span><select class="input" id="chJump"><option value="all">Every ' + (book.unit === 'ch' ? 'chapter' : 'page') + ' you’ve reached</option>' +
+      chs.map(function (c) { var k = v.notes.filter(function (n) { return n.at === c; }).length; return '<option value="' + c + '"' + (state.chapter === c ? ' selected' : '') + '>' + esc(cap(C.atLabel(book, c))) + ' · ' + esc(plural(k, 'thread')) + '</option>'; }).join('') + '</select></label>' : '';
     var max = cm.kind === 'question' ? C.LIMITS.question : C.LIMITS.note;
     var at = cm.at && cm.at <= Math.max(pos, 1) ? cm.at : Math.max(pos, 1);
     var chooser = book.unit === 'ch'
@@ -588,7 +638,7 @@
       '<div class="row"><button class="btn" type="submit">Post</button>' + (cm.kind === 'question' ? '<button class="btn ghost ai" type="button" data-act="ai">Suggest questions</button>' : '') + '</div></form>'
       : '<div class="card"><p style="margin:0 0 8px"><b>Set your bookmark first.</b></p><p class="small muted">Notes are tagged with the chapter they’re about. Tell the club where you are, and every note up to there opens.</p><button class="btn" type="button" data-act="progress">Set my bookmark</button></div>';
     var seg = '<div class="seg" role="group" aria-label="Show" style="margin:4px 0 2px">' + [['all', 'Everything'], ['note', 'Notes'], ['question', 'Questions']].map(function (x) { return '<button type="button" data-filter="' + x[0] + '" aria-pressed="' + (state.filter === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
-    return '<div class="grid split"><div class="stack">' + seg + notesList(list, book, v, pos || isDemo() ? 'Nothing here yet - be the first.' : 'Nothing you can see yet. Set your bookmark to open the notes up to where you are.') + '</div>' +
+    return '<div class="grid split"><div class="stack">' + seg + jump + notesList(list, book, v, pos || isDemo() ? 'Nothing here yet - be the first.' : 'Nothing you can see yet. Set your bookmark to open the notes up to where you are.') + '</div>' +
       '<div class="stack first-on-phone">' + lockedHtml(v) + compose + '</div></div>';
   }
 
@@ -607,9 +657,47 @@
       (m.place ? '<div class="meet-line">📍 <span>' + esc(m.place) + '</span> <a href="' + esc(C.mapLink(m.place)) + '" target="_blank" rel="noopener noreferrer">Map</a></div>' : '') +
       (m.link ? '<div class="meet-line">🎥 <a href="' + esc(m.link) + '" target="_blank" rel="noopener noreferrer">Join the call</a></div>' : '') +
       '<div class="meet-line">🏁 <span>Read to <b>' + esc(C.atLabel(book, m.target)) + '</b>' + (m.target >= book.total ? ' (the end)' : '') + '</span></div>' +
-      (m.past ? '' : '<div class="rsvp" role="group" aria-label="Are you going?">' + rs + '</div>') + (who ? '<p class="who-list" style="margin:0">' + who + '</p>' : '') +
+      (m.past ? '' : '<div class="rsvp" role="group" aria-label="Are you going?">' + rs + '</div>') + (who ? '<p class="who-list" style="margin:0">' + who + '</p>' : '') + meetingNotesHtml(m, v) +
       '<div class="row">' + (m.past ? '' : '<button class="btn small ghost" type="button" data-act="ics" data-id="' + esc(m.id) + '">Add to calendar</button>') +
       (v.host ? '<button class="btn small ghost" type="button" data-act="meetedit" data-id="' + esc(m.id) + '">Edit</button><button class="link-btn danger" type="button" data-act="meetdel" data-id="' + esc(m.id) + '">Remove</button>' : '') + '</div></div>';
+  }
+  /** What was discussed and decided at a meeting. Each note is tagged with a
+   *  chapter, so this reader is sent only the ones they have reached - the
+   *  rest are a count. */
+  function meetingNotesHtml(m, v) {
+    var book = v.book, notes = m.notes || [], L = m.lockedNotes || { total: 0, chapters: [] };
+    var rows = notes.map(function (n) {
+      return '<div class="mn' + (n.decision ? ' dec' : '') + '" data-nt="' + esc(n.id) + '">' + (n.decision ? '<span class="pill t-ok">✓ Decided</span>' : '<span class="pill t-host">Discussed</span>') +
+        '<p class="tx">' + esc(n.text) + '</p><small>' + esc(n.own ? 'You' : n.name) + ' · ' + esc(C.atShort(book, n.at)) + (n.canRemove ? ' · <button class="link-btn" type="button" data-act="delnote" data-id="' + esc(n.id) + '">' + (n.own ? 'Delete' : 'Remove') + '</button>' : '') + '</small></div>';
+    }).join('');
+    var locked = L.total ? '<p class="mn-lock">🔒 ' + esc(plural(L.total, 'meeting note')) + ' waiting past ' + esc(myPos(v) ? C.atLabel(book, myPos(v)) : 'the start') + ' <span class="chips">' + L.chapters.map(function (c) { return '<span>' + esc(C.atShort(book, c[0])) + ' · ' + esc(c[1]) + '</span>'; }).join('') + '</span></p>' : '';
+    return '<div class="mnotes"><p class="lab" style="margin:0">Meeting notes</p>' + (rows || locked ? rows + locked : '<p class="small muted" style="margin:0">' + (m.past ? 'Nothing written down yet.' : 'What you talk about and decide goes here - during the meeting or after.') + '</p>') +
+      '<button class="btn small soft" type="button" data-act="mnote" data-id="' + esc(m.id) + '" style="justify-self:start">＋ Add a meeting note</button></div>';
+  }
+  function openMeetingNote(id) {
+    var v = V(), book = v.book, pos = myPos(v);
+    var m = v.meetings.filter(function (x) { return x.id === id; })[0];
+    if (!m) return;
+    if (!pos) { sheet('<h2>Add a meeting note</h2><p>Set your bookmark first - a meeting note is tagged with a chapter you have read, so it stays hidden from anyone who hasn’t got there.</p><button class="btn" type="button" data-act="progress">Set my bookmark</button>'); return; }
+    var def = Math.min(pos, m.target || pos);
+    var chooser = book.unit === 'ch'
+      ? '<select class="input" name="at">' + Array.from({ length: pos }, function (_, i) { return '<option value="' + (i + 1) + '"' + (i + 1 === def ? ' selected' : '') + '>Chapter ' + (i + 1) + '</option>'; }).reverse().join('') + '</select>'
+      : '<input class="input" name="at" type="number" min="1" max="' + pos + '" value="' + def + '" inputmode="numeric">';
+    sheet('<h2>Add a meeting note</h2><p class="small muted">' + esc(cap(C.dayLabel(m.date, today(), LOCALE))) + ' - what the club talked about, or something you decided.</p>' +
+      '<form id="mnForm" class="fields"><label class="field"><span>The note</span><textarea class="input" name="text" maxlength="' + C.LIMITS.note + '" placeholder="We argued about the letter. Next time: read to chapter 30."></textarea></label>' +
+      '<label class="check"><input type="checkbox" name="decision"> ✓ This is a decision</label>' +
+      '<label class="field"><span>It gives away the book up to</span>' + chooser + '</label>' +
+      '<p class="small muted" style="margin:0">Only readers who have reached that ' + (book.unit === 'ch' ? 'chapter' : 'page') + ' will see it - like any note. For plans that spoil nothing, pick an early one.</p>' +
+      '<div id="mnErr"></div><button class="btn big block" type="submit">Add it</button></form>',
+    function (root) {
+      var f = $('#mnForm', root);
+      f.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var btn = $('button[type=submit]', f); btn.disabled = true;
+        postNote({ meet: id, text: f.text.value, at: Number(f.at.value), decision: f.decision.checked })
+          .then(function () { closeSheet(true); draw(); toast('Added to the meeting.'); }).catch(function (e) { btn.disabled = false; showError(e, $('#mnErr', root)); });
+      });
+    });
   }
   function viewMeet(v) {
     var up = v.meetings.filter(function (m) { return !m.past; }), past = v.meetings.filter(function (m) { return m.past; });
@@ -692,7 +780,7 @@
         '<div><span class="small muted">Your rating</span> ' + rateHtml(s.id, s.myRating) + '</div>' +
         '<div class="row"><button class="btn small ghost" type="button" data-act="shelfnotes" data-id="' + esc(s.id) + '">Notes</button><button class="btn small ghost" type="button" data-act="card" data-id="' + esc(s.id) + '">Share card</button></div></div></div>';
     }).join('') + '</div>' : '<div class="card center"><div style="font-size:2rem">📚</div><h2>The shelf is empty - for now</h2><p class="muted">When the club moves on to the next book, this one lands here with everyone’s stars and the club average.</p></div>';
-    return '<div class="grid split"><div class="stack">' + past + '</div><div class="stack first-on-phone">' + cur + cardBox() + '</div></div>';
+    return '<div class="grid split"><div class="stack">' + past + '</div><div class="stack first-on-phone">' + cur + bookCard() + cardBox() + '</div></div>';
   }
   function cardBox() {
     var K = state.card;
@@ -718,11 +806,26 @@
       });
     }
     $$('[data-filter]').forEach(function (b) { b.addEventListener('click', function () { state.filter = b.getAttribute('data-filter'); draw(); }); });
+    var jump = $('#chJump');
+    if (jump) jump.addEventListener('change', function () { state.chapter = jump.value === 'all' ? 'all' : Number(jump.value); draw(); });
+    $$('.reply-form').forEach(function (rf) {
+      var ta = $('textarea', rf);
+      ta.addEventListener('input', function () { state.replyText = ta.value; });
+      rf.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var btn = $('button[type=submit]', rf); btn.disabled = true;
+        postNote({ re: rf.getAttribute('data-re'), text: ta.value }).then(function () { state.replyTo = ''; state.replyText = ''; draw(); toast('Replied.'); })
+          .catch(function (e) { btn.disabled = false; showError(e, $('.rerr', rf)); });
+      });
+    });
   }
   function postNote(body) {
     if (isDemo()) {
       try {
-        var n = C.newNote(state.demo.club, state.demo.you, body, { now: now() });
+        var o = { now: now() };
+        if (body.re) o.parent = state.demo.notes.filter(function (x) { return x.id === body.re; })[0] || { re: 'gone' };
+        if (body.meet) { var dm = state.demo.club.meetings[body.meet]; if (!dm) throw C.fail(404, 'That meeting isn’t planned any more.'); o.meeting = { id: body.meet, date: dm.date }; }
+        var n = C.newNote(state.demo.club, state.demo.you, body, o);
         n.id = C.newId('n', rand, 15);
         state.demo.notes.push(n);
         return Promise.resolve();
@@ -738,6 +841,7 @@
     var s = $('#sheet'), back = $('#sheetBack');
     stopScan();
     if (s.hidden) lastFocus = document.activeElement;
+    s.classList.remove('tall');
     s.innerHTML = '<button class="btn small ghost close" type="button" data-act="closesheet" aria-label="Close">Close</button>' + html;
     s.hidden = false; back.hidden = false; document.body.classList.add('sheet-open'); s.scrollTop = 0;
     // The shared "confirm your email" banner sits above everything at the top
@@ -751,7 +855,7 @@
   function closeSheet(quiet) {
     stopScan();
     if ($('#sheet').hidden) return;
-    $('#sheet').hidden = true; $('#sheetBack').hidden = true; $('#sheet').innerHTML = '';
+    $('#sheet').hidden = true; $('#sheetBack').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('tall');
     document.body.classList.remove('sheet-open');
     if (!quiet && lastFocus && lastFocus.focus && document.body.contains(lastFocus)) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
   }
@@ -766,7 +870,9 @@
     sheet('<h2>Where are you in ' + esc(book.title) + '?</h2><p class="small muted">Say the last ' + (book.unit === 'ch' ? 'chapter' : 'page') + ' you’ve finished. Notes up to there open; nothing past it.</p>' +
       '<div class="stepper"><button type="button" id="pMinus" aria-label="One less">−</button><output id="pOut" aria-live="polite">' + val + '</output><button type="button" id="pPlus" aria-label="One more">+</button></div>' +
       '<p class="center muted" id="pWord" style="margin:4px 0 0"></p><input class="slide" type="range" id="pSlide" min="0" max="' + book.total + '" value="' + val + '" aria-label="Your place in the book">' +
-      '<p class="center" id="pUnlock" style="font-weight:800;min-height:1.5em;margin:6px 0"></p><div id="pErr"></div>' +
+      '<p class="center" id="pUnlock" style="font-weight:800;min-height:1.5em;margin:6px 0"></p>' +
+      '<label class="field"><span>' + (book.unit === 'ch' ? 'Page in your copy' : 'Chapter') + ' <small class="hint">(optional - shown beside your bookmark)</small></span><input class="input" id="pAlt" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="' + esc(me && me.alt ? me.alt : '') + '"></label>' +
+      '<p class="small muted" style="margin:6px 0 0">' + (book.unit === 'ch' ? 'Notes unlock by chapter, because pages differ between editions. The page is only for the board.' : 'Notes unlock by page. The chapter is only for the board.') + '</p><div id="pErr"></div>' +
       '<div class="row"><button class="btn big" type="button" id="pSave" style="flex:1 1 160px">Save</button><button class="btn big ghost" type="button" id="pDone" style="flex:1 1 160px">Finished 🎉</button></div>',
     function (root) {
       var cur = val;
@@ -781,18 +887,19 @@
       $('#pMinus', root).addEventListener('click', function () { cur = Math.max(0, cur - 1); show(); });
       $('#pPlus', root).addEventListener('click', function () { cur = Math.min(book.total, cur + 1); show(); });
       $('#pSlide', root).addEventListener('input', function () { cur = Number($('#pSlide', root).value) || 0; show(); });
-      $('#pSave', root).addEventListener('click', function () { saveProgress({ pos: cur }, $('#pErr', root)); });
+      $('#pSave', root).addEventListener('click', function () { var a = $('#pAlt', root).value.trim(); saveProgress({ pos: cur, alt: a ? Number(a) : null }, $('#pErr', root)); });
       $('#pDone', root).addEventListener('click', function () { saveProgress({ done: true }, $('#pErr', root)); });
     });
   }
-  function saveProgress(body, box) {
+  function saveProgress(body, box, keepSheet) {
     var before = V();
     return write('PUT', '/progress', body, function (club, you) { return C.setProgress(club, you, body, now()); }).then(function (d) {
-      closeSheet(true);
+      if (!keepSheet) closeSheet(true);
       var after = d.club;
       noticeUnlocks(before, after, true);
       var me = myRow(after);
       if (me && me.done && !(myRow(before) || {}).done) toast('Finished! 🎉 Rate it on the board, then see what’s next.', 4200);
+      if (keepSheet) { var rb = $('#rdBm'); if (rb) rb.textContent = bookmarkWord(after); softDraw(); return; }
       draw();
     }).catch(function (e) { if (box) showError(e, box); else showError(e); });
   }
@@ -879,9 +986,68 @@
     return '<label class="field"><span>Title</span><input class="input" name="title" maxlength="100" required value="' + esc(b.title || '') + '"></label>' +
       '<label class="field"><span>Author</span><input class="input" name="author" maxlength="60" value="' + esc(b.author || '') + '"></label>' +
       '<div class="fields two"><label class="field"><span>Chapters</span><input class="input" name="chapters" inputmode="numeric" maxlength="3" value="' + esc(b.chapters || '') + '"></label>' +
-      '<label class="field"><span>Pages <small class="hint">(only if no chapters)</small></span><input class="input" name="pages" inputmode="numeric" maxlength="4" value="' + esc(b.pages || '') + '"></label></div>';
+      '<label class="field"><span>Pages <small class="hint">(only if no chapters)</small></span><input class="input" name="pages" inputmode="numeric" maxlength="4" value="' + esc(b.pages || '') + '"></label></div>' +
+      '<label class="field"><span>ISBN <small class="hint">(optional - makes “Buy this book” open the exact edition)</small></span><input class="input" name="isbn" maxlength="24" spellcheck="false" value="' + esc(b.isbn || '') + '"></label>';
   }
-  function readBook(f) { return { title: f.title.value, author: f.author.value, chapters: f.chapters.value.trim() ? Number(f.chapters.value) : null, pages: f.pages.value.trim() ? Number(f.pages.value) : null }; }
+  function readBook(f) { return { title: f.title.value, author: f.author.value, chapters: f.chapters.value.trim() ? Number(f.chapters.value) : null, pages: f.pages.value.trim() ? Number(f.pages.value) : null, isbn: f.isbn.value.trim() }; }
+
+  /* -- reading and buying: a legal copy to read here, or links out -- */
+
+  function bookmarkWord(v) { var me = myRow(v), book = v.book; return !me ? '' : me.done ? 'Finished' : me.pos ? cap(C.atLabel(book, me.pos)) : 'Not started'; }
+  function outLinks(list) {
+    return list.map(function (l) {
+      return '<a class="crow out" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer"><span class="tile" aria-hidden="true">' + ({ bookshop: '🏪', bn: '📗', amazon: '📦', library: '🏛️', gutenberg: '📜', standard: '📘', openlibrary: '📚' }[l.id] || '🔗') + '</span><span><b>' + esc(l.name) + '</b><small>' + esc(l.note) + '</small></span><span aria-hidden="true">↗</span></a>';
+    }).join('');
+  }
+  function openBuy() {
+    var v = V(), book = v.book;
+    var stores = (v.stores && v.stores.length ? v.stores : C.buyLinks(book, null)).filter(function (l) { return /^https:\/\//.test(l.url); });
+    var paid = stores.some(function (l) { return l.affiliate; });
+    sheet('<h2>Buy ' + esc(book.title) + '</h2><p class="small muted">Each one opens the store’s own page in a new tab. Nothing is bought, paid for or tracked inside Chapter.</p>' + outLinks(stores) +
+      (paid ? '<p class="small muted" style="margin-top:12px">Some of these are affiliate links: if you buy, the store may pay Chapter a small commission, at no cost to you.</p>' : '') +
+      (book.isbn ? '' : '<p class="small muted" style="margin-top:12px">These search by title and author' + (v.host ? ' - add the ISBN under Club → Edit the book to open the exact edition.' : '.') + '</p>'));
+  }
+  function openRead() {
+    var v = V(), book = v.book;
+    sheet('<h2>Read ' + esc(book.title) + '</h2><div id="rdSlot"><p class="muted">Looking for a copy you can read for free…</p></div>' +
+      '<div class="sheet-sec"><p class="lab">Other places to find it</p>' + outLinks(C.readLinks(book)) +
+      '<div class="row" style="margin-top:12px"><button class="btn small ghost" type="button" data-act="buy">🛒 Buy this book</button></div>' +
+      '<p class="small muted" style="margin-top:10px">Chapter never copies a book’s text. It only opens a copy where reading it is legal - or points you to one.</p></div>',
+    function (root) {
+      var id = state.clubId;
+      (isDemo() ? Promise.resolve({ read: DEMO_READ }) : api('GET', 'api/c/' + encodeURIComponent(id) + '/read')).then(function (d) {
+        var slot = $('#rdSlot', root);
+        if (!slot || (!isDemo() && state.clubId !== id)) return;
+        var r = C.cleanRead(d.read);
+        var what = '“' + esc(r.title || book.title) + '”' + (r.author ? ' by ' + esc(r.author) : '') + (r.year ? ' (' + esc(r.year) + ' edition)' : '');
+        if (r.kind === 'read') {
+          state.reading = r;
+          slot.innerHTML = '<div class="note"><p style="margin:0 0 6px"><span class="pill t-ok">Free to read</span></p><p style="margin:0 0 10px">' + what + ' - a scan anyone may read in full at the Internet Archive.</p>' +
+            '<div class="row"><button class="btn" type="button" data-act="readhere">Open the reader here</button><a class="btn ghost" href="' + esc(C.readerPage(r.ia)) + '" target="_blank" rel="noopener noreferrer">Open in a new tab ↗</a></div>' +
+            '<p class="small muted" style="margin:10px 0 0">The reader loads from archive.org when you tap, straight to this phone. It may be a different edition from yours, so go by chapter, not page.</p></div>';
+        } else if (r.kind === 'borrow') {
+          slot.innerHTML = '<div class="note"><p style="margin:0 0 6px"><span class="pill t-q">Free to borrow</span></p><p style="margin:0 0 10px">' + what + ' can be borrowed from Open Library with a free Internet Archive account. It’s under copyright, so it can’t be opened here.</p>' +
+            '<a class="btn" href="' + esc(C.workUrl(r.work)) + '" target="_blank" rel="noopener noreferrer">Borrow at Open Library ↗</a></div>';
+        } else {
+          slot.innerHTML = '<div class="note"><p style="margin:0">' + (r.reason === 'unavailable' ? 'The lookup isn’t answering right now.' : 'No free copy to read was found - most books still under copyright have none.') + ' Try the places below, a library, or buy it.</p></div>';
+        }
+      }).catch(function (e) { var slot = $('#rdSlot', root); if (slot) showError(e, slot); });
+    });
+  }
+  /** The Internet Archive's own reader, in a frame, after a tap. The book
+   *  goes from the Archive to this phone; nothing of it passes through
+   *  Chapter. */
+  function openReader() {
+    var v = V(), r = state.reading, src = r ? C.readerUrl(r.ia) : '';
+    if (!src) return;
+    var me = myRow(v);
+    sheet('<h2>' + esc(v.book.title) + '</h2><div class="reader-bar"><span class="small">Your bookmark: <b id="rdBm">' + esc(bookmarkWord(v)) + '</b></span>' +
+      (me && !me.done ? '<button class="btn small soft" type="button" data-act="readplus">+1 ' + esc(C.unitWord(v.book, 1)) + '</button>' : '') +
+      '<a class="btn small ghost" href="' + esc(C.readerPage(r.ia)) + '" target="_blank" rel="noopener noreferrer">New tab ↗</a></div>' +
+      '<iframe class="reader-frame" src="' + esc(src) + '" title="' + esc(v.book.title) + ' - the Internet Archive’s reader" referrerpolicy="no-referrer" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>' +
+      '<p class="small muted" style="margin:8px 0 0">Shown by the Internet Archive (archive.org). Tap +1 as you finish each ' + esc(C.unitWord(v.book, 1)) + ' and the club’s notes open as you go.</p>');
+    $('#sheet').classList.add('tall');
+  }
   function openStartNext(other) {
     var v = V();
     var w = !other && v.vote.closed ? v.vote.noms.filter(function (n) { return n.id === v.vote.closed.winner; })[0] : null;
@@ -911,7 +1077,12 @@
     var p = isDemo() ? Promise.resolve(C.shelfNotes(state.demo.club, bid, state.demo.notes, state.demo.you)) : api('GET', 'api/c/' + encodeURIComponent(state.clubId) + '/shelf/' + encodeURIComponent(bid) + '/notes');
     p.then(function (d) {
       sheet('<h2>Notes on ' + esc(d.book.title) + '</h2>' + (d.locked.total ? '<p class="small muted">🔒 ' + esc(plural(d.locked.total, 'note')) + ' past where you got to stay locked.</p>' : '') +
-        (d.notes.length ? d.notes.map(function (n) { return '<div class="nt' + (n.kind === 'question' ? ' q' : '') + '"><div class="hd"><span class="e" aria-hidden="true">' + esc(n.emoji) + '</span><span>' + esc(n.name) + '</span><small>· ' + esc(C.atShort(d.book, n.at)) + '</small></div><p class="tx">' + esc(n.text) + '</p></div>'; }).join('') : '<p class="muted">No notes were left on this one.</p>'));
+        (d.notes.length ? d.notes.map(function (n) {
+          return '<div class="nt' + (n.kind === 'question' ? ' q' : '') + '"><div class="hd"><span class="e" aria-hidden="true">' + esc(n.emoji) + '</span><span>' + esc(n.name) + '</span>' +
+            (n.kind === 'minutes' ? '<span class="pill ' + (n.decision ? 't-ok' : 't-host') + '">' + (n.decision ? '✓ Decided' : 'Meeting') + (n.meetDate ? ' · ' + esc(C.shortDay(n.meetDate, LOCALE)) : '') + '</span>' : '') +
+            '<small>· ' + esc(C.atShort(d.book, n.at)) + '</small></div><p class="tx">' + esc(n.text) + '</p>' +
+            ((n.replies || []).length ? '<div class="thread">' + n.replies.map(function (r) { return '<div class="rp"><div class="hd"><span class="e" aria-hidden="true">' + esc(r.emoji) + '</span><span>' + esc(r.name) + '</span></div><p class="tx">' + esc(r.text) + '</p></div>'; }).join('') + '</div>' : '') + '</div>';
+        }).join('') : '<p class="muted">No notes were left on this one.</p>'));
     }).catch(function (e) { showError(e); });
   }
 
@@ -1430,8 +1601,15 @@
       case 'openclub': go('c/' + id); break;
       case 'clubsheet': openClubSheet(false); break;
       case 'progress': openProgress(); break;
-      case 'plus1': if (v) { var me = myRow(v); saveProgress({ pos: Math.min(v.book.total, (me ? me.pos : 0) + 1) }); } break;
+      case 'plus1': if (v) { var me = myRow(v); saveProgress(Object.assign({ pos: Math.min(v.book.total, (me ? me.pos : 0) + 1) }, me && me.alt ? { alt: null } : {})); } break;
+      case 'readplus': if (v) { var rme = myRow(v); saveProgress(Object.assign({ pos: Math.min(v.book.total, (rme ? rme.pos : 0) + 1) }, rme && rme.alt ? { alt: null } : {}), null, true); } break;
       case 'finished': saveProgress({ done: true }); break;
+      case 'read': if (v) openRead(); break;
+      case 'readhere': if (v) openReader(); break;
+      case 'buy': if (v) openBuy(); break;
+      case 'mnote': if (v) openMeetingNote(id); break;
+      case 'reply': state.replyTo = id; state.replyText = ''; draw(); setTimeout(function () { var x = $('.reply-form textarea'); if (x) x.focus(); }, 40); break;
+      case 'replycancel': state.replyTo = ''; state.replyText = ''; draw(); break;
       case 'rate': {
         var n = Number(t.getAttribute('data-n'));
         var mineR = id === v.book.id ? v.book.myRating : ((v.shelf.filter(function (s) { return s.id === id; })[0] || {}).myRating);
@@ -1442,7 +1620,7 @@
       }
       case 'react': {
         var emo = t.getAttribute('data-e');
-        var note = v.notes.filter(function (x) { return x.id === id; })[0];
+        var note = findNote(v, id);
         var next = note && note.mine === emo ? null : emo;
         state.picker = '';
         if (isDemo()) {
@@ -1454,9 +1632,9 @@
         break;
       }
       case 'delnote': {
-        var nt = v.notes.filter(function (x) { return x.id === id; })[0];
-        if (!nt || !confirm(nt.own ? 'Delete your note?' : 'Remove this note for everyone?')) break;
-        if (isDemo()) { state.demo.notes = state.demo.notes.filter(function (x) { return x.id !== id; }); draw(); toast('Removed.'); break; }
+        var nt = findNote(v, id);
+        if (!nt || !confirm(nt.own ? 'Delete your ' + (nt.kind === 'reply' ? 'reply' : 'note') + '?' : 'Remove this for everyone?' + ((nt.replies || []).length ? ' Its replies go too.' : ''))) break;
+        if (isDemo()) { state.demo.notes = state.demo.notes.filter(function (x) { return x.id !== id && x.re !== id; }); draw(); toast('Removed.'); break; }
         api('DELETE', 'api/c/' + encodeURIComponent(state.clubId) + '/notes/' + encodeURIComponent(id)).then(function (d) { setClub(d.club); draw(); toast('Removed.'); }).catch(function (err) { showError(err); });
         break;
       }
@@ -1477,8 +1655,8 @@
       case 'meetform': openMeetingForm(null); break;
       case 'meetedit': openMeetingForm(id); break;
       case 'meetdel':
-        if (!confirm('Remove this meeting?')) break;
-        write('DELETE', '/meetings/' + encodeURIComponent(id), undefined, function (club) { var p = C.patch(); p.del.push('meetings.' + id); return { patch: p }; }).then(function () { draw(); toast('Removed.'); }).catch(function (err) { showError(err); });
+        if (!confirm('Remove this meeting? Its meeting notes go too.')) break;
+        write('DELETE', '/meetings/' + encodeURIComponent(id), undefined, function (club) { state.demo.notes = state.demo.notes.filter(function (x) { return x.meet !== id; }); var p = C.patch(); p.del.push('meetings.' + id); return { patch: p }; }).then(function () { draw(); toast('Removed.'); }).catch(function (err) { showError(err); });
         break;
       case 'approve': {
         var picks = v.vote.mine.slice();
