@@ -3,7 +3,8 @@
  * this file missing or blocked the page still reads, links and posts its
  * signup form.
  *
- * In order: small page behaviour (the bar, the year count, the signup form),
+ * In order: small page behaviour (the bar, the pointer light, the year
+ * count, the signup form),
  * the live previews, the Challenge band and lab cards (/api/lab), "Most used
  * this week" (/api/stats/public) and "Live now" (/api/activity). The last
  * two return at once while data-counts="off" sits on <html>.
@@ -51,6 +52,41 @@
       if (el) spy.observe(el);
     });
   }
+
+  /* ---------- Pointer light: the hero's glow and the cards' sheen ---------- */
+  // Decoration that answers the pointer and never moves by itself: the
+  // hero's cyan glow drifts toward the mouse, and a card lights where it is
+  // touched. Only for a mouse or trackpad, never under reduced motion (the
+  // preference is asked again on every move, so changing it takes effect at
+  // once), and each handler does one style write per frame. The listeners
+  // are on the hero and the cards themselves, so nothing runs while the
+  // pointer is elsewhere or the tab is hidden.
+  var mq = function (q) { return window.matchMedia ? window.matchMedia(q) : { matches: false }; };
+  var fine = mq("(hover: hover) and (pointer: fine)"), calm = mq("(prefers-reduced-motion: reduce)");
+  var follow = function (el, write) {
+    var x = 0, y = 0, queued = false;
+    el.addEventListener("pointermove", function (e) {
+      if (!fine.matches || calm.matches || e.pointerType === "touch") return;
+      x = e.clientX; y = e.clientY;
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; write(x, y, el.getBoundingClientRect()); });
+    }, { passive: true });
+  };
+  var hero = document.getElementById("top"), glow = document.getElementById("heroGlow");
+  if (hero && glow) {
+    follow(hero, function (x, y, r) {
+      glow.style.setProperty("--gx", Math.round(x - r.left) + "px");
+      glow.style.setProperty("--gy", Math.round(y - r.top) + "px");
+    });
+    hero.addEventListener("pointerleave", function () { glow.style.removeProperty("--gx"); glow.style.removeProperty("--gy"); });
+  }
+  document.querySelectorAll("a.card").forEach(function (card) {
+    follow(card, function (x, y, r) {
+      card.style.setProperty("--mx", Math.round(x - r.left) + "px");
+      card.style.setProperty("--my", Math.round(y - r.top) + "px");
+    });
+  });
 
   /* ---------- "Years at Equifax" stays current ---------- */
   document.querySelectorAll("[data-since]").forEach(function (el) {

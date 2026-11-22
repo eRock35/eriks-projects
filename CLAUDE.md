@@ -309,12 +309,30 @@ page, and for the page to be redesigned well. `test/home.js` holds the rules.
   another origin except the lab's `/api/lab` and the six preview frames.
 - **Tokens.** Colour, radius and type are custom properties at the top of the
   stylesheet, once for light and once under `prefers-color-scheme: dark`.
-  Every text colour clears 4.5:1 on the surfaces it sits on in both themes;
-  check a new pair before using it. Targets are 44 px or more.
-- **Motion.** There is no ambient animation any more (the aurora, the
-  marquee, the count-up, reveal-on-scroll and the "Pause motion" switch are
-  gone): hover transitions and smooth scrolling only, both off under
-  `prefers-reduced-motion`.
+  Every text colour clears 4.5:1 on the surfaces it sits on in both themes
+  (measured in the browser: 4.76 at worst in light, 5.89 in dark); check a
+  new pair before using it. Targets are 44 px or more.
+- **"More futuristic, but professional"** (Erik, the same day, on seeing the
+  first pass). So: the top bar, the hero and the Challenge band are **dark
+  panels in both themes** (the `--d-*` tokens) with fine grid lines and two
+  soft glows; a luminous cyan-to-violet pair (`--lum-1`, `--lum-2`) is used
+  for rules, brackets, the hero button and glows, never for small text on a
+  light surface; labels and figures' captions are in the system mono face;
+  corners are tighter. Precise and technical, not neon: keep it restrained.
+- **Motion.** One orchestrated moment when the page opens (the hero's lines
+  rise in turn, the readout's rule draws, brackets close on the portrait):
+  CSS only, once, under two seconds, and at rest everything is visible.
+  Nothing is ever hidden waiting for a scroll. After that nothing moves by
+  itself: the hero's glow drifts toward the pointer and cards light where
+  they are touched (`home.js`, mouse or trackpad only, one style write a
+  frame), and the "apps live" light pings three times when the lab answers.
+  **Every animation rule sits inside `prefers-reduced-motion:
+  no-preference`**, the `reduce` block switches off every transition and
+  animation, and the script checks the preference on each move - so under
+  reduced motion the page is simply still. That is why there is no "Pause
+  motion" switch (the aurora, the marquee, the count-up and
+  reveal-on-scroll that needed one are gone); do not add anything that
+  moves by itself for more than five seconds without bringing one back.
 - **Chapter** (`challenge/apps/chapter`) is the featured build. The copy says
   what it does today - the progress board, spoiler-safe notes, the vote for
   the next book, meetups, My library - and must not run ahead of the app.

@@ -122,6 +122,23 @@ assert.ok(imgs.length && imgs.every((i) => /\salt="/.test(i) && /\swidth="/.test
 const levels = (body.match(/<h[1-6]\b/g) || []).map((h) => Number(h[2]));
 assert.ok(levels.every((l, i) => i === 0 || l <= levels[i - 1] + 1)); ok('headings never skip a level');
 assert.ok(/prefers-color-scheme: dark/.test(html) && /prefers-reduced-motion: reduce/.test(html) && /:focus-visible/.test(html)); ok('dark theme, reduced motion and focus styles are in the stylesheet');
+
+/* ---------- motion: all of it off under reduced motion ---------- */
+const css = /<style>([\s\S]*?)<\/style>/.exec(html)[1];
+// Every @keyframes and every `animation:` that starts something sits inside
+// the no-preference block, except the delayed reveal of the lab tile's copy
+// (cb-late), which the reduce block answers by simply showing it.
+const block = (open) => { const i = css.indexOf(open); assert.ok(i > -1, open); let d = 0, j = css.indexOf('{', i); for (let k = j; k < css.length; k++) { if (css[k] === '{') d++; else if (css[k] === '}' && --d === 0) return css.slice(j, k + 1); } throw new Error('unclosed ' + open); };
+const moving = block('@media (prefers-reduced-motion: no-preference) {\n    @keyframes');
+const still = block('@media (prefers-reduced-motion: reduce)');
+const outside = css.replace(moving, '').replace(still, '');
+assert.deepStrictEqual((outside.match(/@keyframes\s+([\w-]+)/g) || []), ['@keyframes cb-late']);
+assert.deepStrictEqual((outside.match(/animation:[^;}]+/g) || []).filter((a) => !/cb-late/.test(a)), []);
+ok('every animation is declared only for people who have not asked for less motion');
+assert.ok(/transition: none !important; animation: none !important;/.test(still) && /\.cb-live\[data-state="wait"\] \.cb-drop > \*[^{]*\{ opacity: 1; \}/.test(still)); ok('...and reduced motion switches off every transition and animation, hiding nothing');
+assert.ok(!/infinite/.test(css)); ok('nothing loops forever');
+assert.ok(/prefers-reduced-motion: reduce/.test(js) && /calm\.matches/.test(js) && /pointer: fine/.test(js)); ok('the pointer light is for a mouse only, and never under reduced motion');
+assert.ok(!/setInterval\([^)]*\b(16|33|50|100)\b\)/.test(js) && !/getContext\(/.test(js)); ok('no canvas and no fast timer');
 assert.ok(/data-app="landing"/.test(html) && /src="\/get-app\.js" data-src="\/ios-apps\.json" data-list="#iphoneApps"/.test(html) && /data-get-apps/.test(html)); ok('the view beacon and the iPhone apps list are wired');
 
 console.log(`\n${n}/${n} passed`);
