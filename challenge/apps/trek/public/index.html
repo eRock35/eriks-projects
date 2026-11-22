@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Trek — a journey for your whole crew</title>
+  <meta name="description" content="A journey for your whole crew - every walk, run and ride moves you all along the map. Join with a code and a first name, log minutes or distance, pass checkpoints and collect postcards on a famous trail. Free, no sign-in, no location tracking.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#12171a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6f1" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Trek">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Trek — A journey for your whole crew - every walk, run and ride moves you all along the map.">
+  <meta property="og:description" content="For friends, families, coworkers and walking groups who want a reason to get out together, even when they live apart. Start a crew, pick a famous trail or a coast-to-coast line - Hadrian’s Wall, England’s Coast to Coast, the Camino, the Appalachian Trail, the Pacific Crest Trail ">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/trek/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/trek.png?v=2ad6ee2abf">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Trek, drop #67 in the Challenge Lab: A journey for your whole crew - every walk, run and ride moves you all along the map.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Trek — A journey for your whole crew - every walk, run and ride moves you all along the map.">
+  <meta name="twitter:description" content="For friends, families, coworkers and walking groups who want a reason to get out together, even when they live apart. Start a crew, pick a famous trail or a coast-to-coast line - Hadrian’s Wall, England’s Coast to Coast, the Camino, the Appalachian Trail, the Pacific Crest Trail ">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/trek.png?v=2ad6ee2abf">
+  <meta name="twitter:image:alt" content="Trek, drop #67 in the Challenge Lab: A journey for your whole crew - every walk, run and ride moves you all along the map.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">🥾</span>Trek</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Trek" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19c2-5 5-3 7-7s4-6 9-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="12" r="2.4" fill="currentColor"/></svg><span>Journey</span></button>
+      <button type="button" data-act="tab" data-tab="treks"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Treks</span></button>
+      <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></svg><span>How it works</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="trek-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="trek-store.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

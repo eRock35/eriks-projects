@@ -661,16 +661,26 @@
       "wallMs": 2913951,
       "exact": true,
       "note": "One builder agent."
+    },
+    "trek": {
+      "in": 27399583,
+      "cached": 26531339,
+      "out": 170230,
+      "agents": 1,
+      "agentMs": 1967769,
+      "wallMs": 1967769,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 3083038994,
-    "cached": 2953627020,
-    "out": 17622968,
-    "agents": 195,
-    "agentMs": 199320248,
-    "wallMs": 196463952,
-    "apps": 66,
+    "in": 3110438577,
+    "cached": 2980158359,
+    "out": 17793198,
+    "agents": 196,
+    "agentMs": 201288017,
+    "wallMs": 198431721,
+    "apps": 67,
     "estimated": 34,
     "cachedShare": 0.977
   }

@@ -90,6 +90,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/ladle/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/spotted/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   ['eriks-projects/challenge/apps/reset/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
+  ['eriks-projects/challenge/apps/trek/lib',['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
   // Next Move (2026-10-02): a service of its own with Cloud Run jobs on the
   // same image, like Friction but on the shared account alone.
   ['eriks-projects/apps/nextmove/lib', ['identity.js', 'identity-store.js', 'byok.js', 'stripe.js', 'webauthn.js']],
@@ -185,6 +186,7 @@ const TARGETS = [
   ['eriks-projects/challenge/apps/ladle/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/spotted/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/challenge/apps/reset/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
+  ['eriks-projects/challenge/apps/trek/public',['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['eriks-projects/apps/nextmove/public', ['desktop.css', 'passkey-client.js', 'verify-banner.js']],
   ['trip-planner/public',                 ['tour.js', 'desktop.css', 'beacon.js', 'photo-tools.js', 'verify-banner.js', 'get-app.js']],
   ['college-football-app/public',         ['tour.js', 'desktop.css', 'beacon.js', 'verify-banner.js', 'get-app.js']],

@@ -1035,6 +1035,30 @@ const APPS = [
     audience: 'Servicing and loan-accounting teams at small banks and credit unions',
     status: 'testing',
   },
+  {
+    slug: 'trek',
+    name: 'Trek',
+    emoji: '\u{1F97E}',
+    // A rebuild of the 2026-11-14 drop, which had a forest green #2e7d32
+    // and a lake blue #1f5fbf. Rechecked against today's cards, both were
+    // too close: the green was 8.2 in CIE Lab from Feedfix's #1b6b2a (16.0
+    // from Shelflife's, 17.5 from Dibs's and Chorus's), the blue 16.9 from
+    // Duly's #2b3a8f (17.1 from Booth's and Pickup's, 17.5 from Drip's).
+    // The nearest green 20+ from every card is a brighter leaf green,
+    // #218721 (moved 13.8): 20.3 from Feedfix's, 25.9 from Dibs's and
+    // Chorus's. The nearest blue is #2769cc (moved 4.1): 20.5 from Drip's,
+    // 20.9 from Duly's, Pop Quiz's and Takeback's. Both are 20+ from Snug's,
+    // Ladle's, Spotted's and Reset's. White text holds 4.61:1 and 5.28:1.
+    // The app itself keeps the original green and blue.
+    color: '#218721',
+    color2: '#2769cc',
+    dropped: '2026-11-22',
+    tagline: 'A journey for your whole crew - every walk, run and ride moves you all along the map.',
+    blurb: 'For friends, families, coworkers and walking groups who want a reason to get out together, even when they live apart. Start a crew, pick a famous trail or a coast-to-coast line - Hadrian’s Wall, England’s Coast to Coast, the Camino, the Appalachian Trail, the Pacific Crest Trail or across America - and everyone joins on their own phone with a six-letter code and a first name: no accounts, nothing to install. Log minutes or distance for a walk, run, ride, swim or wheelchair push, and Trek turns it into one fair trail distance (a ride counts a third, a swim four times) that moves the whole crew along a drawn map together, with a postcard at every checkpoint. The leaderboard rewards showing up as much as distance: points for every day out, a daily cap on distance, and weekly streaks for you and the whole crew. Share a recap card as a picture. Free, no sign-in, works offline on one phone; no GPS, no location, no health data.',
+    features: ['One crew, one line on a drawn trail map - joined by code', 'Walk, run, ride, swim or roll, turned into fair trail distance', 'Points for showing up, weekly streaks for you and the crew', 'Postcards at every checkpoint and a recap card to share'],
+    audience: 'Friends, families, coworkers and walking groups',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
