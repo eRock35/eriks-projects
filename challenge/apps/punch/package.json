@@ -1,0 +1,18 @@
+{
+  "name": "punch",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "PUNCH_DEV_MOUNT=/punch PUNCH_MEMORY=1 PUNCH_FAKE_AI=1 PORT=8181 node server.js",
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 PUNCH_MEMORY=1 PUNCH_FAKE_AI=1 node test/run.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "express": "^4.19.2"
+  }
+}

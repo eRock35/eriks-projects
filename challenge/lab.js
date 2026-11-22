@@ -1086,6 +1086,34 @@ const APPS = [
     audience: 'Owners, chefs and managers of independent restaurants',
     status: 'testing',
   },
+  {
+    slug: 'punch',
+    name: 'Punch',
+    // The original 📌 (U+1F4CC), on no other card.
+    emoji: '\u{1F4CC}',
+    // A rebuild of the 2026-11-17 drop, which had a signal red #d00000 and a
+    // blueprint blue #0044d6. Rechecked against today's cards, both were too
+    // close: the red was 10.0 in CIE Lab from Spotted's rebuilt #ea0000
+    // (18.4 from Rep's #b91c1c, 19.4 from Spar's, 19.6 from Pickup's), the
+    // blue 6.7 from Rep's #1d4ed8 (8.7 from First Day's and Ajar's #4338ca,
+    // 8.9 from Duohunt's). Every red, maroon and brick that holds white text
+    // is taken (searched over the whole RGB cube), so the nearest colour
+    // 20+ from every card is a dusty rose, #ae5887 (moved 73.5): 20.4 from
+    // Rush's #8a6078 and Sniff's, 20.5 from Jars's, 20.7 from Waterfall's.
+    // The blue moved 26.2 to a brighter cobalt, #003dff: 20.2 from Settle's
+    // #6d28d9, 24.3 from Chaser's, 26.2 from First Day's. Both are 20+ from
+    // Snug's, Ladle's, Spotted's, Reset's, Trek's and Stars'. White text
+    // holds 4.62:1 and 6.75:1. The app itself keeps the original red and
+    // blue.
+    color: '#ae5887',
+    color2: '#003dff',
+    dropped: '2026-11-22',
+    tagline: 'Walk the job, pin every fix on a photo, close it out with a before-and-after the client signs.',
+    blurb: 'For contractors, remodelers, builders and handymen at the end of a job. Photograph each room and drop a numbered pin on every fix - its trade, priority, due date and a few words. Move each one from open to fixed to verified, with the after photo beside the before; hand each sub a list of their own fixes, highest priority first, as text to share or a page to print. When the walk is done the client signs on your phone, and the closeout prints with every room, every before-and-after and the signature. Free, no sign-in, works offline, and the photos never leave the phone; with a free account two phones on one job stay in step, merged pin by pin.',
+    features: ['Numbered pins on each room’s photo: trade, priority, due date, note', 'Open, fixed, verified - the after photo beside the before', 'A list for each sub by trade, to share or print', 'The client signs on the phone; a printable closeout'],
+    audience: 'Contractors, remodelers, builders and handymen',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

@@ -681,16 +681,26 @@
       "wallMs": 2315162,
       "exact": true,
       "note": "One builder agent."
+    },
+    "punch": {
+      "in": 24112626,
+      "cached": 23286025,
+      "out": 164384,
+      "agents": 1,
+      "agentMs": 2319952,
+      "wallMs": 2319952,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 3139809386,
-    "cached": 3008196878,
-    "out": 17957528,
-    "agents": 197,
-    "agentMs": 203603179,
-    "wallMs": 200746883,
-    "apps": 68,
+    "in": 3163922012,
+    "cached": 3031482903,
+    "out": 18121912,
+    "agents": 198,
+    "agentMs": 205923131,
+    "wallMs": 203066835,
+    "apps": 69,
     "estimated": 34,
     "cachedShare": 0.9767
   }

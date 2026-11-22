@@ -239,6 +239,7 @@ build session had no deploy key to read the usage records on 2026-11-20).
 | Reset | one builder agent (a rebuild) | 28.6M | 27.6M | 196K | 1 | 49 min | exact |
 | Trek | one builder agent (a rebuild) | 27.4M | 26.5M | 170K | 1 | 33 min | exact |
 | Stars | one builder agent (a rebuild) | 29.4M | 28.0M | 164K | 1 | 39 min | exact |
+| Punch | one builder agent (a rebuild) | 24.1M | 23.3M | 164K | 1 | 39 min | exact |
 
 Rush's builder stopped twice at the account's usage limit (about 7 hours in
 all) and was resumed; the agent time leaves those hours out, so its row is

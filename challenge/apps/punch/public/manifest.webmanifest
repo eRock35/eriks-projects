@@ -1,0 +1,10 @@
+{
+  "name": "Punch",
+  "short_name": "Punch",
+  "description": "Walk the job, pin every fix on a photo, close it out with a before-and-after the client signs.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#d00000",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
