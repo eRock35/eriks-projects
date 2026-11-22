@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Reset — every rate reset worked out from the note</title>
+  <meta name="description" content="Every rate reset worked out from the note - new rate, new payment, which cap bit. For servicing and loan-accounting teams at small banks and credit unions: index, margin, rounding, caps, floor and ceiling worked step by step, the payment amortised in exact cents, a batch from CSV, future resets under a what-if index and a draft notice. Free, no sign-in, works offline; loans by nickname only.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#14171b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Reset">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="desktop.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="Reset — Every rate reset worked out from the note - new rate, new payment, which cap bit.">
+  <meta property="og:description" content="For servicing and loan-accounting teams at small banks and credit unions, where every adjustable-rate change is still worked by hand from the note - index plus margin, rounded to the nearest eighth, then the caps - and a payment that is a cent off means a corrected notice. Type a">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/reset/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/reset.png?v=eeb30b01ae">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Reset, drop #66 in the Challenge Lab: Every rate reset worked out from the note - new rate, new payment, which cap bit.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Reset — Every rate reset worked out from the note - new rate, new payment, which cap bit.">
+  <meta name="twitter:description" content="For servicing and loan-accounting teams at small banks and credit unions, where every adjustable-rate change is still worked by hand from the note - index plus margin, rounded to the nearest eighth, then the caps - and a payment that is a cent off means a corrected notice. Type a">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/reset.png?v=eeb30b01ae">
+  <meta name="twitter:image:alt" content="Reset, drop #66 in the Challenge Lab: Every rate reset worked out from the note - new rate, new payment, which cap bit.">
+  <!-- /lab:og -->
+</head>
+<body class="dk">
+  <a class="skip" href="#main" id="skip">Skip to the page</a>
+  <header class="top">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true">📈</span>Reset</a>
+    <nav class="top-links" aria-label="Account">
+      <span class="offline-pill hide-sm" id="offlinePill" hidden>✓ Works offline</span>
+      <button class="btn small ghost" id="acct" type="button">Sign in</button>
+    </nav>
+  </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Your loans" hidden>
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="loans"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M7 15l4-4 3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Loans</span></button>
+      <button type="button" data-act="tab" data-tab="batch"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M3 15h18M9 4v16" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Batch</span></button>
+      <button type="button" data-act="tab" data-tab="add"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Add a loan</span></button>
+      <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></svg><span>More</span></button>
+    </div>
+  </nav>
+
+  <main class="wrap" id="main" tabindex="-1"></main>
+
+  <div class="sheet-back" id="sheetBack" hidden></div>
+  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="vh" id="live" aria-live="polite"></div>
+
+  <script src="reset-core.js"></script>
+  <script src="demo.js"></script>
+  <script src="reset-store.js"></script>
+  <script src="passkey-client.js"></script>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

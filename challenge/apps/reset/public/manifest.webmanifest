@@ -1,0 +1,10 @@
+{
+  "name": "Reset",
+  "short_name": "Reset",
+  "description": "Every rate reset worked out from the note - new rate, new payment, which cap bit.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f6f2",
+  "theme_color": "#6d5200",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

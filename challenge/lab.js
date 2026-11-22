@@ -1008,6 +1008,33 @@ const APPS = [
     audience: 'Families and friends on a road trip',
     status: 'testing',
   },
+  {
+    slug: 'reset',
+    name: 'Reset',
+    emoji: '\u{1F4C8}',
+    // A rebuild of the 2026-11-13 drop, which had a brass #6d5200 and a
+    // ledger slate #33475b. Rechecked against today's cards, both were too
+    // close: the brass was 14.7 in CIE Lab from Whichbox's #8a5300 (15.1
+    // from Sieve's, 15.7 from Chapter's walnut, 15.9 from Flight's), the
+    // slate 8.7 from Leash's #1d4e5f (10.6 from Stray's, 10.7 from
+    // Shadow's). The nearest brass 20+ from every card is an olive brass,
+    // #6f6303 (moved 10.8): 20.3 from Muster's olive, 20.5 from Flight's
+    // gold, 22.5 from Whichbox's. Every dark blue and slate that holds
+    // white text is taken - the nearest free one is 46 away, a bright
+    // blue - so the slate moved 27.5 to the nearest free dark, a ledger
+    // green #2a301e: 20.7 from Tally's #0e4526, 20.8 from Flight's
+    // #3d1f0c, 21.0 from Covenant's and Receipt's, and 20+ from Snug's,
+    // Ladle's and Spotted's; 43.6 from its own brass. White text holds
+    // 6.07:1 and 13.64:1. The app itself keeps the original brass and slate.
+    color: '#6f6303',
+    color2: '#2a301e',
+    dropped: '2026-11-22',
+    tagline: 'Every rate reset worked out from the note - new rate, new payment, which cap bit.',
+    blurb: 'For servicing and loan-accounting teams at small banks and credit unions, where every adjustable-rate change is still worked by hand from the note - index plus margin, rounded to the nearest eighth, then the caps - and a payment that is a cent off means a corrected notice. Type a loan’s rate-change terms once (or photograph the note’s rate-change section and let AI read them for you to check): index, margin, rounding and increment, lookback, reset frequency, the first-change, periodic and lifetime caps, floor and ceiling. With the balance, months left, the current rate and the index value, Reset works out the new rate step by step, says which rule bit, and amortises the new payment in exact cents - never a float. Run a whole batch from a CSV on the phone, with per-row results and errors and the results exported as CSV; play future resets under a what-if index path; and draft the change notice as plain text for a person to check - not legal advice. Free, no sign-in, works offline. Loans by nickname only: a borrower’s name, a tax id or an account number is refused.',
+    features: ['The new rate worked step by step, and which cap bit', 'The payment amortised in exact cents, with the working', 'A batch from CSV, future resets under a what-if index', 'A draft change notice; loans by nickname only'],
+    audience: 'Servicing and loan-accounting teams at small banks and credit unions',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

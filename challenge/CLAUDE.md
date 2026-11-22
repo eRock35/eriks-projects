@@ -147,7 +147,7 @@ here when it lands.
   and food shops: slots that fill, the bake list, a pickup line that moves;
   **Stars** - find the stars on a restaurant menu, and the dogs eating its
   margin; **Punch** - walk the job, pin every fix on a photo, close it out
-  with a before-and-after the client signs; **Reset** - every loan rate
+  with a before-and-after the client signs; ~~Reset~~ (rebuilt 2026-11-22, drop #66) - every loan rate
   reset worked out from the note: new rate, new payment, which cap bit.
 - Everyday: ~~Spotted~~ (rebuilt 2026-11-22, drop #65) - the license plate game for the whole car, every
   phone playing; **Trek** - a journey for a crew, every walk, run and ride

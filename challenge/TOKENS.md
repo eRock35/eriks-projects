@@ -236,6 +236,7 @@ build session had no deploy key to read the usage records on 2026-11-20).
 | Snug | one builder agent (a rebuild) | 30.6M | 29.6M | 209K | 1 | 41 min | exact |
 | Ladle | one builder agent (a rebuild) | 25.5M | 24.2M | 184K | 1 | 38 min | tokens exact; time is active work only |
 | Spotted | one builder agent (a rebuild) | 23.3M | 22.9M | 152K | 1 | 32 min | exact |
+| Reset | one builder agent (a rebuild) | 28.6M | 27.6M | 196K | 1 | 49 min | exact |
 
 Rush's builder stopped twice at the account's usage limit (about 7 hours in
 all) and was resumed; the agent time leaves those hours out, so its row is
