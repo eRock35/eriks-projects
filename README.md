@@ -7,14 +7,17 @@ it is now the `landing-page` Cloud Run service — `server.js`, a small Express
 app serving `site/` — because a bucket cannot serve HTTPS on a custom domain.
 It still scales to zero, and the bucket is kept only as a rollback.
 
-The page is `site/index.html`: a short intro about Erik (photo and bio
-brought over from the 2019 consulting site archived in the bucket), a banner
-for the Challenge that names the lab's latest drop live, the project cards,
-the blog signup, and contact links. Add a card whenever something new ships.
-Currently linked: the College Football app, Hopscotch (craft beer passport),
-Trip Planner, DataViz, Friction and Spellbook, plus a "Next up" card for the
-Challenge. Each of the six has a live phone preview in the strip above the
-cards; keep the strip and the cards in the same order.
+The page is `site/index.html` (its styles inline, its script in
+`site/home.js`; redesigned 2026-11-22 - see "The landing page's design" in
+`CLAUDE.md`). Top to bottom: Erik's name, role and the proof row; what he
+does; a feature for Chapter, the lab's book club app; "New in the Lab", four
+of the newest lab apps; the band for the Challenge that names the lab's
+latest drop live; the project cards; About; the blog signup and contact
+links. Add a card whenever something new ships. Currently linked as
+projects: the College Football app, Hopscotch (craft beer passport), Trip
+Planner, DataViz, Friction and Spellbook. Each of the six has a live phone
+preview in the strip above the cards; keep the strip and the cards in the
+same order.
 
 The cards can carry "N views this week", and a clear leader a "Trending"
 badge, from a first-party counter on this service (`lib/views.js`, fed by

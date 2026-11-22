@@ -296,6 +296,42 @@ in the page).
   early. The "N apps live" count in the Challenge banner stays. Remove the
   attribute to bring them all back.
 
+## The landing page's design (2026-11-22)
+
+Erik asked for the book club app and some of the new lab apps on the landing
+page, and for the page to be redesigned well. `test/home.js` holds the rules.
+
+- **Files.** `site/index.html` carries the markup and its own `<style>` (one
+  request, and the bucket's rollback copy still looks right); every script is
+  in `site/home.js`, loaded with `defer`. **No inline script, no inline event
+  handlers, no `style=` attributes** on the page - keep it that way, so a
+  strict CSP stays possible. System fonts only; nothing is fetched from
+  another origin except the lab's `/api/lab` and the six preview frames.
+- **Tokens.** Colour, radius and type are custom properties at the top of the
+  stylesheet, once for light and once under `prefers-color-scheme: dark`.
+  Every text colour clears 4.5:1 on the surfaces it sits on in both themes;
+  check a new pair before using it. Targets are 44 px or more.
+- **Motion.** There is no ambient animation any more (the aurora, the
+  marquee, the count-up, reveal-on-scroll and the "Pause motion" switch are
+  gone): hover transitions and smooth scrolling only, both off under
+  `prefers-reduced-motion`.
+- **Chapter** (`challenge/apps/chapter`) is the featured build. The copy says
+  what it does today - the progress board, spoiler-safe notes, the vote for
+  the next book, meetups, My library - and must not run ahead of the app.
+  The picture is a screenshot of its own made-up club (`/chapter/#try`, the
+  board), `site/assets/chapter-board-light.webp` and `-dark.webp` (390 px
+  wide at 2x). Retake both when the board changes, **under new file names**:
+  images under `/assets` cache for a week.
+- **"New in the Lab"** is four `[data-lab]` cards (Reset and Stars for work,
+  Trek and Snug for everyday), written with the lab's own name, emoji,
+  colours and tagline. `home.js` refreshes them from the lab's live answer
+  and **hides a card whose app is retired, gone or not up**, so the page
+  never links a dead app. To change the four, change the cards and their
+  `.t-<slug>` colours; only link apps that are live.
+- The proof row, `data-counts="off"`, `data-contact` and the newsletter
+  form's traps are unchanged. With `data-counts` removed, the standings,
+  "Live now" and "Most used this week" come back, styled for this design.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

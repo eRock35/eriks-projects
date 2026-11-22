@@ -6,8 +6,8 @@
 <title>Erik Strong · Sales intelligence &amp; applied AI leader</title>
 <meta name="description" content="Erik Strong leads sales intelligence and customer insights at Equifax Workforce Solutions, building the analytics and applied AI that help revenue teams win. Two patents, and a new AI-built app every day in the Challenge." />
 <meta name="author" content="Erik Strong" />
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7" />
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F8F7F4" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0D0F13" />
 <!-- One address for this page: the apex. www answers with a 301 to it, so
      every absolute URL below (canonical, share tags, structured data) names
      the apex and never the www host. -->
@@ -64,611 +64,493 @@
 </script>
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/erik-320.jpg" />
-<!-- Runs before first paint. `js` gates the reveal-on-scroll hidden state, so
-     with scripts off (or blocked) every section is simply visible. The motion
-     preference is the footer's "Pause motion" switch, remembered per browser. -->
-<script>
-  document.documentElement.classList.add("js");
-  try { if (localStorage.getItem("motion") === "off") document.documentElement.setAttribute("data-motion", "off"); } catch (e) {}
-</script>
 <style>
+  /* ==========================================================================
+     The design system (2026-11-22 redesign).
+
+     Tokens first: colour for light and dark, type, space, radius. Everything
+     below reads from them, so a change of palette is a change here. Text
+     colours clear 4.5:1 on the surfaces they sit on in both themes
+     (--ink, --ink-2, --ink-3 on --bg, --surface and --surface-2; --link on
+     the same; white on --btn). System fonts only: nothing is downloaded.
+     ========================================================================== */
   :root {
     color-scheme: light dark;
-    --bg: #F2F2F7; --card: #FFFFFF; --fill: rgba(120,120,128,0.12); --fill-2: rgba(120,120,128,0.18);
-    --label: #000000; --label-2: rgba(60,60,67,0.8); --label-3: rgba(60,60,67,0.4); --sep: rgba(60,60,67,0.2);
-    --tint: #007AFF; --indigo: #5856D6; --green: #34C759; --amber: #b3730a;
-    /* Text-safe versions of the tint. --tint stays the vivid system blue for
-       glows, icons and rings; anything that is READ (links, buttons, the
-       eyebrow) uses these, which clear 4.5:1 over the cards and the aurora. */
-    --link: #0066CC; --btn: #0066CC; --eyebrow: #003F80; --nav-link: rgba(60,60,67,0.9);
-    --field-border: rgba(60,60,67,0.6); --ok: #1E7B34;
-    --bar: rgba(249,249,249,0.72); --bar-border: rgba(0,0,0,0.08);
-    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 24px rgba(0,0,0,0.06);
-    --shadow-lift: 0 2px 6px rgba(0,0,0,0.05), 0 22px 44px rgba(0,0,0,0.11);
-    --glow: 0.45;
+    --bg: #F8F7F4; --surface: #FFFFFF; --surface-2: #F0EEE8;
+    --ink: #14171D; --ink-2: #434A58; --ink-3: #5D6574;
+    --line: #E1DED6; --line-2: #C9C5BB; --field-border: #7F8693;
+    --link: #1A46C4; --btn: #1A46C4; --btn-hover: #133699; --on-btn: #FFFFFF;
+    --accent-soft: #E8EDFB; --focus: #1A46C4;
+    --ok: #17672F; --err: #B3261E; --live: #17672F; --live-soft: #E3F3E7;
+    /* The Challenge band is dark in both themes. */
+    --band: #14171D; --band-2: #1E222B; --band-line: #343A47; --band-ink: #F3F5F8; --band-ink-2: #C3C9D4; --band-accent: #A9C1FF;
+    --bar: rgba(248,247,244,0.86);
+    --shadow: 0 1px 2px rgba(20,23,29,0.04), 0 8px 24px rgba(20,23,29,0.06);
+    --shadow-lift: 0 2px 4px rgba(20,23,29,0.05), 0 18px 40px rgba(20,23,29,0.12);
+    --r-s: 10px; --r-m: 16px; --r-l: 24px;
+    --wrap: 1120px; --gutter: 32px;
     --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
     --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #000000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
-      --label: #FFFFFF; --label-2: rgba(235,235,245,0.7); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
-      --tint: #0A84FF; --indigo: #7D7AFF; --green: #32D74B; --amber: #e8a93c;
-      --link: #0A84FF; --btn: #0071E3; --eyebrow: #9FCBFF; --nav-link: rgba(235,235,245,0.82);
-      --field-border: rgba(235,235,245,0.35); --ok: #32D74B;
-      --bar: rgba(22,22,24,0.7); --bar-border: rgba(255,255,255,0.1);
-      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
-      --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 44px rgba(0,0,0,0.6);
-      --glow: 0.42;
+    :root {
+      --bg: #0D0F13; --surface: #16191F; --surface-2: #1D2129;
+      --ink: #F1F3F7; --ink-2: #BEC5D1; --ink-3: #9AA3B2;
+      --line: #282D37; --line-2: #3A404C; --field-border: #7C8494;
+      --link: #9DB8FF; --btn: #2F5BDB; --btn-hover: #3F6BEB; --on-btn: #FFFFFF;
+      --accent-soft: #182341; --focus: #9DB8FF;
+      --ok: #6BD68B; --err: #FF9A90; --live: #6BD68B; --live-soft: #14301E;
+      --band: #16191F; --band-2: #1F232C; --band-line: #343A47;
+      --bar: rgba(13,15,19,0.86);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+      --shadow-lift: 0 2px 4px rgba(0,0,0,0.4), 0 18px 40px rgba(0,0,0,0.55);
     }
   }
-  :root[data-theme="dark"] {
-    --bg: #000000; --card: #1C1C1E; --fill: rgba(120,120,128,0.24); --fill-2: rgba(120,120,128,0.32);
-    --label: #FFFFFF; --label-2: rgba(235,235,245,0.7); --label-3: rgba(235,235,245,0.4); --sep: rgba(84,84,88,0.6);
-    --tint: #0A84FF; --indigo: #7D7AFF; --green: #32D74B; --amber: #e8a93c;
-    --link: #0A84FF; --btn: #0071E3; --eyebrow: #9FCBFF; --nav-link: rgba(235,235,245,0.82);
-    --field-border: rgba(235,235,245,0.35); --ok: #32D74B;
-    --bar: rgba(22,22,24,0.7); --bar-border: rgba(255,255,255,0.1);
-    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45);
-    --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 22px 44px rgba(0,0,0,0.6);
-    --glow: 0.42;
-  }
 
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html { scroll-behavior: smooth; }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: calc(var(--sat) + 72px); }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
   body {
-    margin: 0; min-height: 100dvh; background: var(--bg); color: var(--label);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-    font-size: 17px; line-height: 1.45; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
-    padding: calc(var(--sat) + 52px) 0 calc(var(--sab) + 40px);
-    overflow-x: hidden;
+    margin: 0; min-height: 100dvh; background: var(--bg); color: var(--ink);
+    font-family: var(--font); font-size: 17px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent; overflow-x: clip;
   }
+  [hidden] { display: none !important; }
+  h1, h2, h3, p, ul, ol, figure, blockquote { margin: 0; }
+  ul, ol { padding: 0; list-style: none; }
+  img, svg { display: block; max-width: 100%; }
   a { color: var(--link); text-decoration: none; }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
+  p a, .fine a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
+  .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+  .skip { position: absolute; left: 16px; top: -100px; z-index: 50; padding: 12px 18px; border-radius: var(--r-s); background: var(--btn); color: var(--on-btn); font-weight: 600; }
+  .skip:focus { top: calc(var(--sat) + 8px); }
 
-  /* ---------- Aurora backdrop ---------- */
-  /* Vivid behind the hero, then dialled down on scroll so the long reading
-     sections stay calm. The opacity is driven from the scroll handler. */
-  .aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; opacity: var(--aurora-o, 1); }
-  .aurora::after {
-    /* Fades the colour out toward the bottom so the long text sections stay calm. */
-    content: ""; position: absolute; inset: 0;
-    background: linear-gradient(180deg, transparent 0%, var(--bg) 78%);
-  }
-  .blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: var(--glow); will-change: transform; }
-  .blob-1 { width: 46vmax; height: 46vmax; top: -18vmax; left: -12vmax; background: var(--tint); animation: drift-1 26s var(--ease) infinite alternate; }
-  .blob-2 { width: 38vmax; height: 38vmax; top: -8vmax; right: -14vmax; background: var(--indigo); animation: drift-2 32s var(--ease) infinite alternate; }
-  .blob-3 { width: 30vmax; height: 30vmax; top: 18vmax; left: 32vmax; background: var(--amber); opacity: calc(var(--glow) * 0.5); animation: drift-3 38s var(--ease) infinite alternate; }
-  @keyframes drift-1 { to { transform: translate3d(12vmax, 8vmax, 0) scale(1.15); } }
-  @keyframes drift-2 { to { transform: translate3d(-10vmax, 12vmax, 0) scale(0.9); } }
-  @keyframes drift-3 { to { transform: translate3d(-16vmax, -6vmax, 0) scale(1.2); } }
+  /* ---------- Type ---------- */
+  .kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--link); }
+  h2 { font-size: clamp(28px, 3.6vw, 40px); line-height: 1.12; letter-spacing: -0.022em; font-weight: 700; text-wrap: balance; }
+  h3 { font-size: 19px; line-height: 1.3; letter-spacing: -0.01em; font-weight: 650; }
+  .lead { font-size: clamp(18px, 1.7vw, 20px); line-height: 1.5; color: var(--ink-2); max-width: 62ch; text-wrap: pretty; }
+  .fine { font-size: 14.5px; color: var(--ink-3); }
 
-  /* ---------- Nav ---------- */
-  .nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 30; padding-top: var(--sat);
-    background: var(--bar); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
-    border-bottom: 1px solid transparent; transition: border-color 0.3s, background 0.3s;
-  }
-  .nav.is-scrolled { border-bottom-color: var(--bar-border); }
-  .nav-inner { max-width: 720px; margin: 0 auto; height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 20px; }
-  /* The brand fades in once the page scrolls. While it is invisible it is
-     also visibility:hidden, so it is not an invisible first Tab stop; it
-     keeps its box either way, so the links never shift when it appears.
-     It never wraps: the breakpoints below take things away instead. */
-  .brand { flex: 0 0 auto; white-space: nowrap; font-weight: 700; font-size: 17px; color: var(--label); display: flex; align-items: center; gap: 10px;
-           opacity: 0; transform: translateY(-6px); visibility: hidden; pointer-events: none;
-           transition: opacity 0.4s var(--ease), transform 0.4s var(--ease), visibility 0s linear 0.4s; }
-  .nav.is-scrolled .brand { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition-delay: 0s; }
-  .brand img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
-  /* --lp is the link's side padding, shared with its underline. The row may
-     shrink and scroll (with a fade on the hidden side, set by script) - a
-     last resort for very narrow screens, zoom and enlarged text spacing;
-     the breakpoints keep every tested width from needing it. */
-  .nav-links { --lp: 12px; display: flex; gap: 2px; margin-left: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
-  .nav-links::-webkit-scrollbar { display: none; }
-  .nav-links a { flex: 0 0 auto; position: relative; font-size: 15px; font-weight: 500; color: var(--nav-link); padding: 8px var(--lp); border-radius: 10px; min-height: 40px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; transition: color 0.25s; }
-  .nav-links a::after { content: ""; position: absolute; left: var(--lp); right: var(--lp); bottom: 5px; height: 2px; border-radius: 2px; background: var(--tint); transform: scaleX(0); transform-origin: center; transition: transform 0.3s var(--ease); }
-  .nav-links a:hover { color: var(--label); }
-  .nav-links a:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
-  .nav-links a.is-active { color: var(--label); }
+  /* ---------- Buttons ---------- */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px;
+         font: inherit; font-size: 16px; font-weight: 650; line-height: 1.2; text-decoration: none; white-space: nowrap; cursor: pointer;
+         border: 1.5px solid transparent; transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s var(--ease); }
+  .btn svg { width: 19px; height: 19px; flex: none; }
+  .btn-primary { background: var(--btn); color: var(--on-btn); }
+  .btn-primary:hover { background: var(--btn-hover); }
+  .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
+  .btn-secondary:hover { border-color: var(--ink-3); }
+  .btn:active { transform: scale(0.98); }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .arrow-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 650; }
+  .arrow-link svg { width: 15px; height: 15px; transition: transform 0.2s var(--ease); }
+  .arrow-link:hover svg { transform: translate(2px, -2px); }
+
+  /* ---------- Top bar ---------- */
+  .nav { position: sticky; top: 0; z-index: 30; padding-top: var(--sat); background: var(--bar);
+         -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+         border-bottom: 1px solid transparent; transition: border-color 0.25s; }
+  .nav.is-scrolled { border-bottom-color: var(--line); }
+  .nav-inner { height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { flex: none; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
+  .brand img { width: 30px; height: 30px; border-radius: 50%; }
+  .nav-links { display: flex; gap: 2px; min-width: 0; margin-right: -12px; }
+  .nav-links a { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 12px;
+                 font-size: 15px; font-weight: 550; color: var(--ink-2); white-space: nowrap; border-radius: var(--r-s); transition: color 0.2s; }
+  .nav-links a:hover, .nav-links a.is-active { color: var(--ink); }
+  .nav-links a::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 7px; height: 2px; border-radius: 2px; background: var(--link); transform: scaleX(0); transition: transform 0.25s var(--ease); }
   .nav-links a.is-active::after { transform: scaleX(1); }
-  .progress { position: absolute; left: 0; bottom: -1px; height: 2px; width: 100%; transform: scaleX(0); transform-origin: 0 50%; background: linear-gradient(90deg, var(--tint), var(--indigo)); }
-  /* Narrowing, one step at a time: the name goes (the avatar stays), then the
-     links tighten, then the avatar goes and the links spread across the bar
-     like a tab bar, then the type drops a point for the smallest phones. */
-  @media (max-width: 600px) { .brand span { display: none; } }
-  @media (max-width: 520px) { .nav-inner { padding: 0 16px; } .nav-links { --lp: 9px; } .nav-links a { font-size: 14px; } }
-  @media (max-width: 420px) {
-    .nav-inner { padding: 0 12px; }
-    .brand { display: none; }
-    .nav-links { --lp: 8px; flex: 1 1 auto; margin-left: 0; justify-content: space-between; gap: 0; }
-  }
-  @media (max-width: 374px) { .nav-links { --lp: 6px; } .nav-links a { font-size: 13px; } }
-  /* Edge fade for a row that scrolls sideways: only on the side that has more. */
-  [data-fade="r"] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
-  [data-fade="l"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px); mask-image: linear-gradient(90deg, transparent, #000 28px); }
-  [data-fade="lr"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
-  /* Windows High Contrast drops the blur but keeps the bar's transparency,
-     so page text showed through the links. */
-  @media (forced-colors: active) {
-    .nav { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 1px solid CanvasText; }
-  }
+  .nav-links a:focus-visible { outline-offset: -3px; }
+  @media (forced-colors: active) { .nav { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom-color: CanvasText; } }
 
   /* ---------- Hero ---------- */
-  .hero { padding: 40px 0 26px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; }
-  .avatar-ring {
-    position: relative; width: 156px; height: 156px; border-radius: 50%; display: grid; place-items: center;
-    background: conic-gradient(from 0deg, var(--tint), var(--indigo), var(--green), var(--amber), var(--tint));
-    animation: spin 14s linear infinite; will-change: transform;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .avatar-ring::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--bg); }
-  .avatar { position: relative; z-index: 1; width: 140px; height: 140px; border-radius: 50%; object-fit: cover; box-shadow: var(--shadow); background: var(--fill); animation: spin-back 14s linear infinite; }
-  @keyframes spin-back { to { transform: rotate(-360deg); } }
-  .eyebrow { font-size: 13px; font-weight: 600; color: var(--eyebrow); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
-  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; margin: 0; text-wrap: balance; }
-  h1 .w { display: inline-block; opacity: 0; transform: translateY(16px); animation: rise 0.7s var(--ease) forwards; }
-  @keyframes rise { to { opacity: 1; transform: none; } }
-  .role { font-size: 16px; font-weight: 600; margin: 10px auto 0; max-width: 32ch; line-height: 1.35; text-wrap: balance; }
-  .role span { display: block; font-weight: 500; color: var(--label-2); font-size: 15px; margin-top: 2px; }
-  .lede { font-size: 18px; color: var(--label-2); margin: 12px auto 0; max-width: 36ch; text-wrap: balance; }
-  .lede .rot { color: var(--label); font-weight: 600; display: inline-block; transition: opacity 0.3s, transform 0.3s; }
-  .lede .rot.out { opacity: 0; transform: translateY(-8px); }
-  .proof { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; margin: 0; padding: 0; }
-  .proof li { display: flex; flex-direction: column; align-items: center; min-width: 7.5em; }
-  .proof b { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .proof span { font-size: 13px; color: var(--label-2); margin-top: 2px; }
-  /* Small live numbers (votes, "opened by 2 people", weekly views) are off
-     while data-counts="off" sits on <html>: low counts read as low traction
-     to someone sizing up Erik's work. The "N apps live" count stays. Remove
-     the attribute to bring them all back; the scripts below check it too. */
-  [data-counts="off"] .cb-board, [data-counts="off"] .livefeed, [data-counts="off"] .trendbar, [data-counts="off"] .views { display: none !important; }
-  .cta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
-  .btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 20px; border-radius: 14px; font-weight: 600; font-size: 16px; border: none; transition: transform 0.18s var(--ease), box-shadow 0.25s; }
-  .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
-  .btn:active { transform: scale(0.97); }
-  .btn-primary { background: var(--btn); color: #fff; }
-  /* The sheen moves by transform (no layout per frame) and plays twice, then
-     rests. At 0.12 white it never drops the label below 4.5:1. */
-  .btn-primary::after {
-    content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: 0; transform: translateX(-150%);
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
-    animation: sheen 4.5s ease-in-out 1.2s 2;
-  }
-  @keyframes sheen { 0% { transform: translateX(-150%); } 22%, 100% { transform: translateX(325%); } }
-  .btn-secondary { background: var(--card); color: var(--link); box-shadow: var(--shadow); }
-  .btn svg { width: 20px; height: 20px; }
-  .facts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-  .fact { font-size: 13.5px; font-weight: 500; color: var(--label-2); background: var(--card); box-shadow: var(--shadow); border-radius: 999px; padding: 7px 13px; display: inline-flex; align-items: center; gap: 6px; transition: transform 0.2s var(--ease), color 0.2s; }
-  .fact:hover { transform: translateY(-2px); color: var(--label); }
-  .fact svg { width: 14px; height: 14px; color: var(--tint); }
-  .cue { margin-top: 6px; color: var(--label-3); display: grid; place-items: center; animation: bob 2.2s ease-in-out 3; }
-  .cue svg { width: 22px; height: 22px; }
-  @keyframes bob { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(6px); opacity: 1; } }
+  .hero { padding: clamp(40px, 7vw, 88px) 0 0; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(32px, 6vw, 88px); align-items: center; }
+  .hero .kicker { color: var(--ink-3); }
+  .hero h1 { margin-top: 14px; font-size: clamp(48px, 8.2vw, 92px); line-height: 0.98; letter-spacing: -0.04em; font-weight: 750; }
+  .role { margin-top: 22px; font-size: clamp(18px, 1.9vw, 22px); line-height: 1.3; font-weight: 650; letter-spacing: -0.01em; }
+  .role span { display: block; margin-top: 4px; font-size: 0.86em; font-weight: 500; letter-spacing: 0; color: var(--ink-2); }
+  .hero .lead { margin-top: 20px; font-size: clamp(19px, 2vw, 23px); line-height: 1.42; max-width: 30em; color: var(--ink); }
+  .hero .cta-row { margin-top: 30px; }
+  .portrait { position: relative; width: clamp(220px, 27vw, 340px); aspect-ratio: 1; }
+  .portrait img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--r-l); box-shadow: var(--shadow-lift); }
+  .portrait::before { content: ""; position: absolute; inset: 14px -14px -14px 14px; border-radius: var(--r-l); border: 1.5px solid var(--line-2); }
+  .portrait img { position: relative; }
+  .focus { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
 
-  /* ---------- Marquee ---------- */
-  .marquee { margin: 22px -20px 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
-  /* The loop time scales with the number of tags (about 2.8s each), so adding
-     one does not speed the whole row up. 18 tags. */
-  .marquee-track { display: flex; width: max-content; gap: 10px; margin: 0; padding: 0; list-style: none; animation: slide 50s linear infinite; }
-  .marquee:hover .marquee-track, .marquee.paused .marquee-track { animation-play-state: paused; }
-  @keyframes slide { to { transform: translateX(-50%); } }
-  .tag { flex: 0 0 auto; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--label-2); background: var(--fill); border-radius: 999px; padding: 7px 14px; white-space: nowrap; }
+  /* Proof: the four figures, on the first screen. */
+  .proof { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: clamp(40px, 6vw, 72px); border-top: 1.5px solid var(--ink); }
+  .proof li { padding: 22px 24px 4px 0; }
+  .proof li + li { padding-left: 24px; border-left: 1px solid var(--line); }
+  .proof b { display: block; font-size: clamp(34px, 4.6vw, 56px); line-height: 1; letter-spacing: -0.035em; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .proof span { display: block; margin-top: 10px; font-size: 15px; line-height: 1.35; color: var(--ink-2); max-width: 18ch; }
 
   /* ---------- Sections ---------- */
-  section { padding: 26px 0 8px; scroll-margin-top: calc(var(--sat) + 60px); }
-  /* The Challenge banner. Two links, because links cannot nest: the top row
-     goes to /challenge and its ::after is stretched over the whole banner,
-     and the latest-drop tile sits above that layer as a link of its own. */
-  .challenge-banner {
-    position: relative; margin: 0 0 30px; padding: 18px 20px 14px; border-radius: 22px; color: #fff;
-    background: radial-gradient(120% 140% at 100% 0%, rgba(255,255,255,.12), transparent 55%), linear-gradient(120deg, #6d28d9, #be185d 60%, #b45309);
-    box-shadow: 0 16px 36px -14px rgba(236,72,153,.7); transition: transform .3s var(--ease), box-shadow .3s;
-  }
-  .challenge-banner:hover { transform: translateY(-3px); box-shadow: 0 22px 44px -14px rgba(236,72,153,.8); }
-  .challenge-banner:active { transform: scale(.985); }
-  .cb-main { display: flex; align-items: center; gap: 16px; color: inherit; }
-  .cb-main::after { content: ""; position: absolute; inset: 0; border-radius: 22px; }
-  .cb-main:focus-visible { outline: none; }
-  .cb-main:focus-visible::after { outline: 3px solid var(--tint); outline-offset: 3px; }
-  .cb-flask { font-size: 38px; flex: 0 0 auto; width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: rgba(255,255,255,.18); }
-  .cb-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .cb-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
-  .cb-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,.3); }
-  .cb-title { font-size: 21px; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; }
-  .cb-sub { font-size: 14.5px; line-height: 1.35; }
-  /* On a phone the flask shrinks and the arrow goes (the whole banner is
-     still the tap target, and the tile carries its own), which gives the
-     title one line instead of two. */
-  @media (max-width: 480px) {
-    .cb-long, .cb-go { display: none; }
-    .cb-main { gap: 12px; }
-    .cb-flask { width: 46px; height: 46px; border-radius: 13px; font-size: 28px; }
-  }
-  .cb-go { font-size: 24px; font-weight: 700; transition: transform .3s var(--ease); }
-  .cb-main:hover .cb-go { transform: translateX(4px); }
-  /* The live part: the lab's latest drop, how many apps are live, and the
-     countdown to the next one (09:00 UTC daily). Every line in it has a fixed
-     height - the tagline is one line on a wide screen, exactly two on a
-     phone and three on the narrowest - so the copy in the markup, the live copy that replaces it, and
-     the wait for the lab to answer all take the same space. The tagline's
-     height is counted in lines (lh, after an em fallback), so a reader's own
-     line-height (WCAG 1.4.12 text spacing) grows the box instead of cutting
-     the text inside it. */
-  .cb-live { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.24); }
-  .cb-drop { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 15px; color: #fff;
-             background: rgba(0,0,0,.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); transition: background .2s; }
-  .cb-drop:hover { background: rgba(0,0,0,.3); }
-  .cb-drop:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-  .cb-em { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; line-height: 1;
-           background: linear-gradient(135deg, var(--c1, rgba(255,255,255,.22)), var(--c2, rgba(255,255,255,.1))); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+  .section { padding-top: clamp(64px, 9vw, 120px); }
+  .section-head { display: grid; gap: 12px; margin-bottom: clamp(24px, 3.5vw, 40px); max-width: 760px; }
+  .section-head.row { max-width: none; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .sub-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; margin: clamp(40px, 5vw, 64px) 0 20px; }
+  .sub-head h2 { font-size: clamp(22px, 2.4vw, 28px); letter-spacing: -0.018em; }
+  .sub-head p { color: var(--ink-2); font-size: 16px; }
+
+  /* What I do: three columns under the hero. */
+  .pillars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: clamp(40px, 5vw, 64px); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .pillar { padding: 28px 28px 30px 0; }
+  .pillar + .pillar { padding-left: 28px; border-left: 1px solid var(--line); }
+  .pillar svg { width: 24px; height: 24px; color: var(--link); margin-bottom: 14px; }
+  .pillar p { margin-top: 6px; font-size: 16px; color: var(--ink-2); }
+
+  /* ---------- Chapter, the featured build ---------- */
+  .feature { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); box-shadow: var(--shadow); overflow: hidden; }
+  .feature-copy { padding: clamp(28px, 4.4vw, 56px); display: flex; flex-direction: column; align-items: flex-start; }
+  .feature-title { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+  .feature-title h2 { font-size: clamp(34px, 4.4vw, 52px); letter-spacing: -0.03em; }
+  .feature-tag { margin-top: 12px; font-size: clamp(19px, 2vw, 23px); line-height: 1.35; font-weight: 600; letter-spacing: -0.012em; text-wrap: balance; }
+  .feature-copy > p.body { margin-top: 14px; color: var(--ink-2); max-width: 56ch; }
+  .feature-list { display: grid; gap: 14px; margin: 26px 0 30px; }
+  .feature-list li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; font-size: 16px; line-height: 1.45; color: var(--ink-2); }
+  .feature-list svg { width: 22px; height: 22px; margin-top: 1px; color: var(--chapter); }
+  .feature-list b { color: var(--ink); font-weight: 650; }
+  .feature .fine { margin-top: 18px; }
+  .feature { --chapter: #5B2A6E; }
+  @media (prefers-color-scheme: dark) { .feature { --chapter: #D9A8EC; } }
+  .feature-shot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: clamp(28px, 4vw, 48px) 24px 24px;
+                  background: linear-gradient(160deg, rgba(91,42,110,0.13), rgba(122,74,28,0.13)); border-left: 1px solid var(--line); }
+  @media (prefers-color-scheme: dark) { .feature-shot { background: linear-gradient(160deg, rgba(91,42,110,0.38), rgba(122,74,28,0.26)); } }
+  .feature-shot figcaption { font-size: 14px; line-height: 1.4; color: var(--ink-2); text-align: center; max-width: 34ch; }
+  .device { padding: 9px; border-radius: 38px; background: #101114; box-shadow: var(--shadow-lift), inset 0 0 0 1.5px rgba(255,255,255,0.14); }
+  .device img { width: 100%; height: auto; aspect-ratio: 390 / 800; border-radius: 30px; background: var(--surface-2); }
+  .device-link { display: block; width: min(100%, 300px); border-radius: 38px; transition: transform 0.3s var(--ease); }
+  .device-link:hover { transform: translateY(-4px); }
+  .device-link:focus-visible { border-radius: 38px; }
+
+  /* App tiles: the lab's own two colours behind the app's emoji. */
+  .tile { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; font-size: 26px; line-height: 1;
+          background: linear-gradient(135deg, var(--c1, #3A3F4B), var(--c2, #23262E)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16); }
+  .tile.lg { width: 64px; height: 64px; border-radius: 18px; font-size: 32px; }
+  .t-chapter { --c1: #5b2a6e; --c2: #7a4a1c; }
+  .t-reset { --c1: #6f6303; --c2: #2a301e; }
+  .t-stars { --c1: #da0185; --c2: #453702; }
+  .t-trek { --c1: #218721; --c2: #2769cc; }
+  .t-snug { --c1: #924a4c; --c2: #6c7484; }
+
+  /* ---------- New in the Lab ---------- */
+  .lab-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); box-shadow: var(--shadow); }
+  a.card { color: inherit; transition: transform 0.25s var(--ease), box-shadow 0.25s, border-color 0.25s; }
+  a.card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: var(--line-2); }
+  .lab-card { display: flex; flex-direction: column; align-items: flex-start; padding: 22px; min-height: 100%; }
+  .lab-card .chip { margin-left: auto; }
+  .lab-top { display: flex; align-items: flex-start; width: 100%; margin-bottom: 18px; }
+  .lab-card p { margin-top: 6px; font-size: 15.5px; line-height: 1.45; color: var(--ink-2); }
+  .lab-card .for { margin-top: 12px; font-size: 13.5px; color: var(--ink-3); }
+  .open { display: inline-flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 16px; font-size: 15px; font-weight: 650; color: var(--link); }
+  .open svg { width: 14px; height: 14px; transition: transform 0.2s var(--ease); }
+  a:hover > .open svg, a:hover .open svg { transform: translate(2px, -2px); }
+  .chip { display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+          background: var(--surface-2); color: var(--ink-2); }
+  .chip.work { background: var(--accent-soft); color: var(--link); }
+  .live { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 3px;
+          background: var(--live-soft); color: var(--live); }
+  .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ---------- The Challenge band ---------- */
+  /* The copy in .cb-live is what shows when the lab does not answer; it
+     carries no numbers. While the first answer is on its way the tile keeps
+     its place with its contents out of sight - by an animation with a delay,
+     so with no script at all the copy still appears. */
+  .challenge-banner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(20px, 4vw, 56px); align-items: center; margin-top: 16px;
+                      padding: clamp(24px, 3.6vw, 44px); border-radius: var(--r-l); background: var(--band); color: var(--band-ink); border: 1px solid var(--band-line); }
+  .cb-main { display: block; color: inherit; border-radius: var(--r-m); }
+  .cb-main:focus-visible, .cb-drop:focus-visible { outline-color: #fff; }
+  .cb-kicker { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--band-accent); }
+  .cb-flask { font-size: 16px; }
+  .cb-title { display: block; margin-top: 12px; font-size: clamp(28px, 3.6vw, 40px); line-height: 1.1; letter-spacing: -0.025em; font-weight: 700; }
+  .cb-sub { display: block; margin-top: 12px; font-size: 17px; line-height: 1.5; color: var(--band-ink-2); max-width: 42ch; }
+  .cb-go { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 12px; font-weight: 650; color: var(--band-accent); }
+  .cb-go svg { width: 15px; height: 15px; transition: transform 0.2s var(--ease); }
+  .cb-main:hover .cb-go svg { transform: translate(2px, -2px); }
+  .cb-live { min-width: 0; }
+  .cb-drop { position: relative; display: flex; align-items: center; gap: 14px; min-height: 84px; padding: 16px 18px; border-radius: var(--r-m); color: var(--band-ink);
+             background: var(--band-2); border: 1px solid var(--band-line); transition: border-color 0.2s; }
+  .cb-drop:hover { border-color: var(--band-ink-2); }
+  .cb-em { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; font-size: 26px; line-height: 1;
+           background: linear-gradient(135deg, var(--c1, #3A404D), var(--c2, #2A2F3A)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16); }
   .cb-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
-  .cb-k { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; line-height: 1.4; color: rgba(255,255,255,.9); padding-right: 22px; }
-  .cb-name, .cb-tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cb-name { font-size: 16px; font-weight: 700; line-height: 1.3; }
-  .cb-tag { font-size: 13.5px; line-height: 1.35; height: 1.35em; height: 1lh; }
-  /* Out of the flow, in the corner beside the kicker, so the name and the
-     tagline get the width under it rather than a column the arrow holds for
-     the whole height of the tile. */
-  .cb-arr { position: absolute; top: 10px; right: 12px; font-size: 16px; font-weight: 700; }
+  .cb-k { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--band-accent); padding-right: 24px; }
+  .cb-name { font-size: 18px; font-weight: 700; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cb-tag { font-size: 14.5px; line-height: 1.4; color: var(--band-ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; min-height: 2.8em; }
+  .cb-arr { position: absolute; top: 14px; right: 16px; width: 14px; height: 14px; color: var(--band-ink-2); transition: transform 0.2s var(--ease); }
   .cb-drop:hover .cb-arr { transform: translate(2px, -2px); }
-  .cb-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 13px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .cb-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 0 4px; font-size: 14px; font-weight: 600; color: var(--band-ink-2); font-variant-numeric: tabular-nums; }
   .cb-count { visibility: hidden; }
   .cb-live[data-state="live"] .cb-count { visibility: visible; }
-  @media (max-width: 560px) {
-    .cb-tag { white-space: normal; height: 2.7em; height: 2lh; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
-  }
-  /* The narrowest phones (320px) get a third line: two cut most taglines. */
-  @media (max-width: 374px) {
-    .cb-tag { -webkit-line-clamp: 3; line-clamp: 3; height: 4.05em; height: 3lh; }
-  }
-  /* Waiting for the lab: the frame holds its place, its contents stay out of
-     sight (never a number that is about to change), then fade in. Only with
-     script on - without it the copy in the markup is simply shown. Opacity
-     only, not visibility: the markup copy carries no numbers, and hiding it
-     would leave the focusable link with no accessible name while it waits. */
-  .cb-drop > *, .cb-meta { transition: opacity .35s var(--ease), transform .3s var(--ease); }
-  .js .cb-live[data-state="wait"] .cb-drop > *, .js .cb-live[data-state="wait"] .cb-meta { opacity: 0; }
-  /* Keep or kill standings: the lab's top three, from /api/activity (which
-     reads the lab's /api/lab/leaderboard). The same box in every state - the
-     three cells are always in the markup and set its height, and the copy for
-     "no numbers" (no answer, or nobody has voted) sits in the same grid cell
-     on top of them - so nothing moves when it fills, empties or refreshes.
-     Under the banner's link layer on purpose: a tap anywhere on it opens
-     /challenge, like the rest of the banner. */
-  .cb-board { margin-top: 12px; }
-  .cb-bk { display: block; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; line-height: 1.4;
-           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cb-bgrid { display: grid; margin-top: 6px; }
+  .cb-drop > *, .cb-meta { transition: opacity 0.35s var(--ease); }
+  .cb-live[data-state="wait"] .cb-drop > *, .cb-live[data-state="wait"] .cb-meta { opacity: 0; animation: cb-late 0.3s 3s forwards; }
+  @keyframes cb-late { to { opacity: 1; } }
+
+  /* Keep or kill standings (/api/activity). The same box in every state. */
+  .cb-board { margin-top: 14px; }
+  .cb-bk { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--band-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cb-bgrid { display: grid; margin-top: 8px; }
   .cb-bl, .cb-bs { grid-area: 1 / 1; min-width: 0; }
-  .cb-bl { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .cb-bc { position: relative; overflow: hidden; min-width: 0; display: flex; flex-direction: column; padding: 6px 9px 8px; border-radius: 11px;
-           background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
-  .cb-bc.lead { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.8); }
+  .cb-bl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .cb-bc, .cb-bs { border-radius: 12px; background: var(--band-2); border: 1px solid var(--band-line); }
+  .cb-bc { min-width: 0; display: flex; flex-direction: column; padding: 8px 10px 9px; }
+  .cb-bc.lead { border-color: var(--band-ink); }
   .cb-bn, .cb-bp { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cb-bn { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
-  .cb-bp { font-size: 12.5px; line-height: 1.35; font-variant-numeric: tabular-nums; }
-  .cb-br { font-weight: 800; margin-right: 4px; }
-  /* The keep share, as a hairline under the cell. Decoration: the number
-     above it says the same thing in words. */
-  /* No numbers to show: one tile over the same area, so it reads as meant. */
-  .cb-bs { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px 12px; border-radius: 11px;
-           background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+  .cb-bn { font-size: 14px; font-weight: 700; line-height: 1.3; }
+  .cb-bp { font-size: 13px; line-height: 1.35; color: var(--band-ink-2); font-variant-numeric: tabular-nums; }
+  .cb-br { font-weight: 800; margin-right: 5px; }
+  .cb-bs { display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px 12px; font-size: 14px; font-weight: 600; line-height: 1.35; }
   .cb-board[data-state="live"] .cb-bs, .cb-board[data-state="wait"] .cb-bs, .js .cb-board[data-state="wait"] .cb-bk { visibility: hidden; }
   .cb-board[data-state="static"] .cb-bl, .cb-board[data-state="wait"] .cb-bl { visibility: hidden; }
   html:not(.js) .cb-board .cb-bs { visibility: visible; }
-  .cb-bl, .cb-bs, .cb-bk { transition: opacity .35s var(--ease); }
-  .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  /* On a phone, three columns would cut every name; three short rows. */
-  @media (max-width: 480px) {
-    .cb-bl { grid-template-columns: 1fr; gap: 3px; }
-    .cb-bc { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 9px 4px; border-radius: 9px; }
-    .cb-bn { flex: 1 1 auto; min-width: 0; }
-    .cb-bp { flex: 0 0 auto; }
-    .cb-bc .cb-w { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  }
-  /* Wraps rather than squeezing: on the narrowest phones the note drops
-     under the heading instead of breaking into a column beside it. */
-  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 0 0 14px; }
-  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
-  .section-head .sub { color: var(--label-2); font-size: 15px; }
 
-  /* Hidden only once script has run (the `js` class is set in <head>), so a
-     page with scripts off, or printed, shows everything. */
-  .js [data-reveal] { opacity: 0; transform: translateY(22px); transition: opacity 0.75s var(--ease), transform 0.75s var(--ease); transition-delay: var(--d, 0s); }
-  .js [data-reveal].in { opacity: 1; transform: none; }
-  @media print { [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; } }
+  /* The small live numbers (keep-or-kill standings, "Live now", "Most used
+     this week", per-card view counts) are off while data-counts="off" sits on
+     <html>: low counts read as low traction to the people this page is for.
+     Remove the attribute to bring them all back. */
+  [data-counts="off"] .cb-board, [data-counts="off"] .livefeed, [data-counts="off"] .trendbar, [data-counts="off"] .views { display: none !important; }
 
-  /* ---------- Projects ---------- */
-  /* The live previews strip. A phone-shaped frame per app, scroll-snapped so
-     a swipe lands on the next one; the app inside renders at its natural
-     390px and is scaled down to fit, so nothing reflows into a squashed
-     layout. Bleeds to the page edge on a phone so the next card peeks in. */
-  .previews { position: relative; margin: 0 -20px 22px; }
-  .preview-strip { display: flex; gap: 14px; padding: 4px 20px 10px; scroll-padding-inline: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
-                   scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
-  .preview-strip::-webkit-scrollbar { display: none; }
-  /* Sized so a frame, its caption and the dots all fit one phone screen with
-     the section head above: about 58% of the width, never taller than the
-     viewport allows - but never under 150px, which a phone in landscape
-     would otherwise shrink them to. A frame taller than a landscape screen is
-     fine; the page scrolls. */
-  .preview { flex: 0 0 auto; margin: 0; scroll-snap-align: center; width: min(58vw, 210px, max(150px, calc((100vh - 260px) * 9 / 18.5)));
-             width: min(58vw, 210px, max(150px, calc((100svh - 260px) * 9 / 18.5))); }
-  .phone { position: relative; aspect-ratio: 9 / 18.5; border-radius: 30px; background: var(--card); box-shadow: var(--shadow-lift);
-           padding: 8px; overflow: hidden; }
-  .phone-screen { position: relative; width: 100%; height: 100%; border-radius: 23px; overflow: hidden; background: var(--fill); }
-  .phone-screen iframe { position: absolute; top: 0; left: 0; width: 390px; height: 800px; border: 0; transform-origin: top left;
-                         opacity: 0; transition: opacity .5s var(--ease); pointer-events: none; }
-  .phone-screen iframe.in { opacity: 1; }
-  .phone-skel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
-                font-size: 12.5px; color: var(--label-2); padding: 20px; }
-  .phone-tap { position: absolute; inset: 0; border-radius: 30px; }
-  /* Inset, because .phone clips anything drawn outside it. */
-  .phone-tap:focus-visible { outline: 3px solid var(--tint); outline-offset: -3px; }
-  .preview figcaption { display: flex; flex-direction: column; gap: 1px; margin: 10px 4px 0; overflow-wrap: anywhere; }
-  .preview figcaption b { font-size: 15px; font-weight: 600; }
-  .preview figcaption span { font-size: 13px; color: var(--label-2); }
-  /* Dots are buttons for a mouse (a tap on a phone is a swipe anyway); they
-     stay out of the Tab order and the accessibility tree, where the six
-     "Open ..." links already cover every frame. */
-  .preview-dots { display: flex; justify-content: center; margin-top: 2px; }
-  .preview-dots button { width: 12px; height: 18px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; }
-  .preview-dots button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--fill-2); transition: background .2s, transform .2s; }
-  .preview-dots button.on::before { background: var(--tint); transform: scale(1.25); }
-  /* Paddles, for a mouse: without them a wheel scrolls the page, not the
-     strip, and three of the six frames sit out of reach. */
-  .strip-nav { display: none; position: absolute; top: 42%; z-index: 2; width: 36px; height: 36px; margin-top: -18px; padding: 0; border: 0; border-radius: 50%;
-               place-items: center; background: var(--card); color: var(--label); box-shadow: var(--shadow-lift); cursor: pointer;
-               transition: opacity .25s, transform .2s var(--ease); }
-  .strip-nav:hover { transform: scale(1.08); }
-  .strip-nav svg { width: 8px; height: 14px; }
-  .strip-nav.prev { left: 8px; } .strip-nav.prev svg { transform: scaleX(-1); }
-  .strip-nav.next { right: 8px; }
-  .preview-strip:not([data-fade*="l"]) ~ .strip-nav.prev, .preview-strip:not([data-fade*="r"]) ~ .strip-nav.next { opacity: 0; pointer-events: none; }
-  @media (hover: hover) and (pointer: fine) and (max-width: 1399px) { .strip-nav { display: grid; } }
-  @media (min-width: 620px) {
-    .previews { margin-left: 0; margin-right: 0; } .preview-strip { padding-left: 0; padding-right: 0; scroll-padding-inline: 0; }
-    .strip-nav.prev { left: -16px; } .strip-nav.next { right: -16px; }
-  }
-  /* On a phone the strip already runs to the screen edge; in the desktop
-     column it stops at an arbitrary line, so fade that edge like the marquee. */
-  @media (max-width: 619px) { .preview-strip[data-fade] { -webkit-mask-image: none; mask-image: none; } }
-
-  .projects { display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 620px) { .projects { grid-template-columns: 1fr 1fr; } }
-
-  /* Desktop: this page is a 720px column, which is right for the hero and
-     wrong for the two things that are rows. The preview strip is six phone
-     frames scroll-snapped side by side - on a phone you swipe it, and on a
-     desktop you cannot, so the last few were simply unreachable behind a
-     clipped edge. Both rows break out of the column to their own width and
-     centre; nothing else moves. */
-  @media (min-width: 1180px) {
-    .projects { margin-inline: calc((680px - var(--wide-row)) / 2); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-  }
-  /* The strip breaks out later than the card grid does, because it needs more
-     room: six frames at 210px with 14px gaps is 1330px, and the cutoff used to
-     be tuned to exactly five. Laying all six out at 1180px would either
-     overflow the window or shrink them into something you cannot read.
-     Below this width it stays the swipe strip it is on a phone - which works
-     with a trackpad and keeps its dots - and above it they all sit side by
-     side with nothing left to page through. */
-  @media (min-width: 1400px) {
-    .previews { margin-inline: calc((680px - var(--wide-strip)) / 2); }
-    .preview-strip { justify-content: center; overflow-x: visible; scroll-snap-type: none; padding-inline: 0; }
-    .preview-dots { display: none; }
-  }
-  :root { --wide-row: 1120px; --wide-strip: 1340px; }
-  .project {
-    position: relative; overflow: hidden; display: flex; gap: 14px; align-items: flex-start;
-    background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; color: inherit;
-    min-height: 112px; transform-style: preserve-3d;
-    transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
-  }
-  .project::before {
-    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.35s;
-    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--tint) 16%, transparent), transparent 62%);
-  }
-  .project:hover { box-shadow: var(--shadow-lift); }
-  .project:hover::before { opacity: 1; }
-  .project:active { transform: scale(0.985); }
-  .project img { width: 56px; height: 56px; border-radius: 14px; flex: 0 0 auto; box-shadow: 0 1px 2px rgba(0,0,0,0.12); transition: transform 0.35s var(--ease); }
-  .project:hover img { transform: translateY(-3px) scale(1.06) rotate(-3deg); }
-  .project-body { flex: 1 1 auto; min-width: 0; }
-  .project h3 { margin: 0 0 3px; font-size: 17px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-  .project p { margin: 0; font-size: 14.5px; color: var(--label-2); line-height: 1.4; }
-  .project .open { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--link); margin-top: 8px; }
-  .project .open svg { width: 12px; height: 12px; transition: transform 0.3s var(--ease); }
-  .project:hover .open svg { transform: translate(2px, -2px); }
-  .live { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #04280f; background: var(--green); border-radius: 999px; padding: 2px 7px; position: relative; }
-  .live::before { content: ""; position: absolute; inset: 0; border-radius: 999px; background: var(--green); animation: pulse 2.4s ease-out 3; z-index: -1; }
-  /* Populated from this service's own /api/stats/public, and empty until it
-     answers. The page must still read correctly with the fetch failing. */
-  .trending { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-    color: #000; background: var(--amber, #ffb020); border-radius: 999px; padding: 2px 7px; }
-  .views { display: block; margin-top: 6px; font-size: 12px; color: var(--label-2); font-variant-numeric: tabular-nums; }
-
-  /* The trending strip. A ranked row rather than a chart: there are six
-     apps and one number each (this page is counted but left out), and a
-     chart of six bars says nothing a row of six does not. The bar behind
-     each row is the magnitude, drawn as a background so it can never push
-     the text around. */
-  .iphone-apps { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; margin-top: 22px; }
-  .iphone-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
-  .iphone-head svg { width: 28px; height: 28px; flex: none; color: var(--link); margin-top: 2px; }
-  .iphone-title { font-size: 17px; font-weight: 600; margin: 0; }
-  .iphone-sub { font-size: 14px; color: var(--label-2); margin: 2px 0 0; }
-  .iphone-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  .get-app-link { display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 10px 14px; border-radius: 14px; background: var(--fill); color: inherit; text-decoration: none; transition: background 0.2s; }
-  .get-app-link:hover { background: var(--fill-2); }
-  .get-app-link:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-  .get-app-link strong { font-size: 15px; font-weight: 600; color: var(--link); }
-  .get-app-link span { font-size: 13.5px; color: var(--label-2); }
-  .trendbar { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px 16px 10px; margin-bottom: 22px; }
-  .trendbar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-  .trendbar-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--label-2); }
-  .trendbar-sub { font-size: 12.5px; color: var(--label-2); }
-  .trendlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .trendlist a { position: relative; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px;
-                 color: inherit; text-decoration: none; overflow: hidden; }
-  .trendlist a::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); border-radius: 10px;
-                         background: color-mix(in srgb, var(--tint) 13%, transparent); transition: width .6s var(--ease); }
-  .trendlist a:hover { background: var(--fill); }
-  .trendlist .tl-rank { position: relative; width: 16px; font-size: 12px; font-weight: 700; color: var(--label-2); font-variant-numeric: tabular-nums; }
-  .trendlist .tl-name { position: relative; flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-weight: 600;
-                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .trendlist .tl-n { position: relative; font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
-  @media (min-width: 1180px) { .trendbar { margin-inline: calc((680px - var(--wide-row)) / 2); } }
-
-  /* "Live now": one row of short lines from /api/activity, scrolled sideways
-     rather than wrapped, so the strip is the same height whether it holds one
-     line or six, and a refresh never moves the page. Script-only (it has
-     nothing to say without it). While the first answer is on its way it holds
-     its place with three blank pills; if that answer is empty or does not
-     come, it is removed - see the script for when it may come back. */
-  .livefeed { margin: 0 0 22px; }
+  /* "Live now": one sideways row from /api/activity, script-only. */
+  .livefeed { margin-top: 16px; }
   html:not(.js) .livefeed, .livefeed[data-state="gone"] { display: none; }
-  .lf-card { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 10px 12px; }
-  .lf-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
-  .lf-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--label-2); white-space: nowrap; }
-  .lf-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
-  .lf-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green); animation: pulse 2.4s ease-out 3; }
-  .lf-list { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; margin: 0; padding: 0; list-style: none; overflow-x: auto;
-             scrollbar-width: none; overscroll-behavior-x: contain; scroll-padding-inline: 4px; }
+  .lf-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); }
+  .lf-head { flex: none; display: flex; align-items: center; gap: 8px; }
+  .lf-title { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+  .lf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); }
+  .lf-list { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
   .lf-list::-webkit-scrollbar { display: none; }
-  .lf-list > li { flex: 0 0 auto; max-width: min(340px, 82vw); display: flex; }
-  .lf-item { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 9px; height: 46px; padding: 0 14px 0 11px; border-radius: 12px;
-             background: var(--fill); color: var(--label); font-size: 13.5px; line-height: 1.25; white-space: nowrap; transition: background .2s; }
+  .lf-list > li { flex: none; max-width: min(340px, 82vw); display: flex; }
+  .lf-item { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 9px; height: 46px; padding: 0 14px 0 11px; border-radius: 12px; background: var(--surface-2); color: var(--ink); font-size: 14px; line-height: 1.25; white-space: nowrap; }
   .lf-body { min-width: 0; display: flex; flex-direction: column; }
-  a.lf-item:hover { background: var(--fill-2); }
-  .lf-item:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
-  .lf-ic { flex: 0 0 auto; font-size: 16px; line-height: 1; }
+  .lf-item:focus-visible { outline-offset: -3px; }
+  .lf-ic { flex: none; font-size: 16px; line-height: 1; }
   .lf-tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .lf-tx b { font-weight: 600; }
-  .lf-when { color: var(--label-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-  .lf-skel { width: 168px; height: 46px; border-radius: 12px; background: var(--fill); }
-  .lf-list, .lf-head { transition: opacity .35s var(--ease); }
-  @media (max-width: 560px) {
-    /* Label on its own line; the row runs to the card's edge so the next
-       line peeks in, which is the cue that it scrolls. */
-    .lf-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0 10px 12px; }
-    .lf-list { padding-right: 12px; }
+  .lf-tx b { font-weight: 650; }
+  .lf-when { color: var(--ink-2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+  .lf-skel { width: 168px; height: 46px; border-radius: 12px; background: var(--surface-2); }
+  [data-fade="r"] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+  [data-fade="l"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px); mask-image: linear-gradient(90deg, transparent, #000 28px); }
+  [data-fade="lr"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+
+  /* "Most used this week" (lib/views.js), hidden until the counter answers. */
+  .trendbar { padding: 18px 18px 12px; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); }
+  .trendbar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .trendbar-title { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+  .trendbar-sub { font-size: 13px; color: var(--ink-2); }
+  .trendlist { display: flex; flex-direction: column; gap: 2px; }
+  .trendlist a { position: relative; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 7px 10px; border-radius: var(--r-s); color: inherit; overflow: hidden; }
+  .trendlist a::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); border-radius: var(--r-s); background: var(--accent-soft); }
+  .trendlist a:hover { background: var(--surface-2); }
+  .tl-rank { position: relative; width: 16px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .tl-name { position: relative; flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-n { position: relative; flex: none; font-size: 13.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .trending { margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 3px; background: var(--accent-soft); color: var(--link); }
+  .views { margin-top: 8px; font-size: 13.5px; color: var(--ink-3); }
+
+  /* ---------- Live previews: each phone is the real app in a frame ---------- */
+  .previews { position: relative; margin: 0 calc(-1 * var(--gutter)) 28px; }
+  .preview-strip { display: flex; gap: 18px; padding: 6px var(--gutter) 12px; scroll-padding-inline: var(--gutter); overflow-x: auto; scroll-snap-type: x mandatory;
+                   scrollbar-width: none; overscroll-behavior-x: contain; }
+  .preview-strip::-webkit-scrollbar { display: none; }
+  .preview { flex: 0 0 auto; scroll-snap-align: center; width: min(56vw, 200px); }
+  .phone { position: relative; aspect-ratio: 9 / 18.5; padding: 6px; border-radius: 30px; background: #101114; box-shadow: var(--shadow), inset 0 0 0 1.5px rgba(255,255,255,0.14); }
+  .phone-screen { position: relative; width: 100%; height: 100%; border-radius: 24px; overflow: hidden; background: var(--surface-2); }
+  .phone-screen iframe { position: absolute; top: 0; left: 0; width: 390px; height: 800px; border: 0; transform-origin: top left; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+  .phone-screen iframe.in { opacity: 1; }
+  .phone-skel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; font-size: 13px; color: var(--ink-2); }
+  .phone-tap { position: absolute; inset: 0; border-radius: 30px; }
+  .phone-tap:focus-visible { outline-offset: -3px; border-radius: 30px; }
+  .preview figcaption { display: flex; flex-direction: column; gap: 1px; margin: 12px 4px 0; overflow-wrap: anywhere; }
+  .preview figcaption b { font-size: 15px; font-weight: 650; }
+  .preview figcaption span { font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
+  .preview-dots { display: flex; justify-content: center; margin-top: 2px; }
+  .preview-dots button { width: 14px; height: 20px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; }
+  .preview-dots button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); transition: background 0.2s, transform 0.2s; }
+  .preview-dots button.on::before { background: var(--link); transform: scale(1.3); }
+  .strip-nav { display: none; position: absolute; top: 40%; z-index: 2; width: 40px; height: 40px; margin-top: -20px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%;
+               background: var(--surface); color: var(--ink); box-shadow: var(--shadow); place-items: center; cursor: pointer; transition: opacity 0.2s; }
+  .strip-nav svg { width: 8px; height: 14px; }
+  .strip-nav.prev { left: 10px; } .strip-nav.prev svg { transform: scaleX(-1); }
+  .strip-nav.next { right: 10px; }
+  .preview-strip:not([data-fade*="l"]) ~ .strip-nav.prev, .preview-strip:not([data-fade*="r"]) ~ .strip-nav.next { opacity: 0; pointer-events: none; }
+  @media (hover: hover) and (pointer: fine) { .strip-nav { display: grid; } }
+  .preview-strip[data-fade] { -webkit-mask-image: none; mask-image: none; }
+  /* Wide enough for all six: no scrolling, no dots, no arrows. */
+  @media (min-width: 1180px) {
+    .previews { margin-inline: 0; }
+    .preview-strip { justify-content: space-between; gap: 12px; overflow-x: visible; scroll-snap-type: none; padding-inline: 0; }
+    .preview { width: calc((100% - 5 * 20px) / 6); max-width: 172px; }
+    .preview-dots, .strip-nav { display: none !important; }
   }
-  @keyframes pulse { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
-  /* Dimmed once revealed (or when there is no script to reveal it); before
-     that it is hidden with the others so it fades in with them. */
-  .js .project.soon.in, html:not(.js) .project.soon { opacity: 0.7; }
-  .project.soon .placeholder { width: 56px; height: 56px; border-radius: 14px; background: var(--fill-2); display: grid; place-items: center; color: var(--label-3); font-size: 26px; flex: 0 0 auto; }
+
+  /* ---------- Project cards ---------- */
+  .projects { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .project { display: flex; gap: 16px; padding: 22px; align-items: flex-start; }
+  .project > img { flex: none; width: 52px; height: 52px; border-radius: 14px; }
+  .project-body { min-width: 0; display: flex; flex-direction: column; align-self: stretch; }
+  .project p { margin-top: 6px; font-size: 15.5px; line-height: 1.45; color: var(--ink-2); }
+  .project .open { padding-top: 14px; }
+  .project.more { background: transparent; box-shadow: none; border-style: dashed; border-color: var(--line-2); }
+  .project.more .tile { background: var(--surface-2); box-shadow: none; }
+
+  /* The iPhone apps (get-app.js fills the list from /ios-apps.json). */
+  .iphone-apps { padding: 22px; margin-top: 16px; }
+  .iphone-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .iphone-head svg { flex: none; width: 28px; height: 28px; color: var(--link); margin-top: 2px; }
+  .iphone-title { font-size: 18px; font-weight: 650; }
+  .iphone-sub { font-size: 15px; color: var(--ink-2); }
+  .iphone-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .get-app-link { display: flex; flex-direction: column; gap: 2px; min-height: 48px; padding: 11px 14px; border-radius: 12px; background: var(--surface-2); color: inherit; }
+  .get-app-link:hover { background: var(--accent-soft); }
+  .get-app-link strong { font-size: 15.5px; font-weight: 650; color: var(--link); }
+  .get-app-link span { font-size: 14px; color: var(--ink-2); }
 
   /* ---------- About ---------- */
-  .card { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
-  .card p { margin: 0 0 12px; font-size: 16.5px; line-height: 1.5; }
-  .card p:last-child { margin-bottom: 0; }
+  .about-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 72px); align-items: start; }
+  .prose p { font-size: 17.5px; line-height: 1.65; color: var(--ink-2); max-width: 64ch; }
+  .prose p + p { margin-top: 1.05em; }
+  .prose p:first-child { font-size: clamp(19px, 1.9vw, 21px); line-height: 1.55; color: var(--ink); }
+  .prose strong { color: var(--ink); font-weight: 650; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1.5px solid var(--ink); }
+  .stat { padding: 18px 16px 18px 0; border-bottom: 1px solid var(--line); }
+  .stat:nth-child(even) { padding-left: 20px; border-left: 1px solid var(--line); }
+  .stat-value { font-size: clamp(28px, 3vw, 36px); line-height: 1.05; letter-spacing: -0.03em; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .stat-label { margin-top: 6px; font-size: 14.5px; line-height: 1.35; color: var(--ink-2); }
+  .honours { margin-top: 28px; }
+  .honours h3 { font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  .honour { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .honour:last-child { border-bottom: 0; }
+  .honour svg { width: 22px; height: 22px; margin-top: 2px; color: var(--link); }
+  .honour b { display: block; font-size: 16.5px; font-weight: 650; line-height: 1.35; }
+  .honour span { display: block; margin-top: 2px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+  .tagrows { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 48px); border-top: 1px solid var(--line); }
+  .tagrow { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .tagrow h3 { font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 999px; font-size: 14.5px; font-weight: 550; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }
+  .tag.more { background: transparent; border-style: dashed; border-color: var(--line-2); }
+  .quote { margin-top: clamp(36px, 5vw, 64px); padding-left: clamp(18px, 3vw, 32px); border-left: 3px solid var(--link); max-width: 26em;
+           font-size: clamp(22px, 2.8vw, 32px); line-height: 1.3; letter-spacing: -0.018em; font-weight: 600; text-wrap: balance; }
+  .quote footer { margin-top: 14px; padding: 0; text-align: left; font-size: 15px; font-weight: 550; letter-spacing: 0; color: var(--ink-2); }
 
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-  @media (min-width: 620px) { .stats { grid-template-columns: repeat(3, 1fr); } }
-  .stat { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); }
-  .stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
-  .stat-value { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; background: linear-gradient(135deg, var(--tint), var(--indigo)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .stat-label { font-size: 13.5px; color: var(--label-2); margin-top: 4px; line-height: 1.35; }
+  /* ---------- Blog + contact ---------- */
+  .duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 4vw, 56px); align-items: start; }
+  .duo h2 { margin-top: 10px; font-size: clamp(26px, 3vw, 34px); }
+  .duo .lead { margin-top: 12px; font-size: 17.5px; }
+  .sub-label { display: block; margin: 22px 0 8px; font-size: 14.5px; font-weight: 650; }
+  .sub-form { display: flex; gap: 10px; }
+  .sub-form input[type="email"] { flex: 1 1 auto; min-width: 0; height: 50px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--field-border); background: var(--surface); color: var(--ink); font: inherit; font-size: 17px; }
+  .sub-form input[type="email"]::placeholder { color: var(--ink-3); opacity: 1; }
+  .sub-form input[type="email"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; border-color: var(--focus); border-radius: 12px; }
+  .sub-form button { flex: none; height: 50px; padding: 0 22px; border-radius: 12px; border: 0; background: var(--btn); color: var(--on-btn); font: inherit; font-size: 16px; font-weight: 650; cursor: pointer; transition: background 0.2s; }
+  .sub-form button:hover { background: var(--btn-hover); }
+  .sub-form button:disabled { opacity: 0.6; cursor: default; }
+  .sub-note { margin-top: 10px; font-size: 14.5px; line-height: 1.45; color: var(--ink-3); min-height: 1.45em; }
+  .sub-note.ok { color: var(--ok); font-weight: 600; }
+  .sub-note.error { color: var(--err); font-weight: 600; }
+  .contact-list { margin-top: 22px; border-top: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 16px; align-items: center; min-height: 64px; padding: 10px 4px; border-bottom: 1px solid var(--line); color: var(--ink); transition: background 0.2s; }
+  .row:hover { background: var(--surface-2); }
+  .row > svg:first-child { width: 22px; height: 22px; color: var(--ink-2); }
+  .row-title { display: block; font-size: 16.5px; font-weight: 650; line-height: 1.3; }
+  .row-sub { display: block; font-size: 14.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+  .row-chev { width: 8px; height: 14px; color: var(--ink-3); }
+  .row.primary .row-title, .row.primary > svg:first-child { color: var(--link); }
 
-  .verticals { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; margin-top: 14px; }
-  .vlabel { display: block; font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--label-2); margin-bottom: 11px; }
-  .vchips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .vchips .tag { transition: transform 0.2s var(--ease), color 0.2s; }
-  .vchips .tag:hover { transform: translateY(-2px); color: var(--label); }
-  .vchips .tag.more { color: var(--label-2); font-style: italic; }
+  /* ---------- Footer ---------- */
+  .foot { margin-top: clamp(64px, 9vw, 120px); padding: 28px 0 calc(var(--sab) + 36px); border-top: 1px solid var(--line); font-size: 15px; color: var(--ink-2); }
+  .foot-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+  .foot nav { display: flex; flex-wrap: wrap; gap: 0 4px; margin-left: -10px; }
+  .foot nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; color: var(--ink-2); font-weight: 550; }
+  .foot nav a:hover { color: var(--ink); }
 
-  .skills { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
-  @media (min-width: 620px) { .skills { grid-template-columns: 1fr 1fr 1fr; } }
-  .skill { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; display: flex; gap: 12px; align-items: flex-start; transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); }
-  .skill:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
-  .skill-icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: #fff; flex: 0 0 auto; transition: transform 0.35s var(--ease); }
-  .skill:hover .skill-icon { transform: rotate(-8deg) scale(1.08); }
-  .skill-icon svg { width: 20px; height: 20px; }
-  .skill h3 { margin: 0 0 2px; font-size: 16px; font-weight: 600; }
-  .skill p { margin: 0; font-size: 14px; color: var(--label-2); line-height: 1.4; }
-  blockquote { margin: 16px 0 0; padding: 16px 18px; border-left: 3px solid var(--tint); background: var(--card); box-shadow: var(--shadow); border-radius: 0 16px 16px 0; font-size: 17px; color: var(--label-2); font-style: italic; }
-  blockquote b { display: block; font-style: normal; color: var(--label); font-size: 14px; margin-top: 8px; }
-
-  /* ---------- Lists ---------- */
-  .list { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
-  .row { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 10px 16px; color: inherit; position: relative; transition: background 0.2s; }
-  .row + .row::before { content: ""; position: absolute; left: 62px; right: 0; top: 0; height: 1px; background: var(--sep); }
-  .row:hover, .row:active { background: var(--fill); }
-  .row:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
-  .row-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex: 0 0 auto; transition: transform 0.3s var(--ease); }
-  a.row:hover .row-icon { transform: scale(1.1) rotate(-6deg); }
-  .row-icon svg { width: 18px; height: 18px; }
-  .row-main { flex: 1 1 auto; min-width: 0; }
-  .row-title { display: block; font-size: 17px; font-weight: 500; }
-  .row-sub { display: block; font-size: 13.5px; color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row-chev { width: 8px; height: 14px; color: var(--label-3); flex: 0 0 auto; transition: transform 0.3s var(--ease); }
-  a.row:hover .row-chev { transform: translateX(3px); }
-  /* Facts, not links: the second line is a sentence and should wrap, unlike
-     the contact rows where it is a URL that must stay on one line. */
-  .list-facts .row { align-items: flex-start; padding: 13px 16px; }
-  .list-facts .row-icon { margin-top: 1px; }
-  .list-facts .row-sub { white-space: normal; overflow: visible; line-height: 1.35; margin-top: 1px; }
-  /* The one place the address is written out: it wraps (at the @) rather
-     than ending in an ellipsis nobody can read or copy. */
-  .row-sub.wraps { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
-
-  /* Subscribe */
-  .sub-form { display: flex; gap: 10px; flex-wrap: wrap; }
-  .sub-form input {
-    flex: 1 1 220px; min-width: 0; min-height: 50px; padding: 12px 16px; font: inherit; font-size: 16px;
-    border: 1px solid var(--field-border); border-radius: 14px; background: var(--bg); color: var(--label);
+  /* ---------- Narrower screens ---------- */
+  @media (max-width: 1040px) {
+    .lab-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .projects { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  .sub-form input:focus { outline: 2px solid var(--tint); outline-offset: 1px; border-color: transparent; }
-  .sub-form button {
-    flex: 0 0 auto; min-height: 50px; padding: 12px 24px; font: inherit; font-size: 16px; font-weight: 600;
-    border: none; border-radius: 14px; background: var(--btn); color: #fff; cursor: pointer;
-    transition: transform 0.15s var(--ease);
+  @media (max-width: 860px) {
+    :root { --gutter: 24px; }
+    .feature { grid-template-columns: minmax(0, 1fr); }
+    .feature-shot { border-left: 0; border-top: 1px solid var(--line); order: 2; }
+    .challenge-banner { grid-template-columns: minmax(0, 1fr); }
+    .about-grid, .duo { grid-template-columns: minmax(0, 1fr); }
+    .duo { gap: clamp(64px, 9vw, 120px); }
+    .pillars { grid-template-columns: minmax(0, 1fr); }
+    .pillar { padding: 22px 0; }
+    .pillar + .pillar { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+    .section-head.row { grid-template-columns: minmax(0, 1fr); }
   }
-  .sub-form button:active { transform: scale(0.97); }
-  .sub-form button:disabled { opacity: 0.5; }
-  .sub-label { display: block; font-size: 13.5px; font-weight: 600; color: var(--label-2); margin: 0 0 6px; }
-  /* .card .sub-note, not .sub-note: `.card p` would otherwise win and set it
-     at body size with no gap above. */
-  .card .sub-note { margin: 12px 0 0; font-size: 13.5px; color: var(--label-2); }
-  .sub-note.ok { color: var(--ok); }
-  .sub-note.error { color: #d70015; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sub-note.error { color: #FF453A; } }
-
-  footer { text-align: center; color: var(--label-2); font-size: 13px; padding: 40px 20px 0; line-height: 1.6; position: relative; z-index: 1; }
-  footer a { color: var(--label); }
-  .motion-toggle { font: inherit; color: var(--label); background: none; border: 0; padding: 0; cursor: pointer; }
-  .motion-toggle:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
-
+  @media (max-width: 720px) {
+    /* The portrait sits small beside the name, and the focus tags go (the
+       three columns under the figures say the same), so the figures and the
+       button are on a phone's first screen. */
+    .hero { padding-top: 28px; }
+    .hero-grid { position: relative; grid-template-columns: minmax(0, 1fr); }
+    .portrait { position: absolute; top: 0; right: 0; width: 76px; }
+    .portrait img { border-radius: 18px; box-shadow: var(--shadow); }
+    .portrait::before { display: none; }
+    .hero .kicker { padding-right: 88px; padding-top: 6px; }
+    .hero h1 { margin-top: 8px; padding-right: 88px; font-size: clamp(40px, 12vw, 64px); }
+    .role { margin-top: 18px; }
+    .hero .lead { margin-top: 14px; }
+    .hero .cta-row { margin-top: 22px; }
+    .focus { display: none; }
+    .proof { margin-top: 28px; }
+    .proof { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .proof li { padding: 18px 12px 18px 0; }
+    .proof li + li { padding-left: 0; border-left: 0; }
+    .proof li:nth-child(even) { padding-left: 18px; border-left: 1px solid var(--line); }
+    .proof li:nth-child(n + 3) { border-top: 1px solid var(--line); }
+    .tagrow { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  }
+  @media (max-width: 600px) {
+    :root { --gutter: 20px; }
+    body { font-size: 16.5px; }
+    .lab-grid, .projects { grid-template-columns: minmax(0, 1fr); }
+    .brand span { display: none; }
+    .nav-links a { padding: 0 9px; font-size: 14.5px; }
+    .nav-links a::after { left: 9px; right: 9px; }
+    .nav-links { margin-right: -9px; }
+    .hero .cta-row .btn { flex: 1 1 auto; }
+    .hero .cta-row .btn-primary { flex-basis: 100%; }
+    .sub-form { flex-direction: column; }
+    .cb-meta { flex-wrap: wrap; }
+  }
+  @media (max-width: 420px) {
+    .brand { display: none; }
+    .nav-links { flex: 1 1 auto; justify-content: space-between; margin: 0 -9px; }
+  }
+  @media (max-width: 359px) { .portrait { width: 60px; } .hero .kicker, .hero h1 { padding-right: 68px; } .nav-links a { padding: 0 6px; font-size: 13.5px; } .nav-links { margin: 0 -6px; } }
   @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-    *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
-    [data-reveal] { opacity: 1 !important; transform: none !important; }
-    h1 .w { opacity: 1 !important; transform: none !important; }
-    .motion-switch { display: none; }
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-delay: 0s !important; scroll-behavior: auto !important; }
   }
-  /* The footer's "Pause motion": the same stillness, chosen on the page. */
-  html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation: none !important; }
-  html[data-motion="off"] h1 .w { opacity: 1 !important; transform: none !important; }
-  .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+  @media print {
+    .nav, .previews, .sub-form, .skip { display: none !important; }
+    body { background: #fff; }
+  }
 </style>
   <!-- Analytics. Serves an inert file unless GA_MEASUREMENT_ID is set on
        the service, so local runs and browser tests send nothing. -->
   <script src="/analytics.js" async></script>
   <script src="/contact.js" defer></script>
   <script src="/get-app.js" data-src="/ios-apps.json" data-list="#iphoneApps" defer></script>
+  <!-- Everything this page does in script. No inline script anywhere on it. -->
+  <script src="/home.js" defer></script>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 
-<div class="aurora" aria-hidden="true">
-  <span class="blob blob-1"></span>
-  <span class="blob blob-2"></span>
-  <span class="blob blob-3"></span>
-</div>
-
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<svg class="sr" width="0" height="0" aria-hidden="true" focusable="false">
   <defs>
     <symbol id="i-chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6.5 7l-5 5.5"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></symbol>
@@ -687,83 +569,186 @@
     <symbol id="i-linkedin" viewBox="0 0 24 24" fill="currentColor"><path d="M6.3 8.5H3V21h3.3V8.5zM4.7 3a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8zM21 13.3c0-3.6-1.9-5.1-4.4-5.1-2 0-2.9 1.1-3.4 1.9V8.5H9.9V21h3.3v-6.6c0-1.7.3-3.4 2.5-3.4 2.1 0 2.1 2 2.1 3.5V21H21v-7.7z"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="currentColor"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.3-8.3L2 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></symbol>
     <symbol id="i-instagram" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.2 6.8v.01"/></symbol>
+  
+    <symbol id="i-bookmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h11v17L12 16.6l-5.5 3.9z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 12.3l2.8 2.8L16.2 9"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-books" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h4v15H5zM9 6.5h4v13H9zM14.2 8.2l3.8-1 3 11.3-3.8 1z"/></symbol>
   </defs>
 </svg>
 
-<nav class="nav" id="nav" aria-label="Page">
-  <div class="nav-inner">
-    <a class="brand" href="#top" aria-label="Erik Strong, back to top"><img src="/assets/erik-96.jpg" alt="" width="28" height="28"><span>Erik Strong</span></a>
+<header class="nav" id="nav">
+  <nav class="wrap nav-inner" aria-label="Page">
+    <a class="brand" href="#top" aria-label="Erik Strong, back to top"><img src="/assets/erik-96.jpg" alt="" width="30" height="30"><span>Erik Strong</span></a>
     <div class="nav-links" id="navLinks">
-      <a href="/writing" data-nav="writing">Blog</a>
+      <a href="#apps" data-nav="apps">Apps</a>
       <a href="/challenge">Challenge</a>
-      <a href="#projects" data-nav="projects">Projects</a>
       <a href="#about" data-nav="about">About</a>
+      <a href="/writing" data-nav="writing">Blog</a>
       <a href="#contact" data-nav="contact">Contact</a>
     </div>
-  </div>
-  <span class="progress" id="progress"></span>
-</nav>
+  </nav>
+</header>
 
-<main class="wrap">
+<main id="main" class="wrap">
 
-  <header class="hero">
-    <div class="avatar-ring">
-      <img class="avatar" src="/assets/erik-420.jpg" srcset="/assets/erik-280.jpg 280w, /assets/erik-420.jpg 420w" sizes="140px" alt="Erik Strong" width="140" height="140" fetchpriority="high">
-    </div>
-    <div>
-      <p class="eyebrow">Atlanta, Georgia</p>
-      <h1 id="heroTitle">Erik Strong</h1>
-      <p class="role">Sr. Director, Sales Intelligence &amp; Customer Insights<span>Equifax Workforce Solutions</span></p>
-      <p class="lede">I build the sales intelligence and applied AI that help revenue teams win, across all of Equifax Workforce Solutions.</p>
-    </div>
-    <div class="facts">
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg>Sales intelligence</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg>Customer insights</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg>Applied AI</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-growth"/></svg>Go-to-market strategy</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-briefcase"/></svg>Executive advisory</span>
-      <span class="fact"><svg aria-hidden="true" focusable="false"><use href="#i-db"/></svg>Data &amp; engineering</span>
+  <section class="hero" id="top" aria-labelledby="heroTitle">
+    <div class="hero-grid">
+      <div>
+        <p class="kicker">Atlanta, Georgia</p>
+        <h1 id="heroTitle">Erik Strong</h1>
+        <p class="role">Sr. Director, Sales Intelligence &amp; Customer Insights<span>Equifax Workforce Solutions</span></p>
+        <p class="lead">I build the sales intelligence and applied AI that help revenue teams win, across all of Equifax Workforce Solutions.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#contact" data-contact><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Get in touch</a>
+          <a class="btn btn-secondary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>LinkedIn</a>
+          <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg>GitHub</a>
+        </div>
+        <ul class="focus" aria-label="Focus areas">
+          <li class="tag">Sales intelligence</li><li class="tag">Customer insights</li><li class="tag">Applied AI</li><li class="tag">Go-to-market strategy</li><li class="tag">Executive advisory</li><li class="tag">Data &amp; engineering</li>
+        </ul>
+      </div>
+      <div class="portrait">
+        <img src="/assets/erik-420.jpg" srcset="/assets/erik-280.jpg 280w, /assets/erik-420.jpg 420w, /assets/erik.jpg 900w" sizes="(max-width: 720px) 132px, (max-width: 1260px) 27vw, 340px" alt="Erik Strong" width="340" height="340" fetchpriority="high">
+      </div>
     </div>
     <!-- Proof, on the first screen. Erik cleared these to publish on
          2026-11-07; the real figures are higher now that he supports all of
          EWS, and he will send new ones. THE EWS NUMBERS: when they change,
          update all four places - this list, the About stats (.stats), the
          About paragraphs, and the Person "description" in the head. -->
-    <ul class="proof" role="list" aria-label="Highlights">
+    <ul class="proof" aria-label="Highlights">
       <li><b>$2.7B+</b><span>revenue supported</span></li>
       <li><b>$50M+</b><span>revenue grown &amp; protected</span></li>
       <li><b>1,700+</b><span>hours a week saved by AI agents</span></li>
       <li><b>2</b><span>patents in fraud detection</span></li>
     </ul>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="#contact" data-contact><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>Get in touch</a>
-      <a class="btn btn-secondary" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>LinkedIn</a>
-      <a class="btn btn-secondary" href="https://github.com/eRock35" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg>GitHub</a>
+  </section>
+
+  <section class="pillars" aria-labelledby="pillarsTitle">
+    <h2 class="sr" id="pillarsTitle">What I do</h2>
+    <div class="pillar">
+      <svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg>
+      <h3>Sales intelligence &amp; customer insights</h3>
+      <p>Customer and market data turned into the view that moves a deal, not another dashboard nobody opens.</p>
     </div>
-    <a class="cue" href="#projects" aria-label="Scroll to projects"><svg aria-hidden="true" focusable="false"><use href="#i-down"/></svg></a>
-  </header>
+    <div class="pillar">
+      <svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg>
+      <h3>Applied AI</h3>
+      <p>AI that actually runs inside the business: monitoring it, surfacing signals, and flagging what matters.</p>
+    </div>
+    <div class="pillar">
+      <svg aria-hidden="true" focusable="false"><use href="#i-app"/></svg>
+      <h3>Products that ship</h3>
+      <p>Custom apps and tools built to generate revenue, and the teams to keep building them.</p>
+    </div>
+  </section>
 
-  <div class="marquee">
-    <ul class="marquee-track" id="marquee" role="list" aria-label="Tools and skills">
-      <li class="tag">Applied AI</li><li class="tag">Agentic AI</li><li class="tag">Claude API</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">Node.js</li><li class="tag">React</li><li class="tag">Google Cloud Run</li><li class="tag">Firestore</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Fraud detection</li>
-    </ul>
-  </div>
+  <!-- ===== Apps: proof of building. Chapter first, then the newest from
+       the lab, then the Challenge itself, then the apps with homes of their
+       own. ===== -->
+  <div id="apps">
+  <section class="section" id="chapter" aria-labelledby="chapterTitle">
+    <div class="section-head">
+      <p class="kicker">Apps</p>
+      <h2>I started out writing code, and I never stopped.</h2>
+      <p class="lead">Every app here is live and built for a phone. Most began in the Challenge, where a new AI-built app ships every day.</p>
+    </div>
 
-  <section id="projects">
+    <!-- Chapter, the book club app (challenge/apps/chapter). What is said
+         here is what it does today; keep it that way when the app changes.
+         The picture is a screenshot of its own made-up club (/chapter/#try),
+         light and dark: retake both when the board changes, under new file
+         names (images under /assets cache for a week). -->
+    <article class="feature">
+      <div class="feature-copy">
+        <p class="kicker">Featured &middot; a book club app</p>
+        <div class="feature-title">
+          <span class="tile lg t-chapter" aria-hidden="true">🔖</span>
+          <h2 id="chapterTitle">Chapter</h2>
+        </div>
+        <p class="feature-tag">A book club that keeps up, and never spoils the ending.</p>
+        <p class="body">Every club has the same three problems: nobody knows who has read how far, the fast reader spoils it in the group chat, and &ldquo;what next?&rdquo; becomes a forty-message thread. Chapter handles all three. Friends join with a six-letter code and a first name, with no account and nothing to install.</p>
+        <ul class="feature-list">
+          <li><svg aria-hidden="true" focusable="false"><use href="#i-bookmark"/></svg><span><b>A progress board.</b> Everyone&rsquo;s bookmark along the book, with the next meeting as the finish line and a nudge when you fall behind.</span></li>
+          <li><svg aria-hidden="true" focusable="false"><use href="#i-lock"/></svg><span><b>Spoiler-safe notes.</b> Notes are tagged by chapter and stay locked until you have read that far. The server never sends a locked note&rsquo;s words.</span></li>
+          <li><svg aria-hidden="true" focusable="false"><use href="#i-check"/></svg><span><b>The vote for the next book.</b> Nominate, then tap every book you would read. Counts stay hidden until the host closes the vote, and the tie-break is shown.</span></li>
+          <li><svg aria-hidden="true" focusable="false"><use href="#i-calendar"/></svg><span><b>Meetups.</b> A date, a place or a call link, RSVPs and a calendar file.</span></li>
+          <li><svg aria-hidden="true" focusable="false"><use href="#i-books"/></svg><span><b>My library.</b> Your own books across every club, added by scanning the barcode or typing the ISBN, and seen by nobody else.</span></li>
+        </ul>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://challenge.strongtechnicalconsulting.com/chapter/#try" target="_blank" rel="noopener">Try the made-up club</a>
+          <a class="btn btn-secondary" href="https://challenge.strongtechnicalconsulting.com/chapter/" target="_blank" rel="noopener">Open Chapter<svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>
+        </div>
+        <p class="fine">Live in the Challenge Lab and free to use. The made-up club reads Pride and Prejudice; every tap works and nothing is saved.</p>
+      </div>
+      <figure class="feature-shot">
+        <a class="device-link" href="https://challenge.strongtechnicalconsulting.com/chapter/#try" target="_blank" rel="noopener" aria-label="Open Chapter&rsquo;s made-up club">
+          <div class="device">
+            <picture>
+              <source srcset="/assets/chapter-board-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp">
+              <img src="/assets/chapter-board-light.webp" width="780" height="1600" loading="lazy" decoding="async"
+                   alt="Chapter&rsquo;s board for a made-up club: six readers&rsquo; bookmarks along the book, the next meeting marked as a finish line at chapter 42, and each reader listed as chapters ahead of or behind you.">
+            </picture>
+          </div>
+        </a>
+        <figcaption>The board in the made-up club: who is where, and how far to the next meeting.</figcaption>
+      </figure>
+    </article>
+  </section>
+
+  <section id="lab" aria-labelledby="labTitle">
+    <div class="sub-head">
+      <h2 id="labTitle">New in the Lab</h2>
+      <p>From the last few days: some for work, some for everyday life.</p>
+    </div>
+    <!-- Four of the nine apps that went live on 2026-11-21 and 22. Name,
+         emoji, colours and tagline are the lab's own (challenge/lab.js); when
+         the lab answers, home.js refreshes them from /api/lab and takes away
+         any card whose app is no longer live, so this never links a dead app. -->
+    <div class="lab-grid" id="labGrid">
+      <a class="card lab-card" data-lab="reset" href="https://challenge.strongtechnicalconsulting.com/reset/" target="_blank" rel="noopener">
+        <span class="lab-top"><span class="tile t-reset" data-lab-em aria-hidden="true">📈</span><span class="chip work">For work</span></span>
+        <h3 data-lab-name>Reset</h3>
+        <p data-lab-tag>Every rate reset worked out from the note - new rate, new payment, which cap bit.</p>
+        <span class="for">For loan servicing teams at small banks and credit unions</span>
+        <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
+      </a>
+      <a class="card lab-card" data-lab="stars" href="https://challenge.strongtechnicalconsulting.com/stars/" target="_blank" rel="noopener">
+        <span class="lab-top"><span class="tile t-stars" data-lab-em aria-hidden="true">⭐</span><span class="chip work">For work</span></span>
+        <h3 data-lab-name>Stars</h3>
+        <p data-lab-tag>Find the stars on your menu - and the dogs eating your margin.</p>
+        <span class="for">For owners, chefs and managers of independent restaurants</span>
+        <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
+      </a>
+      <a class="card lab-card" data-lab="trek" href="https://challenge.strongtechnicalconsulting.com/trek/" target="_blank" rel="noopener">
+        <span class="lab-top"><span class="tile t-trek" data-lab-em aria-hidden="true">🥾</span><span class="chip">Everyday</span></span>
+        <h3 data-lab-name>Trek</h3>
+        <p data-lab-tag>A journey for your whole crew - every walk, run and ride moves you all along the map.</p>
+        <span class="for">For friends, families, coworkers and walking groups</span>
+        <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
+      </a>
+      <a class="card lab-card" data-lab="snug" href="https://challenge.strongtechnicalconsulting.com/snug/" target="_blank" rel="noopener">
+        <span class="lab-top"><span class="tile t-snug" data-lab-em aria-hidden="true">🏡</span><span class="chip">Everyday</span></span>
+        <h3 data-lab-name>Snug</h3>
+        <p data-lab-tag>The boring jobs that keep a home working, on time - and the breaker panel finally labelled.</p>
+        <span class="for">For homeowners and renters, first-time buyers especially</span>
+        <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
+      </a>
+    </div>
+
     <!-- The build-in-public challenge. Its own page tells the story; this
-         banner names the lab's latest drop, read live from the lab's
-         /api/lab (challenge/ in this repo) by the script at the bottom. The
-         copy in .cb-live is what shows when the lab does not answer, and it
-         carries no numbers, so nothing stale can ever be on screen. -->
-    <div class="challenge-banner" data-reveal>
+         band names the lab's latest drop, read live from the lab's
+         /api/lab (challenge/ in this repo) by home.js. The copy in .cb-live
+         is what shows when the lab does not answer, and it carries no
+         numbers, so nothing stale can ever be on screen. -->
+    <div class="challenge-banner">
       <a class="cb-main" href="/challenge">
-        <span class="cb-flask" aria-hidden="true">🧪</span>
-        <span class="cb-body">
-          <span class="cb-kicker"><span class="cb-dot"></span>The Challenge<span class="cb-long">·&ensp;building in public</span></span>
-          <span class="cb-title">A new app every day.</span>
-          <span class="cb-sub">Real problems, at home and at work, fun apps. Try the latest drops and vote keep or kill.</span>
-        </span>
-        <span class="cb-go" aria-hidden="true">→</span>
+        <span class="cb-kicker"><span class="cb-flask" aria-hidden="true">🧪</span>The Challenge &middot; building in public</span>
+        <span class="cb-title">A new app every day.</span>
+        <span class="cb-sub">Real problems, at home and at work, fun apps. Try the latest drops and vote keep or kill.</span>
+        <span class="cb-go">See the Challenge <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
       </a>
       <div class="cb-live" id="cbLive" data-state="wait">
         <a class="cb-drop" id="cbDrop" href="https://challenge.strongtechnicalconsulting.com/" target="_blank" rel="noopener">
@@ -773,15 +758,15 @@
             <span class="cb-name" id="cbName">See today's drop</span>
             <span class="cb-tag" id="cbTag">Try it free. One account, every app.</span>
           </span>
-          <span class="cb-arr" aria-hidden="true">↗</span>
+          <svg class="cb-arr" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg>
         </a>
         <div class="cb-meta">
           <span class="cb-count" id="cbCount"></span>
           <span id="cbNext">New drop daily, 09:00 UTC</span>
         </div>
         <!-- Keep or kill standings, the lab's top three. Filled from
-             /api/activity by the "Live now" script; the three cells are
-             placeholders that hold the box's height in every state. -->
+             /api/activity by home.js; the three cells are placeholders that
+             hold the box's height in every state. -->
         <div class="cb-board" id="cbBoard" data-state="wait">
           <span class="cb-bk" id="cbBk">Keep or kill</span>
           <div class="cb-bgrid">
@@ -800,7 +785,7 @@
          (lib/activity.js). App-level counts and events only - never a
          person, and never a count under two. Polled every 30 s while the tab
          is visible. -->
-    <div class="livefeed" id="liveFeed" data-state="wait" data-reveal role="region" aria-labelledby="lfTitle">
+    <div class="livefeed" id="liveFeed" data-state="wait" role="region" aria-labelledby="lfTitle">
       <div class="lf-card">
         <div class="lf-head"><span class="lf-dot" aria-hidden="true"></span><p class="lf-title" id="lfTitle">Live now</p></div>
         <ul class="lf-list" id="lfList">
@@ -810,15 +795,20 @@
         </ul>
       </div>
     </div>
+  </section>
 
-    <div class="section-head" data-reveal><h2>Projects</h2><span class="sub">Live apps, built for a phone</span></div>
+  <section id="projects" aria-labelledby="projectsTitle">
+    <div class="sub-head">
+      <h2 id="projectsTitle">Projects</h2>
+      <p>Six apps with homes of their own, running live below.</p>
+    </div>
 
     <!-- What is actually getting used this week. Hidden until the counter
          answers, so a cold start or a failed fetch leaves the page reading
-         exactly as authored rather than showing an empty frame. Filled by the
-         trending script at the bottom; see lib/views.js for where the numbers
-         come from and what is deliberately not collected. -->
-    <div class="trendbar" id="trendBar" data-reveal hidden>
+         exactly as authored rather than showing an empty frame. Filled by
+         home.js; see lib/views.js for where the numbers come from and what
+         is deliberately not collected. -->
+    <div class="trendbar" id="trendBar" hidden>
       <div class="trendbar-head">
         <span class="trendbar-title">Most used this week</span>
         <span class="trendbar-sub" id="trendWhen"></span>
@@ -834,7 +824,7 @@
          Same apps, same order as the cards below: keep the two in step.
          Friction's board is invite-only, so its frame, tap and card all open
          the public read-only /preview rather than a sign-in page. -->
-    <div class="previews" data-reveal role="region" aria-label="Live previews">
+    <div class="previews" role="region" aria-label="Live previews">
       <div class="preview-strip" id="previewStrip">
         <figure class="preview" data-src="https://footballapp.strongtechnicalconsulting.com/?tour=1" data-href="https://footballapp.strongtechnicalconsulting.com">
           <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open College Football"></a></div>
@@ -870,67 +860,60 @@
     </div>
 
     <div class="projects">
-      <a class="project" data-app="football" data-reveal style="--d:.05s" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-        <img src="/assets/football.svg" alt="" width="56" height="56">
+      <a class="card project" data-app="football" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/football.svg" alt="" width="52" height="52">
         <div class="project-body">
           <h3>College Football <span class="live">Live</span></h3>
           <p>The week&rsquo;s slate, best bets and Top 25, rebuilt every weekend with last week&rsquo;s picks graded. Follow any FBS team, and your slip syncs across devices.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="hopscotch" data-reveal style="--d:.12s" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-        <img src="/assets/hopscotch.svg" alt="" width="56" height="56">
+      <a class="card project" data-app="hopscotch" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/hopscotch.svg" alt="" width="52" height="52">
         <div class="project-body">
           <h3>Hopscotch <span class="live">Live</span></h3>
           <p>Find breweries anywhere, plan the crawl before you land, and score every pour like a judge. A craft beer passport that remembers what you drank.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="trip" data-reveal style="--d:.19s" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-        <img src="/assets/trips.svg" alt="" width="56" height="56">
+      <a class="card project" data-app="trip" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/trips.svg" alt="" width="52" height="52">
         <div class="project-body">
           <h3>Trip Planner <span class="live">Live</span></h3>
           <p>The whole trip in one place, shared with whoever&rsquo;s coming: an itinerary Claude drafts with you, weather, bookings, packing and budget, and prices watched until you book.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="dataviz" data-reveal style="--d:.26s" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-        <img src="/assets/dataviz.svg" alt="" width="56" height="56">
+      <a class="card project" data-app="dataviz" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/dataviz.svg" alt="" width="52" height="52">
         <div class="project-body">
           <h3>DataViz <span class="live">Live</span></h3>
           <p>Pick a sample and watch it play: bars overtaking, lines drawing themselves, traffic moving between places. Members bring their own table or link; Claude picks the chart and every number comes from the data.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="friction" data-reveal style="--d:.33s" href="https://friction.strongtechnicalconsulting.com/preview" target="_blank" rel="noopener">
-        <img src="/assets/friction.svg" alt="" width="56" height="56">
+      <a class="card project" data-app="friction" href="https://friction.strongtechnicalconsulting.com/preview" target="_blank" rel="noopener">
+        <img src="/assets/friction.svg" alt="" width="52" height="52">
         <div class="project-body">
           <h3>Friction <span class="live">Live</span></h3>
           <p>Spot the problems worth building for: a daily scan of complaints across Hacker News, GitHub issues and App Store reviews, scored, and tracked every time they come back.</p>
           <span class="open">See the preview <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <a class="project" data-app="spellbook" data-reveal style="--d:.40s" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
-        <img src="/assets/spellbook.svg" alt="" width="56" height="56">
+      <a class="card project" data-app="spellbook" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener">
+        <img src="/assets/spellbook.svg" alt="" width="52" height="52">
         <div class="project-body">
           <h3>Spellbook <span class="live">Live</span></h3>
           <p>A shared prompt library where the blanks become a form, so you copy a finished prompt, not a template. Vote, save, remix, or have Claude draft one.</p>
           <span class="open">Open app <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></span>
         </div>
       </a>
-      <div class="project soon" data-reveal style="--d:.47s" aria-hidden="true">
-        <div class="placeholder">+</div>
-        <div class="project-body">
-          <h3>Next up</h3>
-          <p>A new app drops in the Challenge every day, and the keepers earn a card here.</p>
-        </div>
-      </div>
     </div>
 
     <!-- The iPhone apps, each a TestFlight public link. Filled by get-app.js
          from /ios-apps.json (server.js), which lists only the links set on
          the service, so this stays hidden until Apple has approved a build. -->
-    <div class="iphone-apps" id="iphoneApps" hidden>
+    <div class="card iphone-apps" id="iphoneApps" hidden>
       <div class="iphone-head">
         <svg aria-hidden="true" focusable="false"><use href="#i-app"/></svg>
         <div>
@@ -941,116 +924,106 @@
       <div class="iphone-list" data-get-apps></div>
     </div>
   </section>
+  </div>
 
-  <section id="about">
-    <div class="section-head" data-reveal><h2>About</h2></div>
-    <div class="card" data-reveal>
-      <p>I lead sales intelligence and customer insights for all of <strong>Equifax Workforce Solutions</strong>, supporting more than <strong>$2.7 billion</strong> in revenue across more than a dozen verticals. I work with C-suite leaders, business-unit presidents and account executives, internally and externally, to tell the story of how our products fit into each customer's ecosystem: the value we can add, and the value we've already delivered.</p>
-      <p>I'm leading the organization's move to <strong>applied and agentic AI</strong>. The agents we've put into production save more than 1,700 hours a week: a research agent that investigates potential issues, and an insight agent that gives more than 100 account executives customer-ready talking points. That work, and the customer insights behind it, has driven new revenue and protected existing revenue, together more than <strong>$50 million</strong>, and earned the <strong>2025 CEO Circle of Excellence</strong> award for pioneering and championing AI within EWS.</p>
-      <p>I'm a coach player. I've led global teams across the US, Costa Rica and India, and I still build alongside them.</p>
-      <p>I started at Equifax in 2013 writing code, and I never stopped. Along the way I built the insights and the algorithm that detect synthetic fraud in the credit marketplace, which became two patents, and I've won the company's top awards more than once, which is rare for someone who isn't in sales.</p>
-      <p>On the side I run <a href="/challenge">the Challenge</a>, a build-in-public experiment that ships a new AI-built app every day. Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
+  <section class="section" id="about" aria-labelledby="aboutTitle">
+    <div class="section-head">
+      <p class="kicker">About</p>
+      <h2 id="aboutTitle">A coach player who still builds.</h2>
     </div>
+    <div class="about-grid">
+      <div class="prose">
+        <p>I lead sales intelligence and customer insights for all of <strong>Equifax Workforce Solutions</strong>, supporting more than <strong>$2.7 billion</strong> in revenue across more than a dozen verticals. I work with C-suite leaders, business-unit presidents and account executives, internally and externally, to tell the story of how our products fit into each customer's ecosystem: the value we can add, and the value we've already delivered.</p>
+        <p>I'm leading the organization's move to <strong>applied and agentic AI</strong>. The agents we've put into production save more than 1,700 hours a week: a research agent that investigates potential issues, and an insight agent that gives more than 100 account executives customer-ready talking points. That work, and the customer insights behind it, has driven new revenue and protected existing revenue, together more than <strong>$50 million</strong>, and earned the <strong>2025 CEO Circle of Excellence</strong> award for pioneering and championing AI within EWS.</p>
+        <p>I'm a coach player. I've led global teams across the US, Costa Rica and India, and I still build alongside them.</p>
+        <p>I started at Equifax in 2013 writing code, and I never stopped. Along the way I built the insights and the algorithm that detect synthetic fraud in the credit marketplace, which became two patents, and I've won the company's top awards more than once, which is rare for someone who isn't in sales.</p>
+        <p>On the side I run <a href="/challenge">the Challenge</a>, a build-in-public experiment that ships a new AI-built app every day. Off the clock: Georgia football, good beer, and planning the next family trip. The apps above exist because I wanted them for myself.</p>
+      </div>
 
-    <div class="stats">
-      <div class="stat" data-reveal style="--d:.05s">
-        <div class="stat-value" data-count="2.7" data-decimals="1" data-prefix="$" data-suffix="B+">$2.7B+</div>
-        <div class="stat-label">Revenue supported</div>
-      </div>
-      <div class="stat" data-reveal style="--d:.1s">
-        <div class="stat-value" data-count="50" data-prefix="$" data-suffix="M+">$50M+</div>
-        <div class="stat-label">Revenue grown &amp; protected</div>
-      </div>
-      <div class="stat" data-reveal style="--d:.15s">
-        <div class="stat-value" data-count="1700" data-suffix="+">1,700+</div>
-        <div class="stat-label">Hours a week saved by AI agents</div>
-      </div>
-      <div class="stat" data-reveal style="--d:.2s">
-        <div class="stat-value" data-count="12" data-suffix="+">12+</div>
-        <div class="stat-label">Verticals served</div>
-      </div>
-      <div class="stat" data-reveal style="--d:.25s">
-        <div class="stat-value" data-count="2">2</div>
-        <div class="stat-label">Patents</div>
-      </div>
-      <div class="stat" data-reveal style="--d:.3s">
-        <div class="stat-value" data-since="2013" data-suffix="+">13+</div>
-        <div class="stat-label">Years at Equifax</div>
-      </div>
-    </div>
+      <div>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-value">$2.7B+</div>
+            <div class="stat-label">Revenue supported</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">$50M+</div>
+            <div class="stat-label">Revenue grown &amp; protected</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">1,700+</div>
+            <div class="stat-label">Hours a week saved by AI agents</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">12+</div>
+            <div class="stat-label">Verticals served</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">2</div>
+            <div class="stat-label">Patents</div>
+          </div>
+          <div class="stat">
+            <!-- home.js keeps this current: this year minus 2013. -->
+            <div class="stat-value" data-since="2013" data-suffix="+">13+</div>
+            <div class="stat-label">Years at Equifax</div>
+          </div>
+        </div>
 
-    <div class="verticals" data-reveal>
-      <span class="vlabel">Strengths</span>
-      <div class="vchips">
-        <span class="tag">Solution selling</span>
-        <span class="tag">Executive engagement</span>
-        <span class="tag">Agentic &amp; applied AI</span>
-        <span class="tag">Analytics &amp; BI</span>
-        <span class="tag">Data engineering</span>
-        <span class="tag">Team leadership</span>
-      </div>
-    </div>
-
-    <div class="verticals" data-reveal>
-      <span class="vlabel">Verticals</span>
-      <div class="vchips">
-        <span class="tag">Mortgage</span>
-        <span class="tag">Auto</span>
-        <span class="tag">Card</span>
-        <span class="tag">Consumer Finance</span>
-        <span class="tag">Debt Management</span>
-        <span class="tag">Commercial</span>
-        <span class="tag">Government</span>
-        <span class="tag">Risk</span>
-        <span class="tag">Public Safety</span>
-        <span class="tag more">and more</span>
-      </div>
-    </div>
-
-    <div class="list list-facts" data-reveal style="margin-top:14px">
-      <div class="row">
-        <span class="row-icon" style="background: var(--indigo)"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg></span>
-        <span class="row-main"><span class="row-title">Leading the shift to agentic AI</span><span class="row-sub">Agents in production that save 1,700+ hours a week</span></span>
-      </div>
-      <div class="row">
-        <span class="row-icon" style="background: var(--amber)"><svg aria-hidden="true" focusable="false"><use href="#i-award"/></svg></span>
-        <span class="row-main"><span class="row-title">2025 CEO Circle of Excellence</span><span class="row-sub">For pioneering and championing AI within EWS: agentic solutions and customer insights behind $50M+ in revenue grown and protected</span>
-      </div>
-      <div class="row">
-        <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-patent"/></svg></span>
-        <span class="row-main"><span class="row-title">Two patents</span><span class="row-sub">Detecting synthetic fraud in the credit marketplace</span></span>
-      </div>
-      <div class="row">
-        <span class="row-icon" style="background: var(--indigo)"><svg aria-hidden="true" focusable="false"><use href="#i-award"/></svg></span>
-        <span class="row-main"><span class="row-title">Top Equifax awards, more than once</span><span class="row-sub">2022 Top Gun, 2021 Innovation, and 16 Equifax One awards</span></span>
-      </div>
-      <div class="row">
-        <span class="row-icon" style="background: var(--green)"><svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg></span>
-        <span class="row-main"><span class="row-title">Coach player</span><span class="row-sub">Has led global teams and still builds alongside them</span></span>
+        <div class="honours">
+          <h3>Recognition</h3>
+          <div class="honour">
+            <svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg>
+            <div><b>Leading the shift to agentic AI</b><span>Agents in production that save 1,700+ hours a week</span></div>
+          </div>
+          <div class="honour">
+            <svg aria-hidden="true" focusable="false"><use href="#i-award"/></svg>
+            <div><b>2025 CEO Circle of Excellence</b><span>For pioneering and championing AI within EWS: agentic solutions and customer insights behind $50M+ in revenue grown and protected</span></div>
+          </div>
+          <div class="honour">
+            <svg aria-hidden="true" focusable="false"><use href="#i-patent"/></svg>
+            <div><b>Two patents</b><span>Detecting synthetic fraud in the credit marketplace</span></div>
+          </div>
+          <div class="honour">
+            <svg aria-hidden="true" focusable="false"><use href="#i-award"/></svg>
+            <div><b>Top Equifax awards, more than once</b><span>2022 Top Gun, 2021 Innovation, and 16 Equifax One awards</span></div>
+          </div>
+          <div class="honour">
+            <svg aria-hidden="true" focusable="false"><use href="#i-people"/></svg>
+            <div><b>Coach player</b><span>Has led global teams and still builds alongside them</span></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="skills">
-      <div class="skill" data-reveal style="--d:.05s">
-        <div class="skill-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-chart"/></svg></div>
-        <div><h3>Sales intelligence &amp; customer insights</h3><p>Customer and market data turned into the view that moves a deal, not another dashboard nobody opens.</p></div>
+    <div class="tagrows">
+      <div class="tagrow">
+        <h3>Strengths</h3>
+        <ul class="tags">
+          <li class="tag">Solution selling</li><li class="tag">Executive engagement</li><li class="tag">Agentic &amp; applied AI</li><li class="tag">Analytics &amp; BI</li><li class="tag">Data engineering</li><li class="tag">Team leadership</li>
+        </ul>
       </div>
-      <div class="skill" data-reveal style="--d:.12s">
-        <div class="skill-icon" style="background: var(--amber)"><svg aria-hidden="true" focusable="false"><use href="#i-spark"/></svg></div>
-        <div><h3>Applied AI</h3><p>AI that actually runs inside the business: monitoring it, surfacing signals, and flagging what matters.</p></div>
+      <div class="tagrow">
+        <h3>Verticals</h3>
+        <ul class="tags">
+          <li class="tag">Mortgage</li><li class="tag">Auto</li><li class="tag">Card</li><li class="tag">Consumer Finance</li><li class="tag">Debt Management</li><li class="tag">Commercial</li><li class="tag">Government</li><li class="tag">Risk</li><li class="tag">Public Safety</li><li class="tag more">and more</li>
+        </ul>
       </div>
-      <div class="skill" data-reveal style="--d:.19s">
-        <div class="skill-icon" style="background: var(--green)"><svg aria-hidden="true" focusable="false"><use href="#i-app"/></svg></div>
-        <div><h3>Products that ship</h3><p>Custom apps and tools built to generate revenue, and the teams to keep building them.</p></div>
+      <div class="tagrow">
+        <h3>Tools</h3>
+        <ul class="tags">
+          <li class="tag">Applied AI</li><li class="tag">Agentic AI</li><li class="tag">Claude API</li><li class="tag">Python</li><li class="tag">SQL</li><li class="tag">R</li><li class="tag">JavaScript</li><li class="tag">Node.js</li><li class="tag">React</li><li class="tag">Google Cloud Run</li><li class="tag">Firestore</li><li class="tag">Spotfire</li><li class="tag">Data visualization</li><li class="tag">Fraud detection</li>
+        </ul>
       </div>
     </div>
-    <blockquote data-reveal>"I'm a coach player. I love to teach, but I don't like standing on the sidelines."<b>Erik Strong</b></blockquote>
+
+    <blockquote class="quote">&ldquo;I'm a coach player. I love to teach, but I don't like standing on the sidelines.&rdquo;<footer>Erik Strong</footer></blockquote>
   </section>
 
-  <section id="writing">
-    <div class="section-head" data-reveal><h2>Blog</h2><span class="sub">Occasional, when there's something to say</span></div>
-    <div class="card" data-reveal>
-      <p style="margin-bottom:16px">Short pieces on what actually works when you put data and AI in front of a business. New posts go out by email, and you can unsubscribe in one tap.</p>
+  <div class="section duo">
+    <section id="writing" aria-labelledby="writingTitle">
+      <p class="kicker">Blog</p>
+      <h2 id="writingTitle">Occasional, when there's something to say.</h2>
+      <p class="lead">Short pieces on what actually works when you put data and AI in front of a business. New posts go out by email, and you can unsubscribe in one tap.</p>
       <label class="sub-label" for="subEmail">Email address</label>
       <form class="sub-form" id="subForm" method="POST" action="/api/subscribe">
         <input type="email" name="email" id="subEmail" inputmode="email" autocomplete="email" autocapitalize="none"
@@ -1061,825 +1034,61 @@
         <input type="hidden" name="t" id="subT" value="">
       </form>
       <p class="sub-note" id="subNote" role="status" aria-live="polite">You will get one email to confirm. Nothing else until there is something to read.</p>
-      <p style="margin-top:14px"><a href="/writing" style="font-weight:600">Read the posts <span aria-hidden="true">&rsaquo;</span></a></p>
-    </div>
-  </section>
+      <a class="arrow-link" href="/writing">Read the posts <svg aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>
+    </section>
 
-  <section id="contact">
-    <div class="section-head" data-reveal><h2>Get in touch</h2></div>
-    <div class="list" data-reveal>
-      <a class="row" href="#contact" data-contact>
-        <span class="row-icon" style="background: var(--tint)"><svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg></span>
-        <span class="row-main"><span class="row-title">Email</span><span class="row-sub wraps" data-contact-show>Tap to email Erik</span></span>
-        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
-      </a>
-      <a class="row" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: #0A66C2"><svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg></span>
-        <span class="row-main"><span class="row-title">LinkedIn</span><span class="row-sub">linkedin.com/in/eriksstrong</span></span>
-        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
-      </a>
-      <a class="row" href="https://github.com/eRock35" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: #24292F"><svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg></span>
-        <span class="row-main"><span class="row-title">GitHub</span><span class="row-sub">github.com/eRock35</span></span>
-        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
-      </a>
-      <a class="row" href="https://twitter.com/sTechConsulting" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: #000"><svg aria-hidden="true" focusable="false"><use href="#i-x"/></svg></span>
-        <span class="row-main"><span class="row-title">X</span><span class="row-sub">@sTechConsulting</span></span>
-        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
-      </a>
-      <a class="row" href="https://www.instagram.com/strongtechnicalconsulting/" target="_blank" rel="noopener">
-        <span class="row-icon" style="background: linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)"><svg aria-hidden="true" focusable="false"><use href="#i-instagram"/></svg></span>
-        <span class="row-main"><span class="row-title">Instagram</span><span class="row-sub">@strongtechnicalconsulting</span></span>
-        <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
-      </a>
-    </div>
-  </section>
+    <section id="contact" aria-labelledby="contactTitle">
+      <p class="kicker">Contact</p>
+      <h2 id="contactTitle">Get in touch</h2>
+      <p class="lead">For a role, an advisory conversation, or to compare notes on data and AI, send an email or connect on LinkedIn.</p>
+      <div class="contact-list">
+        <a class="row primary" href="#contact" data-contact>
+          <svg aria-hidden="true" focusable="false"><use href="#i-mail"/></svg>
+          <span><span class="row-title">Email</span><span class="row-sub" data-contact-show>Tap to email Erik</span></span>
+          <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
+        </a>
+        <a class="row" href="https://www.linkedin.com/in/eriksstrong" target="_blank" rel="noopener">
+          <svg aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg>
+          <span><span class="row-title">LinkedIn</span><span class="row-sub">linkedin.com/in/eriksstrong</span></span>
+          <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
+        </a>
+        <a class="row" href="https://github.com/eRock35" target="_blank" rel="noopener">
+          <svg aria-hidden="true" focusable="false"><use href="#i-github"/></svg>
+          <span><span class="row-title">GitHub</span><span class="row-sub">github.com/eRock35</span></span>
+          <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
+        </a>
+        <a class="row" href="https://twitter.com/sTechConsulting" target="_blank" rel="noopener">
+          <svg aria-hidden="true" focusable="false"><use href="#i-x"/></svg>
+          <span><span class="row-title">X</span><span class="row-sub">@sTechConsulting</span></span>
+          <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
+        </a>
+        <a class="row" href="https://www.instagram.com/strongtechnicalconsulting/" target="_blank" rel="noopener">
+          <svg aria-hidden="true" focusable="false"><use href="#i-instagram"/></svg>
+          <span><span class="row-title">Instagram</span><span class="row-sub">@strongtechnicalconsulting</span></span>
+          <svg class="row-chev" aria-hidden="true" focusable="false"><use href="#i-chev"/></svg>
+        </a>
+      </div>
+    </section>
+  </div>
 </main>
 
-<footer>
-  <!-- Absolute, to the canonical host. /account still works and redirects
-       there, but sending people through a redirect from our own footer is
-       just a slower way to arrive. -->
-  <a href="/writing">Blog</a> &middot; <a href="/feed.xml">RSS</a> &middot;
-  <a href="https://acct.strongtechnicalconsulting.com">Account</a> &middot;
-  <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a><span class="motion-switch"> &middot;
-  <button type="button" class="motion-toggle" id="motionToggle">Pause motion</button></span><br>
-  Built and run by Erik Strong in Atlanta.
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <p>Built and run by Erik Strong in Atlanta.</p>
+    <!-- Account is absolute, to the canonical host. /account still works and
+         redirects there, but sending people through a redirect from our own
+         footer is just a slower way to arrive. -->
+    <nav aria-label="Site">
+      <a href="/writing">Blog</a>
+      <a href="/feed.xml">RSS</a>
+      <a href="/challenge">Challenge</a>
+      <a href="https://acct.strongtechnicalconsulting.com">Account</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </div>
 </footer>
 
-<script>
-(function () {
-  "use strict";
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var root = document.documentElement;
-  function still() { return reduce || root.getAttribute("data-motion") === "off"; }
-
-  /* ---------- Hero title: word-by-word rise ---------- */
-  var title = document.getElementById("heroTitle");
-  if (title && !reduce) {
-    var words = title.textContent.split(" ");
-    title.textContent = "";
-    words.forEach(function (w, i) {
-      var span = document.createElement("span");
-      span.className = "w";
-      span.textContent = w;
-      span.style.animationDelay = (0.06 * i) + "s";
-      title.appendChild(span);
-      if (i < words.length - 1) title.appendChild(document.createTextNode(" "));
-    });
-  }
-
-  /* ---------- Rotating phrase in the lede ---------- */
-  // One pass through the phrases, then it rests on the first one - the line
-  // as written - rather than changing under the reader forever.
-  var rot = document.getElementById("rot");
-  if (rot && !reduce) {
-    var phrases = ["real business action", "applied AI that ships", "products that earn", "the call before the deal"];
-    var i = 0;
-    var rotTimer = setInterval(function () {
-      if (still() || i === phrases.length - 1) clearInterval(rotTimer);
-      if (still()) { i = 0; rot.textContent = phrases[0]; return; }
-      rot.classList.add("out");
-      setTimeout(function () {
-        i = (i + 1) % phrases.length;
-        rot.textContent = phrases[i];
-        rot.classList.remove("out");
-      }, 320);
-    }, 3200);
-  }
-
-  /* ---------- Seamless marquee: duplicate the track ---------- */
-  // The copy exists only to make the loop seamless, so only the copy is
-  // hidden from screen readers; the original list reads normally.
-  var track = document.getElementById("marquee");
-  if (track) {
-    Array.prototype.slice.call(track.children).forEach(function (li) {
-      var c = li.cloneNode(true);
-      c.setAttribute("aria-hidden", "true");
-      track.appendChild(c);
-    });
-    // Hover pauses it for a mouse; a tap does the same on a phone.
-    track.parentNode.addEventListener("click", function () { track.parentNode.classList.toggle("paused"); });
-  }
-
-  /* ---------- Pause motion (footer) ---------- */
-  var motionBtn = document.getElementById("motionToggle");
-  if (motionBtn) {
-    var syncMotion = function () {
-      motionBtn.textContent = root.getAttribute("data-motion") === "off" ? "Resume motion" : "Pause motion";
-    };
-    motionBtn.addEventListener("click", function () {
-      var off = root.getAttribute("data-motion") !== "off";
-      if (off) root.setAttribute("data-motion", "off"); else root.removeAttribute("data-motion");
-      try { if (off) localStorage.setItem("motion", "off"); else localStorage.removeItem("motion"); } catch (e) {}
-      syncMotion();
-    });
-    syncMotion();
-  }
-
-  /* ---------- Rows that scroll sideways: fade the side with more ---------- */
-  // Shared with the preview strip below (window.edgeFade).
-  function edgeFade(el) {
-    var max = el.scrollWidth - el.clientWidth, f = "";
-    if (max > 1) {
-      if (el.scrollLeft > 1) f += "l";
-      if (el.scrollLeft < max - 1) f += "r";
-    }
-    if (f) el.setAttribute("data-fade", f); else el.removeAttribute("data-fade");
-  }
-  window.edgeFade = edgeFade;
-
-  // The nav links only scroll as a last resort (see the CSS), but when they
-  // do, a focused link is brought into the row's view - Chromium does not
-  // reliably do that itself inside a fixed bar.
-  var navLinks = document.getElementById("navLinks");
-  if (navLinks) {
-    navLinks.addEventListener("scroll", function () { edgeFade(navLinks); }, { passive: true });
-    navLinks.addEventListener("focusin", function (e) {
-      var r = e.target.getBoundingClientRect(), c = navLinks.getBoundingClientRect();
-      if (r.left < c.left) navLinks.scrollLeft -= c.left - r.left + 12;
-      else if (r.right > c.right) navLinks.scrollLeft += r.right - c.right + 12;
-    });
-    var navT; window.addEventListener("resize", function () { clearTimeout(navT); navT = setTimeout(function () { edgeFade(navLinks); }, 100); });
-    edgeFade(navLinks);
-  }
-
-  /* ---------- Scroll progress + nav state ---------- */
-  var nav = document.getElementById("nav");
-  var progress = document.getElementById("progress");
-  var ticking = false;
-  function onScroll() {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(function () {
-      var y = window.scrollY || 0;
-      var max = document.documentElement.scrollHeight - window.innerHeight;
-      nav.classList.toggle("is-scrolled", y > 24);
-      progress.style.transform = "scaleX(" + (max > 0 ? Math.min(y / max, 1) : 0) + ")";
-      var fade = Math.max(0.2, 1 - (y / Math.max(window.innerHeight, 1)) * 0.95);
-      document.documentElement.style.setProperty("--aurora-o", fade.toFixed(3));
-      ticking = false;
-    });
-  }
-  window.addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
-
-  /* ---------- Reveal on scroll ---------- */
-  var revealables = document.querySelectorAll("[data-reveal]");
-  if (!("IntersectionObserver" in window) || reduce) {
-    revealables.forEach(function (el) { el.classList.add("in"); });
-  } else {
-    var revealer = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        e.target.classList.add("in");
-        revealer.unobserve(e.target);
-      });
-    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
-    revealables.forEach(function (el) { revealer.observe(el); });
-  }
-
-  /* ---------- Active section in the nav ---------- */
-  // Tracks which sections are in the band across the middle of the screen
-  // and redraws from that, so the underline also CLEARS - back at the hero
-  // nothing is underlined. The Blog section lights "Blog".
-  var links = {};
-  document.querySelectorAll("[data-nav]").forEach(function (a) { links[a.dataset.nav] = a; });
-  if ("IntersectionObserver" in window) {
-    var sections = ["projects", "about", "writing", "contact"], inBand = {};
-    var spy = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) { inBand[e.target.id] = e.isIntersecting; });
-      var cur = null;
-      sections.forEach(function (id) { if (inBand[id]) cur = id; });
-      Object.keys(links).forEach(function (k) { links[k].classList.toggle("is-active", k === cur); });
-    }, { rootMargin: "-45% 0px -50% 0px" });
-    sections.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) spy.observe(el);
-    });
-  }
-
-  /* ---------- Count-up stats ---------- */
-  function formatNumber(v, decimals) {
-    return decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString("en-US");
-  }
-  function countUp(el) {
-    var decimals = Number(el.dataset.decimals || 0);
-    var prefix = el.dataset.prefix || "";
-    var suffix = el.dataset.suffix || "";
-    var target = el.dataset.since
-      ? new Date().getFullYear() - Number(el.dataset.since)
-      : Number(el.dataset.count);
-    if (!isFinite(target)) return;
-    if (reduce) { el.textContent = prefix + formatNumber(target, decimals) + suffix; return; }
-    var start = null, dur = 1100;
-    function step(ts) {
-      if (start === null) start = ts;
-      var p = Math.min((ts - start) / dur, 1);
-      var eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = prefix + formatNumber(target * eased, decimals) + suffix;
-      if (p < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  }
-  var stats = document.querySelectorAll(".stat-value");
-  if (!("IntersectionObserver" in window)) {
-    stats.forEach(countUp);
-  } else {
-    var counter = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        countUp(e.target);
-        counter.unobserve(e.target);
-      });
-    }, { threshold: 0.5 });
-    stats.forEach(function (el) { counter.observe(el); });
-  }
-
-  /* ---------- Subscribe ---------- */
-  // The form posts on its own without JavaScript; this just keeps the reader
-  // on the page and answers inline.
-  var subForm = document.getElementById("subForm");
-  if (subForm) {
-    var subT = document.getElementById("subT");
-    if (subT) subT.value = String(Date.now());
-    subForm.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      var input = document.getElementById("subEmail");
-      var btn = document.getElementById("subBtn");
-      var note = document.getElementById("subNote");
-      var address = input.value.trim();
-      if (!address) return;
-      btn.disabled = true;
-      note.className = "sub-note";
-      note.textContent = "Signing you up…";
-      try {
-        var res = await fetch("/api/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: address, source: "landing", website: (document.getElementById("subWebsite") || {}).value || "", t: Number((document.getElementById("subT") || {}).value) || 0 })
-        });
-        var data = await res.json().catch(function () { return {}; });
-        if (!res.ok) throw new Error(data.error || "That did not work.");
-        note.className = "sub-note ok";
-        note.textContent = data.message || "Check your inbox to confirm.";
-        input.value = "";
-      } catch (err) {
-        note.className = "sub-note error";
-        // A TypeError is fetch failing to reach the server at all, and its
-        // message is the browser's ("Failed to fetch", "Load failed").
-        note.textContent = err instanceof TypeError
-          ? "Couldn't reach the server. Check your connection and try again."
-          : (err.message || "That did not work. Try again.");
-      }
-      btn.disabled = false;
-    });
-  }
-
-  /* ---------- Pointer spotlight + gentle tilt on the project cards ---------- */
-  var fine = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  if (fine && !reduce) {
-    document.querySelectorAll(".project").forEach(function (card) {
-      card.addEventListener("pointermove", function (e) {
-        var r = card.getBoundingClientRect();
-        var x = e.clientX - r.left, y = e.clientY - r.top;
-        card.style.setProperty("--mx", x + "px");
-        card.style.setProperty("--my", y + "px");
-        var rx = ((y / r.height) - 0.5) * -4;
-        var ry = ((x / r.width) - 0.5) * 4;
-        card.style.transform = "perspective(900px) rotateX(" + rx + "deg) rotateY(" + ry + "deg) translateY(-3px)";
-      });
-      card.addEventListener("pointerleave", function () { card.style.transform = ""; });
-    });
-  }
-})();
-</script>
-<script>
-(function () {
-  "use strict";
-  var strip = document.getElementById("previewStrip");
-  if (!strip || !("IntersectionObserver" in window)) return;
-  var cards = Array.prototype.slice.call(strip.querySelectorAll(".preview"));
-  var dots = document.getElementById("previewDots");
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var how = reduce ? "auto" : "smooth";
-  // Scroll the strip (only the strip - never the page) so a card is centred.
-  function centre(card) {
-    var s = strip.getBoundingClientRect(), c = card.getBoundingClientRect();
-    strip.scrollBy({ left: (c.left + c.width / 2) - (s.left + s.width / 2), behavior: how });
-  }
-  cards.forEach(function (card) {
-    var b = document.createElement("button");
-    b.type = "button"; b.tabIndex = -1;
-    b.addEventListener("click", function () { centre(card); });
-    dots.appendChild(b);
-  });
-  document.querySelectorAll(".strip-nav").forEach(function (b) {
-    b.addEventListener("click", function () { strip.scrollBy({ left: Number(b.dataset.dir) * strip.clientWidth * 0.8, behavior: how }); });
-  });
-  // Tabbing to a frame's link brings the frame into view; mandatory snap
-  // otherwise pulls the strip back and leaves the focused frame off-screen.
-  strip.addEventListener("focusin", function (e) {
-    var c = e.target.closest(".preview");
-    if (c) c.scrollIntoView({ inline: "center", block: "nearest", behavior: how });
-  });
-
-  // The app renders at 390px wide - what it was designed for - and is scaled
-  // to whatever the phone frame happens to be. Re-fit on resize.
-  function fit(card) {
-    var screen = card.querySelector(".phone-screen"), frame = screen.querySelector("iframe");
-    if (!frame) return;
-    var k = screen.clientWidth / 390;
-    frame.style.transform = "scale(" + k + ")";
-    frame.style.height = Math.ceil(screen.clientHeight / k) + "px";
-  }
-  function load(card) {
-    if (card.dataset.loaded) return;
-    card.dataset.loaded = "1";
-    var screen = card.querySelector(".phone-screen");
-    var frame = document.createElement("iframe");
-    frame.title = card.querySelector("figcaption b").textContent + " preview";
-    frame.loading = "lazy";
-    frame.referrerPolicy = "strict-origin";
-    frame.setAttribute("aria-hidden", "true");
-    frame.tabIndex = -1;
-    frame.addEventListener("load", function () {
-      frame.classList.add("in");
-      var skel = screen.querySelector(".phone-skel");
-      if (skel) skel.remove();
-    });
-    screen.appendChild(frame);
-    fit(card);
-    frame.src = card.dataset.src;
-  }
-
-  // Load a card when it is on screen or one card away - not the whole strip
-  // at once, and not only when it is already centred (that would show a
-  // cold start every swipe).
-  var loader = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) { if (e.isIntersecting) { load(e.target); loader.unobserve(e.target); } });
-  }, { root: strip, rootMargin: "0px 60% 0px 60%", threshold: 0.01 });
-  // That observer's root is the strip, so it measures against the strip's own
-  // box and knows nothing about the viewport: on its own it loaded the first
-  // cards on page load, below the fold, for visitors who never scrolled to
-  // them. So it only starts once the strip itself reaches the screen.
-  var gate = new IntersectionObserver(function (es) {
-    if (!es.some(function (e) { return e.isIntersecting; })) return;
-    gate.disconnect();
-    cards.forEach(function (c) { loader.observe(c); });
-  });
-  gate.observe(strip);
-
-  // The dots follow the card nearest the strip's centre, and the ends win at
-  // the ends: on a wide screen several cards are fully visible at once, and
-  // "most visible" then always picked the first of them.
-  function sync() {
-    var max = strip.scrollWidth - strip.clientWidth, best = 0;
-    if (strip.scrollLeft >= max - 1 && max > 0) best = cards.length - 1;
-    else if (strip.scrollLeft > 1) {
-      var s = strip.getBoundingClientRect(), mid = s.left + s.width / 2, d = Infinity;
-      cards.forEach(function (c, j) {
-        var r = c.getBoundingClientRect(), k = Math.abs(r.left + r.width / 2 - mid);
-        if (k < d) { d = k; best = j; }
-      });
-    }
-    Array.prototype.forEach.call(dots.children, function (b, j) { b.classList.toggle("on", best === j); });
-    if (window.edgeFade) window.edgeFade(strip);
-  }
-  var ticking = false;
-  strip.addEventListener("scroll", function () {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(function () { ticking = false; sync(); });
-  }, { passive: true });
-  sync();
-
-  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(function () { cards.forEach(fit); sync(); }, 120); });
-})();
-</script>
-<script>
-/* The Challenge banner, live: the lab's latest drop, how many apps are live,
- * and the countdown to the next drop.
- *
- * The lab is another service (challenge/ in this repo), so this is additive
- * and fails quietly. Its /api/lab allows this page's two origins by CORS, and
- * the request carries no cookies: the lab's CORS does not allow credentials,
- * and the banner has no use for a visitor's own votes (the lab mints its vote
- * cookie only on its own page or on a vote). Until it answers the tile keeps
- * its place with its contents out of sight; after FALLBACK_MS the copy in the
- * markup is shown, which carries no numbers, and a late answer still replaces
- * it. Every field is set with textContent, never as markup.
- *
- * A tab left open past 09:00 UTC, or brought back from memory the next day,
- * asks again once a drop has landed since the last answer, so the tile never
- * names yesterday's drop beside today's countdown. The old tile stays until
- * the new answer draws; if that answer never comes, the tile goes back to the
- * copy in the markup rather than keep an old "Latest drop".
- */
-(function () {
-  'use strict';
-  var LAB = 'https://challenge.strongtechnicalconsulting.com';
-  var FALLBACK_MS = 1500, GIVE_UP_MS = 6000, DAY = 864e5;
-  var live = document.getElementById('cbLive');
-  if (!live) return;
-  function $(id) { return document.getElementById(id); }
-  function show(s) { live.setAttribute('data-state', s); }
-  function state() { return live.getAttribute('data-state'); }
-  var fallback = setTimeout(function () { if (state() === 'wait') show('static'); }, FALLBACK_MS);
-  var FIELDS = ['cbEm', 'cbK', 'cbName', 'cbTag', 'cbCount'], MARKUP = null;
-  // Back to the copy in the markup: no numbers, nothing that can go stale.
-  function plain() {
-    if (!MARKUP) return;
-    $('cbDrop').setAttribute('href', MARKUP.href);
-    FIELDS.forEach(function (id) { $(id).textContent = MARKUP[id]; });
-    $('cbEm').style.removeProperty('--c1'); $('cbEm').style.removeProperty('--c2');
-  }
-  function fail() {
-    clearTimeout(fallback);
-    if (state() === 'live') plain();
-    show('static');
-  }
-
-  try {
-    MARKUP = { href: $('cbDrop').getAttribute('href') };
-    FIELDS.forEach(function (id) { MARKUP[id] = $(id).textContent; });
-
-    // The next drop is 09:00 UTC every day - the lab's own countdown.
-    // lastDrop(t) is the most recent one at or before t: the drop that a
-    // "Latest drop" answer was true under.
-    var lastDrop = function (t) {
-      var d = new Date(t), at = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9);
-      return at > t ? at - DAY : at;
-    };
-    var loadedFor = null, seq = 0, load;
-    var next = $('cbNext');
-    var tick = function () {
-      var now = Date.now(), at = lastDrop(now) + DAY;
-      var mins = Math.max(1, Math.ceil((at - now) / 6e4)), h = Math.floor(mins / 60), m = mins % 60;
-      next.textContent = 'Next drop in ' + (h ? h + 'h ' + (m < 10 ? '0' : '') + m + 'm' : m + 'm');
-      if (loadedFor !== null && lastDrop(now) !== loadedFor) load();
-    };
-
-    var SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/, HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-    var clean = function (v, max) {
-      return Array.from(String(v == null ? '' : v).replace(/\s+/g, ' ').trim()).slice(0, max).join('');
-    };
-    // A graduated app lives on its own subdomain; anything else, or anything
-    // that is not a plain https address on this domain, opens in the lab.
-    var hrefFor = function (a) {
-      if (a.status === 'graduated' && a.home) {
-        try {
-          var u = new URL(a.home);
-          if (u.protocol === 'https:' && /(^|\.)strongtechnicalconsulting\.com$/.test(u.hostname)) return u.href;
-        } catch (e) {}
-      }
-      return SLUG.test(a.slug) ? LAB + '/' + a.slug + '/' : LAB + '/';
-    };
-    // The lab's own rule for "can be opened" (challenge/public/lab.js): an
-    // app whose server failed to mount is listed but not live, and the lab
-    // shows it as "Warming up" rather than a link. The banner neither counts
-    // it nor headlines it.
-    var up = function (a) { return a.live === true || a.status === 'graduated'; };
-    var draw = function (all) {
-      // The list is oldest first. Retired apps are neither counted nor shown,
-      // but keep their place in the numbering, as on /challenge, so killing
-      // one never renumbers the rest.
-      var apps = all.filter(function (a) { return a && typeof a === 'object' && a.status !== 'retired' && clean(a.name, 1); });
-      var live = apps.filter(up);
-      if (!live.length) return false;
-      // The newest app that is up. When today's drop is still warming up, the
-      // one before it takes the tile rather than a link to a 404.
-      var a = live[live.length - 1], n = all.indexOf(a) + 1;
-      var newest = a === apps[apps.length - 1];
-      $('cbDrop').href = hrefFor(a);
-      $('cbEm').textContent = clean(a.emoji, 8) || '\u{1F9EA}';
-      var em = $('cbEm').style;
-      if (HEX.test(a.color) && HEX.test(a.color2)) { em.setProperty('--c1', a.color); em.setProperty('--c2', a.color2); }
-      else { em.removeProperty('--c1'); em.removeProperty('--c2'); }
-      $('cbK').textContent = (newest ? 'Latest drop' : 'In the lab') + ' · #' + (n < 10 ? '0' : '') + n;
-      $('cbName').textContent = clean(a.name, 60);
-      $('cbTag').textContent = clean(a.tagline, 160);
-      $('cbCount').textContent = live.length + (live.length === 1 ? ' app live' : ' apps live');
-      return true;
-    };
-
-    // One question per drop. Only the latest one asked may draw or fail, so a
-    // slow answer from before 09:00 cannot overwrite a newer one.
-    load = function () {
-      var mine = ++seq;
-      loadedFor = lastDrop(Date.now());
-      var ctl = window.AbortController ? new AbortController() : null;
-      var giveUp = setTimeout(function () { if (ctl) ctl.abort(); }, GIVE_UP_MS);
-      fetch(LAB + '/api/lab', { mode: 'cors', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) {
-          clearTimeout(giveUp);
-          if (mine !== seq) return;
-          if (d && Array.isArray(d.apps) && draw(d.apps)) { clearTimeout(fallback); show('live'); }
-          else fail();
-        })
-        .catch(function () { clearTimeout(giveUp); if (mine === seq) fail(); });
-    };
-
-    tick();
-    setInterval(tick, 15000);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
-    window.addEventListener('pageshow', function (e) { if (e.persisted) tick(); });
-    if (!window.fetch) { fail(); return; }
-    load();
-  } catch (e) { fail(); }
-})();
-</script>
-<script>
-/* What's trending, labelled rather than re-sorted.
- *
- * The counts live on this service (see lib/views.js and beacon.js).
- * The prompt-library version of this page re-ORDERED the cards by rank; that
- * fights this page, whose cards carry staggered CSS reveal delays written
- * into the markup, so reordering would make them flash in at the wrong times
- * and the order would change under a returning reader for no reason they can
- * see. Labelling says the same thing and keeps both.
- *
- * Everything here is additive and failure is silent: this is a static page
- * and the counter is another service. If the fetch never lands, the cards
- * read exactly as they do now.
- */
-(function () {
-  'use strict';
-  if (document.documentElement.getAttribute('data-counts') === 'off') return;
-  var STATS = '/api/stats/public';   // same origin: the counter lives here now
-  function n(v) { return Number(v || 0).toLocaleString(); }
-  // Labels and URLs come from the counter's own allowlist, not from this page,
-  // so they are data rather than markup and get escaped like any other.
-  function esc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-  try {
-    fetch(STATS, { credentials: 'omit' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (!d || !Array.isArray(d.apps)) return;
-
-        // The ranked strip. Three filters, each for its own reason:
-        //  - this page itself is left out. Every visitor arrives here first,
-        //    so it would sit at #1 every week and say nothing; the strip is
-        //    about the apps. The whole picture is on /admin/views.
-        //  - an app with no views is left out rather than listed at zero.
-        //  - and nothing is drawn at all below two rows, because a ranking of
-        //    one is not a ranking.
-        //  - ranked, drawn and scaled on ONE number, this week's: an app with
-        //    no views this week is not "most used this week", and one big
-        //    all-time count would shrink every weekly bar beside it.
-        var seen = d.apps.filter(function (a) {
-          return a.app !== 'landing' && Number(a.views7) > 0;
-        }).sort(function (a, b) { return b.views7 - a.views7; });
-        if (seen.length > 1) {
-          var top = Math.max.apply(null, seen.map(function (a) { return a.views7; }));
-          // Seven days, because that is the window the numbers below are from
-          // (views7) - not d.days, which is how long the sparkline series is.
-          document.getElementById('trendWhen').textContent =
-            'Last 7 days \u00b7 counted first-party';
-          document.getElementById('trendList').innerHTML = seen.map(function (a, i) {
-            var v = a.views7;
-            var pct = Math.max(6, Math.round((v / top) * 100));
-            // The row opens what the app's card opens - for Friction, the
-            // public /preview rather than the counter's URL, which is its
-            // signed-in board and a sign-in page to everyone else.
-            var card = document.querySelector('a.project[data-app="' + a.app + '"]');
-            var href = card ? card.getAttribute('href') : a.url;
-            return '<li><a href="' + esc(href) + '" style="--w:' + pct + '%">'
-              + '<span class="tl-rank">' + (i + 1) + '</span>'
-              + '<span class="tl-name">' + esc(a.icon || '') + ' ' + esc(a.label) + '</span>'
-              + '<span class="tl-n">' + n(v) + '</span>'
-              + '</a></li>';
-          }).join('');
-          document.getElementById('trendBar').hidden = false;
-        }
-
-        // `rank` is the rank across everything the counter tracks, and #1 is
-        // always this page - so keying the badge off it meant no app card
-        // would ever carry it. The badge belongs to the busiest APP this
-        // week, and to nobody in a week with no views. Nor to anybody in a tie
-        // or when only one app has views: the server breaks views7 ties on
-        // all-time totals, which carry the old preview-frame inflation for
-        // good (see lib/views.js), so first place in a tie is not earned.
-        var leader = (seen.length > 1 && seen[0].views7 > seen[1].views7) ? seen[0].app : null;
-
-        d.apps.forEach(function (a) {
-          var card = document.querySelector('a.project[data-app="' + a.app + '"]');
-          if (!card) return;
-          // A view count nobody has earned yet reads as a dead app. Say
-          // nothing until there is something to say. Weekly only: the
-          // all-time total counted landing-page previews until each app
-          // shipped the 2026-09-25 beacon, and a card saying "N views" beside others saying "N views this
-          // week" mixed two different numbers.
-          if (!a.views7) return;
-          var h3 = card.querySelector('h3');
-          if (a.app === leader && h3 && !h3.querySelector('.trending')) {
-            var b = document.createElement('span');
-            b.className = 'trending';
-            b.textContent = 'Trending';
-            h3.appendChild(b);
-          }
-          var body = card.querySelector('.project-body');
-          if (!body || body.querySelector('.views')) return;
-          var v = document.createElement('span');
-          v.className = 'views';
-          v.textContent = n(a.views7) + ' views this week';
-          body.appendChild(v);
-        });
-      })
-      .catch(function () {});
-  } catch (e) {}
-})();
-</script>
-<script>
-/* Live now, and the Keep or kill standings in the Challenge banner.
- *
- * Both come from one same-origin call, /api/activity (lib/activity.js), which
- * the server answers from a 15-second memory - so this page can ask every 30
- * seconds and it costs next to nothing. It asks only while the tab is
- * visible: a hidden tab's timer is cleared, and coming back asks at once if
- * the last answer is older than the interval.
- *
- * Nothing on the page moves because of it:
- *  - the strip is one sideways-scrolling row, so one line or six are the same
- *    height, and a refresh keeps where the row was scrolled to;
- *  - while the first answer is on its way the strip holds its place with
- *    blank pills; if it is empty or does not come, the strip is removed;
- *  - after that, the strip appears or goes only while its place is below the
- *    bottom of the screen, where nothing a reader is looking at can shift;
- *  - the standings box is the same size whatever it shows.
- * A failed poll is never shown: the last good lines stay, and after four
- * misses in a row (two minutes) the strip goes when it is out of sight.
- * Every string from the server is escaped; links must be https on this
- * domain or they are not links.
- */
-(function () {
-  'use strict';
-  if (document.documentElement.getAttribute('data-counts') === 'off') return;
-  var feed = document.getElementById('liveFeed'), list = document.getElementById('lfList');
-  var board = document.getElementById('cbBoard');
-  if (!feed || !list) return;
-  var POLL = 30000, GIVE_UP = 8000, STATIC_AFTER = 2500, MISSES = 4;
-  var timer = null, lastAsk = 0, seq = 0, misses = 0, lastFeed = '', lastBoard = '';
-
-  function esc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-  function clean(v, max) { return Array.from(String(v == null ? '' : v).replace(/\s+/g, ' ').trim()).slice(0, max).join(''); }
-  function safeHref(u) {
-    try {
-      var x = new URL(String(u));
-      if (x.protocol === 'https:' && /(^|\.)strongtechnicalconsulting\.com$/.test(x.hostname)) return x.href;
-    } catch (e) {}
-    return null;
-  }
-  function num(v) { var n = Number(v); return isFinite(n) && n >= 0 ? Math.floor(n) : 0; }
-
-  /* ---------- the strip ---------- */
-  function state() { return feed.getAttribute('data-state'); }
-  // Where the strip is (or would be): below the screen means a change there
-  // shifts nothing anyone can see.
-  function outOfSight() {
-    var el = state() === 'gone' ? feed.nextElementSibling : feed;
-    if (!el) return true;
-    return el.getBoundingClientRect().top >= (window.innerHeight || document.documentElement.clientHeight);
-  }
-  function drawFeed(items) {
-    var html = items.map(function (it) {
-      var href = safeHref(it.href);
-      var name = clean(it.name, 40), text = clean(it.text, 110), when = clean(it.when, 24), icon = clean(it.icon, 4);
-      // The when is a second line, so a narrow screen cuts neither.
-      var inner = '<span class="lf-ic" aria-hidden="true">' + esc(icon) + '</span>'
-        + '<span class="lf-body"><span class="lf-tx"><b>' + esc(name) + '</b> ' + esc(text) + '</span>'
-        + (when ? '<span class="lf-when"><span class="sr">, </span>' + esc(when) + '</span>' : '') + '</span>';
-      var title = esc(name + ' ' + text + (when ? ' · ' + when : ''));
-      return '<li>' + (href
-        ? '<a class="lf-item" href="' + esc(href) + '" title="' + title + '" target="_blank" rel="noopener">' + inner + '</a>'
-        : '<span class="lf-item" title="' + title + '">' + inner + '</span>') + '</li>';
-    }).join('');
-    if (html === lastFeed) return;
-    var x = list.scrollLeft;
-    list.innerHTML = html;
-    list.scrollLeft = x;
-    lastFeed = html;
-  }
-  function usable(items) {
-    return Array.isArray(items) ? items.filter(function (it) { return it && typeof it === 'object' && clean(it.name, 1) && clean(it.text, 1); }).slice(0, 6) : [];
-  }
-  function onFeed(items) {
-    var s = state();
-    if (items.length) {
-      misses = 0;
-      if (s === 'gone' && !outOfSight()) return;   // wait for it to be off screen
-      drawFeed(items);
-      feed.setAttribute('data-state', 'live');
-    } else if (s === 'wait') {
-      feed.setAttribute('data-state', 'gone');
-    } else if (s === 'live' && outOfSight()) {
-      feed.setAttribute('data-state', 'gone');
-      lastFeed = '';
-    }
-  }
-  function onFail() {
-    misses += 1;
-    var s = state();
-    if (s === 'wait' || (s === 'live' && misses >= MISSES && outOfSight())) { feed.setAttribute('data-state', 'gone'); lastFeed = ''; }
-    if (board && board.getAttribute('data-state') === 'wait') board.setAttribute('data-state', 'static');
-  }
-
-  /* ---------- the standings ---------- */
-  var HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-  function drawBoard(b) {
-    if (!board) return;
-    var bl = document.getElementById('cbBl'), bk = document.getElementById('cbBk'), bs = document.getElementById('cbBs');
-    var apps = (b && Array.isArray(b.apps) ? b.apps : []).filter(function (a) { return a && typeof a === 'object' && clean(a.name, 1); }).slice(0, 3);
-    var any = b && b.anyVotes === true && apps.some(function (a) { return num(a.votes) > 0; });
-    if (!apps.length || !any) {
-      bs.textContent = apps.length ? 'No votes yet. Be the first to keep or kill a drop.' : '\u{1F525} Keep or \u{1F480} kill: vote on every drop in the lab.';
-      bk.textContent = 'Keep or kill';
-      board.setAttribute('data-state', 'static');
-      return;
-    }
-    var leader = null;
-    var html = apps.map(function (a, i) {
-      // Rank and votes only: the lab publishes no keep % (a split is shown
-      // only in the lab, to someone who has voted on that app).
-      var votes = num(a.votes);
-      var isLead = b.leader && a.slug === b.leader && i === 0;
-      if (isLead) leader = clean(a.name, 30);
-      var line = votes
-        ? '<b>' + votes + '</b> vote' + (votes === 1 ? '' : 's') + (isLead ? '<span class="cb-w"> · leads</span>' : '')
-        : 'no votes yet';
-      return '<li class="cb-bc' + (isLead ? ' lead' : '') + '">'
-        + '<span class="cb-bn"><span class="cb-br">' + (i + 1) + '</span>' + esc(clean(a.emoji, 4)) + ' ' + esc(clean(a.name, 30)) + '</span>'
-        + '<span class="cb-bp">' + line + '</span>'
-        + '</li>';
-    });
-    // Always three cells, so the box keeps its height with fewer apps.
-    while (html.length < 3) html.push('<li class="cb-bc" aria-hidden="true"><span class="cb-bn">&nbsp;</span><span class="cb-bp">&nbsp;</span></li>');
-    var joined = html.join('');
-    bk.textContent = leader ? 'Keep or kill · ' + leader + ' leads now' : 'Keep or kill · standings';
-    if (joined !== lastBoard) { bl.innerHTML = joined; lastBoard = joined; }
-    board.setAttribute('data-state', 'live');
-  }
-  if (board) setTimeout(function () { if (board.getAttribute('data-state') === 'wait') board.setAttribute('data-state', 'static'); }, STATIC_AFTER);
-
-  /* ---------- asking ---------- */
-  function schedule(ms) {
-    clearTimeout(timer);
-    if (document.hidden) return;
-    timer = setTimeout(ask, Math.max(0, ms));
-  }
-  function ask() {
-    clearTimeout(timer);
-    if (document.hidden) return;
-    var mine = ++seq;
-    lastAsk = Date.now();
-    var ctl = window.AbortController ? new AbortController() : null;
-    var giveUp = setTimeout(function () { if (ctl) ctl.abort(); }, GIVE_UP);
-    fetch('/api/activity', { credentials: 'omit', cache: 'no-store', signal: ctl ? ctl.signal : undefined })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        clearTimeout(giveUp);
-        if (mine !== seq) return;
-        if (!d || typeof d !== 'object') { onFail(); return; }
-        onFeed(usable(d.items));
-        if (d.board) drawBoard(d.board);
-        else if (board && board.getAttribute('data-state') === 'wait') board.setAttribute('data-state', 'static');
-      })
-      .catch(function () { clearTimeout(giveUp); if (mine === seq) onFail(); })
-      .then(function () { if (mine === seq) schedule(POLL); });
-  }
-  function wake() {
-    if (document.hidden) { clearTimeout(timer); return; }
-    var since = Date.now() - lastAsk;
-    if (since >= POLL) ask(); else schedule(POLL - since);
-  }
-  // Sideways fade on the side that has more, like the nav row.
-  function fade() {
-    var max = list.scrollWidth - list.clientWidth, x = list.scrollLeft;
-    var f = (x > 2 ? 'l' : '') + (x < max - 2 ? 'r' : '');
-    if (f) list.setAttribute('data-fade', f); else list.removeAttribute('data-fade');
-  }
-  list.addEventListener('scroll', fade, { passive: true });
-  window.addEventListener('resize', fade);
-  if (window.MutationObserver) new MutationObserver(fade).observe(list, { childList: true });
-
-  try {
-    if (!window.fetch) { onFail(); return; }
-    document.addEventListener('visibilitychange', wake);
-    window.addEventListener('pageshow', function (e) { if (e.persisted) wake(); });
-    ask();
-  } catch (e) { onFail(); }
-})();
-</script>
 <!-- The apex is this page's own origin: without data-to the beacon posts to
      www, a preflighted cross-origin request on every view. -->
 <script src="/verify-banner.js" data-mount="/api/id" defer></script>
