@@ -1,6 +1,6 @@
 {
   "_about": "Written by scripts/token-ledger.py --stats. Apps only; totals are the sum of the apps. See challenge/TOKENS.md.",
-  "updated": "2026-11-21",
+  "updated": "2026-11-22",
   "apps": {
     "spar": {
       "in": 30000000,
@@ -641,16 +641,26 @@
       "wallMs": 2280000,
       "exact": false,
       "note": "Tokens exact from the transcript; agent time is its 38 active minutes, leaving out about 2.4 hours stopped at the account's usage limit."
+    },
+    "spotted": {
+      "in": 23256634,
+      "cached": 22879144,
+      "out": 151701,
+      "agents": 1,
+      "agentMs": 1922309,
+      "wallMs": 1922309,
+      "exact": true,
+      "note": "One builder agent."
     }
   },
   "totals": {
-    "in": 3031229795,
-    "cached": 2903136373,
-    "out": 17275331,
-    "agents": 193,
-    "agentMs": 194483988,
-    "wallMs": 191627692,
-    "apps": 64,
+    "in": 3054486429,
+    "cached": 2926015517,
+    "out": 17427032,
+    "agents": 194,
+    "agentMs": 196406297,
+    "wallMs": 193550001,
+    "apps": 65,
     "estimated": 34,
     "cachedShare": 0.9771
   }

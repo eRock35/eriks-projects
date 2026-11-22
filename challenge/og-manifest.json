@@ -257,9 +257,13 @@
       "inputs": "5f86e00f7fe10ea5",
       "v": "94c4292184"
     },
+    "spotted": {
+      "inputs": "1d45ed82b2e3721f",
+      "v": "99672c33e2"
+    },
     "lab": {
-      "inputs": "0e27dec14cd57323",
-      "v": "7966b3ce62"
+      "inputs": "ab9745a2430ae2e8",
+      "v": "5abd94f7af"
     }
   }
 }

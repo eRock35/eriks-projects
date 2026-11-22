@@ -1,0 +1,10 @@
+{
+  "name": "Spotted",
+  "short_name": "Spotted",
+  "description": "The license plate game for the whole car - every phone playing, first to spot it scores.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f4ee",
+  "theme_color": "#b5420e",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

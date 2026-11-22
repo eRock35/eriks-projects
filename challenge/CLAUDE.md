@@ -149,7 +149,7 @@ here when it lands.
   margin; **Punch** - walk the job, pin every fix on a photo, close it out
   with a before-and-after the client signs; **Reset** - every loan rate
   reset worked out from the note: new rate, new payment, which cap bit.
-- Everyday: **Spotted** - the license plate game for the whole car, every
+- Everyday: ~~Spotted~~ (rebuilt 2026-11-22, drop #65) - the license plate game for the whole car, every
   phone playing; **Trek** - a journey for a crew, every walk, run and ride
   moving everyone along the map; ~~Ladle~~ (rebuilt 2026-11-21, drop #64) - save the family recipe cards,
   then scale, shop and cook from the phone; ~~Snug~~ (rebuilt 2026-11-21, drop #63) - the boring jobs that

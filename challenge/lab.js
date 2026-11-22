@@ -980,6 +980,34 @@ const APPS = [
     audience: 'Anyone with family recipes on index cards',
     status: 'testing',
   },
+  {
+    slug: 'spotted',
+    name: 'Spotted',
+    emoji: '\u{1F697}',
+    // A rebuild of the 2026-11-12 drop, which had a burnt orange #b5420e and
+    // a plate blue #2a2f78. Rechecked against today's cards, both were too
+    // close: the orange was 3.4 in CIE Lab from Haul's #b83d0b (6.3 from
+    // the #c2410c of Pickup, Tada and Ajar, 8.1 from Zoned's), the blue 4.8
+    // from Boxed's #3a2d74 (6.6 from Burnrate's and Last Day's #312e81, 6.8
+    // from Booth's and Pickup's #1e3a8a). Every orange and brown that holds
+    // white text is taken, so the nearest colour 20+ from every card is a
+    // plate red, #ea0000 (moved 33.2): 20.7 from Spar's #ff5a36 and 27.1+
+    // from the rest (Snug's #924a4c and Ladle's #644642 among them). The
+    // blue moved 23.9 to a dusk violet #7b5dae: 20.7 from Rota's and
+    // Kindly's #5b2a86, 20.9 from Sorted's, 21.3 from Ladle's #706ea0 and
+    // more from the rest, Snug's included. White text holds 4.67:1 and
+    // 5.23:1. The app itself
+    // keeps the original orange and blue. (Punch's lost #d00000 sits near
+    // the new red; its rebuild rechecks against this card, as all do.)
+    color: '#ea0000',
+    color2: '#7b5dae',
+    dropped: '2026-11-22',
+    tagline: 'The license plate game for the whole car - every phone playing, first to spot it scores.',
+    blurb: 'For families and friends on a road trip - and Thanksgiving week is the year’s biggest drive. Start a car game and everyone joins on their own phone with a six-letter code and a first name: no accounts, nothing to install. The first phone to tap a plate scores it, and rarer plates score more - Texas and Ohio are 1, Vermont, Wyoming, Alaska and Hawaii 5. A live scoreboard keeps up, and a drawn map of the states fills in with each player’s colour. One phone, or no signal? Play on this phone and pass it round; it works offline. Every trip is kept on your phone with a map of every plate you have ever seen, and the drive ends with a recap card shared as a picture to the family chat. Free, no sign-in; sign in only to keep your trips on two phones. Plates only - no photos of anyone’s car.',
+    features: ['Everyone joins with a code and a first name - no accounts', 'First tap wins, and rarer plates score more', 'A live scoreboard and a drawn map filling in', 'Trip history on the phone and a recap card to share'],
+    audience: 'Families and friends on a road trip',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
