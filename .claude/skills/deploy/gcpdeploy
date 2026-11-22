@@ -243,7 +243,16 @@ body["template"]["containers"][0]["image"]=sys.argv[2]
 body["template"].pop("revision",None)   # let Cloud Run name the new revision
 json.dump(body,open(sys.argv[3],"w"))
 PY
-  api PATCH "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" "$STATE/patch.json" >/dev/null
+  # Check the answer: a refused PATCH (a 403 on the image, say) leaves the old
+  # revision serving and healthy, so polling the condition below would report
+  # the OLD revision as "live". Fail loudly instead.
+  api PATCH "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" "$STATE/patch.json" > "$STATE/patch-resp.json"
+  if python3 -c "import json,sys;sys.exit(0 if 'error' in json.load(open(sys.argv[1])) else 1)" "$STATE/patch-resp.json" 2>/dev/null \
+     || ! python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$STATE/patch-resp.json" 2>/dev/null; then
+    die "Cloud Run refused the update - the old revision is still serving:
+$(python3 -c "import json,sys;e=json.load(open(sys.argv[1])).get('error',{});print(e.get('code'),e.get('status'),e.get('message','')[:300])" "$STATE/patch-resp.json" 2>/dev/null || head -c 300 "$STATE/patch-resp.json")"
+  fi
+  local want_digest="${digest}"
 
   local cond
   for _ in $(seq 1 40); do
@@ -251,15 +260,24 @@ PY
            | python3 -c "
 import sys,json
 d=json.load(sys.stdin); c=d.get('terminalCondition',{})
-print(c.get('state','?'), '|', c.get('message',''), '|', d.get('uri',''))")"
+st=c.get('state','?')
+if d.get('reconciling') or d.get('latestReadyRevision')!=d.get('latestCreatedRevision'):
+    st=st.replace('CONDITION_SUCCEEDED','WAITING_FOR_NEW_REVISION')
+print(st, '|', c.get('message',''), '|', d.get('uri',''))")"
     echo "    $cond"
     case "$cond" in *CONDITION_SUCCEEDED*|*CONDITION_FAILED*) break;; esac
     sleep 10
   done
   case "$cond" in
-    *CONDITION_SUCCEEDED*) say "live: ${cond##*| }";;
+    *CONDITION_SUCCEEDED*) ;;
     *) die "revision did not become ready: $cond";;
   esac
+  # Ready is not enough: make sure the service now runs the image just built.
+  local live_img
+  live_img="$(api GET "https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/services/$svc" \
+             | python3 -c "import sys,json;print(json.load(sys.stdin)['template']['containers'][0]['image'])")"
+  [[ "$live_img" == *"$want_digest" ]] || die "the service is ready but not on the new image (still ${live_img##*@})"
+  say "live: ${cond##*| } (image ${want_digest:0:19}...)"
   echo
   echo "The proxy blocks *.run.app from this container, so you cannot curl it."
   echo "Run:  gcpdeploy verify $app     and ask Erik to open it in a browser."
