@@ -4,7 +4,7 @@
   "description": "Find the servicemembers in your loan book - and apply the 6% cap with the paper trail.",
   "start_url": "./", "scope": "./",
   "display": "standalone",
-  "background_color": "#0d1420",
+  "background_color": "#ffffff",
   "theme_color": "#1c3d78",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }

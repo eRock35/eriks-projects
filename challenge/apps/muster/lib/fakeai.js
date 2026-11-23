@@ -15,6 +15,7 @@
 //   'url'          a web address and an email - a 422
 //   'law'          another law named - a 422
 //   'placeholder'  a placeholder Muster does not fill, one dropped - a 422
+//   'badpoints'    "in short" lines that break the rules - each dropped, 200
 //   'inject'       markup and a bidi override around a clean letter - cleaned, 200
 //   'maxtokens'    the answer ran out of room
 //   'upstream401'  the call fails the way the SDK's APIError does ('upstream529' too)
@@ -66,7 +67,13 @@ function letterFor(text) {
   p.push('');
   p.push('With thanks,');
   p.push('{{servicer_name}}');
-  return { subject: 'Your loan and the 6% cap for servicemembers', letter: p.join('\n') };
+  const points = ['Thanks the borrower and says the letter is about the 6% cap on this ' + kind + '.'];
+  if (code === 'eligible') points.push('Says the rate goes down to 6%' + (start ? ' from ' + start : '') + ' and that they need to do nothing.');
+  else if (code === 'notice') points.push('Asks for a written request and a copy of orders' + (askBy ? ' by ' + askBy : '') + '.');
+  else if (code === 'watch') points.push('Explains what to send once the call-up starts' + (callUp ? ' on ' + callUp : '') + '.');
+  else points.push('Asks them to check the cap dates against their orders.');
+  if (owed || monthly) points.push('Gives the estimate' + (owed ? ' of ' + owed + ' back' : '') + (monthly ? (owed ? ' and' : ' of') + ' about ' + monthly + ' less each month' : '') + ', and says it is an estimate.');
+  return { subject: 'Your loan and the 6% cap for servicemembers', letter: p.join('\n'), points };
 }
 
 function create() {
@@ -94,7 +101,8 @@ function create() {
         if (mode === 'url') return toolUse(name, { subject: good.subject, letter: good.letter.replace('please contact us:', 'see https://larkmoor.example/scra or write to help' + String.fromCharCode(64) + 'larkmoor.example, or contact us:') });
         if (mode === 'law') return toolUse(name, { subject: good.subject, letter: good.letter.replace('Thank you for your service.', 'Under the Military Lending Act and 50 U.S.C. § 3937, thank you for your service.') });
         if (mode === 'placeholder') return toolUse(name, { subject: good.subject, letter: good.letter.replace('{{contact_line}}', '{{phone_number}}') });
-        if (mode === 'inject') return toolUse(name, { subject: '<b>' + good.subject + '</b>', letter: '<i>' + String.fromCharCode(0x202E) + '</i>' + good.letter.replace('Dear', '<img src=x onerror=alert(1)>Dear'), extra: 'hunter2' });
+        if (mode === 'badpoints') return toolUse(name, { subject: good.subject, letter: good.letter, points: ['<b>Thanks the borrower</b> for their service, in plain words.', 'Promises $99.00 back within 30 days.', 'Cites the Military Lending Act for good measure.', 'See www.larkmoor.example for more of this.', 'Hello {{borrower_name}}, this is a point.', 7, 'ok'] });
+        if (mode === 'inject') return toolUse(name, { subject: '<b>' + good.subject + '</b>', points: good.points, letter: '<i>' + String.fromCharCode(0x202E) + '</i>' + good.letter.replace('Dear', '<img src=x onerror=alert(1)>Dear'), extra: 'hunter2' });
         return toolUse(name, good);
       },
     },
