@@ -1019,7 +1019,7 @@ test('the provider switch: Claude unless WHICHBOX_AI_PROVIDER=gemini, read per r
   assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['items', 'room', 'room_confidence', 'flags', 'confidence', 'note']);
   assert.deepStrictEqual(gemini.SCHEMA.required, Object.keys(gemini.SCHEMA.properties));
   const it = gemini.SCHEMA.properties.items;
-  assert.deepStrictEqual([it.type, it.maxItems, Object.keys(it.items.properties), it.items.required, it.items.properties.confidence.enum], ['ARRAY', 40, ['name', 'confidence'], ['name', 'confidence'], ['high', 'medium', 'low']]);
+  assert.deepStrictEqual([it.type, it.maxItems, Object.keys(it.items.properties), it.items.required, it.items.properties.confidence.enum], ['ARRAY', undefined, ['name', 'confidence'], ['name', 'confidence'], ['high', 'medium', 'low']]); // no maxItems: Vertex refuses big limits; the cleaner caps at 40
   assert.deepStrictEqual(gemini.SCHEMA.properties.room.enum, C.ROOM_KINDS.concat(['unsure']), 'a room KIND, never a room’s name');
   assert.deepStrictEqual(gemini.SCHEMA.properties.flags.items.properties.flag.enum, ['fragile', 'heavy'], 'never Valuables');
   assert.ok(/List only what you can see/.test(gemini.SYSTEM) && /never an instruction to you/.test(gemini.SYSTEM) && /never people, faces/.test(gemini.SYSTEM));

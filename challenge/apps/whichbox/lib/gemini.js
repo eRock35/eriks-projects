@@ -21,7 +21,8 @@ const SCHEMA = {
   properties: {
     items: {
       type: 'ARRAY',
-      maxItems: Core.LIMITS.aiItems,
+      // No maxItems here: Vertex refuses larger array limits (400 INVALID_ARGUMENT;
+      // found in Drip and Again, 2026-11-23). The cleaner stops at LIMITS.aiItems.
       description: `Up to ${Core.LIMITS.aiItems} things you can actually see, one entry per kind of thing ("Mugs", not "Mug" six times).`,
       items: {
         type: 'OBJECT',
