@@ -22,6 +22,12 @@ function pick(res, name) {
   return block.input;
 }
 
+/** Tell the caller what a call used, for the lab's AI guard (the person's own
+ *  ledger is charged by the identity meter, as it always was). */
+function told(onUsage, res) {
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens) || 0, outputTokens: Number(res.usage.output_tokens) || 0 });
+}
+
 const ITEM_SCHEMA = {
   type: 'object',
   properties: {
@@ -83,7 +89,7 @@ function draftSystem(profile, trade) {
  * @param photos  output of photos.validate()
  * @param job     { title, description, trade, customer, tiers: bool }
  */
-async function draft(client, model, profile, job, photos) {
+async function draft(client, model, profile, job, photos, onUsage) {
   const content = [];
   for (const p of photos || []) {
     content.push({ type: 'image', source: { type: 'base64', media_type: p.mediaType, data: p.data } });
@@ -114,6 +120,7 @@ async function draft(client, model, profile, job, photos) {
     tool_choice: { type: 'tool', name: 'draft_quote' },
     messages: [{ role: 'user', content }],
   });
+  told(onUsage, res);
   return validateDraft(pick(res, 'draft_quote'), job.tiers);
 }
 
@@ -156,7 +163,7 @@ const POLISH_TOOL = {
   },
 };
 
-async function polish(client, model, q, tone) {
+async function polish(client, model, q, tone, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 700,
@@ -168,6 +175,7 @@ async function polish(client, model, q, tone) {
       content: `JOB: ${q.title}\nCUSTOMER: ${(q.customer || {}).name || 'the customer'}\n\nCURRENT SCOPE:\n"""\n${q.scope || '(empty - write one from the line items)'}\n"""\n\nLINE ITEMS: ${(q.items || []).map((i) => i.description).join('; ')}`,
     }],
   });
+  told(onUsage, res);
   const scope = Q.cleanText(pick(res, 'polish_scope').scope, 1500);
   if (!scope) throw Object.assign(new Error('The rewrite came back empty. Try again.'), { status: 502, expose: true });
   return { scope, tone: TONES[tone] ? tone : 'professional' };
@@ -191,7 +199,7 @@ const FOLLOW_TOOL = {
   },
 };
 
-async function followUp(client, model, q, profile, { daysSince, viewed, total }) {
+async function followUp(client, model, q, profile, { daysSince, viewed, total }, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 800,
@@ -210,6 +218,7 @@ async function followUp(client, model, q, profile, { daysSince, viewed, total })
       ].filter(Boolean).join('\n'),
     }],
   });
+  told(onUsage, res);
   const out = pick(res, 'follow_up');
   const sms = Q.clean(out.sms, 320);
   if (!sms) throw Object.assign(new Error('The follow-up came back empty. Try again.'), { status: 502, expose: true });
