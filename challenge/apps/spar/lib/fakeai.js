@@ -59,15 +59,36 @@ function respond(params) {
   });
 }
 
-function score() {
+// The stand-in coach quotes what the player really typed (it reads the PLAYER
+// lines out of the transcript it is handed), so the quote check passes the way
+// it does with a careful model. Two switches for the tests: FAKEQUOTE anywhere
+// in the transcript makes it "quote" words nobody said, and one moment always
+// carries an invented line, which the app has to throw away.
+function score(params) {
+  const body = String((params.messages[0] || {}).content || '');
+  const tape = body.split('TRANSCRIPT:')[1] || '';
+  const said = tape.split('\n').filter((l) => l.startsWith('PLAYER: ')).map((l) => l.slice(8));
+  const invented = /FAKEQUOTE/.test(tape);
+  const asked = said.find((l) => l.includes('?')) || said[0] || '';
+  const last = said[said.length - 1] || '';
+  const first = said[0] || '';
   return toolUse('scorecard', {
     overall: 74,
     skills: { rapport: 8, discovery: 7, pushback: 6, clarity: 7, close: 6 },
     headline: 'Good instincts on listening; ask for the commitment sooner.',
     strengths: ['Asked open questions early instead of pitching.'],
     improve: ['Name a specific next step with a time.', 'Quantify the pain before offering a fix.'],
-    bestLine: { quote: 'What made you take this call today?', why: 'Invited them to tell you the real reason.' },
-    missedMoment: { quote: 'We are the best in the market.', better: 'Teams like yours usually lose two days at month-end - is that true for you?', why: 'Specific beats superlative.' },
+    moments: invented ? [
+      { quote: 'I guarantee you will double revenue by Friday.', skill: 'clarity', verdict: 'missed', note: 'A line nobody said.' },
+    ] : [
+      { quote: `"${first.toUpperCase()}"`, skill: 'rapport', verdict: 'worked', note: 'You opened by making room for them instead of pitching.' },
+      { quote: 'We are the best in the market.', skill: 'clarity', verdict: 'missed', note: 'A line nobody said.' },
+      { quote: asked, skill: 'discovery', verdict: 'worked', note: 'A real question: it let them tell you what is at stake.' },
+      { quote: last, skill: 'close', verdict: 'missed', note: 'This was the moment to name one next step and a time.' },
+      { quote: asked, skill: 'made-up-skill', verdict: 'worked', note: 'Not one of the five skills.' },
+    ],
+    bestLine: { quote: invented ? 'What made you take this call today?' : asked, why: 'Invited them to tell you the real reason.' },
+    missedMoment: { quote: invented ? 'We are the best in the market.' : last, better: 'Teams like yours usually lose two days at month-end - is that true for you?', why: 'Specific beats superlative.' },
   });
 }
 

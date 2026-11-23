@@ -46,6 +46,12 @@ const DEMO = {
       'The opener was generic - lead with the close-deadline angle from the first sentence.',
       'You never learned about the accountant burnout; one more question would have found it.',
     ],
+    moments: [
+      { quote: "I work with finance teams who are fighting the month-end close.", skill: 'clarity', verdict: 'missed', note: 'True of every vendor she hears from; it gave her nothing to react to.' },
+      { quote: "Honestly, I'd rather not pitch until I know if it's relevant.", skill: 'pushback', verdict: 'worked', note: 'You took the challenge without flinching and turned it into a question.' },
+      { quote: 'When a close slips at a company your size, who usually feels it first — you, or the board?', skill: 'discovery', verdict: 'worked', note: 'She named the board herself - the real stakes, in her words.' },
+      { quote: 'Would Thursday at 10 work?', skill: 'close', verdict: 'worked', note: 'One time, one ask. Easy to say yes to.' },
+    ],
     bestLine: {
       quote: 'When a close slips at a company your size, who usually feels it first — you, or the board?',
       why: 'It made her name the real stakes herself.',
