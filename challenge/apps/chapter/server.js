@@ -27,6 +27,7 @@ const Core = require('./public/chapter-core');
 const K = require('./lib/clubs');
 const ai = require('./lib/ai');
 const identityLib = require('./lib/identity');
+const reader = require('./lib/reader').create();
 
 const PORT = process.env.PORT || 8080;
 const FAKE_AI = process.env.CHAPTER_FAKE_AI === '1';
@@ -161,6 +162,7 @@ const ipWrites = lim(L.writesPerIp, L.writesWindowMs);
 const memberWrites = lim(L.writesPerMember, L.writesMemberWindowMs);
 const memberNotes = lim(L.notesPerMember, L.notesWindowMs);
 const memberMoves = lim(L.movesPerMember, L.movesWindowMs);
+const readLookups = lim(L.readsPerIp, L.readsWindowMs);
 
 // A wrong code, id or move link counts once per DISTINCT value: a phone left
 // open on a deleted club polls the same dead id every few seconds, and that
@@ -244,8 +246,13 @@ async function viewOf(req, doc, mid, ctx, notes) {
   const tag = tagOf(req);
   v.kept = Boolean(tag && doc.members[mid] && doc.members[mid].acct === tag);
   v.account = Boolean(SECRET());
+  v.stores = Core.buyLinks(doc.book, affiliates());
   return v;
 }
+/** Optional affiliate ids for "Buy this book", from two plain environment
+ *  variables (not secrets: they are printed in every link). Unset or
+ *  malformed, the links are ordinary store searches. Read per request. */
+function affiliates() { return { bookshop: String(process.env.CHAPTER_BOOKSHOP_ID || ''), amazon: String(process.env.CHAPTER_AMAZON_TAG || '') }; }
 
 /** Every club write: read the club inside a transaction, let the core
  *  decide, then write ONLY the keys it changed (and the version). Two
@@ -401,7 +408,7 @@ app.get('/api/c/:id', route('Could not load the club.', async (req, res) => {
 /** Where I am: {pos} or {done: true}. */
 app.put('/api/c/:id/progress', route('Could not move your bookmark.', async (req, res) => {
   const b = req.body || {};
-  res.json(await clubWrite(req, (cur, mid, ctx) => Core.setProgress(cur, mid, { pos: b.pos, done: b.done === true }, ctx.now)));
+  res.json(await clubWrite(req, (cur, mid, ctx) => Core.setProgress(cur, mid, { pos: b.pos, done: b.done === true, alt: b.alt }, ctx.now)));
 }));
 
 /** My name and emoji. */
@@ -416,9 +423,29 @@ app.post('/api/c/:id/notes', route('Could not post that.', async (req, res) => {
   const { doc, mid } = await memberClub(req);
   if (!memberNotes.hit(`${doc.id}:${mid}`)) throw httpError(429, `That’s ${L.notesPerMember} notes this hour. Save some thoughts for the meeting.`);
   const ctx = ctxOf(req);
-  const note = Core.newNote(doc, mid, req.body || {}, { now: ctx.now });
+  const b = req.body || {};
   const all = await notesOf(doc.id);
-  if (all.filter((n) => n.book === doc.book.id).length >= Core.LIMITS.notesPerBook) throw httpError(409, `This book has ${Core.LIMITS.notesPerBook} notes - that’s the most one book can hold.`);
+  const here = all.filter((n) => n.book === doc.book.id);
+  let note;
+  if (b.re !== undefined && b.re !== null) {
+    // A reply: only to a thread this member can read - a locked or missing
+    // one is the same 404 - and the core gives it the thread's chapter.
+    const parent = Core.isId(String(b.re)) ? here.find((n) => n.id === String(b.re)) : null;
+    if (!parent) throw httpError(404, 'That note isn’t here any more.');
+    note = Core.newNote(doc, mid, b, { now: ctx.now, parent });
+    if (here.filter((n) => n.re === parent.id).length >= Core.LIMITS.repliesPerThread) throw httpError(409, `That’s ${Core.LIMITS.repliesPerThread} replies - carry it on at the meeting.`);
+    if (here.filter((n) => Core.isReply(n)).length >= Core.LIMITS.repliesPerBook) throw httpError(409, 'This book’s threads are full.');
+  } else if (b.meet !== undefined && b.meet !== null) {
+    // A meeting note: attached to one of the club's meetings.
+    const mt = String(b.meet);
+    const meeting = doc.meetings && Object.prototype.hasOwnProperty.call(doc.meetings, mt) ? doc.meetings[mt] : null;
+    if (!meeting) throw httpError(404, 'That meeting isn’t planned any more.');
+    note = Core.newNote(doc, mid, b, { now: ctx.now, meeting: { id: mt, date: meeting.date } });
+    if (here.filter((n) => n.meet === mt).length >= Core.LIMITS.meetingNotes) throw httpError(409, `That’s ${Core.LIMITS.meetingNotes} notes on one meeting - enough to remember it by.`);
+  } else {
+    note = Core.newNote(doc, mid, b, { now: ctx.now });
+    if (here.filter((n) => !Core.isReply(n)).length >= Core.LIMITS.notesPerBook) throw httpError(409, `This book has ${Core.LIMITS.notesPerBook} notes - that’s the most one book can hold.`);
+  }
   const nid = Core.newId('n', K.rand, 15);
   await store.set('notes', nid, note);
   await touch(doc.id);
@@ -426,11 +453,20 @@ app.post('/api/c/:id/notes', route('Could not post that.', async (req, res) => {
   res.json({ club: await viewOf(req, fresh, mid, ctx, [...all, { id: nid, ...note }]), id: nid });
 }));
 
-/** A note the member can see, or the 404 a missing one gets. */
+/** A note the member can see, or the 404 a missing one gets. A reply is
+ *  seen exactly when its thread is: a reply under a locked thread - or one
+ *  whose thread is gone - is the same 404, whoever wrote it. */
 async function visibleNote(req, doc, mid) {
   const nid = String(req.params.nid || '');
+  const NOPE = 'That note isn’t here any more.';
   const n = Core.isId(nid) ? await store.get('notes', nid) : null;
-  if (!n || n.club !== doc.id || n.book !== doc.book.id || !Core.canSee(n, mid, doc.members[mid], doc.book)) throw httpError(404, 'That note isn’t here any more.');
+  if (!n || n.club !== doc.id || n.book !== doc.book.id) throw httpError(404, NOPE);
+  if (Core.isReply(n)) {
+    const parent = Core.isId(n.re) ? await store.get('notes', n.re) : null;
+    if (!parent || parent.club !== doc.id || parent.book !== doc.book.id || Core.isReply(parent) || !Core.canSee(parent, mid, doc.members[mid], doc.book)) throw httpError(404, NOPE);
+    return n;
+  }
+  if (!Core.canSee(n, mid, doc.members[mid], doc.book)) throw httpError(404, NOPE);
   return n;
 }
 app.delete('/api/c/:id/notes/:nid', route('Could not remove that.', async (req, res) => {
@@ -438,6 +474,8 @@ app.delete('/api/c/:id/notes/:nid', route('Could not remove that.', async (req, 
   const { doc, mid } = await memberClub(req);
   const n = await visibleNote(req, doc, mid);
   if (n.mid !== mid && !Core.isHost(doc, mid)) throw httpError(403, 'Only whoever wrote it, or the host, can remove a note.');
+  // A thread goes with its replies.
+  if (!Core.isReply(n)) await store.removeMany('notes', (await notesOf(doc.id)).filter((x) => x.re === n.id).map((x) => x.id));
   await store.remove('notes', n.id);
   await touch(doc.id);
   const fresh = await store.get('clubs', doc.id);
@@ -462,8 +500,18 @@ app.patch('/api/c/:id/book', route('Could not change the book.', async (req, res
 }));
 
 /* Meetups. */
+/** Meeting notes whose meeting is gone (removed, or dropped to make room)
+ *  go with it. Only the current book's: a shelved book keeps its own. */
+async function sweepMeetingNotes(clubId) {
+  const fresh = await store.get('clubs', clubId);
+  if (!fresh) return;
+  const gone = (await notesOf(clubId)).filter((n) => Core.isMinutes(n) && n.book === fresh.book.id && !(fresh.meetings && Object.prototype.hasOwnProperty.call(fresh.meetings, n.meet)));
+  if (gone.length) await store.removeMany('notes', gone.map((n) => n.id));
+}
 app.post('/api/c/:id/meetings', route('Could not plan that meeting.', async (req, res) => {
-  res.json(await clubWrite(req, hostOnly((cur, mid, ctx) => Core.addMeeting(cur, mid, req.body || {}, Core.newId('t', K.rand), ctx))));
+  res.json(await clubWrite(req, hostOnly((cur, mid, ctx) => Core.addMeeting(cur, mid, req.body || {}, Core.newId('t', K.rand), ctx)), {
+    after: async (out, _mid, doc) => { if (out.patch.del.length) await sweepMeetingNotes(doc.id); },
+  }));
 }));
 app.patch('/api/c/:id/meetings/:mt', route('Could not change that meeting.', async (req, res) => {
   const mt = String(req.params.mt);
@@ -474,7 +522,7 @@ app.delete('/api/c/:id/meetings/:mt', route('Could not remove that meeting.', as
   res.json(await clubWrite(req, hostOnly((cur) => {
     if (!cur.meetings || !cur.meetings[mt]) throw httpError(404, 'That meeting isn’t planned any more.');
     const p = Core.patch(); p.del.push(`meetings.${mt}`); return { patch: p };
-  })));
+  }), { after: async (_out, _mid, doc) => sweepMeetingNotes(doc.id) }));
 }));
 app.put('/api/c/:id/meetings/:mt/rsvp', route('Could not save that.', async (req, res) => {
   const mt = String(req.params.mt);
@@ -525,6 +573,18 @@ app.get('/api/c/:id/shelf/:bid/notes', route('Could not load those notes.', asyn
   res.json(Core.shelfNotes(doc, String(req.params.bid), await notesOf(doc.id), mid));
 }));
 
+/** Is there a legal copy to read here? Members only. The server asks Open
+ *  Library and the Internet Archive about the book's title and author -
+ *  nothing about the club or the reader - and answers with an Archive item
+ *  to embed, a page to borrow from, or nothing (lib/reader.js). It never
+ *  fetches, stores or relays a word of any book. */
+app.get('/api/c/:id/read', route('Could not look that up.', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { doc } = await memberClub(req);
+  if (!readLookups.hit(ipKey(req))) throw httpError(429, 'That’s a lot of lookups from here. Try again later - the links below always work.');
+  res.json({ read: await reader.lookup(doc.book.title, doc.book.author || '') });
+}));
+
 /* Members and the host. */
 app.post('/api/c/:id/host', route('Could not hand hosting over.', async (req, res) => {
   const to = String((req.body || {}).to || '');
@@ -534,7 +594,10 @@ app.post('/api/c/:id/host', route('Could not hand hosting over.', async (req, re
  *  ratings (Core.removeMember), their notes and their reactions. */
 async function dropMemberNotes(clubId, mid) {
   const notes = await notesOf(clubId);
-  await store.removeMany('notes', notes.filter((n) => n.mid === mid).map((n) => n.id));
+  const theirs = new Set(notes.filter((n) => n.mid === mid).map((n) => n.id));
+  // Their notes, and every reply under a thread of theirs (a reply never
+  // outlives its thread).
+  await store.removeMany('notes', notes.filter((n) => theirs.has(n.id) || (Core.isReply(n) && theirs.has(n.re))).map((n) => n.id));
   for (const n of notes) {
     if (n.mid !== mid && n.reactions && Object.prototype.hasOwnProperty.call(n.reactions, mid)) {
       await store.transactKeys('notes', n.id, (cur) => (cur ? { set: {}, del: [`reactions.${mid}`] } : undefined));
@@ -867,4 +930,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`chapter listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store, fakeClient, books, LIMITS: K.LIMITS };
+module.exports = { app, identity, identityStore, store, fakeClient, books, reader, LIMITS: K.LIMITS };
