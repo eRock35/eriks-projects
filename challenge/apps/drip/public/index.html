@@ -6,8 +6,8 @@
   <title>Drip — find every subscription quietly draining your account</title>
   <meta name="description" content="Drop in your bank's CSV - read on your phone, never uploaded - and Drip finds every recurring charge, what it costs a year, the price creeps and forgotten trials. Swipe keep or cut and watch the savings add up.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#07131f" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f2f6fa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Drip">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -32,33 +32,44 @@
   <meta name="twitter:image:alt" content="Drip, drop #16 in the Challenge Lab: Find every subscription quietly draining your account.">
   <!-- /lab:og -->
 </head>
-<body class="dk">
+<body>
   <a class="skip" href="#main">Skip to your drips</a>
   <header class="top">
-    <a class="brand" href="./"><span class="mark" aria-hidden="true">💧</span>Drip</a>
-    <nav class="top-links" aria-label="Account">
+    <div class="top-in">
+      <a class="brand" href="./"><span class="mark" aria-hidden="true">💧</span><span class="word">Drip</span></a>
+      <nav class="tabbar" id="tabs" aria-label="Drip">
+        <button type="button" data-tab="main" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3 3.6 5.5 6.6 5.5 10a5.5 5.5 0 0 1-11 0c0-3.4 2.5-6.4 5.5-10z"/></svg><span>Drips</span>
+        </button>
+        <button type="button" data-tab="decide">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="2.5"/><path d="M3 8v8M21 8v8"/></svg><span>Keep or cut</span>
+        </button>
+        <button type="button" data-tab="import">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg><span>Add</span>
+        </button>
+      </nav>
       <button class="btn small ghost" id="acct" type="button">Sign in</button>
-    </nav>
+    </div>
   </header>
 
   <main class="wrap" id="main" tabindex="-1">
-    <!-- The example's one-liner, or what your own import read. -->
+    <!-- The welcome (the example), or what your own import read. -->
     <section id="strip" aria-label="About this list"></section>
 
-    <!-- Check a statement: read on this phone, never uploaded. -->
-    <section class="importv" id="importView" aria-label="Check your statement" hidden></section>
+    <!-- Add: check a statement (read on this phone, never uploaded), snap, or type. -->
+    <section class="importv" id="importView" aria-label="Add drips" hidden></section>
 
     <div class="layout" id="mainView">
-      <section class="card hero" id="hero" aria-label="The total"></section>
-      <section class="card" id="flagsCard" aria-label="Worth a look" hidden></section>
-      <section class="card" id="sinceCard" aria-label="Since you last checked" hidden></section>
-      <section class="card" id="stackCard" aria-labelledby="stackH" hidden></section>
-      <section class="card" id="listCard" aria-label="Every drip"></section>
+      <section class="hero" id="hero" aria-label="The total"></section>
+      <section id="flagsCard" aria-label="Worth a look" hidden></section>
+      <section id="sinceCard" aria-label="Since you last checked" hidden></section>
+      <section id="stackCard" aria-labelledby="stackH" hidden></section>
+      <section id="listCard" aria-label="Every drip"></section>
     </div>
 
-    <footer class="foot small muted">
-      <p class="quiet">Drip finds patterns in your charges - check anything before you cancel it.</p>
-      <p>Your statement is read on this phone and never uploaded. Drip is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
+    <footer class="foot">
+      <p>Drip finds patterns in your charges - check anything before you cancel it.</p>
+      <p>A statement file is read on this phone and never uploaded. A photo you choose to snap is sent once to be read, and never kept. Drip is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
     </footer>
   </main>
 

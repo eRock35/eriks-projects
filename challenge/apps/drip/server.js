@@ -24,6 +24,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/drip-core');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const photo = require('./lib/photo');
 const { streamedJson } = require('./lib/stream');
 const identityLib = require('./lib/identity');
@@ -35,6 +36,13 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('DRIP_FAKE_AI=1 is for loc
 // Free tier on Haiku, members on Sonnet - the split every sibling uses,
 // decided in one place by identity.planFor. Both read images.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a snap. DRIP_AI_PROVIDER=gemini moves it to Gemini on
+// Vertex AI (through the lab's guard), which also reads a photo of a
+// statement; anything else - unset included - is Claude, as it has always
+// been. Read per request, so the switch is a Cloud Run setting and never a
+// code change.
+const providerNow = () => (process.env.DRIP_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -127,9 +135,13 @@ app.get('/api/meta', (_req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false });
+  // `snap` says what a snap can read today, so the page's words are true:
+  // 'statement' when the reader also takes a photo of a statement.
+  const snap = providerNow() === 'gemini' ? 'statement' : 'subscriptions';
+  if (!req.user) return res.json({ signedIn: false, snap });
   res.json({
     signedIn: true,
+    snap,
     email: req.user.email,
     budget: identityLib.budgetFor(req.user),
     tier: identityLib.planFor(req.user, MODELS).tier,
@@ -141,22 +153,101 @@ app.get('/api/me', (req, res) => {
  * ------------------------------------------------------------------ */
 
 /**
- * Gates, then the 12 MB parser, then the image checks (400s cost nothing) -
- * and only then the whitespace stream, after which a failure is a 200
- * {error}. The images are read once and dropped; nothing here writes to the
- * store, and nothing logged carries a name, a price or a byte of an image.
+ * Gates, then the 12 MB parser, then the image checks (400s cost nothing),
+ * then the lab's AI guard (the month's cap per provider and the burst
+ * limits, when the host has one; its refusal is a real 429/503) - and only
+ * then the whitespace stream, after which a failure is a 200 {error}. ONE
+ * call: a forced tool on Claude, or a responseSchema on Gemini. The images
+ * are read once and dropped; nothing here writes to the store, and nothing
+ * logged carries a name, a price or a byte of an image.
  */
+const SNAP_FALLBACK = 'The screenshots could not be read. Try again in a minute - or add them by hand.';
+const NOTHING = 'No subscriptions with a price could be read from that. Try a sharper screenshot of the list - or add them by hand.';
+const NO_CHARGES = 'No charges could be read from that. Try a sharper photo, closer in - or add them by hand.';
+
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'drip' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Checking a statement file and adding drips by hand still work.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'drip', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: the identity meter charges the person. */
+async function snapWithClaude(req, photos, day) {
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    const out = Core.cleanSnapItems(await ai.readSubscriptions(client, model, photos, day, (u) => { used = u; }), day);
+    if (!out.items.length) throw httpError(422, NOTHING);
+    return out;
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function snapWithGemini(req, photos, day) {
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(photos, day);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 2600, outputTokens: 420 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  const reading = gemini.cleanReading(out && out.json, day);
+  if (!reading.items.length) throw httpError(422, NO_CHARGES);
+  return { ...reading, reader: 'statement' };
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `snap:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
 app.post('/api/snap', ...spend, snapJson, async (req, res) => {
   let photos;
-  try { photos = photo.validateAll((req.body || {}).photos); } catch (err) { return fail(res, err); }
+  const viaGemini = providerNow() === 'gemini';
+  try {
+    photos = photo.validateAll((req.body || {}).photos);
+    await guardAllow(viaGemini ? 'gemini' : 'claude', req);
+  } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
   try {
     const day = today();
-    const raw = await ai.readSubscriptions(await clientFor(req), modelFor(req), photos, day);
-    const out = Core.cleanSnapItems(raw, day);
-    if (!out.items.length) throw httpError(422, 'No subscriptions with a price could be read from that. Try a sharper screenshot of the list - or add them by hand.');
-    send(out);
-  } catch (err) { send(failure(err, 'The screenshots could not be read. Try again in a minute - or add them by hand.').body); }
+    send(viaGemini ? await snapWithGemini(req, photos, day) : await snapWithClaude(req, photos, day));
+  } catch (err) { send(failure(err, SNAP_FALLBACK).body); }
 });
 
 /* ------------------------------------------------------------------ *
@@ -265,4 +356,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`drip listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, fakeGemini: FAKE_AI ? require('./lib/fakeai').gemini : null };
