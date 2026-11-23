@@ -80,7 +80,7 @@
     me: null, view: 'home', arg: '', q: '',
     trying: false, tryData: null,
     thumbs: {},
-    log: null, reader: null,
+    log: null, reader: null, plate: null,
     browse: { city: '', cuisine: '', mode: 'places', q: '', picked: false },
     card: { url: null, blob: null, photos: false, city: '' },
     share: null,
@@ -137,6 +137,13 @@
   }
   function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'list'; }
   function signedIn() { return Boolean(state.me && state.me.signedIn); }
+  /** The server says which reader it runs; "Snap my plate" exists only on the Gemini one. */
+  function plateOn() { return Boolean(state.me && state.me.reader === 'gemini'); }
+  function menuWord() { return plateOn() ? 'Snap the menu' : 'Read the menu'; }
+  function aiActs(placeId, cls) {
+    return '<button class="btn ' + cls + ' ai" type="button" data-act="reader" data-id="' + esc(placeId || '') + '">' + menuWord() + '</button>' +
+      (plateOn() ? '<button class="btn ' + cls + ' cam" type="button" data-act="plate" data-id="' + esc(placeId || '') + '">Snap my plate</button>' : '');
+  }
   function pkOk() { return Boolean(window.Passkey && Passkey.supported() && !/\.run\.app$/.test(location.hostname)); }
   function vpill(v) { var x = C.verdictOf(v); return '<span class="pill v-' + esc(x.id) + '">' + esc(x.emoji + ' ' + x.label) + '</span>'; }
   function placeSub(p) { return [p.area, p.city].filter(Boolean).join(' · '); }
@@ -149,7 +156,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Again stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Again stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     var b = $('#resend', where);
     b.addEventListener('click', function () {
       b.disabled = true;
@@ -289,28 +296,31 @@
   /* ---------------- the first run ---------------- */
 
   function viewFirst() {
-    return '<section class="hero" aria-labelledby="heroTitle"><div class="hero-grid"><div>' +
-      '<p class="lab" style="color:var(--hero-soft)">A memory for eating out</p>' +
+    var ai = plateOn()
+      ? '<li><div><b>Snap the menu or your plate</b><span>With a free account, AI reads a menu photo into a list you tap through, and gives a best guess at the dish on your plate. You check and edit everything before it’s saved.</span></div></li>'
+      : '<li><div><b>Read the menu</b><span>With a free account, AI reads a menu photo into a list you tap through. You check and edit everything before it’s saved.</span></div></li>';
+    return '<section class="hero" aria-labelledby="heroTitle">' +
+      '<p class="eyebrow">A memory for eating out</p>' +
       '<h1 id="heroTitle">Remember what you loved - and order it again.</h1>' +
-      '<p>“What did we get here that we loved?” Log a dish in two taps - ❤️ order again, 👍 fine, 👎 skip. Next time you’re there, Again shows you what to get, and what to skip.</p>' +
-      '<div class="cta"><button class="btn big white" type="button" data-act="try">Try it - a made-up list</button><button class="btn big line" type="button" data-act="addfirst">Add a place I loved</button></div>' +
-      '<p class="small" style="margin-top:12px">Free, no sign-up. It all stays on this phone.</p></div>' +
+      '<p class="lede">Log a dish in two taps. Next time you’re there, Again shows you what to get, and what to skip.</p>' +
+      '<div class="cta"><button class="btn big" type="button" data-act="try">Try it - a made-up list</button><button class="btn big ghost" type="button" data-act="addfirst">Add a place I loved</button></div>' +
+      '<p class="tiny muted">Free, no sign-up. It all stays on this phone.</p></section>' +
       '<div class="mock" aria-hidden="true">' +
       '<div class="mtop"><span class="mtile">🍝</span><span><small>You’re at</small><b>Orzolino</b></span></div>' +
       '<div class="msec"><p class="lab love">❤️ Order again</p><div class="big">Cacio e pepe <span class="x">×3</span></div><div class="big">The burrata</div></div>' +
       '<div class="msec"><p class="lab skip">👎 Skip</p><div class="meh">Tiramisu <i>- too sweet</i></div></div>' +
       '<div class="msec"><p class="lab friend">💬 Friends said try</p><div class="meh">The carbonara <i>- from Alex</i></div></div>' +
-      '</div></div></section>' +
-      '<section class="card" style="margin-top:16px" aria-labelledby="howTitle"><h2 id="howTitle">How it works</h2><ol class="how">' +
-      '<li><div><b>Log it before the bill comes.</b><br><span class="muted">Pick the place, type each dish and tap how it was. A note if you like - “ask for it spicy” - and a photo that stays on your phone.</span></div></li>' +
-      '<li><div><b>Open it when you’re back.</b><br><span class="muted">Search the place - “orzolino”, “hickory and hush”, even “ozrolino” - and get one card: what to order again, what was fine, what to skip.</span></div></li>' +
-      '<li><div><b>Keep what friends swear by.</b><br><span class="muted">“The mole at Casa Lunaria - from Priya.” When you try it, one tap says whether Priya was right.</span></div></li>' +
+      '</div>' +
+      '<section class="sec narrow" aria-labelledby="howTitle"><h2 id="howTitle">How it works</h2><ol class="how">' +
+      '<li><div><b>Log it before the bill comes.</b><span>Pick the place, type each dish and tap how it was - ❤️ order again, 👍 fine, 👎 skip. A note if you like - “ask for it spicy” - and a photo that stays on your phone.</span></div></li>' +
+      '<li><div><b>Open it when you’re back.</b><span>Search the place - “orzolino”, “hickory and hush”, even “ozrolino” - and get one card: what to order again, what was fine, what to skip.</span></div></li>' +
+      '<li><div><b>Keep what friends swear by.</b><span>“The mole at Casa Lunaria - from Priya.” When you try it, one tap says whether Priya was right.</span></div></li>' +
       '</ol></section>' +
-      '<div class="grid three" style="margin-top:14px">' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">📍</span><h3>“I’m here”</h3><p class="muted small">One big card per place, read in a glance at the table: the ❤️ dishes biggest, the soggy fries marked to skip, the last visit and who you were with.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">🔖</span><h3>Want to try</h3><p class="muted small">Notes apps and photo rolls are where recommendations go to die. Here they wait with who said it and when - and show up when you’re at the place.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">🏙️</span><h3>Your city, your favourites</h3><p class="muted small">Every ❤️ in Riverton, anything with short rib, your favourite cuisine - and a “top dishes” card or a link to send a friend who’s visiting.</p></section>' +
-      '</div>';
+      '<section class="sec narrow" aria-labelledby="moreTitle"><h2 id="moreTitle">What you get</h2><ul class="feats">' +
+      '<li><div><b>“I’m here”</b><span>One big card per place, read in a glance at the table: the ❤️ dishes biggest, the soggy fries marked to skip, the last visit and who you were with.</span></div></li>' +
+      '<li><div><b>Want to try</b><span>Notes apps and photo rolls are where recommendations go to die. Here they wait with who said it and when - and show up when you’re at the place.</span></div></li>' +
+      '<li><div><b>Your city, your favourites</b><span>Every ❤️ in Riverton, anything with short rib, your favourite cuisine - and a “top dishes” card or a link to send a friend who’s visiting.</span></div></li>' +
+      ai + '</ul></section>';
   }
 
   /* ---------------- try it ---------------- */
@@ -348,9 +358,9 @@
     var d = D(), rows = C.searchPlaces(d, q);
     var out = '';
     if (!C.fold(q)) {
-      if (!rows.length) return '<section class="card empty" style="margin-top:12px"><div class="ic" aria-hidden="true">🍽️</div><p class="muted">No places yet. Log the first one - it takes seconds.</p><button class="btn" type="button" data-act="tab" data-tab="log">Log a visit</button></section>';
-      out += '<h2 class="lab" style="margin-top:14px">Recent</h2>' + rows.slice(0, 8).map(function (r) { return placeRow(r.place); }).join('');
-      if (rows.length > 8) out += '<p class="small" style="margin-top:10px"><button class="link-btn" type="button" data-act="tab" data-tab="browse">All ' + plural(rows.length, 'place') + '</button></p>';
+      if (!rows.length) return '<section class="card empty mt12"><div class="ic" aria-hidden="true">🍽️</div><p class="muted">No places yet. Log the first one - it takes seconds.</p><button class="btn" type="button" data-act="tab" data-tab="log">Log a visit</button></section>';
+      out += '<h2 class="lab mt16">Recent</h2>' + rows.slice(0, 8).map(function (r) { return placeRow(r.place); }).join('');
+      if (rows.length > 8) out += '<p class="small mt12"><button class="link-btn" type="button" data-act="tab" data-tab="browse">All ' + plural(rows.length, 'place') + '</button></p>';
       return out;
     }
     out += rows.slice(0, 8).map(function (r) { return placeRow(r.place); }).join('');
@@ -359,7 +369,7 @@
     wants.forEach(function (w) {
       out += '<button class="prow" type="button" data-act="tab" data-tab="want"><span class="tile" aria-hidden="true">🔖</span><span><span class="pname">' + esc(w.place) + '</span><span class="psub">' + esc((w.from ? w.from + ' said try ' : 'On your Want to try: ') + (w.dish || 'it')) + '</span></span><span class="pmeta muted">Want to try</span></button>';
     });
-    if (!rows.length && !wants.length) out += '<p class="muted" style="margin:12px 0 0">No place matches “' + esc(q) + '”.</p>';
+    if (!rows.length && !wants.length) out += '<p class="muted mt12">No place matches “' + esc(q) + '”.</p>';
     out += '<button class="newplace" type="button" data-act="newplace" data-name="' + esc(C.plain(q, C.LIMITS.place)) + '"><span aria-hidden="true">＋</span><span>Log a visit to “' + esc(C.plain(q, C.LIMITS.place)) + '”</span></button>';
     return out;
   }
@@ -369,11 +379,12 @@
     var out = '<div class="sec-head"><h1>Where are you eating?</h1></div>' +
       '<div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>' +
       '<input class="input search" id="q" type="search" placeholder="Search your places" autocomplete="off" autocapitalize="none" enterkeyhint="search" aria-label="Search your places - by name, neighbourhood, city or cuisine" value="' + esc(state.q) + '"></div>' +
-      '<p class="tiny muted" style="margin:6px 4px 0">Try a name, a neighbourhood, a city or a cuisine - accents, “the” and “&amp;” don’t matter, and a typo is fine.</p>' +
+      '<p class="tiny muted mt8">Try a name, a neighbourhood, a city or a cuisine - accents, “the” and “&amp;” don’t matter, and a typo is fine.</p>' +
+      '<div class="quick-acts">' + aiActs('', 'small soft') + '</div>' +
       '<div id="results">' + resultsHtml(state.q) + '</div>';
-    if (open.length) out += '<section class="card" style="margin-top:14px"><div class="row spread"><div><h2 style="margin:0">🔖 ' + esc(plural(open.length, 'pick') + ' from friends to try') + '</h2><p class="small muted" style="margin:2px 0 0">' + esc(open.slice(0, 2).map(C.wantTitle).join(' · ')) + '</p></div><button class="btn small ghost" type="button" data-act="tab" data-tab="want">See them</button></div></section>';
+    if (open.length) out += '<section class="card mt16"><div class="row spread"><div><h2 class="m0">' + esc(plural(open.length, 'pick') + ' from friends to try') + '</h2><p class="small muted mt4">' + esc(open.slice(0, 2).map(C.wantTitle).join(' · ')) + '</p></div><button class="btn small ghost" type="button" data-act="tab" data-tab="want">See them</button></div></section>';
     var s = C.stats(d, { today: t });
-    if (d.dishes.length) out += '<p class="small muted" style="margin-top:14px">' + esc(plural(s.places, 'place') + ' · ' + plural(s.dishes, 'dish', 'dishes') + ' · ' + s.again + ' to order again') + ' · <button class="link-btn" type="button" data-act="tab" data-tab="browse">Browse</button></p>';
+    if (d.dishes.length) out += '<p class="small muted mt16">' + esc(plural(s.places, 'place') + ' · ' + plural(s.dishes, 'dish', 'dishes') + ' · ' + s.again + ' to order again') + ' · <button class="link-btn" type="button" data-act="tab" data-tab="browse">Browse</button></p>';
     return out;
   }
   function bindHome() {
@@ -411,7 +422,7 @@
           '<button class="btn small soft" type="button" data-act="trywant" data-id="' + esc(w.id) + '">Tried it</button></div>';
       }).join('') + '</section>';
     }
-    out += '<div class="here-acts"><button class="btn" type="button" data-act="log" data-id="' + esc(p.id) + '">I’m having…</button><button class="btn ghost ai" type="button" data-act="reader" data-id="' + esc(p.id) + '"> Read the menu</button></div></article>';
+    out += '<div class="here-acts"><button class="btn" type="button" data-act="log" data-id="' + esc(p.id) + '">I’m having…</button>' + aiActs(p.id, 'ghost') + '</div></article>';
     // Visits: the days, and who was there.
     var days = {};
     C.dishesAt(D(), p.id).forEach(function (d) { d.orders.forEach(function (x) { var e = days[x.day] || (days[x.day] = { day: x.day, with: [], n: 0 }); e.n++; x.with.forEach(function (nm) { if (e.with.indexOf(nm) < 0) e.with.push(nm); }); }); });
@@ -435,17 +446,17 @@
     var orders = d.orders.map(function (x) { return esc(C.shortDay(x.day, today()) + (x.with.length ? ' with ' + C.listNames(x.with) : '')); }).join(' · ');
     sheet('<h2>' + esc(d.name) + '</h2><p class="small muted">' + esc((p ? p.name : '') + ' · ' + 'ordered ' + plural(C.times(d), 'time')) + '</p>' +
       '<div class="vbtns" id="dsV" role="group" aria-label="Verdict">' + C.VERDICT_IDS.map(vb).join('') + '</div>' +
-      '<div class="stack" style="margin-top:12px"><label class="field"><span>Name</span><input class="input" id="dsName" maxlength="80" value="' + esc(d.name) + '"></label>' +
+      '<div class="stack mt12"><label class="field"><span>Name</span><input class="input" id="dsName" maxlength="80" value="' + esc(d.name) + '"></label>' +
       '<label class="field"><span>Note <span class="hint">one line - “ask for it spicy”</span></span><input class="input" id="dsNote" maxlength="140" value="' + esc(d.note) + '"></label>' +
-      '<label class="field"><span>Price</span><input class="input" id="dsPrice" inputmode="decimal" style="max-width:160px" placeholder="' + esc(C.decimal(1800)) + '" value="' + esc(d.price !== null ? C.decimal(d.price) : '') + '"></label>' +
-      '<div class="field"><span>Photo</span><div id="dsPhoto" class="row"></div><label class="btn small ghost file-btn">📷 ' + (d.photo ? 'Replace the photo' : 'Add a photo') + '<input class="vh" id="dsFile" type="file" accept="image/*"></label><span class="tiny muted">Shrunk on this phone, its location removed, and kept only here.</span></div>' +
+      '<label class="field"><span>Price</span><input class="input w160" id="dsPrice" inputmode="decimal" placeholder="' + esc(C.decimal(1800)) + '" value="' + esc(d.price !== null ? C.decimal(d.price) : '') + '"></label>' +
+      '<div class="field"><span>Photo</span><div id="dsPhoto" class="row"></div><label class="btn small ghost file-btn">' + (d.photo ? 'Replace the photo' : 'Add a photo') + '<input class="vh" id="dsFile" type="file" accept="image/*"></label><span class="tiny muted">Shrunk on this phone, its location removed, and kept only here.</span></div>' +
       '<p class="small muted">' + orders + '</p></div>' +
-      '<div id="dsErr"></div><div class="row" style="margin-top:8px"><button class="btn" type="button" id="dsSave">Save</button><button class="btn ghost" type="button" id="dsDel">Delete this dish</button></div>', function (root) {
+      '<div id="dsErr"></div><div class="row mt8"><button class="btn" type="button" id="dsSave">Save</button><button class="btn ghost" type="button" id="dsDel">Delete this dish</button></div>', function (root) {
       var verdict = d.verdict, photo = null;
       $$('[data-v]', root).forEach(function (b) { b.addEventListener('click', function () { verdict = b.getAttribute('data-v'); $$('[data-v]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
-      if (d.photo) photoGet('d-' + d.id).then(function (ph) { if (ph) $('#dsPhoto', root).innerHTML = '<img alt="' + esc('Photo of ' + d.name) + '" src="' + esc(ph.full) + '" class="big-photo" style="max-height:220px"><button class="btn small ghost" type="button" id="dsNoPhoto">Remove the photo</button>'; var np = $('#dsNoPhoto', root); if (np) np.addEventListener('click', function () { photo = 'remove'; $('#dsPhoto', root).innerHTML = '<span class="small muted">The photo goes when you save.</span>'; }); });
+      if (d.photo) photoGet('d-' + d.id).then(function (ph) { if (ph) $('#dsPhoto', root).innerHTML = '<img alt="' + esc('Photo of ' + d.name) + '" src="' + esc(ph.full) + '" class="big-photo h220"><button class="btn small ghost" type="button" id="dsNoPhoto">Remove the photo</button>'; var np = $('#dsNoPhoto', root); if (np) np.addEventListener('click', function () { photo = 'remove'; $('#dsPhoto', root).innerHTML = '<span class="small muted">The photo goes when you save.</span>'; }); });
       $('#dsFile', root).addEventListener('change', function (e) {
-        prepPhoto(e.target.files[0]).then(function (ph) { photo = ph; $('#dsPhoto', root).innerHTML = '<img alt="" src="' + esc(ph.thumb) + '" style="width:72px;height:72px;object-fit:cover;border-radius:10px"><span class="small muted">Kept on this phone when you save.</span>'; })
+        prepPhoto(e.target.files[0]).then(function (ph) { photo = ph; $('#dsPhoto', root).innerHTML = '<img class="thumb72" alt="" src="' + esc(ph.thumb) + '"><span class="small muted">Kept on this phone when you save.</span>'; })
           .catch(function (err) { showError(err, $('#dsErr', root)); });
       });
       $('#dsSave', root).addEventListener('click', function () {
@@ -472,9 +483,9 @@
     var pick = p.cuisine;
     sheet('<h2>Edit ' + esc(p.name) + '</h2><div class="stack">' +
       '<label class="field"><span>Name</span><input class="input" id="epName" maxlength="60" value="' + esc(p.name) + '"></label>' +
-      '<div class="row"><label class="field" style="flex:1 1 160px"><span>Neighbourhood</span><input class="input" id="epArea" maxlength="40" value="' + esc(p.area) + '"></label><label class="field" style="flex:1 1 160px"><span>City</span><input class="input" id="epCity" maxlength="40" value="' + esc(p.city) + '"></label></div>' +
+      '<div class="row"><label class="field grow"><span>Neighbourhood</span><input class="input" id="epArea" maxlength="40" value="' + esc(p.area) + '"></label><label class="field grow"><span>City</span><input class="input" id="epCity" maxlength="40" value="' + esc(p.city) + '"></label></div>' +
       '<div class="field"><span>Cuisine</span><div class="cuisines" id="epCu">' + C.CUISINES.map(function (c) { return '<button class="chip" type="button" data-cu="' + esc(c.id) + '" aria-pressed="' + (pick === c.id) + '">' + esc(c.emoji + ' ' + c.label) + '</button>'; }).join('') + '</div></div>' +
-      '</div><div id="epErr"></div><div class="row" style="margin-top:12px"><button class="btn" type="button" id="epSave">Save</button><button class="btn ghost" type="button" id="epDel">Delete this place</button></div>', function (root) {
+      '</div><div id="epErr"></div><div class="row mt12"><button class="btn" type="button" id="epSave">Save</button><button class="btn ghost" type="button" id="epDel">Delete this place</button></div>', function (root) {
       $('#epCu', root).addEventListener('click', function (e) { var b = e.target.closest('[data-cu]'); if (!b) return; pick = b.getAttribute('data-cu'); $$('[data-cu]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); });
       $('#epSave', root).addEventListener('click', function () {
         var next = C.editPlace(p, { name: $('#epName', root).value, area: $('#epArea', root).value, city: $('#epCity', root).value, cuisine: pick }, ctx());
@@ -506,27 +517,27 @@
   function viewLog() {
     var L = state.log, p = findPlace(L.placeId);
     var out = '<div class="sec-head"><h1>' + (p ? 'At ' + esc(p.name) : 'Log a visit') + '</h1>' + (p ? '<button class="btn small ghost" type="button" data-act="place" data-id="' + esc(p.id) + '">Back to the card</button>' : '') + '</div><div class="log-grid"><div class="stack">';
-    out += '<section class="card stack" aria-labelledby="whereH"><h2 id="whereH" style="margin:0">Where</h2>';
+    out += '<section class="card stack" aria-labelledby="whereH"><h2 class="m0" id="whereH">Where</h2>';
     if (p) {
       out += '<div class="picked"><span class="tile" aria-hidden="true">' + esc(C.cuisineOf(p.cuisine).emoji) + '</span><div><b>' + esc(p.name) + '</b><div class="small muted">' + esc(placeSub(p)) + '</div></div><button class="link-btn" type="button" data-act="logchange">Change</button></div>';
     } else {
       out += '<div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><input class="input search" id="lq" type="search" autocomplete="off" placeholder="Pick a place, or type a new one" aria-label="The place" value="' + esc(L.q) + '"></div><div id="lres">' + logResults() + '</div>';
     }
     out += '</section>';
-    out += '<section class="card stack" aria-labelledby="hadH"><h2 id="hadH" style="margin:0">What did you have?</h2><div class="quick">' +
+    out += '<section class="card stack" aria-labelledby="hadH"><h2 class="m0" id="hadH">What did you have?</h2><div class="quick">' +
       '<input class="input" id="lDish" maxlength="80" placeholder="Cacio e pepe" autocomplete="off" enterkeyhint="next" aria-label="A dish">' +
       '<div class="vbtns" role="group" aria-label="Add it as">' + C.VERDICT_IDS.map(function (v) { return vbtn(v); }).join('') + '</div>' +
-      '<p class="tiny muted" style="margin:0">Type it, then tap how it was. One tap per dish.</p></div>';
+      '<p class="tiny muted m0">Type it, then tap how it was. One tap per dish.</p></div>';
     var known = p ? C.dishesAt(D(), p.id).slice().sort(function (a, b) { return (a.verdict === 'again' ? 0 : 1) - (b.verdict === 'again' ? 0 : 1) || C.times(b) - C.times(a); }) : [];
     if (known.length) out += '<div class="field"><span>Had one of these again? <span class="hint">tap to add it</span></span><div class="known">' + known.slice(0, 16).map(function (d) { return '<button class="chip" type="button" data-known="' + esc(d.id) + '">' + esc(C.verdictOf(d.verdict).emoji + ' ' + d.name) + '</button>'; }).join('') + '</div></div>';
     out += '<div class="items" id="lItems">' + itemsHtml() + '</div></section></div><div class="stack">';
     var y = C.addDays(today(), -1);
-    out += '<section class="card stack" aria-labelledby="whenH"><h2 id="whenH" style="margin:0">When, and who with</h2>' +
-      '<div class="row"><div class="seg" role="group" aria-label="When"><button type="button" data-day="' + esc(today()) + '" aria-pressed="' + (L.day === today()) + '">Today</button><button type="button" data-day="' + esc(y) + '" aria-pressed="' + (L.day === y) + '">Yesterday</button></div><input class="input" id="lDay" type="date" max="' + esc(today()) + '" value="' + esc(L.day) + '" style="max-width:180px" aria-label="The day"></div>' +
+    out += '<section class="card stack" aria-labelledby="whenH"><h2 class="m0" id="whenH">When, and who with</h2>' +
+      '<div class="row"><div class="seg" role="group" aria-label="When"><button type="button" data-day="' + esc(today()) + '" aria-pressed="' + (L.day === today()) + '">Today</button><button type="button" data-day="' + esc(y) + '" aria-pressed="' + (L.day === y) + '">Yesterday</button></div><input class="input w180" id="lDay" type="date" max="' + esc(today()) + '" value="' + esc(L.day) + '" aria-label="The day"></div>' +
       '<div class="field"><span>Who was there <span class="hint">first names, if you like</span></span><div class="known" id="lWith">' + peopleHtml() + '</div>' +
-      '<div class="row"><input class="input" id="lPerson" maxlength="24" placeholder="Add a name" style="flex:1 1 160px" autocomplete="off" aria-label="A first name"><button class="btn small ghost" type="button" id="lPersonAdd">Add</button></div></div></section>';
+      '<div class="row"><input class="input grow" id="lPerson" maxlength="24" placeholder="Add a name" autocomplete="off" aria-label="A first name"><button class="btn small ghost" type="button" id="lPersonAdd">Add</button></div></div></section>';
     out += '<div id="lErr"></div><button class="btn big block" type="button" id="lSave">' + esc(saveLabel()) + '</button>' +
-      '<button class="btn ghost block ai" type="button" data-act="reader" data-id="' + esc(L.placeId) + '"> Read the menu instead</button></div></div>';
+      '<div class="quick-acts">' + aiActs(L.placeId, 'small soft') + '</div></div></div>';
     return out;
   }
   function peopleHtml() {
@@ -541,9 +552,9 @@
     if (C.fold(q)) {
       var cities = usedCities();
       if (!L.place.city && cities.length === 1) L.place.city = cities[0];
-      out += '<div class="note stack" style="margin-top:10px"><b>New place: ' + esc(C.plain(q, C.LIMITS.place)) + '</b>' +
-        '<div class="row"><label class="field" style="flex:1 1 150px"><span>Neighbourhood</span><input class="input" id="lArea" maxlength="40" value="' + esc(L.place.area) + '" placeholder="Old Mill"></label>' +
-        '<label class="field" style="flex:1 1 150px"><span>City</span><input class="input" id="lCity" maxlength="40" value="' + esc(L.place.city) + '" placeholder="Riverton" list="cityList"></label></div>' +
+      out += '<div class="note stack mt12"><b>New place: ' + esc(C.plain(q, C.LIMITS.place)) + '</b>' +
+        '<div class="row"><label class="field grow"><span>Neighbourhood</span><input class="input" id="lArea" maxlength="40" value="' + esc(L.place.area) + '" placeholder="Old Mill"></label>' +
+        '<label class="field grow"><span>City</span><input class="input" id="lCity" maxlength="40" value="' + esc(L.place.city) + '" placeholder="Riverton" list="cityList"></label></div>' +
         '<datalist id="cityList">' + cities.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' +
         '<div class="field"><span>Cuisine</span><div class="cuisines" id="lCu">' + cuisineChips() + '</div></div></div>';
     }
@@ -562,14 +573,14 @@
     if (!L.items.length) return '';
     return L.items.map(function (it, i) {
       var open = L.more === i;
-      var sub = [it.note, it.price ? money(C.readMoney(it.price) || 0) : '', L.photos[i] ? '📷' : ''].filter(Boolean).join(' · ');
-      return '<div class="irow"><button class="link-btn nm" type="button" data-imore="' + i + '" style="text-align:left;text-decoration:none;color:var(--text)" aria-expanded="' + open + '">' + esc(it.name) + '<small>' + esc(sub || 'Note, price, photo') + '</small></button>' +
+      var sub = [it.note, it.price ? money(C.readMoney(it.price) || 0) : '', L.photos[i] ? 'photo' : ''].filter(Boolean).join(' · ');
+      return '<div class="irow"><button class="link-btn nm plainbtn" type="button" data-imore="' + i + '" aria-expanded="' + open + '">' + esc(it.name) + '<small>' + esc(sub || 'Note, price, photo') + '</small></button>' +
         '<span class="vmini" role="group" aria-label="' + esc('How ' + it.name + ' was') + '">' + C.VERDICT_IDS.map(function (v) { var y = C.verdictOf(v); return '<button type="button" class="' + esc(v) + '" data-iv="' + i + '" data-v="' + esc(v) + '" aria-pressed="' + (it.verdict === v) + '" aria-label="' + esc(y.label) + '">' + esc(y.emoji) + '</button>'; }).join('') + '</span>' +
         (open ? '<div class="extra"><label class="field"><span>Note</span><input class="input" data-inote="' + i + '" maxlength="140" value="' + esc(it.note) + '" placeholder="Ask for it spicy"></label>' +
-          '<div class="row"><label class="field" style="flex:0 1 150px"><span>Price</span><input class="input" data-iprice="' + i + '" inputmode="decimal" value="' + esc(it.price || '') + '" placeholder="' + esc(C.decimal(1800)) + '"></label>' +
-          '<label class="btn small ghost file-btn" style="align-self:end">📷 ' + (L.photos[i] ? 'Replace photo' : 'Photo') + '<input class="vh" type="file" accept="image/*" data-iphoto="' + i + '"></label></div>' +
-          '<p class="tiny muted" style="margin:0">Photos are shrunk on this phone and their location is removed. They stay on this phone.</p>' +
-          '<button class="btn small ghost" type="button" data-irm="' + i + '" style="justify-self:start">' + esc('Remove ' + it.name) + '</button></div>' : '') +
+          '<div class="row"><label class="field w150"><span>Price</span><input class="input" data-iprice="' + i + '" inputmode="decimal" value="' + esc(it.price || '') + '" placeholder="' + esc(C.decimal(1800)) + '"></label>' +
+          '<label class="btn small ghost file-btn ae">' + (L.photos[i] ? 'Replace photo' : 'Photo') + '<input class="vh" type="file" accept="image/*" data-iphoto="' + i + '"></label></div>' +
+          '<p class="tiny muted m0">Photos are shrunk on this phone and their location is removed. They stay on this phone.</p>' +
+          '<button class="btn small ghost js" type="button" data-irm="' + i + '">' + esc('Remove ' + it.name) + '</button></div>' : '') +
         '</div>';
     }).join('');
   }
@@ -677,10 +688,10 @@
     open.forEach(function (w) { var k = C.cityKey(w.city) || '~'; (byCity[k] = byCity[k] || { city: w.city || 'Anywhere', list: [] }).list.push(w); });
     Object.keys(byCity).sort().forEach(function (k) {
       var g = byCity[k];
-      out += '<section class="card" style="margin-top:12px"><h2>' + esc(g.city) + ' <span class="muted small">' + esc(plural(g.list.length, 'pick')) + '</span></h2>' + g.list.sort(function (a, b) { return a.day < b.day ? 1 : -1; }).map(wantRow).join('') + '</section>';
+      out += '<section class="card mt12"><h2>' + esc(g.city) + ' <span class="muted small">' + esc(plural(g.list.length, 'pick')) + '</span></h2>' + g.list.sort(function (a, b) { return a.day < b.day ? 1 : -1; }).map(wantRow).join('') + '</section>';
     });
     if (tried.length) {
-      out += '<section class="card" style="margin-top:12px"><h2>Tried</h2>' + tried.map(function (w) {
+      out += '<section class="card mt12"><h2>Tried</h2>' + tried.map(function (w) {
         return '<div class="tried"><b>' + esc(C.triedLine(w, w.done.verdict)) + '</b><span class="muted small">' + esc(C.wantTitle(w) + ' · ' + C.shortDay(w.done.day, today())) + '</span></div>';
       }).join('') + '</section>';
     }
@@ -692,11 +703,11 @@
       '<label class="field"><span>The dish <span class="hint">optional - “the mole”</span></span><input class="input" id="awDish" maxlength="80" autocomplete="off"></label>' +
       '<label class="field"><span>The place</span><input class="input" id="awPlace" maxlength="60" autocomplete="off" list="awPlaces"></label>' +
       '<datalist id="awPlaces">' + d.places.map(function (p) { return '<option value="' + esc(p.name) + '">'; }).join('') + '</datalist>' +
-      '<div class="row"><label class="field" style="flex:1 1 150px"><span>Neighbourhood</span><input class="input" id="awArea" maxlength="40"></label><label class="field" style="flex:1 1 150px"><span>City</span><input class="input" id="awCity" maxlength="40" list="awCities"' + (cities.length === 1 ? ' value="' + esc(cities[0]) + '"' : '') + '></label></div>' +
+      '<div class="row"><label class="field grow"><span>Neighbourhood</span><input class="input" id="awArea" maxlength="40"></label><label class="field grow"><span>City</span><input class="input" id="awCity" maxlength="40" list="awCities"' + (cities.length === 1 ? ' value="' + esc(cities[0]) + '"' : '') + '></label></div>' +
       '<datalist id="awCities">' + cities.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' +
       '<label class="field"><span>Who said it <span class="hint">a first name</span></span><input class="input" id="awFrom" maxlength="24" autocomplete="off"></label>' +
       '<label class="field"><span>What they said <span class="hint">optional</span></span><input class="input" id="awNote" maxlength="140" placeholder="Get it with the handmade tortillas"></label>' +
-      '</div><div id="awErr"></div><button class="btn block" type="button" id="awSave" style="margin-top:12px">Save to Want to try</button>', function (root) {
+      '</div><div id="awErr"></div><button class="btn block mt12" type="button" id="awSave">Save to Want to try</button>', function (root) {
       $('#awPlace', root).addEventListener('change', function () { var p = d.places.find(function (x) { return x.name === $('#awPlace', root).value; }); if (p) { $('#awArea', root).value = p.area; $('#awCity', root).value = p.city; } });
       $('#awSave', root).addEventListener('click', function () {
         if (D().wants.length >= C.LIMITS.wants) { $('#awErr', root).innerHTML = '<p class="err">That’s ' + C.LIMITS.wants + ' picks - remove a few tried ones first.</p>'; return; }
@@ -711,7 +722,7 @@
     var w = findWant(id); if (!w) return;
     sheet('<h2>How was ' + esc(w.dish ? w.dish.replace(/^the\s+/i, 'the ') : w.place) + '?</h2><p class="small muted">' + esc(C.wantTitle(w) + (w.from ? ' - from ' + w.from : '')) + '</p>' +
       '<div class="vbtns" role="group" aria-label="How it was">' + C.VERDICT_IDS.map(function (v) { var x = C.verdictOf(v); return '<button class="vbtn ' + esc(v) + '" type="button" data-tv="' + esc(v) + '"><span class="e" aria-hidden="true">' + esc(x.emoji) + '</span><small>' + esc(x.label) + '</small></button>'; }).join('') + '</div>' +
-      '<p class="tiny muted" style="margin-top:10px">' + (w.dish ? 'It goes on your list at ' + esc(w.place) + ', logged today.' : esc(w.place) + ' joins your places - then log what you had.') + '</p>', function (root) {
+      '<p class="tiny muted mt12">' + (w.dish ? 'It goes on your list at ' + esc(w.place) + ', logged today.' : esc(w.place) + ' joins your places - then log what you had.') + '</p>', function (root) {
       $$('[data-tv]', root).forEach(function (b) {
         b.addEventListener('click', function () {
           var prev = D(), r = C.tryWant(prev, w.id, b.getAttribute('data-tv'), ctx());
@@ -754,7 +765,7 @@
         }).join('') + '</div>';
       }).join('') : '<p class="muted">Nothing marked ❤️ ' + esc(B.city ? 'in ' + B.city : 'yet') + '.</p>') + '</section>';
     } else {
-      out += '<div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><input class="input search" id="dq" type="search" autocomplete="off" placeholder="Anything with… short rib" aria-label="Search dishes" value="' + esc(B.q) + '"></div><div id="dres" style="margin-top:10px">' + dishResults() + '</div>';
+      out += '<div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><input class="input search" id="dq" type="search" autocomplete="off" placeholder="Anything with… short rib" aria-label="Search dishes" value="' + esc(B.q) + '"></div><div class="mt12" id="dres">' + dishResults() + '</div>';
     }
     out += '</div><div class="stack">' + statsCard() + cardSection() + linkSection() + '</div></div>';
     return out;
@@ -776,7 +787,7 @@
       '<div class="stat"><b>' + s.visitsThisYear + '</b><span>' + (s.visitsThisYear === 1 ? 'visit' : 'visits') + ' this year</span></div>' +
       '<div class="stat"><b class="word">' + esc(s.favCuisine ? s.favCuisine.emoji + ' ' + s.favCuisine.label : '-') + '</b><span>favourite cuisine' + (s.favCuisine ? ' · ' + esc(plural(s.favCuisine.loves, 'dish', 'dishes')) + ' ❤️' : '') + '</span></div>' +
       '<div class="stat"><b>' + s.hitRate + '%</b><span>of dishes you’d order again</span></div></div>' +
-      (top ? '<p style="margin:12px 0 0"><span class="muted small">Ordered again most</span><br><b>' + esc(top.dish.name) + '</b> <span class="muted">' + esc('at ' + top.place.name + (top.times > 1 ? ' · ' + top.times + ' times' : '')) + '</span></p>' : '') +
+      (top ? '<p class="mt12"><span class="muted small">Ordered again most</span><br><b>' + esc(top.dish.name) + '</b> <span class="muted">' + esc('at ' + top.place.name + (top.times > 1 ? ' · ' + top.times + ' times' : '')) + '</span></p>' : '') +
       '</section>';
   }
 
@@ -891,11 +902,11 @@
     }
     sheet('<h2>' + esc('Send your ❤️ list for ' + city) + '</h2>' +
       '<div class="sent" id="slPrev"></div>' +
-      '<p class="small" style="margin-top:10px"><b>What the link shows:</b> place names, neighbourhoods and cuisines, dish names, ❤️ (and 👎 if you tick it) and your one-line notes. <b>Never prices, who you were with, dates or photos.</b> It holds a copy of the list as it is now; anyone with the link can open it until it expires or you close it.</p>' +
+      '<p class="small mt12"><b>What the link shows:</b> place names, neighbourhoods and cuisines, dish names, ❤️ (and 👎 if you tick it) and your one-line notes. <b>Never prices, who you were with, dates or photos.</b> It holds a copy of the list as it is now; anyone with the link can open it until it expires or you close it.</p>' +
       '<label class="check"><input type="checkbox" id="slSkip"> Also what to skip 👎</label>' +
-      '<label class="field" style="margin:6px 0"><span>The name your friend sees <span class="hint">a first name, optional</span></span><input class="input" id="slFrom" maxlength="24" value="' + esc(prefs.from) + '" autocomplete="given-name"></label>' +
+      '<label class="field my12"><span>The name your friend sees <span class="hint">a first name, optional</span></span><input class="input" id="slFrom" maxlength="24" value="' + esc(prefs.from) + '" autocomplete="given-name"></label>' +
       '<div class="field"><span>Open for</span><div class="seg days4" id="slDays" role="group" aria-label="Open for">' + [1, 7, 14, 30].map(function (days) { return '<button type="button" data-days="' + days + '" aria-pressed="' + (days === opts.days) + '">' + plural(days, 'day') + '</button>'; }).join('') + '</div></div>' +
-      '<div id="slOut" style="margin-top:12px"></div><button class="btn block" type="button" id="slGo" style="margin-top:8px">Make the link</button>', function (root) {
+      '<div class="mt12" id="slOut"></div><button class="btn block mt8" type="button" id="slGo">Make the link</button>', function (root) {
       preview(root);
       $('#slSkip', root).addEventListener('change', function (e) { opts.skip = e.target.checked; preview(root); });
       $('#slDays', root).addEventListener('click', function (e) { var b = e.target.closest('[data-days]'); if (!b) return; opts.days = Number(b.getAttribute('data-days')); $$('[data-days]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); });
@@ -907,7 +918,7 @@
           links[r.link.id] = r.code; keep(K_LINKS, links);
           var url = location.origin + BASE + r.path;
           go2.hidden = true;
-          $('#slOut', root).innerHTML = '<p class="small"><b>Your link</b> - open until ' + esc(new Date(r.link.expiresAt).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' })) + '. Close it any time in Settings.</p><div class="linkbox">' + esc(url) + '</div><div class="row" style="margin-top:8px"><button class="btn" type="button" id="slCopy">Copy the link</button>' + (navigator.share ? '<button class="btn ghost" type="button" id="slShare">Share…</button>' : '') + '</div>';
+          $('#slOut', root).innerHTML = '<p class="small"><b>Your link</b> - open until ' + esc(new Date(r.link.expiresAt).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' })) + '. Close it any time in Settings.</p><div class="linkbox">' + esc(url) + '</div><div class="row mt8"><button class="btn" type="button" id="slCopy">Copy the link</button>' + (navigator.share ? '<button class="btn ghost" type="button" id="slShare">Share…</button>' : '') + '</div>';
           $('#slCopy', root).addEventListener('click', function () { copy(url, 'Copied - send it to a friend.'); });
           var sh = $('#slShare', root); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'My ❤️ list for ' + pay.city, url: url }).catch(function () { /* cancelled */ }); });
         }).catch(function (err) { go2.disabled = false; go2.textContent = 'Make the link'; showError(err, $('#slOut', root)); });
@@ -931,20 +942,20 @@
   }
   function viewShare() {
     var S = state.share;
-    var start = '<section class="card" style="margin-top:14px"><h2>Keep your own list</h2><p class="muted small">Again remembers what you loved at every place - free, no account, and it stays on your phone.</p><button class="btn" type="button" data-act="home">Start my own Again list</button></section>';
+    var start = '<section class="card mt16"><h2>Keep your own list</h2><p class="muted small">Again remembers what you loved at every place - free, no account, and it stays on your phone.</p><button class="btn" type="button" data-act="home">Start my own Again list</button></section>';
     if (!S || S.status === 'loading') return '<p class="muted" role="status">Opening the list…</p>';
     if (S.status === 'offline') return '<section class="card empty"><div class="ic" aria-hidden="true">📶</div><h1>This list needs the internet</h1><p class="muted">A friend’s list is opened from the link each time, so it can’t open offline. Reconnect and reload the page.</p></section>';
     if (S.status === 'gone') return '<section class="card empty"><div class="ic" aria-hidden="true">🍽️</div><h1>This list isn’t open any more</h1><p class="muted">It may have been closed, or it expired. Ask whoever sent it for a new link.</p></section>' + start;
     if (S.status === 'error') return '<section class="card empty"><div class="ic" aria-hidden="true">🍽️</div><h1>This list can’t open right now</h1><p class="muted">' + esc(S.error) + '</p></section>' + start;
     var sh = S.data, n = sh.places.reduce(function (a, p) { return a + p.dishes.length; }, 0);
-    var out = '<div class="friend-head"><p class="lab" style="color:var(--hero-soft)">' + esc((sh.from ? sh.from + '’s' : 'A friend’s') + ' Order again list') + '</p><h1>' + esc(sh.city) + '</h1><p>' + esc(plural(n, 'dish', 'dishes') + ' at ' + plural(sh.places.length, 'place') + (S.expiresAt ? ' · open until ' + new Date(S.expiresAt).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' }) : '')) + '</p></div>' +
+    var out = '<div class="friend-head"><p class="eyebrow">' + esc((sh.from ? sh.from + '’s' : 'A friend’s') + ' Order again list') + '</p><h1>' + esc(sh.city) + '</h1><p>' + esc(plural(n, 'dish', 'dishes') + ' at ' + plural(sh.places.length, 'place') + (S.expiresAt ? ' · open until ' + new Date(S.expiresAt).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' }) : '')) + '</p></div>' +
       '<p class="small muted">Read-only. Tap “Save” on anything you want to try - it goes on your own phone’s Want to try list, and nothing is sent anywhere.</p>' +
       '<div class="row"><button class="btn small" type="button" data-act="saveall">Save all to my Want to try</button></div>';
     sh.places.forEach(function (p, pi) {
       out += '<section class="card splace"><h2>' + esc(C.cuisineOf(p.cuisine).emoji + ' ' + p.name) + ' <span class="muted small">' + esc([p.area, C.cuisineOf(p.cuisine).label].filter(Boolean).join(' · ')) + '</span></h2>' + p.dishes.map(function (d, di) {
         var saved = S.saved[pi + '-' + di] || C.hasWant(data.wants, d.name, p.name);
         return '<div class="sdish"><span><b>' + esc(C.verdictOf(d.verdict).emoji + ' ' + d.name) + '</b>' + (d.note ? '<small>' + esc(d.note) + '</small>' : '') + (d.verdict === 'skip' ? '<small>' + esc((sh.from || 'They') + ' would skip this one') + '</small>' : '') + '</span>' +
-          (d.verdict === 'skip' ? '<span></span>' : (saved ? '<span class="pill t-ok">Saved ✓</span>' : '<button class="btn small soft" type="button" data-act="savewant" data-p="' + pi + '" data-d="' + di + '" aria-label="' + esc('Save ' + d.name + ' to my Want to try') + '">🔖 Save</button>')) + '</div>';
+          (d.verdict === 'skip' ? '<span></span>' : (saved ? '<span class="pill t-ok">Saved ✓</span>' : '<button class="btn small soft" type="button" data-act="savewant" data-p="' + pi + '" data-d="' + di + '" aria-label="' + esc('Save ' + d.name + ' to my Want to try') + '">Save</button>')) + '</div>';
       }).join('') + '</section>';
     });
     return out + start;
@@ -983,20 +994,20 @@
     var hist = C.historyFor(D(), { exceptPlaceId: r.placeId });
     var sentBox = '<div class="sent">' + (r.photo ? '<img alt="" src="' + esc(r.photo.thumb) + '">' : '') + '<b>What is sent:</b> this menu photo, shrunk on this phone with its location removed' +
       (r.ask && hist.length ? ', and these ' + plural(hist.length, 'dish', 'dishes') + ' of yours from other places - names, cuisines and verdicts only:<ul>' + hist.map(function (h) { return '<li>' + esc(h.dish + (h.cuisine ? ' (' + C.cuisineOf(h.cuisine).label + ')' : '') + ' ' + C.verdictOf(h.verdict).emoji) + '</li>'; }).join('') + '</ul>' : '. ') +
-      '<b>Never a place name, who you ate with, a date, a price or a note.</b><span style="display:block;clear:both"></span></div>';
+      '<b>Never a place name, who you ate with, a date, a price or a note.</b><span class="clear"></span></div>';
     if (!signedIn()) {
-      b.innerHTML = '<h2>Read the menu</h2><p>Take a photo of the menu and AI lists the dishes on it - then tap ❤️ 👍 👎 for what you had. Ask “What should I order?” and it picks up to three, from what you loved and skipped elsewhere.</p>' + sentBox +
-        '<p class="note" style="margin-top:12px">This needs a free account - it comes with $2 of AI credit, and one menu costs about a cent. Logging by hand, “I’m here” and everything else stay free with no account.</p>' +
-        '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="rdJoin">Create a free account</button><button class="btn ghost" type="button" id="rdIn">Sign in</button></div>';
+      b.innerHTML = '<h2>' + menuWord() + '</h2><p>Take a photo of the menu and AI lists the dishes on it - then tap ❤️ 👍 👎 for what you had. Ask “What should I order?” and it picks up to three, from what you loved and skipped elsewhere.</p>' + sentBox +
+        '<p class="note mt12">This needs a free account - it comes with $2 of AI credit, and one menu costs about a cent. Logging by hand, “I’m here” and everything else stay free with no account.</p>' +
+        '<div class="row mt12"><button class="btn" type="button" id="rdJoin">Create a free account</button><button class="btn ghost" type="button" id="rdIn">Sign in</button></div>';
       $('#rdJoin', root).addEventListener('click', function () { openAccount('Create a free account to read menus.', function () { openReader(r.placeId); }); });
       $('#rdIn', root).addEventListener('click', function () { openAccount('Sign in to read menus.', function () { openReader(r.placeId); }, 'login'); });
       return;
     }
     if (r.menu) return drawMenu(root);
-    b.innerHTML = '<h2>Read the menu' + (p ? ' at ' + esc(p.name) : '') + '</h2>' +
-      '<div class="field" style="margin:8px 0 12px"><span>A photo of the menu</span><label class="btn ghost file-btn">' + (r.photo ? '📷 Choose another' : '📷 Take or choose a photo') + '<input class="vh" id="rdFile" type="file" accept="image/*"></label></div>' +
+    b.innerHTML = '<h2>' + menuWord() + (p ? ' at ' + esc(p.name) : '') + '</h2>' +
+      '<div class="field my12"><span>A photo of the menu</span><label class="btn ghost file-btn">' + (r.photo ? 'Choose another photo' : 'Take or choose a photo') + '<input class="vh" id="rdFile" type="file" accept="image/*"></label></div>' +
       '<label class="check"><input type="checkbox" id="rdAsk"' + (r.ask ? ' checked' : '') + (hist.length ? '' : ' disabled') + '> <span>What should I order? <span class="small muted">' + (hist.length ? 'Up to three picks from this menu, from what you loved and skipped elsewhere.' : 'Log a few dishes at other places first - the picks come from them.') + '</span></span></label>' +
-      sentBox + '<div id="rdOut" style="margin-top:12px"></div><div class="row" style="margin-top:12px"><button class="btn ai" type="button" id="rdGo"' + (r.photo ? '' : ' disabled') + '> Read it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
+      sentBox + '<div class="mt12" id="rdOut"></div><div class="row mt12"><button class="btn ai" type="button" id="rdGo"' + (r.photo ? '' : ' disabled') + '>Read it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
     var out = $('#rdOut', root), go2 = $('#rdGo', root);
     $('#rdAsk', root).addEventListener('change', function (e) { r.ask = e.target.checked; drawReader(root); });
     $('#rdFile', root).addEventListener('change', function (e) {
@@ -1015,7 +1026,7 @@
       }).then(function (res) {
         r.menu = res.menu; r.verdicts = {}; drawReader(root); loadMe();
       }).catch(function (err) {
-        go2.disabled = false; go2.textContent = ' Read it';
+        go2.disabled = false; go2.textContent = 'Read it';
         meteredError(err, out, function () { openReader(r.placeId); }, 'Sign in to read menus.');
       });
     });
@@ -1026,17 +1037,18 @@
     m.picks.forEach(function (x) { picked[x.index] = true; });
     var places = D().places.slice().sort(function (a, c) { return C.fold(a.name) < C.fold(c.name) ? -1 : 1; });
     b.innerHTML = '<h2>' + (p ? 'The menu at ' + esc(p.name) : 'The menu') + '</h2><p class="small muted">Read by AI - check the names. Tap how it was for what you ate; nothing is added until you tap Add.</p>' +
+      (m.dishes.some(function (d) { return d.sure; }) ? '<p class="small muted">Names and prices are copied from the menu as printed, and a row the reader was unsure of says “Check this”. Again never guesses ingredients or allergens - ask the staff.</p>' : '') +
       '<p><span class="pill ' + (m.confidence === 'high' ? 't-ok' : 't-warn') + '">' + esc(m.confidence + ' confidence') + '</span>' + (m.note ? ' <span class="small muted">' + esc(m.note) + '</span>' : '') + '</p>' +
       (m.picks.length ? '<div class="picks"><h3>What to order</h3><ol>' + m.picks.map(function (x) { return '<li><b>' + esc(x.name) + '</b>' + (x.reason ? '<span>' + esc(x.reason) + '</span>' : '') + '</li>'; }).join('') + '</ol></div>' : (m.asked ? '<p class="note small">No picks this time - nothing on this menu lined up with what you loved.</p>' : '')) +
       (m.currency && m.currency !== cur() ? '<p class="note small">These prices look like ' + esc(m.currency) + '. Again shows amounts in ' + esc(cur()) + ' - change it in Settings if that’s wrong.</p>' : '') +
-      (p ? '' : '<label class="field" style="margin:10px 0"><span>Where are you?</span><select class="input" id="mWhere"><option value="">Somewhere new…</option>' + places.map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name + (x.city ? ' · ' + x.city : '')) + '</option>'; }).join('') + '</select></label>' +
-        '<div class="row" id="mNew"><label class="field" style="flex:1 1 160px"><span>Place name</span><input class="input" id="mName" maxlength="60"></label><label class="field" style="flex:1 1 140px"><span>City</span><input class="input" id="mCity" maxlength="40" list="mCities"></label><datalist id="mCities">' + usedCities().map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>') +
-      '<div class="card" id="mList" style="margin-top:10px;padding:8px 12px">' + m.dishes.map(function (d, i) {
-        return '<div class="mrow' + (picked[i] ? ' pick' : '') + '"><div class="nm">' + (picked[i] ? '<span class="tag-pick">Pick</span>' : '') + '<input class="input" data-mn="' + i + '" maxlength="80" value="' + esc(d.name) + '" aria-label="' + esc('Dish ' + (i + 1)) + '"><small>' + esc([d.desc, d.price !== null ? money(d.price) : ''].filter(Boolean).join(' · ')) + '</small></div>' +
+      (p ? '' : '<label class="field my12"><span>Where are you?</span><select class="input" id="mWhere"><option value="">Somewhere new…</option>' + places.map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name + (x.city ? ' · ' + x.city : '')) + '</option>'; }).join('') + '</select></label>' +
+        '<div class="row" id="mNew"><label class="field grow"><span>Place name</span><input class="input" id="mName" maxlength="60"></label><label class="field grow"><span>City</span><input class="input" id="mCity" maxlength="40" list="mCities"></label><datalist id="mCities">' + usedCities().map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>') +
+      '<div class="card mlist" id="mList">' + m.dishes.map(function (d, i) {
+        return '<div class="mrow' + (picked[i] ? ' pick' : '') + '"><div class="nm">' + (picked[i] ? '<span class="tag-pick">Pick</span>' : '') + (d.sure && d.sure !== 'high' ? '<span class="pill t-warn js">Check this</span>' : '') + '<input class="input" data-mn="' + i + '" maxlength="80" value="' + esc(d.name) + '" aria-label="' + esc('Dish ' + (i + 1)) + '"><small>' + esc([d.desc, d.price !== null ? money(d.price) : ''].filter(Boolean).join(' · ')) + '</small></div>' +
           '<span class="vmini" role="group" aria-label="' + esc('How ' + d.name + ' was') + '">' + C.VERDICT_IDS.map(function (v) { var y = C.verdictOf(v); return '<button type="button" class="' + esc(v) + '" data-mv="' + i + '" data-v="' + esc(v) + '" aria-pressed="false" aria-label="' + esc(y.label) + '">' + esc(y.emoji) + '</button>'; }).join('') + '</span></div>';
       }).join('') + '</div>' +
       '<div id="mErr"></div><div class="row sheet-foot"><button class="btn" type="button" id="mAdd" disabled>Add</button><button class="btn ghost" type="button" id="mBack">Read another</button></div>' +
-      '<p class="tiny muted" style="margin-top:8px">The menu photo isn’t kept - only the dishes you add.</p>';
+      '<p class="tiny muted mt8">The menu photo isn’t kept - only the dishes you add.</p>';
     var cnt = function () { var n = Object.keys(r.verdicts).length; var a = $('#mAdd', root); a.disabled = !n; a.textContent = n ? 'Add ' + plural(n, 'dish', 'dishes') : 'Add'; };
     $('#mList', root).addEventListener('click', function (e) {
       var t = e.target.closest('[data-mv]'); if (!t) return;
@@ -1058,6 +1070,86 @@
       setD(settled.data); closeSheet(true); state.reader = null;
       go('place/' + res.place.id);
       toast('Added ' + plural(items.length, 'dish', 'dishes') + ' at ' + res.place.name + '.' + (settled.lines.length ? ' ' + settled.lines.join(' · ') : ''), 4800, { label: 'Undo', fn: function () { setD(prev); draw(); } });
+    });
+  }
+
+  /* ---------------- "Snap my plate" (signed in, metered, Gemini reader only) ---------------- */
+
+  function openPlate(placeId) {
+    state.plate = { placeId: findPlace(placeId) ? placeId : '', photo: null, dishPhoto: null, res: null, keep: true };
+    sheet('<div class="body"></div>', drawPlate);
+  }
+  function drawPlate(root) {
+    var b = $('.body', root), r = state.plate, p = findPlace(r.placeId);
+    var again = function () { openPlate(r.placeId); };
+    var sentBox = '<div class="sent">' + (r.photo ? '<img alt="" src="' + esc(r.photo.thumb) + '">' : '') + '<b>What is sent:</b> this one photo, shrunk on this phone with its location removed. <b>Never a place name, who you ate with, a date, a price or a note.</b> The server does not keep it.<span class="clear"></span></div>';
+    if (!signedIn()) {
+      b.innerHTML = '<h2>Snap my plate</h2><p>Take a photo of what you’re eating. AI says what it looks like and gives a best guess at the dish - you fix the name, tap ❤️ 👍 👎, and it joins tonight’s log.</p>' + sentBox +
+        '<p class="note mt12">This needs a free account - it comes with $2 of AI credit, and one photo costs about a cent. Logging by hand, “I’m here” and everything else stay free with no account.</p>' +
+        '<div class="row mt12"><button class="btn" type="button" id="plJoin">Create a free account</button><button class="btn ghost" type="button" id="plIn">Sign in</button></div>';
+      $('#plJoin', root).addEventListener('click', function () { openAccount('Create a free account to snap a plate.', again); });
+      $('#plIn', root).addEventListener('click', function () { openAccount('Sign in to snap a plate.', again, 'login'); });
+      return;
+    }
+    if (r.res) return drawPlateResult(root);
+    b.innerHTML = '<h2>Snap my plate' + (p ? ' at ' + esc(p.name) : '') + '</h2>' +
+      '<p class="small muted">AI says what it looks like and gives a best guess at the dish. You fix the name and tap how it was.</p>' +
+      '<div class="field my12"><span>A photo of the plate</span><label class="btn ghost file-btn">' + (r.photo ? 'Choose another photo' : 'Take or choose a photo') + '<input class="vh" id="plFile" type="file" accept="image/*"></label></div>' +
+      sentBox + '<div id="plOut" class="mt12"></div><div class="row mt12"><button class="btn ai" type="button" id="plGo"' + (r.photo ? '' : ' disabled') + '>Describe it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
+    var out = $('#plOut', root), go2 = $('#plGo', root);
+    $('#plFile', root).addEventListener('change', function (e) {
+      var file = e.target.files[0]; if (!file) return;
+      Promise.all([prepPhoto(file, 1600), prepPhoto(file)]).then(function (two) { r.photo = two[0]; r.dishPhoto = two[1]; drawPlate(root); }).catch(function (err) { showError(err, out); });
+    });
+    go2.addEventListener('click', function () {
+      if (!r.photo) return;
+      go2.disabled = true; go2.textContent = 'Looking…';
+      out.innerHTML = '<p class="muted" role="status">Looking at the plate…</p>';
+      sendable(r.photo.full).then(function (b64) {
+        return api('POST', 'api/ai/plate', { image: { type: 'image/jpeg', data: b64 } });
+      }).then(function (res) {
+        r.res = res.plate; drawPlate(root); loadMe();
+      }).catch(function (err) {
+        go2.disabled = false; go2.textContent = 'Describe it';
+        meteredError(err, out, again, 'Sign in to snap a plate.');
+      });
+    });
+  }
+  /** The answer, for the person to fix: nothing is added until they tap a
+   *  verdict, and nothing is saved until they save the visit. */
+  function drawPlateResult(root) {
+    var b = $('.body', root), r = state.plate, x = r.res;
+    b.innerHTML = '<h2>Is this right?</h2>' +
+      '<div class="plate-top"><img alt="" src="' + esc(r.photo.thumb) + '"><p>' + (x.guess ? '<span class="pill t-warn">' + esc('Best guess · ' + x.sure + ' confidence') + '</span>' : '<span class="pill t-warn">No guess - type the dish</span>') +
+      (x.desc ? '<span class="small muted looks">' + esc('Looks like: ' + x.desc) + '</span><button class="link-btn" type="button" id="plUse">Use that as my note</button>' : '') + '</p></div>' +
+      '<div class="stack"><label class="field"><span>The dish <span class="hint">a guess from the photo - fix it if it’s wrong</span></span><input class="input" id="plName" maxlength="80" autocomplete="off" value="' + esc(x.guess) + '"></label>' +
+      '<label class="field"><span>Note <span class="hint">optional - yours to edit or clear</span></span><input class="input" id="plNote" maxlength="140" placeholder="Ask for it spicy" value=""></label>' +
+      '<label class="check"><input type="checkbox" id="plKeep"' + (r.keep ? ' checked' : '') + '> <span>Keep this photo with the dish <span class="small muted">on this phone only</span></span></label>' +
+      '<div class="field"><span>How was it? <span class="hint">one tap adds it to tonight’s log</span></span><div class="vbtns" role="group" aria-label="Add it as">' + C.VERDICT_IDS.map(function (v) { var y = C.verdictOf(v); return '<button class="vbtn ' + esc(v) + '" type="button" data-pv="' + esc(v) + '"><span class="e" aria-hidden="true">' + esc(y.emoji) + '</span><small>' + esc(y.label) + '</small></button>'; }).join('') + '</div></div></div>' +
+      '<div id="plErr"></div>' +
+      '<p class="tiny muted mt12">A photo can’t show what is in a dish. Never rely on this for allergies or a diet - ask the staff. The photo was not kept by the server.</p>' +
+      '<button class="link-btn" type="button" id="plBack">Try another photo</button>';
+    $('#plBack', root).addEventListener('click', function () { openPlate(r.placeId); });
+    var use = $('#plUse', root);
+    if (use) use.addEventListener('click', function () { $('#plNote', root).value = C.plain(x.desc, C.LIMITS.note); $('#plNote', root).focus(); });
+    $$('[data-pv]', root).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var name = C.plain($('#plName', root).value, C.LIMITS.dish);
+        if (!C.hasWord(name)) { $('#plErr', root).innerHTML = '<p class="err" role="alert">Type what the dish is first.</p>'; $('#plName', root).focus(); return; }
+        if (state.view !== 'log' || !state.log) state.log = blankLog(r.placeId);
+        var L = state.log, note = C.plain($('#plNote', root).value, C.LIMITS.note);
+        L.items = C.quickAdd(L.items, name, btn.getAttribute('data-pv')).map(function (it) { return it.note === undefined ? Object.assign({ note: '', price: '' }, it) : it; });
+        var at = L.items.findIndex(function (it) { return C.dishKey(it.name) === C.dishKey(name); });
+        if (at >= 0) {
+          if (note) L.items[at] = Object.assign({}, L.items[at], { note: note });
+          if ($('#plKeep', root).checked && r.dishPhoto) L.photos[at] = r.dishPhoto;
+          L.more = at;
+        }
+        var where = L.forPlace;
+        closeSheet(true); state.plate = null;
+        go('log' + (where ? '/' + where : ''));
+        toast('Added ' + name + '. Check it, then save the visit.', 4200);
+      });
     });
   }
 
@@ -1086,12 +1178,12 @@
         var code = links[l.id];
         return '<div class="lrow"><span><b>' + esc(l.city) + '</b> <span class="small muted">' + esc(plural(l.dishes, 'dish', 'dishes') + ' · opened ' + plural(l.opens, 'time') + ' · open until ' + new Date(l.expiresAt).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' })) + '</span></span><span class="row">' +
           (code ? '<button class="btn small ghost" type="button" data-act="copylink" data-id="' + esc(l.id) + '">Copy</button>' : '') + '<button class="btn small ghost" type="button" data-act="closelink" data-id="' + esc(l.id) + '">Close link</button></span></div>';
-      }).join('') + '<p class="tiny muted" style="margin-top:6px">' + esc(r.links.length + ' of ' + r.max + ' open.') + '</p>';
+      }).join('') + '<p class="tiny muted mt8">' + esc(r.links.length + ' of ' + r.max + ' open.') + '</p>';
     }).catch(function (err) { if ($('#linkList')) box.innerHTML = '<p class="err small">' + esc(err.message) + '</p>'; });
   }
   function viewSettings() {
     var out = '<div class="sec-head"><h1>Settings</h1></div><div class="grid two">';
-    out += '<section class="card stack"><h2>This device</h2><label class="field"><span>Currency for prices</span><select class="input" id="curSel" style="max-width:220px">' + C.CURRENCIES.map(function (c) { return '<option' + (c === cur() ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label></section>';
+    out += '<section class="card stack"><h2>This device</h2><label class="field"><span>Currency for prices</span><select class="input w220" id="curSel">' + C.CURRENCIES.map(function (c) { return '<option' + (c === cur() ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label></section>';
     out += syncCard() + linksCard();
     out += '<section class="card stack"><h2>Your data</h2><p class="small muted">Everything but the photos, made on this device: JSON to bring back here or to another browser, CSV for a spreadsheet.</p>' +
       '<div class="row"><button class="btn" type="button" data-act="jsonout">Export JSON</button><button class="btn ghost" type="button" data-act="csvout">Export CSV</button><label class="btn ghost file-btn">Import a file<input type="file" id="fileIn" accept=".json,.csv,application/json,text/csv" class="vh"></label></div><div id="fileMsg"></div></section>';
@@ -1164,7 +1256,7 @@
       '<div class="choice3"><button class="btn ghost" type="button" id="cfTheirs"><span>Use theirs</span><small>' + esc(line2(theirs)) + '</small></button>' +
       '<button class="btn ghost" type="button" id="cfMine"><span>Keep mine</span><small>' + esc(line2(data)) + '</small></button>' +
       '<button class="btn" type="button" id="cfMerge"><span>Merge by item</span><small>' + esc(line2(merged)) + '</small></button></div>' +
-      '<p class="tiny muted" style="margin-top:10px">Merging keeps every place, dish and pick from both, and the later edit of anything changed on both. Photos are never synced, so they stay where they are.</p>', function (root) {
+      '<p class="tiny muted mt12">Merging keeps every place, dish and pick from both, and the later edit of anything changed on both. Photos are never synced, so they stay where they are.</p>', function (root) {
       $('#cfTheirs', root).addEventListener('click', function () { setList(d.list); saveLocal(); syncDone(d.version); closeSheet(); draw(); toast('Using the account copy.'); });
       $('#cfMine', root).addEventListener('click', function () { sync.version = d.version; sync.dirty = true; closeSheet(); push().then(function () { toast('Kept this device’s list.'); }); });
       $('#cfMerge', root).addEventListener('click', function () { setList(merged); saveLocal(); sync.version = d.version; sync.dirty = true; closeSheet(); draw(); push().then(function () { toast('Merged.'); }); });
@@ -1180,6 +1272,15 @@
   /* ---------------- sheets and the account ---------------- */
 
   var lastFocus = null;
+  // The room the banner takes goes into a constructed stylesheet (never a
+  // style attribute); app.css reads it as --sheet-off.
+  var roomSheet = null;
+  function sheetRoom(px) {
+    try {
+      if (!roomSheet) { roomSheet = new CSSStyleSheet(); document.adoptedStyleSheets = document.adoptedStyleSheets.concat([roomSheet]); }
+      roomSheet.replaceSync(':root { --sheet-off: ' + Number(px) + 'px; }');
+    } catch (e) { /* an older browser: the sheet keeps its usual height */ }
+  }
   function sheet(html, onOpen) {
     var s = $('#sheet'), back = $('#sheetBack');
     if (s.hidden) lastFocus = document.activeElement;
@@ -1188,7 +1289,7 @@
     // The shared "confirm your email" banner sits above everything at the top
     // of the page; keep the sheet (and its Close button) clear of it.
     var vb = document.getElementById('stc-verify-banner'), off = vb ? Math.max(0, vb.getBoundingClientRect().bottom) : 0;
-    s.style.maxHeight = off ? 'calc(100vh - ' + Math.round((matchMedia('(min-width: 900px)').matches ? 2 : 1) * (off + 8)) + 'px)' : '';
+    sheetRoom(off ? Math.round((matchMedia('(min-width: 900px)').matches ? 2 : 1) * (off + 8)) : 0);
     if (onOpen) onOpen(s);
     var f = s.querySelector('h2'); if (f) f.setAttribute('tabindex', '-1');
     setTimeout(function () { try { if (f && !s.contains(document.activeElement)) f.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 40);
@@ -1215,12 +1316,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my12"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my12"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1242,10 +1343,10 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Reading a menu costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
-      '<p class="small muted" style="margin-top:12px">' + (prefs.sync ? 'Sync is on: your list (never your photos) is kept with this account.' : 'Your list is not in your account - it stays on this device unless you turn on sync in Settings.') + '</p>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt4">Reading a menu costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
+      '<p class="small muted mt12">' + (prefs.sync ? 'Sync is on: your list (never your photos) is kept with this account.' : 'Your list is not in your account - it stays on this device unless you turn on sync in Settings.') + '</p>' +
+      (pkOk() ? '<button class="btn ghost block mt12" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); draw(); }); });
@@ -1308,6 +1409,7 @@
       case 'dish': openDish(id); break;
       case 'editplace': openEditPlace(id); break;
       case 'reader': openReader(id); break;
+      case 'plate': openPlate(id); break;
       case 'addwant': openAddWant(); break;
       case 'trywant': openTryWant(id); break;
       case 'delwant': {
@@ -1371,7 +1473,7 @@
   route();
   loadMe().then(function () {
     if (syncOn()) pull();
-    if (state.view === 'settings') draw();
+    if (state.view === 'settings' || (plateOn() && $('#sheet').hidden && (state.view === 'home' || state.view === 'place'))) draw();
     if (/[?&](topup|member|credited)=1\b/.test(location.search) && signedIn()) openAccountSheet();
   });
 }());
