@@ -1292,6 +1292,74 @@
   }
 
   /**
+   * A reader's transcription (a snapped subscriptions page or statement),
+   * sorted by DRIP'S OWN RULES - the model only read the rows. Returns
+   * {drains, others}: rows of {name, cents, cadence, renews, confidence,
+   * why, guess, times}.
+   *
+   *   - a row whose page states how often it bills is a drain as shown;
+   *   - rows with no cadence (a statement's dated lines) go through
+   *     findRecurring, the same rules a CSV goes through: what repeats on a
+   *     cadence is a drain, with the cadence the gaps show;
+   *   - a single line from a well-known subscription, or one whose
+   *     descriptor says "membership"/"subscription", is a drain whose
+   *     cadence is a marked guess for the person to check;
+   *   - everything else is in `others` (one-off spending), never counted.
+   *
+   * A row whose amount could not be read keeps cents null: the page asks.
+   */
+  function snapCandidates(items, today) {
+    var list = (Array.isArray(items) ? items : []).slice(0, LIMITS.snapItems).filter(function (it) { return it && typeof it === 'object' && clean(it.name, LIMITS.name); });
+    var conf = function (it) { return typeof it.confidence === 'number' && isFinite(it.confidence) ? Math.min(1, Math.max(0, it.confidence)) : 1; };
+    var row = function (it, extra) {
+      return Object.assign({
+        name: clean(it.name, LIMITS.name), cents: Number.isInteger(it.cents) && it.cents > 0 && it.cents <= LIMITS.maxCents ? it.cents : null,
+        cadence: CADENCES.indexOf(it.cadence) >= 0 ? it.cadence : null, renews: isoDay(it.renews) ? it.renews : null,
+        confidence: conf(it), why: '', guess: false, times: 1,
+      }, extra || {});
+    };
+    var drains = [], others = [], lines = [];
+    list.forEach(function (it) {
+      if (CADENCES.indexOf(it.cadence) >= 0) drains.push(row(it, { why: 'Shown as ' + CADENCE_LABEL[it.cadence].toLowerCase() }));
+      else lines.push(it);
+    });
+    // Dated statement lines with an amount: the engine a CSV goes through.
+    var txs = lines.filter(function (it) { return isoDay(it.last) && Number.isInteger(it.cents) && it.cents > 0; })
+      .map(function (it) { return { date: it.last, desc: clean(it.name, 200), cents: it.cents, it: it }; });
+    var found = txs.length ? findRecurring(txs.map(function (t) { return { date: t.date, desc: t.desc, cents: t.cents }; }), { today: today }).drips : [];
+    var taken = {};
+    found.forEach(function (d) {
+      var mine = txs.filter(function (t) { return merchantInfo(t.desc).key === d.key; });
+      mine.forEach(function (t) { taken[list.indexOf(t.it)] = true; });
+      var c = mine.length ? Math.min.apply(null, mine.map(function (t) { return conf(t.it); })) : 1;
+      drains.push({
+        name: d.name, cents: d.cents, cadence: d.cadence, renews: d.next || null, confidence: c, guess: false, times: d.charges.length,
+        why: d.probablyYearly ? 'Looks like a yearly charge' : 'Charged ' + d.charges.length + ' times, ' + CADENCE_LABEL[d.cadence].toLowerCase(),
+      });
+    });
+    var seen = {};
+    lines.forEach(function (it) {
+      if (taken[list.indexOf(it)]) return;
+      var info = merchantInfo(clean(it.name, 200));
+      var r = row(it, { name: info.name || clean(it.name, LIMITS.name) });
+      // The same merchant shown twice without a pattern is one row.
+      var k = info.key;
+      if (seen[k]) { seen[k].times++; return; }
+      seen[k] = r;
+      if (info.known || info.hint) {
+        r.cadence = info.yearly || info.annualHint ? 'annual' : 'monthly';
+        r.guess = true;
+        r.why = (info.known ? 'A known subscription' : 'Says it is a membership') + ' - how often is a guess';
+        drains.push(r);
+      } else {
+        r.why = 'Seen once - not counted';
+        others.push(r);
+      }
+    });
+    return { drains: drains, others: others };
+  }
+
+  /**
    * Bring decisions and notes over from an earlier list onto newly found
    * drips (by id, else merchant and cadence), and keep hand-added and
    * snapped drips the statement could not see.
@@ -1344,6 +1412,6 @@
     totals: totals, equivalent: equivalent, savings: savings, savingsLine: savingsLine, howToCancel: howToCancel,
     icsText: icsText, fold: fold, hash: hash, reminders: reminders, ics: ics,
     cadenceFrom: cadenceFrom, cleanDrip: cleanDrip, cleanList: cleanList, toSaved: toSaved, handDrip: handDrip,
-    cleanSnapItems: cleanSnapItems, snapToDrips: snapToDrips, carryOver: carryOver, compare: compare,
+    cleanSnapItems: cleanSnapItems, snapToDrips: snapToDrips, snapCandidates: snapCandidates, carryOver: carryOver, compare: compare,
   };
 }));
