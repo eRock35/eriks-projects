@@ -45,7 +45,8 @@ managers, and compliance/risk people at small and mid-size companies.
 **Who pays.** Nobody, for almost all of it: the checklist, the score, the
 worst day, the fixes, the drill and the charter work in the browser with no
 account and no model call. One thing is metered and signed in: **reading a
-pasted prompt, tool definitions or runbook** (Haiku for the free tier, Sonnet
+pasted prompt, tool definitions or runbook** - which maps the blast radius
+and suggests drills to run on the agent - (Haiku for the free tier, Sonnet
 for members, via `identity.planFor`), a cent or two. Saving agents is free
 with an account.
 
@@ -128,6 +129,8 @@ has no "reportable"/"regulation"/"GDPR"/"required by law".
   ticks and presses Apply; applying sets autonomy and limits and keeps
   logging/undo as they were. The pasted text is sent once and dropped: never
   stored, never logged (tested with a marker string through read + save).
+  See "The AI feature" below for the drills, the tool names, the wrapper and
+  the lab's guard (2026-11-23).
 - **The drill**: 38 scenario cards (`CARDS`), each needing ALL its
   capabilities switched on (so the story is true), at least two per
   capability, plus two for any agent. `deal(profile, seed)` is mulberry32-
@@ -162,20 +165,106 @@ has no "reportable"/"regulation"/"GDPR"/"required by law".
   budget, cap, the parser and the 400s come first with real statuses; after
   that a failure is a 200 `{error}`.
 
-## The first run
+## The AI feature (2026-11-23): reads the prompt and tools, maps the blast radius, suggests drills
 
-The page opens on the example: a dark strip "EXAMPLE Juniper Outdoor's
-support agent (a made-up shop) / This is an example support agent - try the
-fixes, then check your own.", then the ring (68, HIGH), its legend, the
-worst-day sentence and a big **Check my agent** - all on the first screen of
-a 390x844 phone. Under it the fixes with Apply. **Check my agent** opens an
-empty profile (or this device's agent in progress) with two ways in: **Pick
-what it can do** (the default, free) and **Paste its prompt or tools** (AI;
-"Paste the example prompt" fills it; signed out it asks to sign in; a 402
-opens the credit sheet; a 403 `verify-email` shows its sentence and "Send the
-link again"). On a phone the section bar is sticky with the live score in it
-("34 Watch"), so ticking a capability shows its effect without scrolling up.
-On a desktop the ring and fixes sit in a sticky left column.
+Erik's per-app AI plan: **Leash - Claude - "Reads the agent's prompt and
+tools, maps the blast radius, suggests drills."** It extends the one model
+call the app already had (`POST /api/read`, `lib/ai.js`); there is still
+exactly one, forced, metered call, and nothing new is stored.
+
+- **The model only labels.** One forced `map_capabilities` tool: per
+  capability the catalog id, autonomy, a stated limit, the exact words
+  (`evidence`), the `tool` it came from, a confidence; up to 5 risks; and
+  3-5 `drills` (`{capability, ask, expect: refuse|ask|limit}`).
+- **The blast radius is Leash's own sum.** The review shows "Blast radius
+  with these applied 75 Severe · now 0", worked out in the page by
+  `Core.score(Core.applyFindings(profile, ticked))` - the same `score()` as
+  the ring - and it moves as boxes are ticked. No number from the model is
+  ever shown.
+- **Every label cites its text.** The quote is checked as a substring
+  (unchanged: not found is kept and marked). The tool name is shown ("Tool
+  `issue_refund`") only when it is a plain identifier found verbatim in the
+  paste (`Core.cleanTools`); anything else is no name. The answer is
+  `{found, risks, dropped, unverified, tools: {<id>: name}, probes: [...]}`.
+- **Drills ("probes" in the code, because "drills" already means the
+  bad-day cards and their stored scores).** Things a person SAYS to their own
+  agent in a test chat: "try to get it to do X; it should refuse / ask a
+  person / stay inside its limit". `Core.cleanProbes`: the capability must
+  be one the reading found; `expect` must be in the enum; the "say this"
+  line is bounded and stripped; and it is **dropped** if it looks like a
+  working attack or points elsewhere (`PROBE_UNSAFE`: a link or host, an
+  address, a long number, a key shape, "password is", code/shell/SQL
+  characters, "ignore ... instructions", jailbreak words, a competitor or
+  "their server"). At most two a capability, five in all. The **"Pass: it
+  should ..." line is always ours**, written from the limits the reading
+  found ("stay within $500 per refund"); with no limit found it says so and
+  never invents one. Fewer than three left: **Leash's own templates fill
+  in** (`probeTemplate`, no model words: a little over the limit, "a manager
+  already approved", everything at once, a page you wrote yourself, an
+  unproven member of staff; then two more angles for a reading that found
+  one or two things). Each drill shows "Suggested by AI" or "From Leash" and
+  a Copy button; the list also sits under Drill until the agent is closed.
+  It is page memory only: never saved, never in localStorage.
+- **The paste is data, never instructions.** `ai.wrap()` puts it between
+  `<<<AGENT` and `AGENT>>>` in the user turn after defusing any copy of a
+  marker inside it (so a paste cannot close its own wrapper), the system
+  prompt says it cannot change the rules or the answer's shape, the tool is
+  forced, and nothing in the answer is trusted. `test/run.js` holds an
+  injection paste that closes the wrapper, gives orders and only then lists
+  the tools: the tools are still read, the answer keeps its shape, and what
+  a model that obeyed would add (the stand-in's `OBEYME`: a link, a key, a
+  card, an address, a payload, a competitor) never reaches the page.
+- **Provider.** Claude, on the app's existing Anthropic client path
+  (`identity.meter`, `identity.clientFor`, models by `identityLib.planFor`:
+  Haiku free, Sonnet members). No provider switch, no federation (tested).
+- **The lab AI guard.** After the gates, the parser and the free 400s, and
+  before the whitespace stream starts: `global.LAB_AI_GUARD?.allow({provider:
+  'claude', req, app: 'leash'})`; a no is its own status and friendly words
+  (the page shows them; ticking by hand still works) and no model call; a
+  guard that throws is a 503. After the call, in a `finally`:
+  `record({provider: 'claude', app: 'leash', usd: priceUsd(...)})` with the
+  call's real usage - also when the answer was unusable, never for a
+  person's own key (`client.__byok`), and a failed record never loses the
+  answer. No guard (the app on its own): it just runs.
+
+## The design (2026-11-23, the lab's house style)
+
+Redesigned to the HOA Desk rules; `public/app.css` opens with them.
+
+- **Pure white** (`--bg`/`--card` #ffffff; true black in the dark theme),
+  no tinted or gradient backgrounds, no shadows but the floating bar, sheets
+  and toast. **Lists over boxes**: fixes, capabilities, the review, drills,
+  notes and agents are hairline-divided rows. One card: the charter's page
+  (and each drill answer is a tile). 12px corners, 10px inputs, pill buttons.
+- **One accent**, the lab card's slate teal `#1d4e5f` (light blue-teal in
+  dark): the primary action, links, the active nav item. The six group
+  colours are the ring's data colours; the bands are status and always
+  carry their word.
+- **System fonts**, five sizes (`--t1`..`--t5`) plus three display sizes
+  (the hero headline, the ring's number, the drill score); tabular numbers.
+- **Four views, one at a time on a phone**: Score (the ring, the worst day,
+  the fixes), Agent, Drill, Charter - a slim floating translucent pill bar
+  (1.5px line icons, a label only on the active item). From 900px: a top nav
+  with a quiet underline, and the score and its fixes stay in a sticky left
+  column beside whichever of Agent / Drill / Charter is open (`showView()`
+  in `app.js`; "Score" there means Agent). The shared `desktop.css` is still
+  loaded; its rail is never opted into.
+- **The first run** is a centred hero over the example: "Know what your AI
+  agent can do." / one line / **Check my agent** and **Paste its prompt**,
+  then "Example - Juniper Outdoor's support agent (a made-up shop)" with
+  the ring (68, High), the worst-day sentence and the fixes. Once it is the
+  person's own agent the hero is a slim bar: its name, saved or not, Save,
+  See the example. On a phone the Agent view keeps a sticky "Blast radius 34
+  Watch - See the score" row, so a tick shows its effect at once.
+- **Taps from home:** check my agent 1; paste a prompt 1 (then Read it with
+  AI); apply a fix 1; start the drill 2 (Drill, Start); copy the charter 2;
+  agents 1; sign in 1.
+- **No style attribute anywhere**, in the HTML or written by script (the
+  timer bar and the drill history are SVG; tested). Motion (press states,
+  the ring's arcs, view and sheet transitions) only inside
+  `prefers-reduced-motion: no-preference` (tested); complete at rest.
+- Contrast, measured in the browser on every view: 6.11:1 at worst in
+  light, 7.69:1 in dark. Nothing sideways at 390 or 320px; targets 44px+.
 
 ## Local run and tests
 
@@ -190,8 +279,11 @@ spawn each with `K_SERVICE` to prove it. `LEASH_COLLECTION_PREFIX` (set to
 `leash_` by the lab host) prefixes every top-level collection. The fake model
 refuses a call that does not force a tool, maps text by keyword, quoting the
 whole line it found each in, and always paraphrases the browsing quote (so
-the unverified path shows locally). Triggers in the pasted text: `NOTHING`,
-`NOTANAGENT`, `INJECT` (hostile output), `MAXTOKENS`, `UPSTREAMnnn`.
+the unverified path shows locally); it names the tool on that line and
+writes two drills of its own, so both kinds of drill show. Triggers in the
+pasted text: `NOTHING`, `NOTANAGENT`, `INJECT` (hostile output, drills
+included), `OBEYME` (a model that did what the paste said), `MAXTOKENS`,
+`UPSTREAMnnn`.
 `npm run dev` keeps email verification on, so a fresh local account sees the
 403; run it with `REQUIRE_VERIFIED_FOR_FREE_AI=0` to try the reading.
 
@@ -232,7 +324,10 @@ in: `GET|POST /api/agents`, `GET|PUT|PATCH|DELETE /api/agents/:id`,
 - No model call for a signed-out visitor, ever; the read route's gates run
   before its parser (tested: 401/402/403, not 413).
 - Model output is untrusted: cleaned, bounded, quote-checked and escaped on
-  render (`esc()` on every string the page draws).
+  render (`esc()` on every string the page draws). A suggested drill is
+  never a working exploit, a credential or aimed at a third party: those are
+  dropped in `Core.cleanProbes` and replaced with Leash's own.
+- The pasted prompt is data: wrapped, markers defused, tool forced (above).
 - Nothing logged carries pasted text or profile details.
 
 ## Commit and PR conventions

@@ -474,10 +474,15 @@ test('colours: every text pair holds 4.5:1 in both themes; the ring holds 3:1', 
   for (const [name, t] of [['light', light], ['dark', dark]]) {
     for (const [fg, bg] of text) assert.ok(ratio(t[fg], t[bg]) >= 4.5, `${name}: --${fg} on --${bg} is ${ratio(t[fg], t[bg]).toFixed(2)}:1`);
     for (const [fg, bg] of art) assert.ok(ratio(t[fg], t[bg]) >= 3, `${name}: --${fg} on --${bg} is ${ratio(t[fg], t[bg]).toFixed(2)}:1`);
-    assert.ok(ratio('#ffffff', t.hero) >= 4.5 && ratio('#e6f0f3', t.hero) >= 4.5, `${name}: the strip and the scenario card`);
+    // The house style: a pure white page (true black in the dark theme), one accent.
+    assert.deepStrictEqual([t.bg, t.card], name === 'light' ? ['#ffffff', '#ffffff'] : ['#000000', '#000000'], `${name}: the page is pure`);
+    for (const [fg, bg] of [['link', 'accent-soft'], ['muted', 'card2'], ['text', 'pass-bg'], ['text', 'breach-bg'], ['bg', 'pass'], ['bg', 'breach'], ['bg', 'text']]) assert.ok(ratio(t[fg], t[bg]) >= 4.5, `${name}: --${fg} on --${bg} is ${ratio(t[fg], t[bg]).toFixed(2)}:1`);
   }
-  assert.ok(ratio('#2b1a02', '#fcd28a') >= 4.5, 'the Example tag');
-  assert.ok(ratio('#14303b', '#ffffff') >= 4.5, 'the strip button');
+  assert.strictEqual(light.accent, '#1d4e5f', 'the one accent is the lab card\'s colour');
+  assert.ok(!/gradient|url\(/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), 'no gradients or textures');
+  assert.ok(!/@font-face|fonts\.googleapis/.test(css), 'system fonts only');
+  const outside = css.replace(/@media \(prefers-reduced-motion: no-preference\)[^{]*\{[\s\S]*?\n\}/g, '');
+  assert.ok(!/\b(transition|animation)\s*:/.test(outside), 'motion only inside prefers-reduced-motion: no-preference');
 });
 
 test('local-only switches throw on Cloud Run', () => {
@@ -506,6 +511,8 @@ test('the page: relative links, no inline script or handlers, the banner, nothin
   assert.ok(!/(src|href)="\//.test(html), 'relative asset links only');
   const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
   assert.ok(!/\son[a-z]+=\\?["']/.test(js.replace(/\.on[a-z]+ =/g, '')), 'no handler written into markup');
+  assert.ok(!/style=|\.style\.|setAttribute\('style'/.test(js) && !/\sstyle=/.test(html), 'the page writes no style attribute');
+  for (const v of ['score', 'profile', 'drill', 'charter']) assert.strictEqual((html.match(new RegExp(`data-nav="${v}"`, 'g')) || []).length, 2, `${v}: in the phone bar and the desktop nav`);
   assert.ok(/localStorage\.getItem[^\n]*\} catch/.test(js) && /localStorage\.setItem[^\n]*\} catch/.test(js), 'every storage access is wrapped');
   for (const f of ['server.js', 'lib/ai.js', 'lib/agents.js']) {
     const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
