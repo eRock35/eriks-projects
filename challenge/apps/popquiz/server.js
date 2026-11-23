@@ -21,6 +21,7 @@ const Q = require('./public/quiz');
 const T = require('./lib/teams');
 const ai = require('./lib/ai');
 const photo = require('./lib/photo');
+const gemini = require('./lib/gemini');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
 const memberKey = require('./lib/memberkey');
@@ -32,6 +33,14 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('POPQUIZ_FAKE_AI=1 is for 
 // Free tier on Haiku, members on Sonnet - the split every sibling uses,
 // decided in one place by identity.planFor. Both read photos.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Who reads a snapped page. POPQUIZ_AI_PROVIDER=gemini moves the PHOTO reader
+// to Gemini on Vertex AI (through the lab's AI guard), which also returns
+// its transcription and holds every question to a sentence of it; anything
+// else - unset included - is Claude, as it has been since the app shipped.
+// Pasted text is always Claude. Read per request, so the switch is an env
+// change, not a deploy of new code.
+const providerNow = () => (process.env.POPQUIZ_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -103,7 +112,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
-  if (mine) for (const k of ['index', 'retryAfterMin']) if (err[k] !== undefined) body[k] = err[k];
+  if (mine) for (const k of ['index', 'retryAfterMin', 'code']) if (err[k] !== undefined) body[k] = err[k];
   res.status(status).json(body);
 };
 const todayOf = (req) => T.todayFrom(req.get('x-local-date') || req.query.today);
@@ -230,6 +239,7 @@ app.get('/api/me', async (req, res) => {
       name: T.nameFromEmail(req.user.email),
       budget: identityLib.budgetFor(req.user),
       tier: identityLib.planFor(req.user, MODELS).tier,
+      photoReader: providerNow(),
       teams: await myTeams(req.user.id),
     });
   } catch (err) { fail(res, err); }
@@ -475,6 +485,85 @@ app.delete('/api/teams/:id/decks/:deckId', user, async (req, res) => {
  * Metered: material in, a proposal out. Nothing is saved.
  * ------------------------------------------------------------------ */
 
+/** The lab's AI guard (monthly cap per provider, burst limits), when the
+ *  host has one. Its "no" is sent in its own friendly words and no model is
+ *  called; writing by hand still works. */
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'popquiz' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Writing questions by hand still works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'popquiz', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: one forced tool, and the identity meter
+ *  charges the person. */
+async function writeWithClaude(req, ask) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return ai.validateGenerated(await ai.generate(client, model, ask, (u) => { used = u; }), { title: ask.title });
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini reads the page, through the guard's Vertex helper. With no guard
+ *  (the app on its own) only the local stand-in can answer; a real call
+ *  needs the lab. The photo rides in this one request and is kept nowhere. */
+async function readWithGemini(req, ask) {
+  await guardAllow('gemini', req);
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(ask);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) {
+    generate = async (r) => ({
+      json: await fake({ contents: r.contents, generationConfig: { ...r.generationConfig, responseMimeType: 'application/json', responseSchema: r.responseSchema } }),
+      usage: { inputTokens: 1800, outputTokens: 1400 },
+    });
+  }
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  return gemini.cleanPage(out && out.json, { title: ask.title, count: ask.count });
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `photo:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
 app.post('/api/teams/:id/generate', ...spend, async (req, res) => {
   try {
     const t = await loadTeam(req, { manager: true });
@@ -482,17 +571,20 @@ app.post('/api/teams/:id/generate', ...spend, async (req, res) => {
     const text = T.cleanText(b.text, T.LIMITS.source);
     if (text.length < T.LIMITS.sourceMin) throw httpError(400, 'Paste a bit more - a paragraph or a list at least, so there is something to ask about.');
     const title = T.clean(b.title, T.LIMITS.deckTitle);
-    const client = await clientFor(req);
-    const raw = await ai.generate(client, modelFor(req), { text, title, count: b.count });
-    const proposal = ai.validateGenerated(raw, { title });
+    const proposal = await writeWithClaude(req, { text, title, count: b.count });
     if (!proposal) throw httpError(422, 'That doesn’t read like training material we can quiz on. Try a menu, a checklist or a policy - or write the questions yourself.');
     res.json({ ...proposal, source: 'text', teamId: t.id });
   } catch (err) { fail(res, err, 'Could not write questions from that. Try again, or write them by hand.'); }
 });
 
 /**
- * Snap a page: one photo in, a proposal out. Validated by its bytes before
- * anything is spent, read once by the model, dropped with the request.
+ * Snap a page: one photo in, a proposal out. Gates, then the 6 MB parser,
+ * then the manager check and the photo's own bytes (a 400 costs nothing),
+ * then the lab's AI guard, then ONE call: a forced tool on Claude, or - with
+ * POPQUIZ_AI_PROVIDER=gemini - a responseSchema on Gemini, whose answer also
+ * carries its transcription of the page and has every question checked
+ * against it (lib/gemini.js). The photo is read once and dropped with the
+ * request; nothing here writes to the store.
  */
 app.post('/api/teams/:id/generate/photo', ...spend, bigJson, async (req, res) => {
   try {
@@ -500,10 +592,10 @@ app.post('/api/teams/:id/generate/photo', ...spend, bigJson, async (req, res) =>
     const b = req.body || {};
     const image = photo.validate(b.image);
     const title = T.clean(b.title, T.LIMITS.deckTitle);
-    const client = await clientFor(req);
-    const raw = await ai.generate(client, modelFor(req), { image, title, count: b.count });
-    const proposal = ai.validateGenerated(raw, { title });
+    const ask = { image, title, count: b.count };
+    const proposal = providerNow() === 'gemini' ? await readWithGemini(req, ask) : await writeWithClaude(req, ask);
     if (!proposal) throw httpError(422, 'We couldn’t read training material in that photo. Try a sharper, closer shot of one page - or paste the text.');
+    res.set('Cache-Control', 'no-store');
     res.json({ ...proposal, source: 'photo', teamId: t.id });
   } catch (err) { fail(res, err, 'Could not read that photo. Try again, or paste the text.'); }
 });

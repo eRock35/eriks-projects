@@ -141,6 +141,91 @@ Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the sa
 split as the siblings. A deck of 8 is ~1.5k input / ~1.5k output tokens: under
 a cent on Haiku. A photo adds ~1.5k input.
 
+## Snap a page on Gemini (2026-11-23, behind a switch)
+
+Erik's per-app AI plan gives Pop Quiz: **Gemini - "Snap a page of the training
+binder, get tomorrow's quiz deck."** The app already read photos with Claude,
+so Claude stays the default and Gemini sits beside it.
+
+- **The switch.** `POPQUIZ_AI_PROVIDER=gemini` moves the **photo** route to
+  `gemini-3.8-flash` on Vertex AI. Anything else - unset included - is Claude
+  exactly as before (`providerNow()` in `server.js`, read per request).
+  Pasted text is always Claude. **It is not set on the service**: merging
+  changed nothing live. `/api/me` reports `photoReader` so the page can say
+  what a snap will do.
+- **Every question is held to the page.** One call returns the model's
+  word-for-word `transcription` and the questions, each with `source`: the
+  sentence it was drawn from. `lib/gemini.js` `cleanPage` keeps a question
+  only if that source is found inside the model's own transcription (spacing,
+  case, quote and dash style aside; at least 12 characters and 3 words), and
+  the quote kept is cut out of the transcription - the page's wording, not a
+  retelling. No sentence to point at -> dropped and counted (`ungrounded`,
+  inside `dropped`). Then the usual `validateQuestion` (one right answer,
+  distinct options, lengths, no markup), dedupe, shuffle, and at most the
+  4-12 asked for. Transcription cleaned and clamped to 6,000 characters.
+  Nothing readable, or nothing left -> 422.
+- **The transcription comes back with the proposal** (`transcription`,
+  `grounded: true`) and is shown in the review: "What was read on the page",
+  and an "On the page" chip on each question that opens it with the sentence
+  marked. Edit a quote so it no longer matches and the chip says so. It lives
+  with the draft in that device's localStorage and goes on publish or
+  discard; **the server stores neither the photo nor the transcription**
+  (the tests dump the store), and the publish body never carries it.
+- **Order of a call:** `requireUser, requireBudget, requireDailyCap` -> the
+  6 MB parser -> the manager check and the photo's magic number (a 400 costs
+  nothing) -> `LAB_AI_GUARD.allow({provider, req, app: 'popquiz'})` ->
+  `LAB_AI_GUARD.gemini.generate` (responseSchema) -> `record` with
+  `priceUsd`. The guard's "no" is sent in its own words with its status and
+  `code`. Both Claude routes go through `allow`/`record` as well
+  (`provider: 'claude'`; a member's own key is not recorded). With no guard
+  (the app on its own) Gemini answers only from the stand-in; otherwise 503.
+- **The person's ledger.** A Gemini call is charged to the identity spend
+  ledger at its real dollars, written as the Haiku input tokens that cost
+  the same, route `photo:gemini-3.8-flash` (Settle's shape). A call that
+  failed after billing (`VertexError.usage`) is still recorded and charged.
+- **Provider errors** never reach the page: 502 with the route's sentence,
+  503 on a timeout or a 429/503 upstream.
+- **The stand-in** (`lib/fakeai.js` `gemini`, under `POPQUIZ_FAKE_AI=1`)
+  answers with a closing checklist and eight questions quoting it. Triggers
+  in the photo's bytes: `BLANK`, `UPSTREAMnnn`, `INJECT` (invented facts and
+  quotes, markup, two right answers, an extra key, 70 questions, a huge
+  transcription). Local: `POPQUIZ_AI_PROVIDER=gemini npm run dev`.
+- **The photo** is shrunk on the device (1600 px JPEG, then smaller and
+  softer until under about 2 MB) and still capped at 4 MB on the server.
+- **Going live needs Erik's yes**: set `POPQUIZ_AI_PROVIDER=gemini` on the
+  `challenge` service (Vertex AI and `aiplatform.user` are already there for
+  the other Gemini apps).
+
+## The design (2026-11-23 redesign)
+
+The HOA Desk look, rules in the header of `public/app.css`:
+
+- Pure white page (true black in dark), hairlines `#E5E5EA`, 12 px cards
+  only where grouping helps (a question in the editor, the account card),
+  10 px inputs and tiles, pill buttons and chips. Lists are hairline rows.
+  No gradients, no tints, no shadows except a faint one on what floats.
+- **One accent, the lab card's blue `#1e40af`** (a lighter tint for links in
+  dark): the primary button, links, the active tab, progress. Green, red and
+  amber only for right, wrong and streaks.
+- System fonts; five sizes (13, 15, 16, 20, 28+; the hero and the question
+  are display sizes); tabular numbers; 4/8 spacing.
+- **Navigation:** phones get a slim floating translucent pill of 1.5 px line
+  icons with the label on the active tab only; from 900 px it is a top nav
+  with a quiet underline. `desktop.css` is still linked (it is a synced
+  file) but `<body>` no longer carries `dk`, so its rail does not apply.
+- Signed out, the top is a centred hero: headline, one line, two pills.
+- **No `style=` anywhere**, in the HTML or written by script: bars are
+  `<progress>`, rings are SVG attributes, avatars are neutral, confetti is
+  placed by the stylesheet, textareas grow with `field-sizing`.
+- Motion (press states, sheet and view entrances, the ring, a small confetti
+  burst) only inside `prefers-reduced-motion: no-preference`.
+- Taps from the signed-in home (Today): answer a question 1; leaderboard 1;
+  dashboard 1; decks 1; snap a page 2 (Decks, Snap a page); paste text 2;
+  write by hand 2; switch or join a team 2; account 1.
+- Measured in headless Chrome at 390, 320 and 1440 px, both themes: every
+  text pair 4.5:1 or better, nothing sideways. Check a new colour pair
+  before using it.
+
 ## Local run and tests
 
 ```
@@ -196,7 +281,8 @@ Signed in: `GET /api/me`, `POST /api/teams`, `POST /api/join`,
 `GET /api/teams/:id/dashboard` (manager), `GET|PUT|DELETE
 /api/teams/:id/decks/:deckId` and `POST /api/teams/:id/decks` (manager).
 Metered (manager): `POST /api/teams/:id/generate`,
-`POST /api/teams/:id/generate/photo`.
+`POST /api/teams/:id/generate/photo` (Claude, or Gemini with
+`POPQUIZ_AI_PROVIDER=gemini`).
 
 ## Ideas not built yet
 
