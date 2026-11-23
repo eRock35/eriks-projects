@@ -82,10 +82,11 @@ function thumbnail(raw) {
   return { data: clean.toString('base64'), bytes: clean.length, width: size.width, height: size.height };
 }
 
-/** The model's copy: read once and dropped. */
-function forModel(raw) {
+/** The model's copy: read once and dropped. `max` (bytes, decoded) is
+ *  smaller for a round, which carries several photos in one request. */
+function forModel(raw, max) {
   if (!raw || typeof raw !== 'object') throw httpError(400, 'Add a photo.');
-  const buf = decode(raw, IMAGE_MAX, 'photo');
+  const buf = decode(raw, Math.min(max || IMAGE_MAX, IMAGE_MAX), 'photo');
   const actual = sniff(buf);
   if (!actual) throw httpError(400, 'The photo must be a JPEG, PNG or WebP image.');
   const declared = String(raw.type || '').toLowerCase();

@@ -54,7 +54,20 @@
     boardSpan: 'week',
     timers: {},
     liveBusy: false, clockSkew: 0,
+    meta: null,          // /api/meta: limits, and whether "Make a round" is switched on
   };
+
+  // Thin line icons, one stroke weight (app.css draws them).
+  var ICON = {
+    photo: '<rect x="3.75" y="5.75" width="16.5" height="13.5" rx="2.5"/><circle cx="9" cy="10.5" r="1.5"/><path d="M4.5 17l4.5-4 3.5 3 2.5-2 4.5 4"/>',
+    chat: '<path d="M5.75 5.75h12.5a2 2 0 012 2v7a2 2 0 01-2 2H11l-4.25 3.25v-3.25h-1a2 2 0 01-2-2v-7a2 2 0 012-2z"/>',
+    pen: '<path d="M4 20l1.2-4.6L15.6 5a2 2 0 012.8 0l.6.6a2 2 0 010 2.8L8.6 18.8z"/><path d="M13.6 7l3.4 3.4"/>',
+    spark: '<path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
+    check: '<path d="M5.5 12.5l4.5 4.5 8.5-10"/>',
+    x: '<path d="M7 7l10 10M17 7L7 17"/>',
+    lock: '<rect x="5.75" y="10.75" width="12.5" height="9" rx="2"/><path d="M8.5 10.5v-3a3.5 3.5 0 017 0v3"/>',
+  };
+  function icon(name) { return '<svg class="li" viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
 
   /* ---------------- plumbing ---------------- */
 
@@ -90,6 +103,7 @@
   function signedIn() { return Boolean(state.me && state.me.signedIn); }
   function pkOk() { return Boolean(window.Passkey && Passkey.supported() && !/\.run\.app$/.test(location.hostname)); }
   function isSample() { return state.mode === 'sample'; }
+  function roundOn() { return Boolean(state.meta && state.meta.ai && state.meta.ai.round); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
   function names(list) {
     var n = list.map(function (x) { return x.name; });
@@ -111,7 +125,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Writing your own questions and the chat stats are free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Writing your own questions and the chat stats are free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     $('#resend', where).onclick = function () {
       var b = this; b.disabled = true;
       fetch(e.data.resend || (BASE + 'api/auth/verify/send'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
@@ -121,8 +135,8 @@
 
   /* ---------------- people ---------------- */
 
-  function hex(m) { return C.colorHex(m && m.color); }
-  function avatar(m, size) { return '<span class="av' + (size ? ' ' + size : '') + '" style="--c:' + esc(hex(m)) + '" aria-hidden="true">' + esc((m && m.emoji) || '🙂') + '</span>'; }
+  function colorId(m) { return C.COLOR_IDS.indexOf(m && m.color) >= 0 ? m.color : C.COLOR_IDS[0]; }
+  function avatar(m, size) { return '<span class="av' + (size ? ' ' + size : '') + '" data-c="' + esc(colorId(m)) + '" aria-hidden="true">' + esc((m && m.emoji) || '🙂') + '</span>'; }
   function who(m, size) { return '<span class="who">' + avatar(m, size) + '<b>' + esc(m.name) + '</b></span>'; }
   function memberById(id) { var ms = (state.group && state.group.members) || []; for (var i = 0; i < ms.length; i++) if (ms[i].id === id) return ms[i]; return null; }
   function rememberGroup(g) {
@@ -236,10 +250,10 @@
     if (!g) { el.innerHTML = ''; return; }
     var faces = '<span class="faces" aria-hidden="true">' + g.members.slice(0, 6).map(function (m) { return avatar(m, 'sm'); }).join('') + '</span>';
     if (isSample()) {
-      el.innerHTML = '<div class="strip"><p class="small" style="margin:0 0 4px;opacity:.9">This is an example family - play today’s 5, then start your own.</p>' +
-        '<div class="ghead"><h1>' + esc(g.name) + '</h1>' + faces + '</div>' +
-        '<p>Trivia made from <b>your own</b> photos and group chat. Everyone plays five a day on their own time - from anywhere - or all together on a video call.</p>' +
-        '<div class="row"><button class="btn big light" type="button" id="playBtn">' + (state.today && state.today.done ? 'See today’s results' : 'Play today’s round') + '</button><button class="btn big ghost-light" type="button" id="startBtn">Start a group</button></div></div>';
+      el.innerHTML = '<div class="hero"><h1>Trivia from your own photos and group chat.</h1>' +
+        '<p class="lede">Five questions a day about your people, from anywhere - or all together on a video call.</p>' +
+        '<div class="cta"><button class="btn big" type="button" id="playBtn">' + (state.today && state.today.done ? 'See today’s results' : 'Play today’s round') + '</button><button class="btn big ghost" type="button" id="startBtn">Start a group</button></div>' +
+        '<p class="small muted eg">' + faces + '<span>You’re looking at an example family, ' + esc(g.name) + '. Nothing here is saved.</span></p></div>';
       $('#playBtn').onclick = function () { setTab('today'); state.started = true; drawToday(); var v = $('#view'); if (v.scrollIntoView) v.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); };
       $('#startBtn').onclick = startGroup;
       return;
@@ -347,7 +361,7 @@
     var playedN = (t.results || []).length;
     var others = state.group.members.length - 1 - t.waiting.filter(function (w) { return !w.you; }).length;
     v.innerHTML = '<div class="split"><div class="card">' + head +
-      '<p class="prompt" style="margin-top:2px">' + esc(t.questions.length) + ' questions about your people.</p>' +
+      '<p class="prompt mt4">' + esc(t.questions.length) + ' questions about your people.</p>' +
       '<ul class="intro-list muted"><li>Play whenever suits you - the round locks at midnight' + (isSample() ? '' : ' (group time)') + ', ' + esc(dur(t.closesInMs)) + ' from now.</li><li>See how everyone did once you’re done.</li>' +
       (st && st.streak ? '<li>Your streak: 🔥 ' + esc(st.streak) + (st.atRisk ? ' - play today to keep it' : '') + '.</li>' : '<li>Play every day to build a streak.</li>') + '</ul>' +
       '<label class="field"><span>Playing from <span class="muted">(optional)</span></span><input class="input" id="fromIn" maxlength="30" placeholder="e.g. Denver" autocomplete="off"></label>' +
@@ -360,8 +374,8 @@
 
   function waitingLine(t) {
     var w = t.waiting.filter(function (x) { return !x.you; });
-    if (!w.length) return '<p class="small" style="margin:8px 0 0">Everyone else has played 🎉</p>';
-    return '<div class="waiting" style="margin-top:8px"><span class="faces" aria-hidden="true">' + w.slice(0, 6).map(function (m) { return avatar(memberById(m.id) || m, 'sm'); }).join('') + '</span><span class="small">' + esc(w.length > 3 ? plural(w.length, 'person hasn’t', 'people haven’t') + ' played yet' : names(w) + (w.length === 1 ? ' hasn’t' : ' haven’t') + ' played yet') + '</span></div>';
+    if (!w.length) return '<p class="small mt8 mb0">Everyone else has played 🎉</p>';
+    return '<div class="waiting mt8"><span class="faces" aria-hidden="true">' + w.slice(0, 6).map(function (m) { return avatar(memberById(m.id) || m, 'sm'); }).join('') + '</span><span class="small">' + esc(w.length > 3 ? plural(w.length, 'person hasn’t', 'people haven’t') + ' played yet' : names(w) + (w.length === 1 ? ' hasn’t' : ' haven’t') + ' played yet') + '</span></div>';
   }
 
   var SHAPES = ['▲', '◆', '●', '■'];
@@ -375,17 +389,17 @@
       body += answered
         ? '<div class="answer ' + (q.ok ? 'right' : 'wrong') + '" role="status"><span class="k">#</span>You said ' + esc(answerText(q, q.picked)) + '</div>'
         : '<form class="numrow" id="numForm"><label class="vh" for="numIn">Your guess</label><input class="input" id="numIn" type="number" inputmode="decimal" step="any" required placeholder="Your guess"><button class="btn" type="submit">Lock it in</button></form>' +
-          (q.style === 'when' ? '<p class="small muted" style="margin-top:8px">Within a year counts.</p>' : '<p class="small muted" style="margin-top:8px">Close counts - the nearer the better.</p>');
+          (q.style === 'when' ? '<p class="small muted mt8">Within a year counts.</p>' : '<p class="small muted mt8">Close counts - the nearer the better.</p>');
     } else {
       body += '<div class="answers" role="group" aria-label="Answers">' + q.options.map(function (o, i) {
         var cls = '';
         var tail = '';
         if (answered) {
           if (q.kind === 'caption') { if (i === q.picked) { cls = 'picked'; tail = 'Your vote'; } }
-          else if (i === q.answer) { cls = 'right'; tail = '✓'; }
-          else if (i === q.picked) { cls = 'wrong'; tail = '✗'; }
+          else if (i === q.answer) { cls = 'right'; tail = icon('check') + '<span class="vh">Right answer</span>'; }
+          else if (i === q.picked) { cls = 'wrong'; tail = icon('x') + '<span class="vh">Your answer</span>'; }
         }
-        return '<button type="button" class="answer ' + cls + '" data-a="' + i + '"' + (answered ? ' disabled' : '') + '><span class="k" aria-hidden="true">' + 'ABCD'[i] + '</span><span>' + esc(o) + '</span>' + (tail ? '<span class="tail">' + esc(tail) + '</span>' : '') + '</button>';
+        return '<button type="button" class="answer ' + cls + '" data-a="' + i + '"' + (answered ? ' disabled' : '') + '><span class="k" aria-hidden="true">' + 'ABCD'[i] + '</span><span>' + esc(o) + '</span>' + (tail ? '<span class="tail">' + tail + '</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
     if (answered && showVerdict) {
@@ -397,7 +411,7 @@
         '<button class="btn big block" type="button" id="nextQ">' + (last ? 'See how everyone did' : 'Next question') + '</button>';
     }
     body += '<div id="qErr"></div></div>';
-    v.innerHTML = '<div class="split">' + body + '<div class="side card flat"><h3>Who’s played</h3>' + waitingLine(t) + '<p class="small muted" style="margin-top:10px">The round locks at midnight' + (isSample() ? '' : ' (group time)') + ' - ' + esc(dur(t.closesInMs)) + ' left.</p></div></div>';
+    v.innerHTML = '<div class="split">' + body + '<div class="side card flat"><h3>Who’s played</h3>' + waitingLine(t) + '<p class="small muted mt12">The round locks at midnight' + (isSample() ? '' : ' (group time)') + ' - ' + esc(dur(t.closesInMs)) + ' left.</p></div></div>';
     $$('[data-a]', v).forEach(function (b) { b.onclick = function () { submit(q, Number(b.getAttribute('data-a'))); }; });
     var nf = $('#numForm');
     if (nf) nf.onsubmit = function (e) { e.preventDefault(); var n = Number($('#numIn').value); if ($('#numIn').value === '' || !isFinite(n)) return; submit(q, n); };
@@ -436,19 +450,19 @@
     var card = C.resultCard({ group: state.group.name, date: t.date, score: t.score, of: t.of, marks: marks, streak: streak });
     var others = (t.results || []).filter(function (r) { return !r.you; });
     var me = '<div class="card">' + head +
-      '<div class="row spread" style="align-items:flex-end"><div><div class="score-big">' + esc(t.score) + '<span class="muted" style="font-size:1.4rem">/' + esc(t.of) + '</span></div><div class="marks" aria-label="' + esc(t.score + ' right out of ' + t.of) + '">' + marksText(marks) + '</div></div>' +
-      (streak > 1 ? '<div class="center"><div style="font-size:2rem">🔥</div><b>' + esc(plural(streak, 'day')) + '</b><div class="small muted">streak</div></div>' : '') + '</div>' +
-      '<p class="muted" style="margin-top:10px">' + esc(verdictLine(t, others)) + '</p>' +
+      '<div class="row spread end"><div><div class="score-big">' + esc(t.score) + '<span class="muted f20">/' + esc(t.of) + '</span></div><div class="marks" aria-label="' + esc(t.score + ' right out of ' + t.of) + '">' + marksText(marks) + '</div></div>' +
+      (streak > 1 ? '<div class="center"><div class="f32">🔥</div><b>' + esc(plural(streak, 'day')) + '</b><div class="small muted">streak</div></div>' : '') + '</div>' +
+      '<p class="muted mt12">' + esc(verdictLine(t, others)) + '</p>' +
       '<div class="copybox" id="cardText">' + esc(card) + '</div>' +
       '<div class="row"><button class="btn" type="button" id="copyCard">Copy for the family chat</button>' + (navigator.share ? '<button class="btn ghost" type="button" id="shareCard">Share…</button>' : '') + '</div>' +
-      '<p class="small muted" style="margin-top:8px">No link in it - nothing that opens your group.</p></div>';
+      '<p class="small muted mt8">No link in it - nothing that opens your group.</p></div>';
     var list = '<div class="card"><h2>How everyone did</h2>' + (t.results && t.results.length ? '<ul class="results">' + t.results.map(function (r) {
       return '<li class="' + (r.you ? 'you' : '') + '">' + avatar(r) + '<span class="sub"><b>' + esc(r.name) + (r.you ? ' (you)' : '') + '</b>' + (r.from ? '<span class="from">from ' + esc(r.from) + '</span>' : '') + '</span><span class="pts">' + esc(r.score + '/' + r.of) + ' <span aria-hidden="true">' + marksText(r.marks) + '</span></span></li>';
     }).join('') + '</ul>' : '') + nudge(t) + '</div>';
     var caps = Object.keys(t.captions || {}).map(function (id) { var c = t.captions[id]; return '<p class="small">🏅 Favourite caption so far: <b>“' + esc(c.text) + '”</b> (' + esc(plural(c.votes, 'vote')) + ')</p>'; }).join('');
-    var review = '<div class="card"><h2>Your answers</h2><ol class="qlist" style="list-style:none">' + t.questions.map(function (q) {
+    var review = '<div class="card"><h2>Your answers</h2><ol class="qlist plain">' + t.questions.map(function (q) {
       var mark = q.kind === 'caption' ? '🗳️' : q.ok ? '✅' : '❌';
-      return '<li>' + (q.photoId ? photoImg(q, 'thumb') : '<span class="thumb" style="display:grid;place-items:center;font-size:1.4rem" aria-hidden="true">' + ({ chat: '💬', own: '✍️', photo: '📸' }[C.family(q.style)]) + '</span>') +
+      return '<li>' + (q.photoId ? photoImg(q, 'thumb') : '<span class="thumb gridc" aria-hidden="true">' + ({ chat: '💬', own: '✍️', photo: '📸' }[C.family(q.style)]) + '</span>') +
         '<div class="body"><b>' + esc(q.prompt) + '</b>' + (q.quote ? '<div class="small">“' + esc(q.quote) + '”</div>' : '') +
         '<div class="small">You: ' + esc(answerText(q, q.picked)) + (q.kind !== 'caption' && !q.ok ? ' · <span class="ans">Answer: ' + esc(answerText(q, q.answer)) + '</span>' : '') + '</div></div><span aria-label="' + (q.ok ? 'right' : 'wrong') + '">' + mark + '</span></li>';
     }).join('') + '</ol>' + caps + '<p class="small muted">Tomorrow’s round opens at midnight' + (isSample() ? '' : ' (group time)') + ' - ' + esc(dur(t.closesInMs)) + ' from now.</p></div>';
@@ -471,8 +485,8 @@
   }
   function nudge(t) {
     var w = t.waiting.filter(function (x) { return !x.you; });
-    if (!w.length) return '<p class="small" style="margin-top:10px">Everyone’s played today 🎉</p>';
-    return '<div class="note" style="margin-top:12px"><p class="small" style="margin:0 0 6px"><b>' + esc(w.length === 1 ? w[0].name + ' hasn’t' : plural(w.length, 'person hasn’t', 'people haven’t')) + ' played today</b>' + (w.length > 1 ? ': ' + esc(names(w)) : '') + '.</p>' +
+    if (!w.length) return '<p class="small mt12">Everyone’s played today 🎉</p>';
+    return '<div class="note mt12"><p class="small mt0 mb8"><b>' + esc(w.length === 1 ? w[0].name + ' hasn’t' : plural(w.length, 'person hasn’t', 'people haven’t')) + ' played today</b>' + (w.length > 1 ? ': ' + esc(names(w)) : '') + '.</p>' +
       '<button class="btn small ghost" type="button" id="nudgeBtn">Copy a nudge for the chat</button></div>';
   }
   function sampleNext() {
@@ -585,8 +599,8 @@
     var link = location.origin + BASE + 'j/' + g.code;
     v.innerHTML = '<div class="split"><div class="card"><div class="sec-head"><h2>The room is open</h2><span class="chip teal">' + esc(l.count) + ' questions · ' + (l.seconds ? esc(l.seconds) + ' s each' : 'host moves on') + '</span></div>' +
       '<div class="room">' + (g.host ? '<button type="button" class="qr" id="qrSmall" aria-label="Show the QR code full screen">' + QR.svg(link, 'QR code to join ' + g.name) + '</button>' : '') +
-      '<div><p class="small muted" style="margin:0">Room code</p><p class="code" style="margin:0">' + esc(g.display) + '</p><p class="small muted">Group members: just open the Live tab. New people: scan, or type the code on the home page.</p></div></div>' +
-      '<h3 style="margin-top:12px">In the room (' + esc(l.players.length) + ')</h3><ul class="players" id="playersList">' + playersHtml(l) + '</ul>' +
+      '<div><p class="small muted m0">Room code</p><p class="code m0">' + esc(g.display) + '</p><p class="small muted">Group members: just open the Live tab. New people: scan, or type the code on the home page.</p></div></div>' +
+      '<h3 class="mt12">In the room (' + esc(l.players.length) + ')</h3><ul class="players" id="playersList">' + playersHtml(l) + '</ul>' +
       (g.host ? '<div id="liveErr"></div><div class="row"><button class="btn big" type="button" id="liveStart"' + (l.players.length < 1 ? ' disabled' : '') + '>Start the game</button><button class="btn ghost danger" type="button" id="liveEnd">Close the room</button></div>'
         : (l.joined ? '<p class="verdict vote">You’re in. Waiting for ' + esc(hostName()) + ' to start…</p>' : '<button class="btn big block" type="button" id="liveJoin">I’m in</button>')) +
       '</div><div class="side card flat"><h3>Tip</h3><p class="small muted">Put the video call on one screen and Inside Joke on your phone. Questions show on everyone’s phone at once; faster right answers score more.</p></div></div>';
@@ -609,7 +623,7 @@
 
   function liveTop(l) {
     return '<div class="livebar"><span>Question ' + esc(l.idx + 1) + ' of ' + esc(l.count) + '</span>' + (l.seconds ? '<span class="secs" id="secs" aria-live="off"></span>' : '<span class="small muted">' + esc(hostName()) + ' moves it on</span>') + '</div>' +
-      (l.seconds && l.state === 'question' ? '<div class="timer" aria-hidden="true"><i id="tbar"></i></div>' : '<div style="height:12px"></div>');
+      (l.seconds && l.state === 'question' ? '<div class="timer" aria-hidden="true"><i id="tbar"></i></div>' : '<div class="gap12"></div>');
   }
   function drawLiveQuestion(v, l) {
     var q = l.question;
@@ -617,14 +631,14 @@
     var html = '<div class="card">' + liveTop(l) + '<span class="chip accent">' + esc(q.label || '') + '</span>' + photoImg(q) + '<p class="prompt">' + esc(q.prompt) + '</p>' + (q.quote ? '<blockquote class="quote">' + esc(q.quote) + '</blockquote>' : '');
     if (q.kind === 'number') {
       html += mine ? '<p class="verdict vote">Locked in: ' + esc(answerText(q, mine.a)) + '</p>'
-        : '<form class="numrow" id="lnum"><label class="vh" for="lnumIn">Your guess</label><input class="input" id="lnumIn" type="number" inputmode="decimal" step="any" required placeholder="Your guess"><button class="btn" type="submit">Lock it in</button></form><p class="small muted" style="margin-top:6px">Closest guess wins.</p>';
+        : '<form class="numrow" id="lnum"><label class="vh" for="lnumIn">Your guess</label><input class="input" id="lnumIn" type="number" inputmode="decimal" step="any" required placeholder="Your guess"><button class="btn" type="submit">Lock it in</button></form><p class="small muted mt8">Closest guess wins.</p>';
     } else {
       html += '<div class="lopts">' + q.options.map(function (o, i) {
         return '<button type="button" class="lopt o' + i + (mine ? (mine.a === i ? ' mine' : ' dim') : '') + '" data-la="' + i + '"' + (mine ? ' disabled' : '') + '><span class="shape" aria-hidden="true">' + SHAPES[i] + '</span><span>' + esc(o) + '</span></button>';
       }).join('') + '</div>';
-      if (mine) html += '<p class="verdict vote" style="margin-top:12px">Locked in. ' + (q.kind === 'caption' ? 'Points if the room agrees with you.' : 'Waiting for the others…') + '</p>';
+      if (mine) html += '<p class="verdict vote mt12">Locked in. ' + (q.kind === 'caption' ? 'Points if the room agrees with you.' : 'Waiting for the others…') + '</p>';
     }
-    html += '<p class="small muted" id="answeredLine" style="margin-top:10px">' + esc(answeredLine(l)) + '</p><ul class="players" id="playersList">' + playersHtml(l) + '</ul><div id="liveErr"></div>';
+    html += '<p class="small muted mt12" id="answeredLine">' + esc(answeredLine(l)) + '</p><ul class="players" id="playersList">' + playersHtml(l) + '</ul><div id="liveErr"></div>';
     if (l.host) html += '<div class="row"><button class="btn ghost" type="button" id="liveNext">Reveal now</button><button class="btn ghost danger small" type="button" id="liveEnd">End game</button></div>';
     html += '</div>';
     v.innerHTML = html;
@@ -659,9 +673,9 @@
         var win = best.indexOf(i) >= 0;
         return '<div class="lopt o' + i + (win ? '' : ' dim') + (l.mine && l.mine.a === i ? ' mine' : '') + '"><span class="shape" aria-hidden="true">' + (win ? '✓' : SHAPES[i]) + '</span><span>' + esc(o) + '</span><span class="bar">' + esc(plural(r.tally[i], 'vote')) + ' · ' + Math.round(100 * r.tally[i] / total) + '%</span></div>';
       }).join('') + '</div>';
-      if (q.kind === 'caption') html += '<p class="small muted" style="margin-top:8px">No right answer - the room’s favourite scores.</p>';
+      if (q.kind === 'caption') html += '<p class="small muted mt8">No right answer - the room’s favourite scores.</p>';
     }
-    html += '<div id="liveErr"></div>' + (l.host ? '<button class="btn big block" type="button" id="liveNext">' + (l.idx + 1 >= l.count ? 'Final scores' : 'Next question') + '</button>' : (l.seconds ? '<p class="small muted center" style="margin-top:12px">Next question in <span id="secs"></span></p>' : '<p class="small muted center" style="margin-top:12px">Waiting for ' + esc(hostName()) + '…</p>')) + '</div>';
+    html += '<div id="liveErr"></div>' + (l.host ? '<button class="btn big block" type="button" id="liveNext">' + (l.idx + 1 >= l.count ? 'Final scores' : 'Next question') + '</button>' : (l.seconds ? '<p class="small muted center mt12">Next question in <span id="secs"></span></p>' : '<p class="small muted center mt12">Waiting for ' + esc(hostName()) + '…</p>')) + '</div>';
     html += '<div class="side card"><h3>Scoreboard</h3>' + scoreList(l.players.slice(0, 8)) + '</div></div>';
     v.innerHTML = html;
     var n = $('#liveNext');
@@ -684,7 +698,7 @@
         var place = [2, 1, 3][i];
         return '<div class="step p' + place + '">' + avatar(x, 'big') + '<div class="nm">' + esc(x.name) + '</div><div class="sc">' + esc(x.score.toLocaleString()) + '</div><div class="block" aria-label="' + ['', 'First', 'Second', 'Third'][place] + ' place">' + place + '</div></div>';
       }).join('') + '</div>' + (p.length > 3 ? scoreList(p.slice(3), 3) : '') +
-      (l.sample ? '<p class="small muted" style="margin-top:10px">Six Riveras in four cities, one video call, ten questions about their own photos and chat.</p>' : '') + '</div>';
+      (l.sample ? '<p class="small muted mt12">Six Riveras in four cities, one video call, ten questions about their own photos and chat.</p>' : '') + '</div>';
     html += '<div class="side card flat">' + (l.sample ? '<h3>Host your own</h3><p class="small muted">Start a group, add questions, then open the room on game night. Everyone joins on their own phone with the room code.</p><button class="btn block" type="button" id="sampleStart">Start a group</button>'
       : (l.host ? '<h3>Again?</h3><button class="btn block" type="button" id="liveAgain">New game</button>' : '<p class="small muted">Thanks for playing! The daily round is on the Today tab.</p>')) + '</div></div>';
     v.innerHTML = html;
@@ -706,7 +720,7 @@
     var rows = b[span];
     var key = span === 'week' ? 'week' : span === 'month' ? 'month' : 'all';
     var me = b.me;
-    var head = me ? '<div class="card"><div class="row spread" style="margin:0"><div><h2 style="margin:0">' + (me.streak ? '🔥 ' + esc(plural(me.streak, 'day')) + ' in a row' : 'No streak yet') + '</h2><p class="small muted" style="margin:4px 0 0">' +
+    var head = me ? '<div class="card"><div class="row spread m0"><div><h2 class="m0">' + (me.streak ? '🔥 ' + esc(plural(me.streak, 'day')) + ' in a row' : 'No streak yet') + '</h2><p class="small muted mt4 mb0">' +
       esc(me.atRisk ? 'Play today to make it ' + (me.streak + 1) + '.' : me.playedToday ? 'You’ve played today. See you tomorrow.' : 'Play today’s round to start one.') + (me.best > 1 ? ' Best: ' + me.best + '.' : '') + '</p></div>' +
       (!me.playedToday ? '<button class="btn" type="button" id="toToday">Play today</button>' : '') + '</div></div>' : '';
     var waiting = b.waiting.filter(function (w) { return !me || w.id !== me.id; });
@@ -715,7 +729,7 @@
       '<ol class="board">' + rows.map(function (r, i) {
         var played = r[key + 'Played'];
         var rank = 1 + rows.filter(function (x) { return x[key] > r[key]; }).length;
-        return '<li class="' + (me && r.id === me.id ? 'you' : '') + '"><span class="rank' + (rank <= 3 && r[key] ? ' gold' : '') + '">' + rank + '</span><span>' + who(r) + '<span class="streak" style="display:block;margin-left:42px">' + (r.streak ? '<b>🔥 ' + esc(r.streak) + '</b>' + (r.best > r.streak ? ' · best ' + esc(r.best) : '') : (r.best ? 'best streak ' + esc(r.best) : 'no streak yet')) + (r.playedToday ? ' · played today ✓' : '') + '</span></span>' +
+        return '<li class="' + (me && r.id === me.id ? 'you' : '') + '"><span class="rank' + (rank <= 3 && r[key] ? ' gold' : '') + '">' + rank + '</span><span>' + who(r) + '<span class="streak under">' + (r.streak ? '<b>🔥 ' + esc(r.streak) + '</b>' + (r.best > r.streak ? ' · best ' + esc(r.best) : '') : (r.best ? 'best streak ' + esc(r.best) : 'no streak yet')) + (r.playedToday ? ' · played today ✓' : '') + '</span></span>' +
           '<span class="pts">' + esc(r[key]) + '<small>' + esc(plural(played, 'round')) + '</small></span></li>';
       }).join('') + '</ol><p class="small muted">A point for every right answer in the daily round. Streaks count days in a row; a streak survives until the end of the next day.</p></div></div>' +
       '<div class="side card flat"><h3>Still to play today</h3>' + (waiting.length ? '<ul class="mlist">' + waiting.map(function (w) { return '<li>' + who(memberById(w.id) || w, 'sm') + '</li>'; }).join('') + '</ul><button class="btn small ghost block" type="button" id="nudge2">Copy a nudge for the chat</button>' : '<p class="small">Everyone’s played 🎉</p>') + '</div></div>';
@@ -733,7 +747,7 @@
   }
   function qItem(q, tools) {
     var ans = q.kind === 'caption' ? 'No right answer - voted' : q.kind === 'number' ? 'Answer: ' + answerText(q, q.answer) + (q.tolerance ? ' (± ' + q.tolerance + ')' : '') : 'Answer: ' + optionText(q, q.answer);
-    return '<li>' + (q.photoId ? photoImg(q, 'thumb') : '<span class="thumb" style="display:grid;place-items:center;font-size:1.5rem" aria-hidden="true">' + ({ chat: '💬', own: '✍️', photo: '📸' }[C.family(q.style)]) + '</span>') +
+    return '<li>' + (q.photoId ? photoImg(q, 'thumb') : '<span class="thumb gridc" aria-hidden="true">' + ({ chat: '💬', own: '✍️', photo: '📸' }[C.family(q.style)]) + '</span>') +
       '<div class="body"><span class="chip">' + esc(q.label || C.STYLE_LABEL[q.style]) + '</span><div><b>' + esc(q.prompt) + '</b></div>' + (q.quote ? '<div class="small">“' + esc(q.quote) + '”</div>' : '') +
       (q.options && q.kind !== 'number' ? '<div class="small muted">' + esc(q.options.join(' · ')) + '</div>' : '') + (q.answer !== undefined ? '<div class="ans">' + esc(ans) + '</div>' : '') + (q.by ? '<div class="small muted">by ' + esc(q.by) + '</div>' : '') + '</div>' +
       (tools ? '<div class="tools">' + tools + '</div>' : '') + '</li>';
@@ -746,30 +760,33 @@
     var mine = (d.mine || []).filter(function (q) { return q.status !== 'draft'; });
     var html = '<div class="split"><div>';
     html += '<div class="card"><div class="sec-head"><h2>Add questions</h2><span class="small muted">' + esc(plural(c.live, 'question')) + ' in the bank</span></div>' +
-      '<div class="counts" style="margin-bottom:12px"><span class="chip">📸 ' + esc(c.photo) + ' from photos</span><span class="chip">💬 ' + esc(c.chat) + ' from chat</span><span class="chip">✍️ ' + esc(c.own) + ' written</span></div>' +
-      '<div class="ways"><button type="button" class="way" id="wayPhoto"><span class="ic" aria-hidden="true">📸</span><span><b>From your photos</b><span class="small muted">Where, what year, who took it, caption this. You review every question first.</span></span><span class="chip cost">AI · ~1¢</span></button>' +
-      '<button type="button" class="way" id="wayChat"><span class="ic" aria-hidden="true">💬</span><span><b>From your group chat</b><span class="small muted">A WhatsApp export or a pasted log, read on your phone. Who’s the night owl? Who said it?</span></span><span class="chip cost">Free</span></button>' +
-      '<button type="button" class="way" id="wayOwn"><span class="ic" aria-hidden="true">✍️</span><span><b>Write your own</b><span class="small muted">Multiple choice, true or false, closest number, or “who in the group…”.</span></span><span class="chip cost">Free</span></button></div></div>';
+      '<div class="counts mb12"><span class="chip">📸 ' + esc(c.photo) + ' from photos</span><span class="chip">💬 ' + esc(c.chat) + ' from chat</span><span class="chip">✍️ ' + esc(c.own) + ' written</span></div>' +
+      '<div class="ways">' +
+      (roundOn() ? '<button type="button" class="way" id="wayRound"><span class="ic accent">' + icon('spark') + '</span><span class="grow"><b>Make a round</b><span class="small muted">Pick a few photos, type a few things people said. One AI pass writes the round - you review it first.</span></span><span class="chip cost">AI · ~2¢</span></button>' : '') +
+      '<button type="button" class="way" id="wayPhoto"><span class="ic">' + icon('photo') + '</span><span class="grow"><b>From your photos</b><span class="small muted">Where, what year, who took it, caption this. You review every question first.</span></span><span class="chip cost">AI · ~1¢</span></button>' +
+      '<button type="button" class="way" id="wayChat"><span class="ic">' + icon('chat') + '</span><span class="grow"><b>From your group chat</b><span class="small muted">A WhatsApp export or a pasted log, read on your phone. Who’s the night owl? Who said it?</span></span><span class="chip cost">Free</span></button>' +
+      '<button type="button" class="way" id="wayOwn"><span class="ic">' + icon('pen') + '</span><span class="grow"><b>Write your own</b><span class="small muted">Multiple choice, true or false, closest number, or “who in the group…”.</span></span><span class="chip cost">Free</span></button></div></div>';
     if (drafts.length) {
-      html += '<div class="card" id="drafts"><div class="sec-head"><h2>To review (' + esc(drafts.length) + ')</h2></div><p class="small muted">Only you can see these. Fix or delete anything that isn’t right, then add them to the bank.</p><ul class="qlist">' +
-        drafts.map(function (q) { return qItem(q, '<button class="btn small ghost" type="button" data-edit="' + esc(q.id) + '" aria-label="Edit">Edit</button><button class="btn small ghost danger" type="button" data-del="' + esc(q.id) + '" aria-label="Delete">✕</button>'); }).join('') +
+      html += '<div class="card" id="drafts"><div class="sec-head"><h2>To review (' + esc(drafts.length) + ')</h2></div><p class="small muted">Only you can see these. Edit or delete anything that isn’t right, then add them to the bank - nobody plays a question you haven’t checked.</p><ul class="qlist">' +
+        drafts.map(function (q) { return qItem(q, '<button class="btn small ghost" type="button" data-edit="' + esc(q.id) + '" aria-label="Edit">Edit</button><button class="btn small ghost danger sq" type="button" data-del="' + esc(q.id) + '" aria-label="Delete">' + icon('x') + '</button>'); }).join('') +
         '</ul><button class="btn big block" type="button" id="publish">Add ' + esc(plural(drafts.length, 'question')) + ' to the bank</button></div>';
     }
     if (d.example) {
       html += '<div class="card"><h2>Some of the Riveras’ questions</h2><ul class="qlist">' + d.example.map(function (q) { return qItem(q); }).join('') + '</ul></div>';
     } else {
       html += '<div class="card"><h2>Your questions (' + esc(mine.length) + ')</h2>' + (mine.length ? '<p class="small muted">You wrote these, so they skip you in your own daily round.</p><ul class="qlist">' + mine.map(function (q) {
-        return qItem(q, '<button class="btn small ghost" type="button" data-edit="' + esc(q.id) + '">Edit</button><button class="btn small ghost danger" type="button" data-del="' + esc(q.id) + '" aria-label="Delete">✕</button>');
+        return qItem(q, '<button class="btn small ghost" type="button" data-edit="' + esc(q.id) + '">Edit</button><button class="btn small ghost danger sq" type="button" data-del="' + esc(q.id) + '" aria-label="Delete">' + icon('x') + '</button>');
       }).join('') + '</ul>' : '<p class="muted">None yet.</p>') + '</div>';
     }
     html += '</div><div class="side">';
     if (d.others) {
       html += '<div class="card"><h2>Everyone’s questions</h2><p class="small muted">As the host you can remove any question. You see the prompts, never the answers.</p>' + (d.others.length ? '<ul class="qlist">' + d.others.map(function (q) {
-        return '<li>' + (q.photoId ? photoImg(q, 'thumb') : '') + '<div class="body"><b>' + esc(q.prompt) + '</b><div class="small muted">' + esc(q.label) + ' · by ' + esc(q.by) + '</div></div><div class="tools"><button class="btn small ghost danger" type="button" data-hdel="' + esc(q.id) + '" aria-label="Remove">✕</button></div></li>';
+        return '<li>' + (q.photoId ? photoImg(q, 'thumb') : '') + '<div class="body"><b>' + esc(q.prompt) + '</b><div class="small muted">' + esc(q.label) + ' · by ' + esc(q.by) + '</div></div><div class="tools"><button class="btn small ghost danger sq" type="button" data-hdel="' + esc(q.id) + '" aria-label="Remove">' + icon('x') + '</button></div></li>';
       }).join('') + '</ul>' : '<p class="muted small">Nobody else has added any yet.</p>') + '</div>';
     }
     html += '<div class="card flat"><h3>What’s kept</h3><p class="small muted">Photos: a small thumbnail and the questions, visible to members only. The full photo is read once and dropped, and its location is never read or sent. Chats: only the questions - the chat itself never leaves your phone, except a stripped excerpt if you ask for a “who said it?” round.</p></div></div></div>';
     v.innerHTML = html;
+    if ($('#wayRound')) $('#wayRound').onclick = function () { if (isSample()) return sampleNudge('Making a round from your own photos and quotes'); openRound(); };
     $('#wayPhoto').onclick = function () { if (isSample()) return sampleNudge('Making questions from your own photos'); openPhotos(); };
     $('#wayChat').onclick = function () { openChat(); };
     $('#wayOwn').onclick = function () { if (isSample()) return sampleNudge('Writing your own questions'); openWrite(); };
@@ -801,8 +818,8 @@
         '<label class="field"><span>Question</span><textarea class="input" id="wPrompt" rows="2" maxlength="140" placeholder="' + esc({ own: 'What did Grandpa name the boat?', own_tf: 'True or false: Mom once drove to the wrong airport.', own_number: 'How many miles is it from our house to the lake?', own_who: 'Who in the group is most likely to miss a flight?' }[kind]) + '"></textarea></label>';
       if (kind === 'own') f += '<div class="field"><span>Answers - tick the right one</span>' + [0, 1, 2, 3].map(function (i) { return '<div class="opt-edit"><input type="radio" name="wRight" value="' + i + '"' + (i === 0 ? ' checked' : '') + ' aria-label="Answer ' + 'ABCD'[i] + ' is right"><input class="input" data-opt="' + i + '" maxlength="60" placeholder="' + (i < 2 ? 'Answer ' + 'ABCD'[i] : 'Answer ' + 'ABCD'[i] + ' (optional)') + '"></div>'; }).join('') + '</div>';
       if (kind === 'own_tf') f += '<div class="field"><span>The truth</span><div class="optgrid"><label class="check"><input type="radio" name="wRight" value="0" checked> True</label><label class="check"><input type="radio" name="wRight" value="1"> False</label></div></div>';
-      if (kind === 'own_number') f += '<div class="row"><label class="field" style="flex:1"><span>Answer</span><input class="input" id="wNum" type="number" step="any" inputmode="decimal"></label><label class="field" style="flex:1"><span>Counts if within</span><input class="input" id="wTol" type="number" step="any" min="0" value="0" inputmode="decimal"></label></div><label class="field"><span>Unit <span class="muted">(optional)</span></span><input class="input" id="wUnit" maxlength="12" placeholder="miles"></label>';
-      if (kind === 'own_who') f += '<div class="field"><span>Who’s in the running (2-4) - and who’s right</span>' + members.map(function (m) { return '<div class="opt-edit" style="grid-template-columns:44px 44px 1fr"><input type="radio" name="wRight" value="' + esc(m.id) + '" aria-label="' + esc(m.name) + ' is right"><input type="checkbox" data-mem="' + esc(m.id) + '" aria-label="Include ' + esc(m.name) + '" style="width:22px;height:22px;justify-self:center"><span>' + who(m, 'sm') + '</span></div>'; }).join('') + '</div>';
+      if (kind === 'own_number') f += '<div class="row"><label class="field grow"><span>Answer</span><input class="input" id="wNum" type="number" step="any" inputmode="decimal"></label><label class="field grow"><span>Counts if within</span><input class="input" id="wTol" type="number" step="any" min="0" value="0" inputmode="decimal"></label></div><label class="field"><span>Unit <span class="muted">(optional)</span></span><input class="input" id="wUnit" maxlength="12" placeholder="miles"></label>';
+      if (kind === 'own_who') f += '<div class="field"><span>Who’s in the running (2-4) - and who’s right</span>' + members.map(function (m) { return '<div class="opt-edit three"><input type="radio" name="wRight" value="' + esc(m.id) + '" aria-label="' + esc(m.name) + ' is right"><input type="checkbox" data-mem="' + esc(m.id) + '" aria-label="Include ' + esc(m.name) + '" class="tick js-c"><span>' + who(m, 'sm') + '</span></div>'; }).join('') + '</div>';
       f += '<div id="wErr"></div><button class="btn big block" type="button" id="wSave">Add to the bank</button><p class="small muted">You wrote it, so it won’t come up in your own daily round.</p>';
       body.innerHTML = f;
       $$('[data-k]', body).forEach(function (b) { b.onclick = function () { kind = b.getAttribute('data-k'); draw(root); }; });
@@ -840,7 +857,7 @@
     } else if (lockedAnswers) {
       html += '<p class="small muted">The answer to this one comes from the facts you gave (or the chat) and can’t be changed here. Delete it if it’s wrong.</p>';
     }
-    if (q.style === 'own_number') html += '<div class="row"><label class="field" style="flex:1"><span>Answer</span><input class="input" id="eNum" type="number" step="any" value="' + esc(q.answer) + '"></label><label class="field" style="flex:1"><span>Counts if within</span><input class="input" id="eTol" type="number" min="0" step="any" value="' + esc(q.tolerance || 0) + '"></label></div>';
+    if (q.style === 'own_number') html += '<div class="row"><label class="field grow"><span>Answer</span><input class="input" id="eNum" type="number" step="any" value="' + esc(q.answer) + '"></label><label class="field grow"><span>Counts if within</span><input class="input" id="eTol" type="number" min="0" step="any" value="' + esc(q.tolerance || 0) + '"></label></div>';
     if (q.style === 'own_tf') html += '<div class="optgrid"><label class="check"><input type="radio" name="eRight" value="0"' + (q.answer === 0 ? ' checked' : '') + '> True</label><label class="check"><input type="radio" name="eRight" value="1"' + (q.answer === 1 ? ' checked' : '') + '> False</label></div>';
     html += '<div id="eErr"></div><button class="btn big block" type="button" id="eSave">Save</button>';
     sheet(html, function (root) {
@@ -940,8 +957,8 @@
       var body = $('.body', root);
       body.innerHTML = '<p class="muted">Pick a few photos the group will remember. Add the place and a hint - the AI only uses what you tell it and what it can see, and never guesses who anyone is.</p>' +
         '<label class="btn block ghost">📷 Choose photos<input type="file" accept="image/*" multiple id="pFile" class="vh"></label>' +
-        '<div class="pick-photos" id="pList" style="margin-top:12px"></div><div id="pErr"></div>' +
-        '<p class="lock"><span aria-hidden="true">🔒</span><span>Each photo is redrawn on this phone first, which removes its location and camera details. Only a small thumbnail and the questions are kept, for your group only.</span></p>' +
+        '<div class="pick-photos mt12" id="pList"></div><div id="pErr"></div>' +
+        '<p class="lock">' + icon('lock') + '<span>Each photo is redrawn on this phone first, which removes its location and camera details. Only a small thumbnail and the questions are kept, for your group only.</span></p>' +
         '<button class="btn big block" type="button" id="pGo" disabled>Make questions</button>';
       $('#pFile', body).onchange = function (e) {
         var files = Array.prototype.slice.call(e.target.files || [], 0, 10 - items.length);
@@ -965,8 +982,8 @@
       el.innerHTML = items.map(function (it, i) {
         return '<div class="pp" data-i="' + i + '"><img src="data:image/jpeg;base64,' + it.thumb + '" alt="Photo ' + (i + 1) + '"><div>' +
           '<label class="field"><span>Where <span class="muted small">(the answer to “where?”)</span></span><input class="input" data-f="place" maxlength="60" placeholder="Lake Lanier" value="' + esc(it.place) + '"></label>' +
-          '<div class="row" style="margin:0"><label class="field" style="flex:0 0 90px"><span>Year</span><input class="input" data-f="year" type="number" inputmode="numeric" min="1900" max="' + new Date().getFullYear() + '" value="' + esc(it.year || '') + '"></label>' +
-          '<label class="field" style="flex:1 1 170px"><span>Hint</span><input class="input" data-f="hint" maxlength="140" placeholder="Dad’s birthday, the cake fell in" value="' + esc(it.hint) + '"></label></div>' +
+          '<div class="row m0"><label class="field w90"><span>Year</span><input class="input" data-f="year" type="number" inputmode="numeric" min="1900" max="' + new Date().getFullYear() + '" value="' + esc(it.year || '') + '"></label>' +
+          '<label class="field grow170"><span>Hint</span><input class="input" data-f="hint" maxlength="140" placeholder="Dad’s birthday, the cake fell in" value="' + esc(it.hint) + '"></label></div>' +
           (it.gps ? '<p class="gps">📍 This photo had a location in it - removed before anything is sent.</p>' : '') +
           '<p class="small" data-status></p><button type="button" class="link-btn" data-rm>Remove</button></div></div>';
       }).join('');
@@ -1005,6 +1022,109 @@
       nextOne();
     }
     sheet('<h2>Questions from photos</h2><div class="body"></div>', draw);
+  }
+
+  /* ---------------- make a round (photos + typed quotes, one AI pass) ---------------- */
+
+  /** "Name: what they said", one a line. Returns {quotes, bad} - bad is the
+   *  first line that has no name. */
+  function readQuotes(text) {
+    var out = { quotes: [], bad: null };
+    String(text || '').split(/\r?\n/).forEach(function (line) {
+      line = line.trim();
+      if (!line) return;
+      var m = /^([^:]{1,40}):\s*(\S.*)$/.exec(line);
+      if (!m) { if (!out.bad) out.bad = line; return; }
+      out.quotes.push({ n: m[1].trim(), t: C.stripPII(m[2].replace(/^[“"']+|[”"']+$/g, '').trim()) });
+    });
+    return out;
+  }
+
+  function openRound() {
+    if (!signedIn()) return openAccount('Making a round uses AI, so it needs a free account (it comes with $2 of credit - a round costs about two cents). The rest of your group never needs one.', openRound);
+    var L = (state.meta && state.meta.limits) || {};
+    var maxPhotos = L.roundPhotos || 6;
+    var maxQuotes = L.roundQuotes || 12;
+    var items = [];
+    var busy = false;
+    function draw(root) {
+      var body = $('.body', root);
+      body.innerHTML = '<p class="muted">Pick up to ' + maxPhotos + ' photos and type a few things people said. The AI writes questions only about what it can see and what you tell it - it never guesses who anyone is - and you review every one before anybody plays.</p>' +
+        '<h3 class="step"><span class="n">1</span>Photos <span class="muted small" id="rCount"></span></h3>' +
+        '<label class="btn ghost block">Choose photos<input type="file" accept="image/*" multiple id="rFile" class="vh"></label>' +
+        '<div class="pick-photos mt12" id="rList"></div>' +
+        '<h3 class="step"><span class="n">2</span>Who said it? <span class="muted small">optional, up to ' + maxQuotes + '</span></h3>' +
+        '<label class="field"><span class="vh">Quotes, one per line, as Name: what they said</span><textarea class="input" id="rQuotes" rows="4" placeholder="Mom: Did everyone land ok?&#10;Dad: Who moved my chair again&#10;Ana: I am never camping with you people again"></textarea></label>' +
+        '<p class="small muted mt4" id="rQn">One per line, as <b>Name: what they said</b>. Only what you type is used.</p>' +
+        '<h3 class="step"><span class="n">3</span>What’s it about? <span class="muted small">optional</span></h3>' +
+        '<label class="field"><span class="vh">What this round is about</span><input class="input" id="rHint" maxlength="140" placeholder="Lake week 2019, the cake fell in"></label>' +
+        '<div id="rErr"></div>' +
+        '<p class="lock">' + icon('lock') + '<span>Each photo is shrunk and redrawn on this phone first, which removes its location and camera details. Only a small thumbnail and the questions are kept, for your group only. Your quotes and note are read once and not stored.</span></p>' +
+        '<button class="btn big block" type="button" id="rGo" disabled>Make the round</button>';
+      $('#rFile', body).onchange = function (e) {
+        var files = Array.prototype.slice.call(e.target.files || [], 0, Math.max(0, maxPhotos - items.length));
+        var extra = (e.target.files || []).length - files.length;
+        e.target.value = '';
+        $('#rErr', body).innerHTML = extra > 0 ? '<p class="small muted">A round takes up to ' + maxPhotos + ' photos - the first ' + maxPhotos + ' are in.</p>' : '';
+        files.reduce(function (p, f) {
+          return p.then(function () {
+            return f.arrayBuffer().then(function (buf) {
+              var ex = exifInfo(buf);
+              return loadImg(f).then(function (img) {
+                items.push({ thumb: jpeg(img, 640, 110 * 1024), image: jpeg(img, 1024, 280 * 1024), year: ex.year || null, gps: Boolean(ex.gps), place: '' });
+              });
+            });
+          }).catch(function (err) { showError(err, $('#rErr', body)); });
+        }, Promise.resolve()).then(function () { list(body); });
+      };
+      $('#rQuotes', body).oninput = function () { ready(body); };
+      $('#rGo', body).onclick = function () { run(body); };
+      list(body);
+    }
+    function list(body) {
+      var el = $('#rList', body);
+      el.innerHTML = items.map(function (it, i) {
+        return '<div class="pp" data-i="' + i + '"><img src="data:image/jpeg;base64,' + it.thumb + '" alt="Photo ' + (i + 1) + '"><div>' +
+          '<div class="row m0"><label class="field grow170"><span>Where <span class="muted small">(optional)</span></span><input class="input" data-f="place" maxlength="60" placeholder="Lake Lanier" value="' + esc(it.place) + '"></label>' +
+          '<label class="field w90"><span>Year</span><input class="input" data-f="year" type="number" inputmode="numeric" min="1900" max="' + new Date().getFullYear() + '" value="' + esc(it.year || '') + '"></label></div>' +
+          (it.gps ? '<p class="gps">This photo had a location in it - removed before anything is sent.</p>' : '') +
+          '<button type="button" class="link-btn" data-rm>Remove</button></div></div>';
+      }).join('');
+      $$('.pp', el).forEach(function (row) {
+        var it = items[Number(row.getAttribute('data-i'))];
+        $$('[data-f]', row).forEach(function (inp) { inp.oninput = function () { var k = inp.getAttribute('data-f'); it[k] = k === 'year' ? (Number(inp.value) || null) : inp.value; }; });
+        $('[data-rm]', row).onclick = function () { items.splice(items.indexOf(it), 1); list(body); };
+      });
+      $('#rCount', body).textContent = items.length ? items.length + ' of ' + maxPhotos : 'up to ' + maxPhotos;
+      ready(body);
+    }
+    function ready(body) {
+      var q = readQuotes($('#rQuotes', body).value);
+      var note = $('#rQn', body);
+      if (q.bad) note.textContent = 'Start each line with a name and a colon, like “Mom: Did everyone land ok?”';
+      else if (q.quotes.length > maxQuotes) note.textContent = q.quotes.length + ' quotes - a round takes up to ' + maxQuotes + '.';
+      else if (q.quotes.length) note.textContent = plural(q.quotes.length, 'quote') + '. Only what you typed is used - and never changed.';
+      else note.innerHTML = 'One per line, as <b>Name: what they said</b>. Only what you type is used.';
+      var ok = !busy && !q.bad && q.quotes.length <= maxQuotes && (items.length > 0 || q.quotes.length >= 2);
+      $('#rGo', body).disabled = !ok;
+      return q;
+    }
+    function run(body) {
+      var q = ready(body);
+      var go = $('#rGo', body);
+      if (go.disabled) return;
+      busy = true; go.disabled = true; go.textContent = 'Writing your round…';
+      $('#rErr', body).innerHTML = '';
+      api('POST', state.src.path + '/round', {
+        photos: items.map(function (it) { return { thumb: it.thumb, image: { type: 'image/jpeg', data: it.image }, year: it.year, place: it.place }; }),
+        quotes: q.quotes, hint: $('#rHint', body).value,
+      }).then(function (r) {
+        closeSheet();
+        toast(plural(r.questions.length, 'question') + ' ready to review', 3200);
+        state.src.questions().then(function (d) { state.questions = d; drawQuestions(); var dr = $('#drafts'); if (dr && dr.scrollIntoView) dr.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }).catch(function () { loadQuestions(); });
+      }).catch(function (e) { busy = false; go.textContent = 'Make the round'; ready(body); showError(e, $('#rErr', body)); });
+    }
+    sheet('<h2>Make a round</h2><div class="body"></div>', draw);
   }
 
   /* ---------------- group chat ---------------- */
@@ -1050,12 +1170,12 @@
     function step1(root) {
       var body = $('.body', root);
       body.innerHTML = '<p class="note small"><b>Only share a chat everyone in it would be happy to play with.</b></p>' +
-        '<details><summary class="small" style="min-height:44px;display:flex;align-items:center;cursor:pointer">How to export a WhatsApp chat</summary><ol class="steps"><li><b>iPhone:</b> open the chat, tap its name, scroll down, Export Chat, Without Media. Save it to Files.</li><li><b>Android:</b> open the chat, ⋮, More, Export chat, Without media.</li><li>Then pick the file below (.zip or .txt).</li></ol></details>' +
+        '<details><summary class="small sum">How to export a WhatsApp chat</summary><ol class="steps"><li><b>iPhone:</b> open the chat, tap its name, scroll down, Export Chat, Without Media. Save it to Files.</li><li><b>Android:</b> open the chat, ⋮, More, Export chat, Without media.</li><li>Then pick the file below (.zip or .txt).</li></ol></details>' +
         '<label class="btn block">💬 Choose the export<input type="file" id="cFile" class="vh" accept=".txt,.zip,text/plain,application/zip"></label>' +
-        '<p class="small muted center" style="margin:10px 0 4px">or paste a chat, one “Name: message” per line</p>' +
+        '<p class="small muted center mt12 mb4">or paste a chat, one “Name: message” per line</p>' +
         '<textarea class="input" id="cPaste" rows="5" placeholder="Mom: Did everyone land ok?&#10;Erik: Just landed in Denver ✈️&#10;Lucía: lol same"></textarea>' +
         '<div id="cErr"></div><button class="btn block ghost" type="button" id="cRead">Read the pasted chat</button>' +
-        '<p class="lock"><span aria-hidden="true">🔒</span><span>Read on this phone. Nothing is uploaded - only the questions you choose to keep.</span></p>';
+        '<p class="lock">' + icon('lock') + '<span>Read on this phone. Nothing is uploaded - only the questions you choose to keep.</span></p>';
       $('#cFile', body).onchange = function (e) {
         var f = e.target.files && e.target.files[0];
         if (!f) return;
@@ -1086,13 +1206,13 @@
         (stats.busiest && !(stats.topDays[1] && stats.topDays[1].count === stats.busiest.count) ? '<div class="stat"><span>📅 Busiest day</span><b>' + esc(C.dateLabel(stats.busiest.date, true)) + '</b><span>' + esc(stats.busiest.count) + ' messages</span></div>' : '') +
         (stats.first ? '<div class="stat"><span>👋 First message</span><b>' + esc(stats.first.name) + '</b><span>' + esc(stats.first.date ? C.dateLabel(stats.first.date, true) : 'at the top') + '</span></div>' : '') +
         '</div><h3>Who talks most</h3><ul class="bars">' + stats.people.slice(0, 8).map(function (p) {
-          return '<li><span class="nm">' + esc(p.name) + '</span><span class="b"><i style="width:' + Math.max(2, Math.round(100 * p.count / max)) + '%"></i></span><span class="small">' + esc(p.count.toLocaleString()) + (p.topEmoji ? ' ' + esc(p.topEmoji) : '') + '</span></li>';
+          return '<li><span class="nm">' + esc(p.name) + '</span><span class="b"><i class="w' + Math.max(1, Math.round(20 * p.count / max)) + '"></i></span><span class="small">' + esc(p.count.toLocaleString()) + (p.topEmoji ? ' ' + esc(p.topEmoji) : '') + '</span></li>';
         }).join('') + '</ul>' +
         '<h3>Free questions from these stats</h3>' + (qs.length ? '<ul class="qlist">' + qs.map(function (q, i) {
-          return '<li><input type="checkbox" checked data-qi="' + i + '" aria-label="Keep this question" style="width:22px;height:22px;flex:none;margin-top:4px;accent-color:var(--accent)"><div class="body"><b>' + esc(q.prompt) + '</b><div class="ans">' + esc(q.kind === 'number' ? 'Answer: ' + q.answer.toLocaleString() : 'Answer: ' + q.options[q.answer]) + '</div></div></li>';
+          return '<li><input type="checkbox" checked data-qi="' + i + '" aria-label="Keep this question" class="tick"><div class="body"><b>' + esc(q.prompt) + '</b><div class="ans">' + esc(q.kind === 'number' ? 'Answer: ' + q.answer.toLocaleString() : 'Answer: ' + q.options[q.answer]) + '</div></div></li>';
         }).join('') + '</ul>' : '<p class="muted small">No clear winners to ask about in this one.</p>') +
         '<div id="cErr"></div>' + (qs.length ? '<button class="btn big block" type="button" id="cSave">' + (isSample() ? 'Add to a group of your own' : 'Add the ticked questions') + '</button>' : '') +
-        '<div class="card flat" style="margin-top:16px"><h3>“Who said it?” round <span class="chip cost">AI · ~1¢</span></h3><p class="small muted">The AI picks memorable lines from up to 400 messages, and we check every quote is really in your chat and who said it. Phone numbers, emails and links are removed on this phone first; names stay - they’re the game. Only the questions are kept.</p><button class="btn ghost block" type="button" id="cAi">Make a “who said it?” round</button></div>';
+        '<div class="card flat mt16"><h3>“Who said it?” round <span class="chip cost">AI · ~1¢</span></h3><p class="small muted">The AI picks memorable lines from up to 400 messages, and we check every quote is really in your chat and who said it. Phone numbers, emails and links are removed on this phone first; names stay - they’re the game. Only the questions are kept.</p><button class="btn ghost block" type="button" id="cAi">Make a “who said it?” round</button></div>';
       var save = $('#cSave', body);
       if (save) save.onclick = function () {
         if (isSample()) { closeSheet(); return sampleNudge('Adding questions from your chat'); }
@@ -1129,14 +1249,14 @@
     var meM = memberById(g.me) || {};
     v.innerHTML = '<div class="split"><div>' +
       '<div class="card"><h2>Invite your people</h2><p class="muted small">Anyone with this link or code can join with a name and an emoji - no account. Up to ' + esc(g.limits.members) + ' people.</p>' +
-      '<div class="room"><button type="button" class="qr" id="qrSmall" aria-label="Show the QR code full screen">' + QR.svg(groupLink(), 'QR code to join ' + g.name) + '</button><div><p class="small muted" style="margin:0">Join code</p><p class="code" style="margin:0">' + esc(g.display) + '</p></div></div>' +
+      '<div class="room"><button type="button" class="qr" id="qrSmall" aria-label="Show the QR code full screen">' + QR.svg(groupLink(), 'QR code to join ' + g.name) + '</button><div><p class="small muted m0">Join code</p><p class="code m0">' + esc(g.display) + '</p></div></div>' +
       '<div class="row"><button class="btn" type="button" id="copyLink">Copy invite link</button>' + (navigator.share ? '<button class="btn ghost" type="button" id="shareLink">Share…</button>' : '') + '</div></div>' +
       '<div class="card"><div class="sec-head"><h2>Members (' + esc(g.members.length) + ')</h2></div><ul class="mlist">' + g.members.map(function (m) {
         return '<li>' + who(m) + '<span class="tag">' + [m.host ? 'host' : '', m.you ? 'you' : '', m.linked ? '🔗' : ''].filter(Boolean).join(' · ') + '</span>' +
           (g.host && !m.host ? '<button class="btn small ghost danger x" type="button" data-rm="' + esc(m.id) + '">Remove</button>' : '') + '</li>';
       }).join('') + '</ul></div></div><div class="side">' +
       '<div class="card"><h2>You</h2><p>' + who(meM, 'big') + '</p><button class="btn ghost block" type="button" id="editMe">Change name, emoji or colour</button>' +
-      (meM.linked ? '<p class="small muted" style="margin-top:10px">🔗 Your seat is tied to your account - sign in on any device to play as you.</p>' : '<p class="small muted" style="margin-top:10px">This phone remembers you. To play from another device too, tie your seat to a free account.</p><button class="btn ghost block" type="button" id="linkMe">Keep my seat on every device</button>') +
+      (meM.linked ? '<p class="small muted mt12">🔗 Your seat is tied to your account - sign in on any device to play as you.</p>' : '<p class="small muted mt12">This phone remembers you. To play from another device too, tie your seat to a free account.</p><button class="btn ghost block" type="button" id="linkMe">Keep my seat on every device</button>') +
       (!g.host ? '<button class="btn ghost danger block" type="button" id="leave">Leave the group</button>' : '') + '</div>' +
       (g.host ? '<div class="card"><h2>Host</h2><label class="field"><span>Group name</span><input class="input" id="gName" maxlength="40" value="' + esc(g.name) + '"></label>' +
         '<label class="field"><span>Time zone <span class="muted small">(the daily round turns over at its midnight)</span></span><select class="input" id="gTz">' + tzOptions(g.tz) + '</select></label>' +
@@ -1193,7 +1313,7 @@
 
   function pickers(sel) {
     return '<div class="field"><span id="emLbl">Emoji</span><div class="emojis" role="radiogroup" aria-labelledby="emLbl">' + C.EMOJI.map(function (e) { return '<button type="button" class="em-btn" role="radio" data-em="' + esc(e) + '" aria-checked="' + (sel.emoji === e) + '" aria-label="' + esc(e) + '">' + esc(e) + '</button>'; }).join('') + '</div></div>' +
-      '<div class="field"><span id="colLbl">Colour</span><div class="swatches" role="radiogroup" aria-labelledby="colLbl">' + C.COLORS.map(function (c) { return '<button type="button" class="sw" role="radio" data-col="' + c.id + '" style="--c:' + c.hex + '" aria-checked="' + (sel.color === c.id) + '" aria-label="' + c.id + '"></button>'; }).join('') + '</div></div>';
+      '<div class="field"><span id="colLbl">Colour</span><div class="swatches" role="radiogroup" aria-labelledby="colLbl">' + C.COLORS.map(function (c) { return '<button type="button" class="sw" role="radio" data-col="' + c.id + '" data-c="' + c.id + '" aria-checked="' + (sel.color === c.id) + '" aria-label="' + c.id + '"></button>'; }).join('') + '</div></div>';
   }
   function wirePickers(root, sel) {
     $$('[data-em]', root).forEach(function (b) { b.onclick = function () { sel.emoji = b.getAttribute('data-em'); $$('[data-em]', root).forEach(function (x) { x.setAttribute('aria-checked', String(x === b)); }); }; });
@@ -1243,7 +1363,7 @@
   }
 
   function joinByCode() {
-    sheet('<h2>Join a group</h2><p class="muted">Type the code whoever invited you can see under Invite.</p><form id="jForm"><label class="field"><span>Join code</span><input class="input" id="jCode" autocomplete="off" autocapitalize="characters" maxlength="9" placeholder="ABC-DEF" style="font-size:1.4rem;letter-spacing:.1em;text-transform:uppercase"></label><div id="jErr"></div><button class="btn big block" type="submit">Next</button></form>', function (root) {
+    sheet('<h2>Join a group</h2><p class="muted">Type the code whoever invited you can see under Invite.</p><form id="jForm"><label class="field"><span>Join code</span><input class="input codein" id="jCode" autocomplete="off" autocapitalize="characters" maxlength="9" placeholder="ABC-DEF"></label><div id="jErr"></div><button class="btn big block" type="submit">Next</button></form>', function (root) {
       $('#jForm', root).onsubmit = function (e) {
         e.preventDefault();
         var code = $('#jCode', root).value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1260,8 +1380,8 @@
     api('GET', 'api/code/' + ROUTE.code).then(function (g) {
       if (g.member) { location.replace(BASE + 'g/' + g.gid); return; }
       var sel = { emoji: C.EMOJI[Math.floor(Math.random() * 12)], color: null };
-      el.innerHTML = '<div class="card"><p class="small muted" style="margin:0">You’re invited to</p><div class="ghead"><h1>' + esc(g.name) + '</h1></div>' +
-        '<p class="faces" aria-label="' + esc(g.members.length + ' in the group') + '">' + g.members.slice(0, 12).map(function (m) { return '<span class="av sm" style="--c:' + esc(C.colorHex(m.color)) + '" title="' + esc(m.name) + '">' + esc(m.emoji) + '</span>'; }).join('') + '</p>' +
+      el.innerHTML = '<div class="card"><p class="small muted m0">You’re invited to</p><div class="ghead"><h1>' + esc(g.name) + '</h1></div>' +
+        '<p class="faces" aria-label="' + esc(g.members.length + ' in the group') + '">' + g.members.slice(0, 12).map(function (m) { return '<span class="av sm" data-c="' + esc(colorId(m)) + '" title="' + esc(m.name) + '">' + esc(m.emoji) + '</span>'; }).join('') + '</p>' +
         '<p class="muted">' + esc(names(g.members.slice(0, 4))) + (g.members.length > 4 ? ' and ' + plural(g.members.length - 4, 'other') : '') + (g.members.length === 1 ? ' plays' : ' play') + ' trivia about each other here - five questions a day, and live on game night.</p>' +
         (g.full ? '<p class="err">This group is full.</p>' : '<label class="field"><span>Your name</span><input class="input" id="jName" maxlength="20" placeholder="What the group calls you"></label>' + pickers(sel) +
           '<div id="jErr"></div><button class="btn big block" type="button" id="jGo">Join ' + esc(g.name) + '</button><p class="small muted">No account needed. This phone remembers you; you can tie your seat to a free account later to play from other devices.</p>') + '</div>';
@@ -1292,9 +1412,10 @@
     var h = $('#home');
     h.hidden = false;
     var local = recall(K_GROUPS) || [];
-    h.innerHTML = '<div class="card"><h1>Your groups</h1><ul class="glist" id="gl"><li class="busy">Loading…</li></ul>' +
-      '<div class="row"><button class="btn" type="button" id="hStart">Start a group</button><button class="btn ghost" type="button" id="hJoin">Join with a code</button></div></div>' +
-      '<div class="card flat"><h2>See how it works</h2><p class="muted small">The Riveras are a made-up family: play their daily round, see their board and last game night.</p><button class="btn ghost block" type="button" id="hEx">Play the example</button></div>';
+    h.innerHTML = '<div class="hero left"><h1>Your groups</h1><p class="lede">Tap a group to play today’s five.</p>' +
+      '<div class="cta"><button class="btn big" type="button" id="hStart">Start a group</button><button class="btn big ghost" type="button" id="hJoin">Join with a code</button></div></div>' +
+      '<ul class="glist" id="gl"><li class="busy">Loading…</li></ul>' +
+      '<div class="sect"><h2>See how it works</h2><p class="muted">The Riveras are a made-up family: play their daily round, see their board and last game night.</p><button class="btn ghost" type="button" id="hEx">Play the example</button></div>';
     $('#hStart').onclick = startGroup;
     $('#hJoin').onclick = joinByCode;
     $('#hEx').onclick = function () { $('#home').hidden = true; openGroup(sampleSource(), 'today'); };
@@ -1309,7 +1430,7 @@
     }).then(function () {
       var el = $('#gl');
       if (!rows.length) { el.innerHTML = '<li class="muted">No groups on this phone yet. Start one, or join with the code someone sent you.</li>'; return; }
-      el.innerHTML = rows.map(function (g) { return '<li><a href="' + esc(BASE + 'g/' + g.id) + '"><span style="font-size:1.4rem" aria-hidden="true">' + esc((g.emoji || []).join('')) + '</span><span><b>' + esc(g.name) + '</b><span class="small muted">' + esc(plural(g.members, 'member')) + (g.host ? ' · you host' : '') + '</span></span></a></li>'; }).join('');
+      el.innerHTML = rows.map(function (g) { return '<li><a href="' + esc(BASE + 'g/' + g.id) + '"><span class="f20" aria-hidden="true">' + esc((g.emoji || []).slice(0, 3).join('')) + '</span><span class="grow"><b>' + esc(g.name) + '</b><span class="small muted">' + esc(plural(g.members, 'member')) + (g.host ? ' · you host' : '') + '</span></span><span class="chev" aria-hidden="true">›</span></a></li>'; }).join('');
     });
   }
 
@@ -1361,8 +1482,8 @@
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).onclick = function () { mode = mode === 'register' ? 'login' : 'register'; draw(root); };
       $('#authForm', root).onsubmit = function (e) {
         e.preventDefault();
@@ -1388,10 +1509,10 @@
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet(
       '<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread" style="margin:0"><b>AI credit</b><span>' + esc(left) + '</span></div>' +
-      '<p class="small muted" style="margin:6px 0 0">Questions from a photo cost about a cent; a “who said it?” round about the same. Playing, the chat stats and writing your own are free.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread m0"><b>AI credit</b><span>' + esc(left) + '</span></div>' +
+      '<p class="small muted mt8 mb0">Questions from a photo cost about a cent; a “who said it?” round about the same. Playing, the chat stats and writing your own are free.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block mt16" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).onclick = function () {
@@ -1437,7 +1558,7 @@
   });
 
   drawTop();
-  loadMe().then(function () {
+  Promise.all([loadMe(), api('GET', 'api/meta').then(function (m) { state.meta = m; }, function () { /* the page works without it */ })]).then(function () {
     if (ROUTE.kind === 'join') return drawJoin();
     if (ROUTE.kind === 'group') {
       return openGroup(apiSource(ROUTE.gid), recall(K_TAB) || 'today').catch(function (e) {
