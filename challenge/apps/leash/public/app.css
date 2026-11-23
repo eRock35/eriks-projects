@@ -450,6 +450,22 @@ fieldset.field { border: 0; padding: 0; }
   @keyframes flash { 0% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
 }
 
+/* Phones: a shorter welcome, so the ring and the worst day start on the
+   first screen (390x844) instead of below the fold. Same sizes and rules:
+   the display headline a little smaller, the lede at --t4, the two buttons
+   side by side (48px, the primary minimum) where they fit and stacked where
+   they don't (320px), and less air above the score. */
+@media (max-width: 899.98px) {
+  .intro { padding: 16px 0 0; }
+  .intro h1 { font-size: clamp(2rem, 8.6vw, 2.75rem); margin-bottom: 8px; }
+  .intro .lede { font-size: var(--t4); }
+  .hero-cta { margin-top: 16px; gap: 8px; }
+  .hero-cta .btn.big { flex: 1 1 auto; min-height: 48px; padding: 8px 16px; font-size: var(--t3); white-space: nowrap; }
+  .intro .sub { margin-top: 8px; }
+  .intro:not(.mine):not([hidden]) + .layout .radius { margin-top: 16px; }
+  .intro:not(.mine):not([hidden]) + .layout .radius .example-of { margin-bottom: 8px; }
+  .intro:not(.mine):not([hidden]) + .layout .ring-row { margin-top: 0; margin-bottom: 16px; }
+}
 @media (max-width: 380px) {
   .cap-body { grid-template-columns: minmax(0, 1fr); }
   .ring { width: 176px; height: 176px; flex-basis: 176px; }

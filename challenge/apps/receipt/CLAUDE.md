@@ -291,6 +291,22 @@ recap and the loose ends, not the ticker's novelty.
   the quote and the date is within a year of the meeting. "Next meeting" must
   be in the notes. The summary goes through `guardFacts`. The fake model's
   `INJECT` answer exercises every one of these.
+- **Recap owners and dates, fixed 2026-11-23.** Owners and dates stated in
+  the notes came back `[owner?]` with no date. Causes: (1) with no attendee
+  labels typed (they are optional) the prompt told the model to leave every
+  owner empty and the validator had nothing to match; now, with no labels,
+  the owner is the name as the notes write it (`nameAsWritten`: no voices,
+  pronouns or digits), still only when `tookItOn` passes. Typed labels still
+  bound it. (2) A bulleted or numbered speaker ("- Jordan: I'll...") was not
+  read as a speaker (`SPEAKER_LINE`), and a quote that started after "I'll"
+  lost the commitment; the speaker's clause up to the quote now counts
+  (`clauseOf`, never across "and"/"but"/a comma). (3) A meeting recapped
+  before Start had no day, so the model could not turn "by Friday" into a
+  date and it was dropped; `recapContext` takes the browser's today
+  (`todayOf`) and the date is worked out here with `gemini.dueFromWords`
+  from the quoted `dueText` (the model's date only when the words are ones
+  that arithmetic does not read). Same for the Gemini path (same prompt,
+  schema and validator). Tests: "recap owners and dates from the notes".
 - **Notes and photos are read once and kept nowhere.** A whiteboard photo is
   shrunk in the browser (1600px JPEG), checked by magic number and size
   *before* anything is spent (`lib/photo.js`, 400), read by the model and

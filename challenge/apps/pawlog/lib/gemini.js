@@ -35,6 +35,8 @@ const Core = require('../public/pawlog-core');
 const ai = require('./ai');
 
 const MODEL = 'gemini-3.8-flash';
+// The one Gemini call's limit: a photo read ran 39-54 s, past the guard's 30 s default.
+const TIMEOUT_MS = 60000;
 const MAX_MEDS = 8;
 const CONFIDENCE = ['high', 'medium', 'low'];
 
@@ -145,8 +147,14 @@ function request(b, today) {
     contents: [{ role: 'user', parts }],
     responseSchema: SCHEMA,
     systemInstruction: SYSTEM,
-    generationConfig: { temperature: 0, maxOutputTokens: 4096 },
-    timeoutMs: 30000,
+    // Low thinking and 60 s (2026-11-23): as Claude's backup in claude-first
+    // a paperwork photo took 39-54 s at the default level and hit the 30 s
+    // limit ("AI is busy"). The reader only copies what is printed - nothing
+    // to reason out - and cleanReading still keeps each value exactly or not
+    // at all, so low thinking costs it nothing (Glovebox's diagnose does the
+    // same). Thinking tokens also share maxOutputTokens.
+    generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: 'LOW' } },
+    timeoutMs: TIMEOUT_MS,
   };
 }
 
@@ -217,4 +225,4 @@ function priceUsd({ inputTokens = 0, outputTokens = 0, at = new Date() } = {}) {
   return (inputTokens * (late ? 1.5 : 0.75) + outputTokens * (late ? 7.5 : 3.75)) / 1e6;
 }
 
-module.exports = { MODEL, SCHEMA, SYSTEM, MAX_MEDS, request, exact, cleanMeds, cleanReading, priceUsd };
+module.exports = { MODEL, SCHEMA, SYSTEM, MAX_MEDS, TIMEOUT_MS, request, exact, cleanMeds, cleanReading, priceUsd };

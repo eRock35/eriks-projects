@@ -1048,6 +1048,20 @@ test('claude-first: Claude reads; it throws, reads nothing or is capped -> Gemin
   assert.deepStrictEqual(lines, ['[pawlog] claude failed (http); used gemini', '[pawlog] claude failed (unusable); used gemini', '[pawlog] claude failed (unusable); used gemini', '[pawlog] claude failed (monthly-cap); used gemini', '[pawlog] claude failed (http); used gemini']);
 });
 
+test('claude-first: the Gemini backup gets 60 s and low thinking, not the guard\'s 30 s default', async () => {
+  const me = await register('cf.timeout@example.com');
+  const seen = [];
+  const g = fakeGuard({ provider: 'any', generate: async (r) => { seen.push({ timeoutMs: r.timeoutMs, thinking: r.generationConfig && r.generationConfig.thinkingConfig, temperature: r.generationConfig && r.generationConfig.temperature }); return { json: await r.fake({ contents: [{ parts: [{ text: 'Today is 2026-11-23' }] }] }), usage: { inputTokens: 100, outputTokens: 10 } }; } });
+  const warn = console.warn;
+  console.warn = () => {};
+  let r;
+  try { r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', { ...PAPER, text: 'UPSTREAM500 ' + PAPER.text })); } finally { console.warn = warn; }
+  assert.deepStrictEqual([r.status, r.data.reader], [200, 'gemini'], r.text);
+  assert.deepStrictEqual(seen, [{ timeoutMs: 60000, thinking: { thinkingLevel: 'LOW' }, temperature: 0 }]);
+  const photo = gemini.request({ kind: 'cat', photo: { mediaType: 'image/jpeg', data: 'QUJD' } }, T0);
+  assert.deepStrictEqual([photo.timeoutMs, gemini.TIMEOUT_MS, photo.generationConfig.thinkingConfig], [60000, 60000, { thinkingLevel: 'LOW' }], 'a photo read too');
+});
+
 test('on Claude the lab guard is asked first and told the cost after; a refusal makes no call; the gates still come before it', async () => {
   const me = await register('guarded.claude@example.com');
   const g = fakeGuard({ provider: 'claude' });

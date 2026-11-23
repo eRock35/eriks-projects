@@ -105,7 +105,7 @@ function recap(params) {
       const by = said.match(/by (\w+)/i);
       const task = said.replace(/^I'll |^I will |^I can /i, '').replace(/\.$/, '');
       out.actions.push({ text: task.charAt(0).toUpperCase() + task.slice(1), owner: m ? m[1].split(' ')[0] : '', due: by ? '2026-10-02' : '', dueText: by ? by[0] : '', source: 'notes', ref: 0, quote: said });
-    } else if (/\bwill\b/.test(said) && labels.some((l) => said.startsWith(l))) {
+    } else if (/\bwill\b/.test(said) && (labels.length ? labels.some((l) => said.startsWith(l)) : /^[A-Z][a-z]+ will\b/.test(said))) {
       out.actions.push({ text: said.replace(/\.$/, ''), owner: said.split(' ')[0], due: '', dueText: '', source: 'notes', ref: 0, quote: said });
     } else if (/^decided:?/i.test(said)) {
       out.decisions.push({ text: said.replace(/^decided:?\s*/i, ''), source: 'notes', ref: 0, quote: said });

@@ -188,7 +188,7 @@
         el.innerHTML = '<h1>Know what your AI agent can do.</h1>' +
           '<p class="lede">Before it does it. A blast-radius score, its worst day in dollars, the fixes that shrink it, a bad-day drill and a one-page charter.</p>' +
           '<div class="hero-cta"><button class="btn big" type="button" id="checkMine">Check my agent</button><button class="btn big ghost" type="button" id="pasteMine">Paste its prompt</button></div>' +
-          '<p class="sub">Free, no account: tick what it can do. Or paste its prompt and tools, and AI maps it and suggests drills.</p>';
+          '<p class="sub">Free, no account: tick what it can do. Or paste its prompt and tools, and AI maps it and suggests tests to run on it.</p>';
         $('#checkMine').onclick = function () { startOwn('pick'); };
         $('#pasteMine').onclick = function () { startOwn('paste'); };
       }
@@ -469,7 +469,7 @@
     bits.push(f.confidence + ' confidence');
     return bits.join(' · ');
   }
-  /** The reading's drills: what to say to the agent, and what it should do.
+  /** The reading's tests ("probes"; "drill" is the bad-day drill): what to say to the agent, and what it should do.
    *  The "say this" line may be the model's; the "it should" line is ours. */
   function probesHtml(list) {
     return '<ol class="probes">' + list.map(function (p, i) {
@@ -479,12 +479,12 @@
     }).join('') + '</ol><p class="probe-note">Run these on your own agent, in a test chat with test accounts - never on live customers. They are ordinary requests, not attacks: you are checking that it says no.</p>';
   }
   function wireProbes(root, list) {
-    $$('[data-probe]', root).forEach(function (b) { b.onclick = function () { copy(list[Number(b.getAttribute('data-probe'))].ask, 'Drill copied'); }; });
+    $$('[data-probe]', root).forEach(function (b) { b.onclick = function () { copy(list[Number(b.getAttribute('data-probe'))].ask, 'Test copied'); }; });
   }
   function drawProbes() {
     var box = $('#probeBox'), list = state.probes;
     if (!list || !list.length || state.drill.phase === 'round') { box.innerHTML = ''; return; }
-    box.innerHTML = '<h3 class="read-h">Drills for your own agent</h3><p class="small muted">From the prompt you pasted: ' + list.length + ' things to say to it, and what a safe agent does.</p>' + probesHtml(list);
+    box.innerHTML = '<h3 class="read-h">Tests to run on your agent</h3><p class="small muted">From the prompt you pasted: ' + list.length + ' things to say to it, and what a safe agent does.</p>' + probesHtml(list);
     wireProbes(box, list);
   }
   function drawReview() {
@@ -502,7 +502,7 @@
       }).join('') + '</ul>' +
       '<p class="small muted mt12">Applying sets each one\'s autonomy and limits. Logging and undo start at "not logged" and the usual answer - set them in the checklist.</p>' +
       '<div class="row">' + (n ? '<button class="btn" type="button" id="applyRead">Apply ' + n + ' to the profile</button>' : '') + '<button class="btn ghost" type="button" id="dropRead">Discard</button></div>' +
-      (probes.length ? '<h3 class="read-h">Drills to run on your agent</h3><p class="small muted">' + probes.length + ' things to say to it, and what a safe agent does. They stay under Drill until you close this agent.</p>' + probesHtml(probes) : '') +
+      (probes.length ? '<h3 class="read-h">Tests to run on your agent</h3><p class="small muted">' + probes.length + ' things to say to it, and what a safe agent does. They stay under Drill until you close this agent.</p>' + probesHtml(probes) : '') +
       (r.risks.length ? '<h3 class="read-h">Also worth a look</h3><p class="small muted">Not on the checklist, but the text shows them:</p><ul class="risks">' + r.risks.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '');
     wireProbes(out, probes);
     var ap = $('#applyRead');

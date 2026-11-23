@@ -631,6 +631,18 @@ test('out of credit: 402 before any model call - and before the big body is read
 
 /* ---------------- drills, the wrapper and the lab's guard ---------------- */
 
+test('the AI\'s probes are "tests to run on your agent", so they never read as the bad-day drill; the phone hero is shorter', () => {
+  const pub = (f) => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+  const js = pub('app.js');
+  const html = pub('index.html');
+  assert.strictEqual((js.match(/Tests to run on your agent/g) || []).length, 2, 'both probe headings');
+  assert.ok(/suggests tests to run on it/.test(js) && /suggests tests to run on your agent/.test(html));
+  assert.ok(!/Drills to run|Drills for your own agent|suggests drills|'Drill copied'/.test(js + html), 'no probe copy says drill');
+  assert.ok(/<h2 id="drillH" class="page-h">Bad-day drill<\/h2>/.test(html), 'the drill keeps its name');
+  const phone = pub('app.css').match(/@media \(max-width: 899\.98px\) \{([\s\S]*?)\n\}/);
+  assert.ok(phone && /\.intro \{ padding: 16px 0 0; \}/.test(phone[1]) && /\.hero-cta \.btn\.big \{[^}]*min-height: 48px/.test(phone[1]), 'a shorter hero on phones, 48px buttons');
+});
+
 test('drills: only for what the reading found, our own "it should" line, attacks dropped, 3 to 5 with Leash\'s templates filling in', () => {
   const found = C.cleanExtraction({ capabilities: [
     { id: 'refunds', autonomy: 'alone', limit: { perAction: '500', perDay: null }, evidence: 'x', confidence: 'high' },

@@ -740,7 +740,7 @@ app.post('/api/meetings/:id/recap', ...spend, ownerOnly, bigJson, async (req, re
     const notes = R.cleanText(b.notes, M.LIMITS.notes);
     const log = await loadLog(req.user.id, m.id);
     if (!log.length && !notes && !image) throw httpError(400, 'Log a decision or an action, or paste your notes, first.', { field: 'notes' });
-    const ctx = ai.recapContext(m, log, notes, Boolean(image));
+    const ctx = ai.recapContext(m, log, notes, Boolean(image), todayOf(req));
     let raw;
     const viaClaude = async () => ai.validateRecap(raw = await withClaude(req, (client, model, onUsage) => ai.recap(client, model, ctx, image, onUsage)), ctx);
     const rec = await byProvider(viaClaude, async () => ai.validateRecap(raw = await askGemini(req, gemini.recapRequest(ctx, image), 'recap'), ctx));

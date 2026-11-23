@@ -236,6 +236,17 @@ the Gemini path reads the same request (`[pawlog] claude failed (<code>); used
 gemini`), answering `reader: 'gemini'` so the page draws the field-by-field
 review; a burst refusal is sent as it is. `/api/me` says `claude-first`.
 
+**Gemini gets 60 s and low thinking (2026-11-23).** As the backup, a
+paperwork photo took 39-54 s at the default thinking level and hit the
+guard's 30 s default ("AI is busy"). `gemini.request` now passes
+`timeoutMs: 60000` (`gemini.TIMEOUT_MS`) and `generationConfig.thinkingConfig:
+{ thinkingLevel: 'LOW' }`, as Glovebox's diagnose does: the reader only copies
+what is printed and `cleanReading` still keeps each value exactly or not at
+all. One request builder, so it applies on `gemini` too. Cloud Run's request
+timeout for `challenge` is 300 s (checked 2026-11-23), above Claude then
+Gemini. Not yet timed on a live photo with low thinking. Test: "claude-first:
+the Gemini backup gets 60 s and low thinking".
+
 - **Guard order** (both providers): `requireUser, requireBudget,
   requireDailyCap` -> the 9 MB parser -> `ai.brief` (a 400 costs nothing and
   never reaches the guard) -> `LAB_AI_GUARD.allow` (its "no" is sent in its
@@ -355,7 +366,7 @@ reads triggers in the text: `BLANK`, `INJECT`, `MAXTOKENS`, `UPSTREAMnnn`.
 For `npm run dev` with a signed-in paperwork read, also set
 `REQUIRE_VERIFIED_FOR_FREE_AI=0`.
 
-`test/run.js` (29 tests; the last six hold the provider switch, the Gemini
+`test/run.js` (32 tests; the last six hold the provider switch, the Gemini
 schema and cleaning, `parseFrequency`, the confirm gate, the route on Gemini
 with a fake guard, and the guard on Claude): cleaning, first names and contact stripping;
 repeats across month ends and leap years, templates; zones and both clock
