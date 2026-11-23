@@ -9,6 +9,8 @@
 //   BLANK        nothing usable came back - a 422
 //   INJECT       hostile output: markup, bidi, huge text, non-strings,
 //                unknown tones, repeats, twenty options
+//   INVENT       wording that states what the loan did not: a made-up date,
+//                a deadline, a threat, a guilt trip - and one honest message
 //   MAXTOKENS    the answer ran out of room
 //   UPSTREAMnnn  the call fails the way the SDK's APIError does
 //   anything else - three messages in the tone asked for
@@ -45,13 +47,23 @@ function write(source) {
       ],
     });
   }
+  if (/INVENT/.test(source)) {
+    return toolUse('write_nudges', {
+      options: [
+        { text: `Hi ${who}, I need it back by Friday the 13th at the latest.`, tone },
+        { text: `${who}, you've had it 999 days. Bring it back or else.`, tone },
+        { text: `${who}, after all I've done for you, I thought we were friends.`, tone },
+        { text: `Hi ${who}! Could I have it back when you get a chance? Thank you!`, tone },
+      ],
+    });
+  }
   if (/MAXTOKENS/.test(source)) return toolUse('write_nudges', { options: [{ text: 'Hi', tone }] }, { stop_reason: 'max_tokens' });
   const birthday = /birthday/i.test(source);
   return toolUse('write_nudges', {
     options: [
-      { text: `Hey ${who}! ${birthday ? 'Before your birthday chaos starts - ' : ''}could I grab it back this week? 😊`, tone },
+      { text: `Hey ${who}! ${birthday ? 'Before your birthday chaos starts - ' : ''}could I grab it back when you get a moment? 😊`, tone },
       { text: `${who}, it misses me. ${birthday ? 'Consider returning it your birthday gift to me. ' : ''}Drop it round when you can?`, tone },
-      { text: `Hi ${who} - no rush, but I'll need it back soon.${birthday ? ' Happy early birthday!' : ''}`, tone },
+      { text: `Hi ${who} - no rush, but I'd love it back.${birthday ? ' Happy early birthday!' : ''}`, tone },
     ],
   });
 }

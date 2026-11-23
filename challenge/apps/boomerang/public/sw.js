@@ -9,7 +9,7 @@
  * a receipt page (h/<token>), and never another app's (the lab shares this
  * origin). Caches are named boomerang-*, and only those are ever deleted.
  */
-var CACHE = 'boomerang-shell-v1';
+var CACHE = 'boomerang-shell-v2';
 var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'boomerang-core.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {

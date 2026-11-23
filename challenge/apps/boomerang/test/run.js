@@ -584,6 +584,144 @@ test('the model sees only that loan: item, first name, dates, tone and hint - an
   assert.deepStrictEqual(ai.cleanOptions(null, 'polite'), []);
 });
 
+test('the facts are worked out here and the wording is checked against them: a made-up number, date, deadline, threat or guilt trip drops the message whole', async () => {
+  // overdue: lent 2026-07-16 (a Thursday), due 2026-07-30, today 2026-10-18 -> 94 days out, 80 days late
+  const b = ai.brief({ loan: { item: 'Cordless drill', who: 'Sam Okafor-Lindqvist', dir: 'lent', on: '2026-07-16', due: '2026-07-30' }, tone: 'friendly', hint: '' }, T);
+  assert.strictEqual(b.who, 'Sam', 'a first name is all the model is given');
+  assert.deepStrictEqual(ai.facts(b, T), { days: 94, on: '2026-07-16', due: '2026-07-30', late: 80, left: null });
+  const ok = ai.allowed(b, T);
+  const why = (t, o = ok) => ai.refuse(t, o);
+  for (const fine of [
+    'Hi Sam! Could I have my drill back when you get a chance? 😊',
+    'Sam, the drill has been with you 94 days - it misses home.',
+    'Hi Sam, it was due back July 30. No stress, just drop it round!',
+    'Hey Sam, about 13 weeks is a long holiday for a drill. May I have it back?',
+    'Notice to Sam: the drill is hereby cordially summoned home. (A joke. Mostly.)',
+  ]) assert.strictEqual(why(fine), null, fine);
+  for (const [bad, reason] of [
+    ['Sam, you have had it 120 days.', 'number'],
+    ['Hi Sam, can I have it back by the 5th?', 'number'],
+    ['Hi Sam, I need it for a job in December.', 'date'],
+    ['Sam, could you bring it round on Saturday?', 'date'],
+    ['Sam - drill back by Thursday please.', 'date'], // the day it was lent is not a day to give it back by
+    ['Sam, drop it back tomorrow?', 'date'],
+    ['Hi Sam, I need it back by the end of the week.', 'deadline'],
+    ['Sam, back within a week please.', 'deadline'],
+    ['Sam, I want it back at the latest when you are free.', 'deadline'],
+    ['Sam, bring it back or else.', 'threat'],
+    ['Sam, next stop is small claims court!', 'threat'],
+    ['Sam, there will be a late fee, you know.', 'threat'],
+    ['Sam, after all I’ve done for you...', 'guilt'],
+    ['Honestly Sam, I thought we were friends.', 'guilt'],
+    ['Sam, you never give things back.', 'guilt'],
+  ]) assert.strictEqual(why(bad), reason, bad);
+  // what the person typed is theirs to use: a number or a day in the hint or the item is allowed
+  const typed = ai.brief({ loan: { item: 'Catan 5-6 player box', who: 'Sam', dir: 'lent', on: '2026-07-16' }, tone: 'polite', hint: 'games night on Saturday' }, T);
+  assert.strictEqual(ai.refuse('Sam, could I have the 5-6 player box before games night on Saturday?', ai.allowed(typed, T)), null);
+  assert.strictEqual(ai.refuse('Sam, could I have it by Sunday?', ai.allowed(typed, T)), 'date');
+  // a return date still ahead may be named, weekday and all
+  const ahead = ai.brief({ loan: { item: 'Tent', who: 'Alex', dir: 'borrowed', on: '2026-10-12', due: '2026-10-20' }, tone: 'polite' }, T);
+  assert.strictEqual(ai.facts(ahead, T).left, 2);
+  assert.strictEqual(ai.refuse('Alex, your tent is coming home Tuesday, October 20 - in 2 days!', ai.allowed(ahead, T)), null);
+  assert.strictEqual(ai.refuse('Alex, your tent is coming home Wednesday.', ai.allowed(ahead, T)), 'date');
+  // cleanOptions drops the whole message, never patches it
+  const kept = ai.cleanOptions({ options: [{ text: 'Sam, 999 days!', tone: 'friendly' }, { text: 'Hi Sam, drill home soon?', tone: 'friendly' }, { text: 'Sam, or else.', tone: 'friendly' }] }, 'friendly', b, T);
+  assert.deepStrictEqual(kept, [{ text: 'Hi Sam, drill home soon?', tone: 'friendly' }]);
+  // the request: facts in words the check knows, no sums left to the model, two or three short options
+  const seen = [];
+  const spy = { messages: { create: async (p) => { seen.push(p); return { stop_reason: 'tool_use', usage: { input_tokens: 11, output_tokens: 7 }, content: [{ type: 'tool_use', name: 'write_nudges', input: { options: [] } }] }; } } };
+  let used = null;
+  await ai.write(spy, 'claude-haiku-4-5', b, T, (u) => { used = u; });
+  assert.deepStrictEqual(used, { inputTokens: 11, outputTokens: 7 });
+  const text = seen[0].messages[0].content[0].text;
+  assert.ok(/on Thursday, July 16, 2026 \(94 days ago\)/.test(text) && /due back on Thursday, July 30, 2026, 80 days ago/.test(text), text);
+  assert.ok(!/Okafor|Lindqvist/.test(JSON.stringify(seen[0])), 'no surname leaves');
+  assert.ok(!text.includes(T), 'today is not sent: the days are already worked out');
+  const none = ai.brief({ loan: { item: 'Ladder', who: 'Dev', dir: 'lent', on: '2026-09-10' }, tone: 'polite' }, T);
+  await ai.write(spy, 'claude-haiku-4-5', none, T);
+  assert.match(seen[1].messages[0].content[0].text, /No return date was set, so do not mention one\./);
+  assert.deepStrictEqual([ai.TOOL.input_schema.properties.options.minItems, ai.TOOL.input_schema.properties.options.maxItems], [2, 3]);
+  assert.ok(ai.SHORT <= 300 && ai.TOOL.input_schema.properties.options.items.properties.text.description.includes(String(ai.SHORT)));
+  assert.match(ai.SYSTEM, /wording only/);
+  assert.match(ai.SYSTEM, /never add a number, a date, a day of the week, a deadline/);
+  assert.match(ai.SYSTEM, /No threats or consequences, no guilt trips/);
+  // over HTTP, through the stand-in: of four messages only the honest one comes back
+  const me = await register('ivy.invent@example.com');
+  const r = await me('POST', '/api/write', { loan: { item: 'Cordless drill', who: 'Sam', dir: 'lent', on: '2026-07-16', due: '2026-07-30' }, tone: 'friendly', hint: 'INVENT', today: T });
+  assert.strictEqual(r.status, 200, r.text);
+  assert.deepStrictEqual(r.data.options, [{ text: 'Hi Sam! Could I have it back when you get a chance? Thank you!', tone: 'friendly' }]);
+});
+
+test('the lab’s AI guard, when the host has loaded one: asked after the gates and the body check, before the model call, told the cost after; a no is its friendly message and no model call; without it the app runs on its own gates', async () => {
+  const LOAN = { item: 'Drill', who: 'Sam', dir: 'lent', on: T };
+  const bo = await register('bo.guard@example.com');
+  assert.strictEqual(global.LAB_AI_GUARD, undefined);
+  assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN, tone: 'polite' })).status, 200, 'no guard loaded: the identity gates stand alone');
+  const seen = { allow: [], record: [], price: [] };
+  let verdict = { ok: true };
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.allow.push({ provider: a.provider, app: a.app, user: Boolean(a.req && a.req.user && a.req.user.id) }); return verdict; },
+    priceUsd: (a) => { seen.price.push(a); return 0.0042; },
+    record: async (a) => { seen.record.push(a); return true; },
+  };
+  try {
+    assert.strictEqual((await client()('POST', '/api/write', { loan: LOAN, tone: 'polite' })).status, 401);
+    assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN })).status, 400);
+    assert.deepStrictEqual(seen.allow, [], 'a stranger or a bad request never reaches the guard');
+    await settle();
+    let n = await modelCalls();
+    assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN, tone: 'polite' })).status, 200);
+    await settle();
+    assert.deepStrictEqual(seen.allow, [{ provider: 'claude', app: 'boomerang', user: true }]);
+    assert.strictEqual(await modelCalls(), n + 1);
+    assert.deepStrictEqual(seen.price, [{ provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 310, outputTokens: 240 }]);
+    assert.deepStrictEqual(seen.record, [{ provider: 'claude', app: 'boomerang', usd: 0.0042 }]);
+    // messages the checks threw away were still paid for
+    assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN, tone: 'polite', hint: 'BLANK' })).status, 422);
+    assert.strictEqual(seen.record.length, 2, 'recorded although refused');
+    // a call that never came back cost nothing
+    assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN, tone: 'polite', hint: 'UPSTREAM529' })).status, 503);
+    assert.strictEqual(seen.record.length, 2);
+    // the guard says no
+    await settle();
+    n = await modelCalls();
+    verdict = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    const no = await bo('POST', '/api/write', { loan: LOAN, tone: 'polite' });
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works. The ready-made nudges are free.']);
+    verdict = { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' };
+    assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN, tone: 'polite' })).status, 429);
+    await settle();
+    assert.strictEqual(await modelCalls(), n, 'no model call when the guard says no');
+    assert.strictEqual(seen.record.length, 2);
+    // a guard whose record throws never loses the answer
+    verdict = { ok: true };
+    global.LAB_AI_GUARD.record = async () => { throw new Error('store down'); };
+    assert.strictEqual((await bo('POST', '/api/write', { loan: LOAN, tone: 'polite' })).status, 200);
+  } finally { delete global.LAB_AI_GUARD; }
+  const src = read('server.js');
+  assert.match(src, /const PROVIDER = 'claude';/, 'the provider is Claude, through the lab’s existing client - no switch, no federation');
+  assert.ok(!/gemini|vertex|aiplatform|metadata\.google|AI_PROVIDER/i.test(src + read('lib/ai.js')), 'no other provider is wired');
+});
+
+test('the redesigned page: no style attribute written anywhere, a nav with a current item, the message is yours to edit, only a first name is sent', () => {
+  const html = read('public/index.html');
+  const js = read('public/app.js');
+  assert.ok(!/\sstyle\s*=/.test(html) && !/style=/.test(js) && !/\.style\./.test(js) && !/setAttribute\('style'/.test(js), 'no style attribute, in the page or written by script');
+  assert.ok(/<nav class="bar" id="bar"/.test(html) && /<nav class="topnav"/.test(html) && (html.match(/data-nav="shelf" aria-current="page"/g) || []).length === 2);
+  assert.ok(!/fonts\.googleapis|@font-face|@import/.test(read('public/app.css') + html), 'system fonts only');
+  const css = read('public/app.css');
+  assert.ok(!/gradient\(/.test(css), 'no gradients');
+  const outside = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}\n/, '');
+  assert.ok(!/animation|transition|@keyframes/.test(outside), 'every motion rule sits inside prefers-reduced-motion: no-preference');
+  assert.match(js, /<textarea class="input msg" id="msg"/, 'the message is a text box the person edits');
+  assert.match(js, /\$\('#msg', root\)\.addEventListener\('input', function \(e\) \{ n\.edit = e\.target\.value; \}\)/);
+  assert.match(js, /if \(typeof n\.edit === 'string'\) return n\.edit;/, 'what is sent or copied is what they typed');
+  assert.match(js, /loan: \{ item: l\.item, who: firstName\(l\.who\), dir: l\.dir, on: l\.on, due: l\.due \}/, 'the request carries the item, a first name and the dates - no note, no receipt');
+  assert.strictEqual((js.match(/api\('POST', 'api\/write'/g) || []).length, 1, 'one call');
+  assert.match(js, /esc\(o\.text\)/, 'a model message is escaped');
+  assert.match(js, /Written by AI/);
+});
+
 test('the gates: an unconfirmed free account gets verify-email 403, out of credit 402, the day’s free ceiling 503 - never a 413, never a model call', async () => {
   const LOAN = { item: 'Drill', who: 'Sam', dir: 'lent', on: T };
   const eve = await register('eve.unconfirmed@example.com');

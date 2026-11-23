@@ -3,8 +3,8 @@
 Lend it. Get it back. A shelf of what you lent and what you borrowed - the
 drill, the book, the jacket, the casserole dish, the board game - sorted into
 **Overdue / Due soon / Out now / Back home**, a **receipt link** the other
-person confirms with one tap (no app, no account), **nudges** with a tone dial
-from Polite to Legal-ish, and **stats with personality** ("Your ladder has been
+person confirms with one tap (no app, no account), **nudges** in a tone you
+pick from Polite to Legal-ish, and **stats with personality** ("Your ladder has been
 on holiday for 94 days", your return rate, your most reliable borrower).
 
 Built 2026-10-18 as an **everyday** drop: Sniff (2026-10-17) was a business
@@ -62,7 +62,7 @@ needed: it would be the phone's own reminder).
 - **Status:** back (it has a back date), overdue (the due date has passed;
   due *today* is not late yet), soon (today and the next three days), out.
   Chips always carry words ("80 days late", "Due tomorrow", "Back Oct 2"),
-  never colour alone. Overdue cards pulse (off under reduced motion).
+  never colour alone.
 - **The emoji guess** (`guessEmoji`) is a fixed keyword map read from the
   last word back (the head noun: a "camping chair" is a chair), a two-word
   rule ending at a word beating a one-word rule ("plant pot" is not a cooking
@@ -79,11 +79,14 @@ needed: it would be the phone's own reminder).
   (`itemPhrase`: "my cordless drill", "my Catan"), the days and a "by when".
   The first message per loan and tone is fixed by a hash; "Another one" cycles.
   Legal-ish says it is a joke in every message. The receipt link can be
-  added on its own line. **Boomerang never sends anything**: Send opens the
-  phone's share sheet, else it copies.
-- **The first run** is the hero, three doors (**Try a sample shelf**, I lent
-  something, I borrowed something), a privacy line and a four-step "How it
-  works". The sample (`sample(today)`, dated from today) is eight made-up
+  added on its own line. The message sits in a **text box the person edits**;
+  what is sent or copied is what the box holds (an edit survives the link
+  toggle, and is replaced by picking another tone, "Another one" or a written
+  option). **Boomerang never sends anything**: Send opens the phone's share
+  sheet, else it copies.
+- **The first run** is a centred hero, three doors (two pills, **Try a sample
+  shelf** and I lent something, and an I borrowed something link), a privacy
+  line and a four-step "How it works". The sample (`sample(today)`, dated from today) is eight made-up
   loans: a drill out 94 days with a confirmed receipt, a book due tomorrow, a
   ladder with no date, a casserole dish and a tent borrowed (Mum, Alex), and
   three back home, so every band, every stat and the receipt flow show in one
@@ -171,23 +174,100 @@ only** - never uploaded, never synced; there is no route that takes one. A
 service worker (`sw.js`, network first) keeps the app's own files for offline
 use, never `api/` and never a receipt page.
 
-## Write it for me (the one model call)
+## Write it for me (the one model call; Claude)
 
-`POST /api/write {loan: {item, who, dir, on, due}, tone, hint, today}`:
-`requireUser, requireBudget, requireDailyCap` **then** the route's own 8 KB
-parser (a stranger's body is never read; tested 401/402/403/503, never 413),
-then `ai.brief` (an item and a name, a known tone, a hint under 80 characters -
-a 400 costs nothing), then one forced tool `write_nudges` -> `{options:
-[{text, tone}]}`, max 900 tokens. The model is sent **only that loan's** item,
-first name, dates, direction, tone and hint - never the note, the receipt or
-the rest of the shelf (tested with a spy client). `ai.cleanOptions` strips
-markup, control and bidi characters, bounds each message to 480 characters,
-keeps a known tone (else the one asked for), drops repeats, keeps three;
-none is a 422. The system prompt keeps it good-natured: no real legal
-language, nothing shaming. Nothing is stored or logged. Signed out, the button
-explains it needs a free account and that the ready-made messages stay free;
-402 opens the credit sheet; 403 `verify-email` shows its sentence and "Send
-the link again".
+Erik's per-app AI plan (2026-11-23): *"'Write it for me': a friendly nudge to
+get your thing back"* on **Claude** - tone-sensitive writing. The app already
+had the call; the redesign extended it rather than adding a second one.
+**Provider: Claude only**, through the lab's existing Anthropic client
+(`identity.meter`, `identity.clientFor`, models by `identityLib.planFor`:
+Haiku free, Sonnet for members). There is no provider switch and no
+federation wiring; `PROVIDER = 'claude'` is a constant in `server.js`.
+
+`POST /api/write {loan: {item, who, dir, on, due}, tone, hint, today}`, in
+this order:
+
+1. `requireUser, requireBudget, requireDailyCap`, **then** the route's own
+   8 KB parser (a stranger's body is never read; tested 401/402/403/503,
+   never 413).
+2. `ai.brief`: an item and a name, a known tone, a hint under 80 characters -
+   a 400 costs nothing. The name is cut to its **first word** here (the page
+   sends only that too).
+3. **The lab's AI guard**, when the host has loaded one:
+   `global.LAB_AI_GUARD.allow({provider: 'claude', req, app: 'boomerang'})`.
+   A no is its own sentence plus "The ready-made nudges are free." with its
+   status and code, shown where the button is; no model call. Without a
+   guard (the app on its own, its tests) the identity gates stand alone.
+4. One forced tool, `write_nudges` -> `{options: [{text, tone}]}`, two or
+   three, max 900 tokens. **The model writes wording only**: `ai.facts`
+   works out the days out, days late or days left, and the request states
+   them in words ("on Thursday, July 16, 2026 (94 days ago)"); today's date
+   is not sent. Sent: that loan's item, first name, the two dates,
+   direction, tone and hint - never the note, the receipt, a surname or the
+   rest of the shelf (tested with a spy client).
+5. `ai.cleanOptions(raw, tone, brief, today)`: markup, control and bidi
+   characters stripped, each message cut at 480 characters (the model is
+   asked for under 280), a known tone (else the one asked for), repeats
+   dropped, three kept - and `ai.refuse` **drops whole** any message that
+   carries: a **number** not in the facts (the days, their weeks / months,
+   the dates' own numbers) or typed by the person in the item or hint; a
+   **month or weekday** not supplied (a weekday only for a return date still
+   ahead); a **deadline** phrase ("by the end of", "within a week", "at the
+   latest"); a **threat** ("or else", court, lawyer, late fee, final notice);
+   or a **guilt trip** ("after all I've done", "I thought we were friends",
+   "you never"). It is a word list and a number list, not a judge: it catches
+   the plain cases, and the person still reads and edits before sending.
+   Nothing left is a 422.
+6. `guard.record({provider, app, usd: guard.priceUsd({provider, model,
+   inputTokens, outputTokens})})` for every call that came back, whether or
+   not its messages passed (in a `finally`; a failing record never loses the
+   answer).
+
+Nothing is stored or logged. On the page the first option goes into the
+message box, each option has "Use this", and a line says it was written by AI
+from those facts. Signed out, the button explains it needs a free account and
+that the ready-made messages stay free; 402 opens the credit sheet; 403
+`verify-email` shows its sentence and "Send the link again".
+
+## Design (redesigned 2026-11-23, the HOA Desk rules)
+
+- **White page** (`#ffffff`; true black in dark), hairlines (`--line`), 12 px
+  cards, 10 px inputs and tiles, pill buttons and chips. No gradients, no
+  textures, no shadows except `--lift` on what floats (the bar, a sheet, a
+  toast, the celebration card). **Lists over boxes**: the shelf is
+  hairline-divided rows, the stats are type and dividers. A gray fill
+  (`--card2`) only for controls, tiles and the sample note.
+- **One accent**: the lab's teal `#0f6b66` (dark: `#62d6c6`), for the primary
+  action, links, the current nav item and the tone picked. Status colours
+  (late, soon, home) only for status; `--warm` (the lab's second colour) only
+  in the confetti. `lab.js` is unchanged.
+- **Type**: the system stack, five sizes (13, 15, 16, 20, 28; the hero and
+  the big numbers go larger), tight-tracked headings, tabular numbers.
+  Spacing on a 4/8 scale.
+- **Navigation**: phones - a floating translucent pill bar (`#bar`: Shelf,
+  Add a loan, Account; 1.5 px line icons, a label and a small accent line
+  only on the current item, safe-area aware, 48 px targets), hidden while a
+  sheet is open and on a receipt page. From 900 px - a top nav with a quiet
+  underline, **Add a loan** and the account button at the right. `nav()`
+  moves `aria-current` (shelf, or add / account while that sheet is open).
+  On a phone the list comes before the numbers; from 1100 px they sit side
+  by side (`dk-split`).
+- **Icons** are inline SVG (`ICON` in `app.js`, the nav in `index.html`),
+  fixed strings. An item's emoji is content and stays; buttons and headings
+  carry words, not emoji.
+- **No `style=` anywhere** - not in `index.html`, not written by script, no
+  `.style.` (tested). The return-rate meter is an SVG rect; confetti pieces
+  are placed by classes (`x0-x11`, `c0-c5`, `d0-d8`).
+- **Motion** (press states, the sheet, the toast, the celebration, confetti)
+  only inside `@media (prefers-reduced-motion: no-preference)` (tested: no
+  animation or transition outside it). Every page is complete at rest.
+- **Measured in Chromium** at 390, 320 and 1440 px, both themes, every view
+  (hero, shelf, a loan, the form, the nudge, written options, a receipt):
+  lowest text contrast 4.87:1 light, 6.61:1 dark; nothing sideways; no target
+  under 44 px; no CSP report.
+- **Taps from the shelf**: add a loan 1 (then the form); nudge 1, send or copy
+  2; Write it for me 2; mark it back 1; a loan up close 1, send a receipt 2;
+  account 1; lent / borrowed tab 1.
 
 ## Data (Firestore: `boomerang_*` in the lab database `challenge`)
 
@@ -220,9 +300,10 @@ spawn each with `K_SERVICE` to prove it. `BOOMERANG_COLLECTION_PREFIX` (set to
 `boomerang_` by the lab host) prefixes every top-level collection. `npm test`
 runs with `REQUIRE_VERIFIED_FOR_FREE_AI=0`. The fake model refuses a call
 that does not force a tool. Triggers in the hint: `BLANK`, `INJECT`,
+`INVENT` (a made-up date, a threat, a guilt trip and one honest message),
 `MAXTOKENS`, `UPSTREAMnnn`; anything else is three messages in the tone asked.
 
-`test/run.js` (23 tests): cleaning and the emoji map; the loan, its dates and
+`test/run.js` (26 tests): cleaning and the emoji map; the loan, its dates and
 words (overdue, due today, due soon, across a year); the shelf order and every
 stat; the handshake state machine both ways (only valid steps, the borrower
 cannot close, closed is final, expiry); what a receipt shows; all thirty
@@ -232,7 +313,10 @@ wrapped storage, no photo route); and over HTTP: signed out with zero model
 calls, the gate order, a receipt's whole life, token entropy and the
 identical 404s, what a link reveals (hostile input included), the anonymous
 limits, signed-in sync across two phones, Write it for me, what the model
-sees, and the 401/402/403/503 gates. The shared files (`lib/identity.js`,
+sees, the facts check (numbers, dates, deadlines, threats, guilt), the lab's
+AI guard (asked after the gates, told the cost, a no makes no call), the
+redesigned page (no style attribute, motion only when allowed, the editable
+message), and the 401/402/403/503 gates. The shared files (`lib/identity.js`,
 `identity-store.js`, `byok.js`, `stripe.js`, `webauthn.js`;
 `public/desktop.css`, `passkey-client.js`, `verify-banner.js`) are synced
 copies - edit them in `eriks-projects/shared/`.
