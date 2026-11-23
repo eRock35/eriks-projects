@@ -309,13 +309,18 @@ async function readWithClaude(req, b, today) {
 /** Gemini, through the guard's Vertex helper. With no guard (the app on its
  *  own) only the local stand-in can answer; a real call needs the lab. */
 async function readWithGemini(req, b, today) {
-  await guardAllow('gemini', req);
+  try { await guardAllow('gemini', req); } catch (err) {
+    // Gemini's month is spent: Claude can still answer. A burst refusal is
+    // per person across both providers, so it is sent as it is.
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
   const guard = global.LAB_AI_GUARD;
   const request = gemini.request(b, today);
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 100, outputTokens: 50 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -325,7 +330,10 @@ async function readWithGemini(req, b, today) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), {
+      status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502),
+      fallback: err && typeof err.code === 'string' && /^[a-z-]{1,20}$/.test(err.code) ? err.code : 'error',
+    });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -351,13 +359,29 @@ async function chargeGemini(req, usage) {
 app.post('/api/read', ...spend, readJson, route(READ_FALLBACK, async (req, res) => {
   const today = todayOf(req);
   const b = ai.brief(req.body, photo);
-  const viaGemini = providerNow() === 'gemini';
-  const proposal = viaGemini ? await readWithGemini(req, b, today) : await readWithClaude(req, b, today);
-  // Gemini reads no payee, so "nothing" there is no amount and no date.
-  if (viaGemini ? (proposal.amount === null && proposal.dueDate === null) : (!proposal.payee && proposal.amount === null)) throw httpError(422, NOTHING);
+  // Gemini first when the switch is on; if it fails for any reason but a
+  // burst refusal, Claude reads the same request exactly as it always has.
+  let proposal = null;
+  let reader = 'claude';
+  if (providerNow() === 'gemini') {
+    try {
+      proposal = await readWithGemini(req, b, today);
+      // Gemini reads no payee, so "nothing" there is no amount and no date.
+      if (proposal.amount === null && proposal.dueDate === null) throw Object.assign(new Error('unusable'), { fallback: 'unusable' });
+      reader = 'gemini';
+    } catch (err) {
+      if (!err || !err.fallback) throw err;
+      console.warn(`[duly] gemini failed (${err.fallback}); used claude`);
+      proposal = null;
+    }
+  }
+  if (!proposal) {
+    proposal = await readWithClaude(req, b, today);
+    if (!proposal.payee && proposal.amount === null) throw httpError(422, NOTHING);
+  }
   proposal.stripped = proposal.stripped || b.stripped;
   res.set('Cache-Control', 'no-store');
-  res.json({ proposal });
+  res.json({ proposal, reader });
 }));
 
 /* ------------------------------------------------------------------ *

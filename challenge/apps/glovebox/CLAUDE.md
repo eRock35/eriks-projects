@@ -257,6 +257,11 @@ the app behaves exactly as before the redesign). Turning it on is Erik's
 yes, and needs Vertex AI enabled with `aiplatform.user` for `challenge-run@`
 (see "Lab AI guard" in `challenge/CLAUDE.md`). With the switch on, the two
 photo reads below move to Gemini as well, so the app has one provider.
+**Fallback (2026-11-23):** a dashboard or receipt read that fails on Gemini
+(thrown `VertexError`, a not-relevant answer, Gemini's `monthly-cap`, no
+helper) runs the Claude path unchanged (`allow('claude')`, meter, record),
+logging `[glovebox] gemini failed (<code>); used claude`; a burst refusal is
+sent as it is. **"Light or noise?" has no Claude path and never falls back.**
 
 - **Safety first, in code** (`public/glovebox-diagnose.js`, UMD, run by the
   server, the page and the tests):

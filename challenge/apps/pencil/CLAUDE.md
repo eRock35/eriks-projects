@@ -242,6 +242,11 @@ anything else is **Claude, exactly as before** - so merging changed nothing
 live, and switching is one Cloud Run setting made only with Erik's yes
 (it also needs Vertex AI enabled and `aiplatform.user` for the runtime
 account - a step only Erik can take). Why Gemini here: handwriting.
+**Fallback:** with the switch on, a Gemini failure (thrown `VertexError`, an
+answer `shape`/`cleanAiAnswer` rejects, Gemini's `monthly-cap`, no helper)
+sends the same photo down the Claude path unchanged (`allow('claude')`, meter,
+record), logging `[pencil] gemini failed (<code>); used claude`; a burst
+refusal is sent as it is.
 
 - `lib/gemini.js` has **no client of its own**: the call is
   `global.LAB_AI_GUARD.gemini.generate(...)` (the lab's one Vertex helper),
@@ -378,7 +383,7 @@ force a tool, keeps every request (`fakeClient.calls`), answers with a
 made-up rummy sheet (Wren, Odile, Jules), and takes `fakeClient.mode` for
 one call: `blank`, `inject`, `maxtokens`, `upstreamNNN`.
 
-`test/gemini.js` (6 tests, run by `npm test` with `PENCIL_AI_PROVIDER=gemini`
+`test/gemini.js` (7 tests, one for the Claude fallback, run by `npm test` with `PENCIL_AI_PROVIDER=gemini`
 and a fake lab guard; it fails on any request leaving the machine): the
 switch and the schema; signed out 401 with the guard never asked; allow,
 one schema call carrying only the photo, record, the cells and the app's

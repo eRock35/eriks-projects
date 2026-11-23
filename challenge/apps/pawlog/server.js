@@ -514,13 +514,18 @@ async function readWithClaude(req, b, today) {
 /** Gemini, through the guard's Vertex helper. With no guard (the app on its
  *  own) only the local stand-in can answer; a real call needs the lab. */
 async function readWithGemini(req, b, today) {
-  await guardAllow('gemini', req);
+  try { await guardAllow('gemini', req); } catch (err) {
+    // Gemini's month is spent: Claude can still answer. A burst refusal is
+    // per person across both providers, so it is sent as it is.
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
   const guard = global.LAB_AI_GUARD;
   const request = gemini.request(b, today);
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -530,7 +535,10 @@ async function readWithGemini(req, b, today) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), {
+      status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502),
+      fallback: err && typeof err.code === 'string' && /^[a-z-]{1,20}$/.test(err.code) ? err.code : 'error',
+    });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -564,13 +572,28 @@ async function chargeGemini(req, usage) {
 app.post('/api/read-paperwork', ...spend, paperJson, route('The paperwork can’t be read right now. Try again in a minute - or add it by hand.', async (req, res) => {
   const b = ai.brief(req.body, photo);
   const today = Core.isDay(req.body && req.body.today) && Math.abs(Core.daysBetween(new Date().toISOString().slice(0, 10), req.body.today)) <= 1 ? req.body.today : new Date().toISOString().slice(0, 10);
-  const viaGemini = providerNow() === 'gemini';
-  const proposal = viaGemini ? await readWithGemini(req, b, today) : await readWithClaude(req, b, today);
-  if (!proposal.vaccinations.length && !proposal.medicines.length && !(proposal.meds || []).length && !proposal.weight && !proposal.nextVisit) {
-    throw httpError(422, 'Nothing about vaccinations, medicines, weight or a next visit could be read. Try a clearer photo, or paste the text.');
+  const empty = (p) => !p.vaccinations.length && !p.medicines.length && !(p.meds || []).length && !p.weight && !p.nextVisit;
+  // Gemini first when the switch is on; if it fails for any reason but a
+  // burst refusal, Claude reads the same request exactly as it always has.
+  let proposal = null;
+  let reader = 'claude';
+  if (providerNow() === 'gemini') {
+    try {
+      proposal = await readWithGemini(req, b, today);
+      if (empty(proposal)) throw Object.assign(new Error('unusable'), { fallback: 'unusable' });
+      reader = 'gemini';
+    } catch (err) {
+      if (!err || !err.fallback) throw err;
+      console.warn(`[pawlog] gemini failed (${err.fallback}); used claude`);
+      proposal = null;
+    }
+  }
+  if (!proposal) {
+    proposal = await readWithClaude(req, b, today);
+    if (empty(proposal)) throw httpError(422, 'Nothing about vaccinations, medicines, weight or a next visit could be read. Try a clearer photo, or paste the text.');
   }
   res.set('Cache-Control', 'no-store');
-  res.json({ proposal: { ...proposal, stripped: proposal.stripped || b.stripped } });
+  res.json({ proposal: { ...proposal, stripped: proposal.stripped || b.stripped }, reader });
 }));
 
 /* ------------------------------------------------------------------ *

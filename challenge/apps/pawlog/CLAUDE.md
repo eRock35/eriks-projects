@@ -223,6 +223,13 @@ Pawlog has always used, so merging changed nothing live. `/api/me` reports
 `reader` and the page follows it (button and sheet title, and which review
 it draws). **Same route, same gates, same parser, same `ai.brief`**; then:
 
+**Fallback (2026-11-23):** with the switch on, a Gemini failure (thrown
+`VertexError`, a reading with nothing in it, Gemini's `monthly-cap`, no
+helper) sends the same request down the Claude path unchanged (its own
+`allow('claude')`, meter, record), logging `[pawlog] gemini failed (<code>);
+used claude`; a burst refusal is sent as it is. The answer carries `reader`
+(who actually read) and the sheet follows that over `/api/me`'s.
+
 - **Guard order** (both providers): `requireUser, requireBudget,
   requireDailyCap` -> the 9 MB parser -> `ai.brief` (a 400 costs nothing and
   never reaches the guard) -> `LAB_AI_GUARD.allow` (its "no" is sent in its

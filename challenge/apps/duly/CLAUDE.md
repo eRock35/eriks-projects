@@ -147,6 +147,13 @@ and needs Vertex AI enabled with `aiplatform.user` for `challenge-run@`.
 `/api/me` reports `reader: 'claude' | 'gemini'` so the sheet can say who
 reads the photo.
 
+**Fallback (2026-11-23).** With the switch on, if Gemini fails - a thrown
+`VertexError`, a reading with no amount and no date, Gemini's `monthly-cap`,
+or no helper - the same request goes down the Claude path unchanged (its own
+`allow('claude')`, meter, record), with one log line `[duly] gemini failed
+(<code>); used claude`. A burst refusal is sent as it is. `/api/read` answers
+`reader: 'claude' | 'gemini'` (who actually read) and the sheet shows that.
+
 - **Claude (the default).** One forced tool `record_bill` -> `{payee,
   category, amount, minimumDue, dueDate, statementDate, autopay:
   on|off|unknown}`, max 600 tokens, exactly as before (`lib/ai.js`). The tool

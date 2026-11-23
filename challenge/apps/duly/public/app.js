@@ -685,7 +685,7 @@
     state.read = state.read || { mode: 'photo', text: '', photo: null, busy: false, proposal: null, pick: null };
     drawRead();
   }
-  function readerName() { return state.me && state.me.reader === 'gemini' ? 'Google’s Gemini' : 'Claude'; }
+  function readerName() { var who = (state.read && state.read.reader) || (state.me && state.me.reader); return who === 'gemini' ? 'Google’s Gemini' : 'Claude'; }
   function drawRead() {
     var r = state.read;
     var gate = signedIn() ? '' : '<div class="note gate"><p>Reading a statement uses AI, so it needs a free account - it comes with $2 of AI credit (each read is about a cent). Adding a bill by hand is free and always will be.</p><div class="row"><button class="btn small" type="button" data-act="signup">Create a free account</button><button class="btn small ghost" type="button" data-act="signin">Sign in</button><button class="btn small ghost" type="button" data-act="add">Add it by hand</button></div></div>';
@@ -791,10 +791,10 @@
       if (!r.photo) return toast('Choose a photo first.');
       body.photo = { type: r.photo.type, data: r.photo.data };
     }
-    r.busy = true; r.proposal = null; r.pick = null; drawRead();
+    r.busy = true; r.proposal = null; r.pick = null; r.reader = null; drawRead();
     api('POST', 'api/read', body).then(function (res) {
       if (state.read !== r) return;
-      r.busy = false; r.proposal = res.proposal; drawRead();
+      r.busy = false; r.proposal = res.proposal; r.reader = res.reader || null; drawRead();
       var out = $('#readOut'); if (out && out.scrollIntoView) out.scrollIntoView({ block: 'nearest' });
       say('Read. Check it, then save it.');
     }).catch(function (e) {

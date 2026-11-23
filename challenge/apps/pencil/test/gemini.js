@@ -32,9 +32,12 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 function fakeGuard() {
   const g = {
     log: [], deny: null, generated: [],
-    async allow(a) { g.log.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user && a.req.user.id)]); return g.deny || { ok: true }; },
+    async allow(a) { g.log.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user && a.req.user.id)]); return (g.denyFor && g.denyFor[a.provider]) || g.deny || { ok: true }; },
     async record(a) { g.log.push(['record', a.provider, a.app, a.usd]); return true; },
-    priceUsd({ provider, model, inputTokens, outputTokens }) { assert.deepStrictEqual([provider, model], ['gemini', 'gemini-3.8-flash']); return (inputTokens * 0.75 + outputTokens * 3.75) / 1e6; },
+    priceUsd({ provider, model, inputTokens, outputTokens }) {
+      if (provider === 'claude') { assert.ok(/^claude-/.test(model)); return (inputTokens + 5 * outputTokens) / 1e6; }
+      assert.deepStrictEqual([provider, model], ['gemini', 'gemini-3.8-flash']); return (inputTokens * 0.75 + outputTokens * 3.75) / 1e6;
+    },
     gemini: {
       async generate(args) {
         g.generated.push(args);
@@ -167,23 +170,64 @@ test('hostile, empty and broken answers: cut to the limits with nothing passed o
   assert.ok(p.players.length === 12 && p.rows.length === 60 && p.cells.length === 60 && !('extra' in p));
   assert.ok(p.cells.every((r) => r.length === 12 && r.every((c) => C.CONFIDENCE.includes(c))) && p.rows.every((r) => r.every((v) => v === null || (Number.isInteger(v) && v >= -9999 && v <= 99999))));
   assert.deepStrictEqual([p.rows[1][0], p.cells[1][0], p.rows[1][1], p.cells[1][1], p.cells[1][2]], [1, 'high', null, 'low', 'low'], 'a word or a huge number where a score goes is a blank to check');
+  // Each failure below now falls back to Claude (the stand-in), which answers.
+  const c0 = fakeClient.calls.length;
   fakeGemini.mode = 'blank';
-  assert.strictEqual((await cy('POST', '/api/ai/sheet', photo())).status, 422);
+  assert.strictEqual((await cy('POST', '/api/ai/sheet', photo())).status, 200, 'nothing read by Gemini: Claude reads it');
   fakeGemini.mode = 'junk';
-  assert.strictEqual((await cy('POST', '/api/ai/sheet', photo())).status, 502);
+  assert.strictEqual((await cy('POST', '/api/ai/sheet', photo())).status, 200);
   fakeGemini.mode = 'upstream403';
   const up = await cy('POST', '/api/ai/sheet', photo());
-  assert.ok(up.status === 502 && !/stand-in|Vertex|Gemini/i.test(up.text), 'a provider error is not passed on');
+  assert.ok(up.status === 200 && !/stand-in|Vertex|Gemini/i.test(up.text), 'a provider error is not passed on');
   fakeGemini.mode = 'upstream429';
   const busy = await cy('POST', '/api/ai/sheet', photo());
-  assert.deepStrictEqual([busy.status, /AI is busy/.test(busy.data.error)], [503, true]);
+  assert.strictEqual(busy.status, 200);
+  assert.strictEqual(fakeClient.calls.length, c0 + 4, 'Claude answered each');
   const before = await spent('cy.gemini');
-  const recs = g.log.filter((x) => x[0] === 'record').length;
+  const recs = g.log.filter((x) => x[0] === 'record' && x[1] === 'gemini').length;
   fakeGemini.mode = 'billedfail';
   const bf = await cy('POST', '/api/ai/sheet', photo());
-  assert.strictEqual(bf.status, 502);
-  assert.strictEqual(g.log.filter((x) => x[0] === 'record').length, recs + 1, 'billed though it failed: on the lab\u2019s month');
+  assert.strictEqual(bf.status, 200);
+  assert.strictEqual(g.log.filter((x) => x[0] === 'record' && x[1] === 'gemini').length, recs + 1, 'billed though it failed: on the lab\u2019s month');
   assert.ok(await spent('cy.gemini') > before, 'and on the person\u2019s ledger');
+  // Both fail: Claude's own error, never provider text.
+  fakeGemini.mode = 'upstream500'; fakeClient.mode = 'upstream500';
+  const both = await cy('POST', '/api/ai/sheet', photo());
+  assert.ok(both.status === 502 && !/stand-in|Vertex|Gemini/i.test(both.text), both.text);
+});
+
+test('Gemini fails, Claude answers: a thrown error, unusable output, Gemini\u2019s monthly cap; a burst refusal is the guard\u2019s 429 with no Claude call; one log line each', async () => {
+  const g = global.LAB_AI_GUARD = fakeGuard();
+  const ed = await register('ed.gemini');
+  const warn = console.warn; const lines = [];
+  console.warn = (...a) => lines.push(a.join(' '));
+  try {
+    let c0 = fakeClient.calls.length;
+    fakeGemini.mode = 'upstream500';
+    let r = await ed('POST', '/api/ai/sheet', photo());
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(g.log.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['allow', 'claude'], ['record', 'claude']]);
+    assert.strictEqual(fakeClient.calls.length, c0 + 1);
+    g.log.length = 0;
+    fakeGemini.mode = 'blank';
+    r = await ed('POST', '/api/ai/sheet', photo());
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(g.log.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['record', 'gemini'], ['allow', 'claude'], ['record', 'claude']], 'the Gemini call that billed is recorded, then Claude');
+    g.log.length = 0;
+    g.denyFor = { gemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } };
+    const n0 = fakeGemini.calls.length;
+    r = await ed('POST', '/api/ai/sheet', photo());
+    assert.deepStrictEqual([r.status, fakeGemini.calls.length], [200, n0]);
+    assert.deepStrictEqual(g.log.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['allow', 'claude'], ['record', 'claude']]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      g.log.length = 0;
+      g.denyFor = { gemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } };
+      c0 = fakeClient.calls.length;
+      r = await ed('POST', '/api/ai/sheet', photo());
+      assert.deepStrictEqual([r.status, r.data.code, r.data.error, fakeClient.calls.length, g.log.length], [429, code, 'Lots of people are using AI right now - try again in a minute.', c0, 1]);
+    }
+  } finally { console.warn = warn; g.denyFor = null; }
+  assert.deepStrictEqual(lines, ['[pencil] gemini failed (http); used claude', '[pencil] gemini failed (unusable); used claude', '[pencil] gemini failed (monthly-cap); used claude']);
 });
 
 test('no guard loaded (the app on its own): the stand-in still answers; and no request left this machine', async () => {

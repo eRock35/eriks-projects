@@ -168,12 +168,17 @@ async function guardRecord(provider, model, usage) {
  *  the local stand-in can answer; a real call needs the lab. The provider's
  *  own words never reach the page: a status only. */
 async function askGemini(req, request, route) {
-  await guardAllow('gemini', req);
+  try { await guardAllow('gemini', req); } catch (err) {
+    // Marked for the photo reads' Claude fallback; "Light or noise?" has no
+    // Claude path and sends it as it is. A burst refusal is never marked.
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
   const guard = global.LAB_AI_GUARD;
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 100, outputTokens: 50 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
   let usage = null;
   try {
     const out = await generate({ ...request, ...(fake ? { fake } : {}) });
@@ -181,7 +186,10 @@ async function askGemini(req, request, route) {
     return out && out.json;
   } catch (err) {
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), {
+      status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502),
+      fallback: err && typeof err.code === 'string' && /^[a-z-]{1,20}$/.test(err.code) ? err.code : 'error',
+    });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -229,14 +237,27 @@ app.post('/api/read', ...spend, readJson, async (req, res) => {
     const kind = b.kind === 'dash' || b.kind === 'receipt' ? b.kind : null;
     if (!kind) throw httpError(400, 'Read a dashboard or a receipt.');
     const p = photo.validateAll([b.photo])[0];
-    const raw = providerNow() === 'gemini'
-      ? gemini.toRaw(kind, await askGemini(req, gemini.readRequest(kind, p), 'read'))
-      : await readWithClaude(req, kind, p);
     // The phone's date (for "not in the future"), within a day of ours.
     const server = new Date().toISOString().slice(0, 10);
     const today = Core.isDate(b.today) && Math.abs(Core.daysBetween(server, b.today)) <= 1 ? b.today : server;
-    const result = kind === 'dash' ? Core.cleanDash(raw) : Core.cleanReceipt(raw, { today });
-    if (!result.relevant) throw httpError(422, NOT[kind]);
+    const clean = (raw) => (kind === 'dash' ? Core.cleanDash(raw) : Core.cleanReceipt(raw, { today }));
+    // Gemini first when the switch is on; if it fails for any reason but a
+    // burst refusal, Claude reads the same photo exactly as it always has.
+    let result = null;
+    if (providerNow() === 'gemini') {
+      try {
+        result = clean(gemini.toRaw(kind, await askGemini(req, gemini.readRequest(kind, p), 'read')));
+        if (!result.relevant) throw Object.assign(new Error('unusable'), { fallback: 'unusable' });
+      } catch (err) {
+        if (!err || !err.fallback) throw err;
+        console.warn(`[glovebox] gemini failed (${err.fallback}); used claude`);
+        result = null;
+      }
+    }
+    if (!result) {
+      result = clean(await readWithClaude(req, kind, p));
+      if (!result.relevant) throw httpError(422, NOT[kind]);
+    }
     res.set('Cache-Control', 'no-store');
     res.json({ kind, result });
   } catch (err) { fail(res, err, 'Could not read that photo right now. Try again in a minute.'); }

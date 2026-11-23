@@ -83,7 +83,7 @@
   function healthIcon(id) { return icon(HEALTH_ICONS[id] || 'doc'); }
   /** Which reader the server uses: "gemini" transcribes each medicine field
    *  by field for you to confirm; anything else is the older tick list. */
-  function reader() { return state.account && state.account.reader === 'gemini' ? 'gemini' : 'claude'; }
+  function reader() { var who = (state.ai && state.ai.reader) || (state.account && state.account.reader); return who === 'gemini' ? 'gemini' : 'claude'; }
   function paperTitle() { return reader() === 'gemini' ? 'Snap the vet paperwork' : 'Read the vet paperwork'; }
   var CHECK_LINE = 'Check every detail against the label, and ask your vet if you’re unsure.';
 
@@ -1138,7 +1138,7 @@
     a.busy = true; drawPaper();
     api('POST', 'api/read-paperwork', body).then(function (r) {
       if (state.ai !== a) return;
-      a.busy = false; a.proposal = r.proposal;
+      a.busy = false; a.proposal = r.proposal; a.reader = r.reader || null;
       a.drafts = (r.proposal.meds || []).map(function (m) { return C.medDraft(m, today()); });
       a.photo = null; // read once: the page lets go of it too
       drawPaper();

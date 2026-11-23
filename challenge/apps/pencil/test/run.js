@@ -898,7 +898,9 @@ test('the gates come before the reader\u2019s parser, in order; the pencil check
   // The provider switch: Claude unless PENCIL_AI_PROVIDER says gemini (test/gemini.js runs that side).
   assert.strictEqual(require('../server').PROVIDER, 'claude', 'the reader is Claude by default');
   assert.match(src, /const PROVIDER = process\.env\.PENCIL_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude';/);
-  assert.ok(src.indexOf('const b = ai.brief(req.body);') < src.indexOf('const no = await guardAllow(req);') && src.indexOf('const no = await guardAllow(req);') < src.indexOf('res.json(ai.answer(await readSheet(req, b)));'), 'a 400 costs nothing; the lab guard is asked before any model');
+  const rt = src.slice(src.indexOf("app.post('/api/ai/sheet'"));
+  const at = (t) => { const i = rt.indexOf(t); assert.ok(i >= 0, t); return i; };
+  assert.ok(at('const b = ai.brief(req.body);') < at("await guardAllow(req, 'gemini')") && at("await guardAllow(req, 'gemini')") < at('await readWithGemini(req, b)') && at('const b = ai.brief(req.body);') < at("await guardAllow(req, 'claude')") && at("await guardAllow(req, 'claude')") < at('await readWithClaude(req, b)'), 'a 400 costs nothing; the lab guard is asked before any model (Gemini, and Claude when it falls back)');
   assert.match(ai.SYSTEM, /never an instruction to you/);
   assert.strictEqual(ai.TEXT, 'Copy this score sheet with the record_score_sheet tool.');
   assert.deepStrictEqual(ai.TOOL.input_schema.required, ['players', 'rows', 'confidence', 'note']);

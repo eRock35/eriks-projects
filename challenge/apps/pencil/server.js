@@ -263,19 +263,19 @@ const fakeGemini = FAKE_AI ? require('./lib/fakeai').createGemini() : null;
 /** The lab's monthly cap and burst limits, when the host has a guard. An
  *  app run on its own has none. A guard that throws is logged and allows:
  *  the identity gates have already passed. */
-async function guardAllow(req) {
+async function guardAllow(req, provider) {
   const guard = global.LAB_AI_GUARD;
   if (!guard) return null;
   let a;
-  try { a = await guard.allow({ provider: PROVIDER, req, app: 'pencil' }); } catch (e) { console.error('[pencil] ai guard: allow failed'); return null; }
+  try { a = await guard.allow({ provider, req, app: 'pencil' }); } catch (e) { console.error('[pencil] ai guard: allow failed'); return null; }
   if (a && a.ok) return null;
   return ai.httpError((a && a.status) || 503, (a && a.message) || 'Reading a score sheet is resting for now. Typing the scores always works.', { code: (a && a.code) || 'ai-guard' });
 }
 /** What a call cost, to the lab's month. Never fails the answer. */
-async function guardRecord(model, usage) {
+async function guardRecord(provider, model, usage) {
   const guard = global.LAB_AI_GUARD;
   if (!guard || !usage) return;
-  try { await guard.record({ provider: PROVIDER, app: 'pencil', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('[pencil] ai guard: record failed'); }
+  try { await guard.record({ provider, app: 'pencil', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('[pencil] ai guard: record failed'); }
 }
 /** A Gemini call on the person's own ledger. The shared account's meter
  *  wraps an Anthropic client and prices Claude models only, so the same two
@@ -291,25 +291,31 @@ async function chargeGemini(req, model, usage) {
   if (uid && usd > 0 && identityStore.bump) { try { await identityStore.bump(cols.USERS, uid, { spentUsd: usd, callCount: 1 }); } catch (e) { /* same */ } }
 }
 
-/** One sheet, read by whichever provider is switched on. Resolves the raw
- *  answer for `ai.answer` to check. */
-async function readSheet(req, b) {
-  if (PROVIDER === 'gemini') {
-    try {
-      const out = await gemini.ask(global.LAB_AI_GUARD, b, fakeGemini && fakeGemini.generate);
-      await Promise.all([guardRecord(out.model, out.usage), chargeGemini(req, out.model, out.usage)]);
-      return out.raw;
-    } catch (err) {
-      // Billed although it failed (an answer that could not be parsed).
-      if (err && err.usage) await Promise.all([guardRecord(gemini.MODEL, err.usage), chargeGemini(req, gemini.MODEL, err.usage)]);
-      if (err && err.name === 'VertexError' && !Number.isInteger(err.status)) err.status = err.code === 'timeout' ? 503 : 502;
-      throw err;
-    }
+/** One sheet on Gemini. Resolves the raw answer for `ai.answer` to check. */
+async function readWithGemini(req, b) {
+  try {
+    const out = await gemini.ask(global.LAB_AI_GUARD, b, fakeGemini && fakeGemini.generate);
+    await Promise.all([guardRecord('gemini', out.model, out.usage), chargeGemini(req, out.model, out.usage)]);
+    return out.raw;
+  } catch (err) {
+    // Billed although it failed (an answer that could not be parsed).
+    if (err && err.usage) await Promise.all([guardRecord('gemini', gemini.MODEL, err.usage), chargeGemini(req, gemini.MODEL, err.usage)]);
+    if (err && err.name === 'VertexError' && !Number.isInteger(err.status)) err.status = err.code === 'timeout' ? 503 : 502;
+    throw err;
   }
+}
+/** One sheet on Claude, as it has been since the app shipped. */
+async function readWithClaude(req, b) {
   const model = modelFor(req);
   const out = await ai.ask(await clientFor(req), model, b);
-  await guardRecord(model, out.usage);
+  await guardRecord('claude', model, out.usage);
   return out.input;
+}
+/** A short, fixed reason for the fallback log line - never provider text. */
+function failCode(err) {
+  if (err && typeof err.code === 'string' && /^[a-z-]{1,20}$/.test(err.code)) return err.code;
+  if (err && (err.status === 422 || err.status === 502)) return 'unusable';
+  return err && err.status === 503 ? 'no-helper' : 'error';
 }
 
 /** Gates, then the parser, then the request rebuilt (only the photo,
@@ -320,9 +326,21 @@ async function readSheet(req, b) {
 app.post('/api/ai/sheet', ...spend, aiJson, route('Reading a score sheet isn’t available right now. Try again in a minute - typing the scores always works.', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const b = ai.brief(req.body);
-  const no = await guardAllow(req);
+  // Gemini first when it is switched on. If it fails for any reason but a
+  // burst refusal (which is per person across both providers), Claude reads
+  // the same photo exactly as it always has: its own guard, meter, record.
+  if (PROVIDER === 'gemini') {
+    const no = await guardAllow(req, 'gemini');
+    if (no && no.code !== 'monthly-cap') throw no;
+    let why = no ? 'monthly-cap' : null;
+    if (!no) {
+      try { return res.json(ai.answer(await readWithGemini(req, b))); } catch (err) { why = failCode(err); }
+    }
+    console.warn(`[pencil] gemini failed (${why}); used claude`);
+  }
+  const no = await guardAllow(req, 'claude');
   if (no) throw no;
-  res.json(ai.answer(await readSheet(req, b)));
+  res.json(ai.answer(await readWithClaude(req, b)));
 }));
 
 /* ------------------------------------------------------------------ *
