@@ -416,6 +416,42 @@
   function lastAmount(bill) { const h = bill.history || []; return h.length ? h[h.length - 1].a : null; }
 
   /**
+   * Which bill a statement reading most likely belongs to - a guess the
+   * person confirms or changes, worked out on the phone from the due date and
+   * the amount alone (the reading carries no payee). A point system: a due
+   * date within four days of one of the bill's own (3 if the very day, else
+   * 2; a statement bill is matched on its usual day of the month), an amount
+   * within 2% of the usual (3) or within 35% (1), a minimum payment on a
+   * card or loan (1). The best bill at 3 or more wins; a tie is no guess.
+   */
+  function guessBill(bills, reading, today) {
+    const r = reading || {};
+    let best = null;
+    let tie = false;
+    for (const b of bills || []) {
+      let score = 0;
+      if (isDay(r.dueDate)) {
+        const near = occurrences(b, addDays(r.dueDate, -4), addDays(r.dueDate, 4));
+        if (near.length) score += near.indexOf(r.dueDate) >= 0 ? 3 : 2;
+        else if (b.cycle && b.cycle.kind === 'statement' && b.cycle.dates.length) {
+          const last = b.cycle.dates[b.cycle.dates.length - 1];
+          const gap = Math.abs(Number(last.slice(8)) - Number(r.dueDate.slice(8)));
+          if (r.dueDate > last && Math.min(gap, 31 - gap) <= 4) score += 2;
+        }
+      }
+      const usual = typical(b) !== null ? typical(b) : lastAmount(b);
+      if (Number.isInteger(r.amount) && usual) {
+        const off = Math.abs(r.amount - usual) / usual;
+        if (off <= 0.02) score += 3; else if (off <= 0.35) score += 1;
+      }
+      if (Number.isInteger(r.minimumDue) && (b.category === 'card' || b.category === 'loan')) score += 1;
+      if (best && score === best.score) tie = true;
+      if (!best || score > best.score) { best = { id: b.id, score }; tie = false; }
+    }
+    return best && best.score >= 3 && !tie && isDay(today) ? best.id : null;
+  }
+
+  /**
    * Every logged amount, with the "higher than usual" rule: more than `pct`
    * percent over the bill's own median. The median is of the amounts BEFORE
    * that one (the last 12), so one jump does not drag its own baseline up;
@@ -765,7 +801,7 @@
     parseMoney, cleanCents, fmtMoney, median,
     guessCategory, categoryOf, emojiOf,
     cleanCycle, cleanBill, toSaved, describeCycle, occurrences, nextDue, lastDue, perMonth,
-    typical, amountFor, lastAmount, amountFlags,
+    typical, amountFor, lastAmount, amountFlags, guessBill,
     health, checklist, dueStatus, statusWords, monthView, monthGrid, upcoming, alerts,
     icsText, icsFold, rrule, buildIcs,
     sample,

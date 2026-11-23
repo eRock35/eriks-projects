@@ -8,7 +8,7 @@
  * cache), and never another app's (the lab shares this origin). Caches are
  * named duly-*, and only those are ever deleted.
  */
-var CACHE = 'duly-shell-v1';
+var CACHE = 'duly-shell-v2';
 var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'duly-core.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {

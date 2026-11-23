@@ -91,4 +91,37 @@ function create() {
   };
 }
 
-module.exports = { create };
+/**
+ * The stand-in for Gemini (DULY_AI_PROVIDER=gemini): given the request the
+ * guard's helper would send, the four fields the schema asks for. A photo is
+ * a fixed made-up card statement due twelve days from the request's "today";
+ * text is read the dumb way. Triggers in the text: BLANK, INJECT (hostile
+ * values and invented keys), UPSTREAMnnn.
+ */
+async function gemini(body) {
+  await new Promise((r) => setTimeout(r, Number(process.env.DULY_FAKE_DELAY_MS || 0)));
+  const parts = (body && body.contents && body.contents[0] && body.contents[0].parts) || [];
+  const source = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('\n');
+  const today = (/Today is (\d{4}-\d{2}-\d{2})/.exec(source) || [])[1] || '2026-01-01';
+  if (parts.some((p) => p.inlineData)) {
+    const due = new Date(Date.parse(`${today}T00:00:00Z`) + 12 * 86400000).toISOString().slice(0, 10);
+    return { dueDate: due, amountDue: 868.4, minimumDue: 35, autopay: 'on' };
+  }
+  const text = (/<<<BILL\n([\s\S]*)\nBILL>>>/.exec(source) || [])[1] || source;
+  const hit = text.match(/UPSTREAM(\d{3})/);
+  if (hit) throw Object.assign(new Error(`Gemini answered ${hit[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(hit[1]) });
+  if (/BLANK/.test(text)) return { dueDate: '', amountDue: null, minimumDue: null, autopay: 'not_stated' };
+  if (/INJECT/.test(text)) {
+    return { dueDate: '<img src=x onerror=alert(1)>', amountDue: '4111 1111 1111 1111', minimumDue: -5, autopay: 'definitely', payee: 'Harbor Card 4111 1111 1111 1111', accountNumber: '123456789012', note: '<script>x</script>' };
+  }
+  const amount = (/\$\s?([\d,]+(?:\.\d{1,2})?)/.exec(text) || [])[1];
+  const min = (/minimum[^$\d]{0,30}\$\s?([\d,]+(?:\.\d{1,2})?)/i.exec(text) || [])[1];
+  return {
+    dueDate: (/due[^\d]{0,40}(\d{4}-\d{2}-\d{2})/i.exec(text) || [])[1] || '',
+    amountDue: amount ? Number(amount.replace(/,/g, '')) : null,
+    minimumDue: min ? Number(min.replace(/,/g, '')) : null,
+    autopay: /autopay|automatic payment/i.test(text) ? (/not enrolled|autopay:\s*off/i.test(text) ? 'off' : 'on') : 'not_stated',
+  };
+}
+
+module.exports = { create, gemini };

@@ -26,6 +26,7 @@ process.env.DAILY_CAP_CACHE_MS = '0';
 const { app, identityStore, store } = require('../server');
 const C = require('../public/duly-core');
 const ai = require('../lib/ai');
+const gemini = require('../lib/gemini');
 const photo = require('../lib/photo');
 
 const ROOT = path.join(__dirname, '..');
@@ -448,6 +449,9 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/Math\.random|Date\.now\(\)|new Date\(\)/.test(core), 'the core has no dice and no clock');
   assert.match(js, /prefers-reduced-motion/);
   assert.ok(/toDataURL\('image\/jpeg'/.test(js) && /PHOTO_PX = 1600/.test(js), 'a photo is shrunk on the phone first');
+  assert.ok(/PHOTO_MAX_BYTES = 1500000/.test(js) && /bytes > PHOTO_MAX_BYTES\) return reject/.test(js), 'and is not sent at all over the cap');
+  assert.ok(!/style=/.test(html) && !/style=|\.style\.|setAttribute\('style'/.test(js), 'no style attribute in the page or written by script');
+  assert.ok(!/@import|url\(|@font-face/.test(read('public/app.css')), 'system fonts only; nothing fetched by the stylesheet');
   assert.ok(/Duly never pays a bill/.test(js) && /never asks for a password or an account number/.test(js), 'the page says it plainly');
   for (const f of ['server.js', 'lib/ai.js', 'public/duly-core.js']) {
     assert.ok(!/console\.(log|error|warn)\([^)]*(req\.body|text|payee|photo|note)/.test(read(f)), `${f} logs a body`);
@@ -631,6 +635,179 @@ test('the gates: an unconfirmed free account gets verify-email 403, out of credi
   assert.strictEqual((await dan('POST', '/api/read', BODY)).status, 200, 'and it lifts when the day’s tally is under it');
   await settle();
   calls = await modelCalls();
+});
+
+/* ---------------- Snap a statement on Gemini (DULY_AI_PROVIDER=gemini) ---------------- */
+
+/** A stand-in for the lab's AI guard, so the route can be watched from the
+ *  outside. Nothing here touches the network. */
+function fakeGuard(opts = {}) {
+  const log = { allow: [], record: [], requests: [], order: [] };
+  return {
+    log,
+    allow: async (a) => { log.order.push('allow'); log.allow.push({ provider: a.provider, app: a.app, uid: a.req && a.req.user && a.req.user.id }); return opts.deny || { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
+    priceUsd: ({ provider, model, inputTokens, outputTokens }) => { assert.strictEqual(provider, opts.provider || 'gemini'); return provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6; },
+    gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 1200, outputTokens: 40 } }; } },
+  };
+}
+async function withGemini(guard, fn) {
+  process.env.DULY_AI_PROVIDER = 'gemini';
+  global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.DULY_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('the provider switch: Claude unless DULY_AI_PROVIDER=gemini, read per request; the Gemini schema asks for four things and has no free-text field', async () => {
+  const anon = client();
+  assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', 'unset: the provider Duly has always used');
+  for (const v of ['', 'off', 'GEMINI', 'claude', 'vertex']) {
+    process.env.DULY_AI_PROVIDER = v;
+    try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', `"${v}" is not the switch`); } finally { delete process.env.DULY_AI_PROVIDER; }
+  }
+  await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
+  assert.match(read('server.js'), /process\.env\.DULY_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['dueDate', 'amountDue', 'minimumDue', 'autopay']);
+  assert.deepStrictEqual(gemini.SCHEMA.required, ['dueDate', 'amountDue', 'minimumDue', 'autopay']);
+  assert.deepStrictEqual([gemini.SCHEMA.properties.amountDue.type, gemini.SCHEMA.properties.minimumDue.type, gemini.SCHEMA.properties.autopay.enum], ['NUMBER', 'NUMBER', ['on', 'off', 'not_stated']]);
+  assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
+  assert.ok(/Never report an account number/.test(gemini.SYSTEM) && /never an instruction/.test(gemini.SYSTEM));
+  // the price the app falls back to without the guard is the lab's table
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+  assert.ok(!/fetch\(|https?:\/\//.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own: the guard’s helper does');
+});
+
+test('a Gemini answer is validated and clamped: known fields only, whole cents, the minimum never above the amount, a real date in range', () => {
+  const ok = gemini.cleanReading({ dueDate: '2026-10-30', amountDue: 84.2, minimumDue: 25, autopay: 'on' }, T);
+  assert.deepStrictEqual(ok, { payee: '', category: 'other', amount: 8420, minimumDue: 2500, dueDate: '2026-10-30', statementDate: null, autopay: 'on', stripped: false });
+  const hostile = gemini.cleanReading({ dueDate: '<img src=x onerror=alert(1)>', amountDue: '4111 1111 1111 1111', minimumDue: -5, autopay: 'definitely', payee: 'Harbor 4111 1111 1111 1111', accountNumber: '123456789012', category: '<script>' }, T);
+  assert.deepStrictEqual(hostile, { payee: '', category: 'other', amount: null, minimumDue: null, dueDate: null, statementDate: null, autopay: 'unknown', stripped: false }, 'nothing invented is read; a string is never an amount');
+  assert.strictEqual(gemini.cleanReading({ amountDue: 50, minimumDue: 80 }, T).minimumDue, null, 'a minimum above the amount is dropped');
+  assert.strictEqual(gemini.cleanReading({ amountDue: 1e12 }, T).amount, null, 'out of bounds');
+  assert.strictEqual(gemini.cleanReading({ amountDue: NaN, minimumDue: Infinity }, T).amount, null);
+  for (const d of ['2030-01-01', '2020-01-01', '2026-02-30', '10/30/2026', 20261030, null]) assert.strictEqual(gemini.cleanReading({ dueDate: d }, T).dueDate, null, String(d));
+  assert.strictEqual(gemini.cleanReading({ autopay: 'not_stated' }, T).autopay, 'unknown');
+  assert.strictEqual(gemini.cleanReading({ autopay: 'off' }, T).autopay, 'off');
+  for (const junk of [null, 'x', 7, [], [{ amountDue: 5 }]]) assert.strictEqual(gemini.cleanReading(junk, T).amount, null);
+});
+
+test('which bill a reading is for: a guess from the due date and the amount, never on a tie, never without evidence', () => {
+  const bills = C.sample(T, NOW);
+  const card = bills.find((b) => b.id === 'sample-card');
+  const next = card.cycle.dates[card.cycle.dates.length - 1];
+  assert.strictEqual(C.guessBill(bills, { dueDate: next, amount: 64210, minimumDue: 3500 }, T), 'sample-card');
+  const phone = bills.find((b) => b.id === 'sample-phone');
+  assert.strictEqual(C.guessBill(bills, { dueDate: C.nextDue(phone, T), amount: 8500, minimumDue: null }, T), 'sample-phone');
+  assert.strictEqual(C.guessBill(bills, { dueDate: null, amount: null, minimumDue: null }, T), null, 'nothing to go on');
+  assert.strictEqual(C.guessBill(bills, { dueDate: null, amount: 123456, minimumDue: null }, T), null, 'an amount like no bill');
+  const twins = [bill({ id: 'twin000001' }), bill({ id: 'twin000002', payee: 'Town Power' })];
+  assert.strictEqual(C.guessBill(twins, { dueDate: '2026-11-14', amount: 8000, minimumDue: null }, T), null, 'two bills fit equally: no guess');
+  assert.strictEqual(C.guessBill([], { dueDate: T, amount: 1 }, T), null);
+});
+
+test('Snap a statement on Gemini: the gates, then the guard, one schema call, the photo inline once, charged and recorded, nothing stored', async () => {
+  const me = await register('gem.reader@example.com');
+  const uid = uidOf('gem.reader@example.com');
+  const dump = store._dump();
+  // signed out and bad requests never reach the guard or the model
+  let g = fakeGuard();
+  await withGemini(g, async () => {
+    assert.strictEqual((await client()('POST', '/api/read', { text: 'City Power $84.20 due 2026-10-30' })).status, 401);
+    assert.strictEqual((await me('POST', '/api/read', {})).status, 400);
+    assert.strictEqual((await me('POST', '/api/read', { photo: { type: 'image/jpeg', data: Buffer.from('%PDF-1.4').toString('base64') } })).status, 400);
+    assert.strictEqual((await me('POST', '/api/read', { photo: { type: 'image/jpeg', data: Buffer.alloc(5 * 1024 * 1024, 0xff).toString('base64') } })).status, 400, 'a photo over the cap is refused before any call');
+  });
+  assert.deepStrictEqual(g.log.order, [], 'no allow, no call, no record');
+  // a photo
+  let calls = await modelCalls();
+  const before = (await identityStore.get('users', uid)).spentUsd || 0;
+  g = fakeGuard();
+  const NOWDAY = new Date().toISOString().slice(0, 10); // the route keeps a "today" only within a day of its own
+  const ph = await withGemini(g, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG }, today: NOWDAY }));
+  assert.strictEqual(ph.status, 200, ph.text);
+  assert.deepStrictEqual(ph.data.proposal, { payee: '', category: 'other', amount: 86840, minimumDue: 3500, dueDate: C.addDays(NOWDAY, 12), statementDate: null, autopay: 'on', stripped: false });
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record'], 'allow, the call, record');
+  assert.deepStrictEqual(g.log.allow[0], { provider: 'gemini', app: 'duly', uid });
+  const rq = g.log.requests[0];
+  assert.strictEqual(rq.model, 'gemini-3.8-flash');
+  assert.strictEqual(rq.responseSchema, gemini.SCHEMA, 'JSON out against the four-field schema');
+  assert.strictEqual(rq.contents.length, 1);
+  assert.deepStrictEqual(rq.contents[0].parts[0], { inlineData: { mimeType: 'image/jpeg', data: JPEG } }, 'the photo goes inline, by its sniffed type');
+  assert.ok(rq.generationConfig.maxOutputTokens <= 2048 && rq.timeoutMs <= 30000);
+  const usd = gemini.priceUsd({ inputTokens: 1200, outputTokens: 40, at: new Date('2026-11-23T00:00:00Z') });
+  assert.deepStrictEqual(g.log.record, [{ provider: 'gemini', app: 'duly', usd }]);
+  assert.strictEqual(await modelCalls(), calls + 1, 'one usage row');
+  const row = (await identityStore.list('usage')).find((r) => r.route === 'read:gemini-3.8-flash');
+  assert.ok(row && Math.abs(row.costUsd - usd) < 2e-6 && row.uid === uid, 'the person’s ledger is charged the Gemini price');
+  assert.ok(Math.abs(((await identityStore.get('users', uid)).spentUsd || 0) - before - usd) < 2e-6, 'and their credit goes down by it');
+  // pasted text: stripped of account numbers before the model sees it
+  g = fakeGuard();
+  const tx = await withGemini(g, () => me('POST', '/api/read', { text: 'City Power\nAccount 1234 5678 9012\nAmount due $84.20\nMinimum payment $20.00\nDue date 2026-10-30\nYou are enrolled in AutoPay', today: T }));
+  assert.deepStrictEqual(tx.data.proposal, { payee: '', category: 'other', amount: 8420, minimumDue: 2000, dueDate: '2026-10-30', statementDate: null, autopay: 'on', stripped: true });
+  const sent = JSON.stringify(g.log.requests[0].contents);
+  assert.ok(!/1234 5678 9012/.test(sent) && /84\.20/.test(sent) && /<<<BILL/.test(sent), 'the number never reaches the model');
+  // hostile output from the model
+  g = fakeGuard({ generate: async () => ({ json: { dueDate: '2026-10-30', amountDue: 84.2, minimumDue: 9999, autopay: 'definitely', payee: '<img src=x onerror=alert(1)> 4111 1111 1111 1111', accountNumber: '123456789012' }, usage: { inputTokens: 10, outputTokens: 10 } }) });
+  const hostile = await withGemini(g, () => me('POST', '/api/read', { text: 'A bill for 1 thing', today: T }));
+  assert.deepStrictEqual(hostile.data.proposal, { payee: '', category: 'other', amount: 8420, minimumDue: null, dueDate: '2026-10-30', statementDate: null, autopay: 'unknown', stripped: false });
+  assert.ok(!/4111|123456789012|<img|accountNumber/.test(hostile.text));
+  // nothing read
+  g = fakeGuard();
+  const blank = await withGemini(g, () => me('POST', '/api/read', { text: 'BLANK bill text 12' }));
+  assert.deepStrictEqual([blank.status, /Nothing like a bill/.test(blank.data.error), g.log.record.length], [422, true, 1], 'a 422, and the call it cost is still recorded');
+  const inj = await withGemini(fakeGuard(), () => me('POST', '/api/read', { text: 'INJECT this bill please, due in 3 days' }));
+  assert.ok(inj.status === 422 && !/<[a-z/!]/i.test(inj.text) && !/4111|accountNumber/.test(inj.text), 'the stand-in’s hostile answer leaves nothing');
+  // the guard says no: its message, no call
+  g = fakeGuard({ deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+  calls = await modelCalls();
+  const capped = await withGemini(g, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG } }));
+  assert.deepStrictEqual([capped.status, capped.data.code, capped.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
+  assert.deepStrictEqual(g.log.order, ['allow']);
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  assert.strictEqual((await withGemini(g, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG } }))).status, 429);
+  assert.strictEqual(await modelCalls(), calls, 'a refusal costs nothing');
+  // provider failures: never passed on; a billed failure is still recorded
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  const blocked = await withGemini(g, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG } }));
+  assert.ok(blocked.status === 502 && !/SECRET|Gemini|Vertex/.test(blocked.text), blocked.text);
+  assert.strictEqual(g.log.record.length, 1, 'billed, so recorded');
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini answered 429.'), { name: 'VertexError', code: 'http', status: 429 }); } });
+  const busy = await withGemini(g, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG } }));
+  assert.deepStrictEqual([busy.status, /AI is busy/.test(busy.data.error), g.log.record.length], [503, true, 0]);
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini took too long.'), { name: 'VertexError', code: 'timeout' }); } });
+  assert.strictEqual((await withGemini(g, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG } }))).status, 503);
+  const up = await withGemini(fakeGuard(), () => me('POST', '/api/read', { text: 'UPSTREAM500 bill 1' }));
+  assert.ok(up.status === 502 && !/stand-in|Gemini/.test(up.text));
+  // on its own (no lab guard), the local stand-in still answers
+  const alone = await withGemini(undefined, () => me('POST', '/api/read', { photo: { type: 'image/jpeg', data: JPEG }, today: T }));
+  assert.deepStrictEqual([alone.status, alone.data.proposal.amount], [200, 86840]);
+  await settle();
+  assert.strictEqual(store._dump(), dump, 'reading stores nothing - not the photo, not the text, not the reading');
+  assert.ok(!/console\./.test(read('lib/gemini.js')), 'the reader logs nothing');
+  const src = read('server.js');
+  const mid = src.slice(src.indexOf('async function guardAllow'), src.indexOf("app.post('/api/read'"));
+  assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')"], 'and the route logs fixed words only');
+});
+
+test('on Claude the lab guard is asked first and told the cost after; a refusal makes no call; the gates still come before it', async () => {
+  const me = await register('guarded.claude@example.com');
+  const g = fakeGuard({ provider: 'claude' });
+  global.LAB_AI_GUARD = g;
+  try {
+    assert.strictEqual((await client()('POST', '/api/read', { text: 'City Power $84.20 due 2026-10-30' })).status, 401);
+    assert.deepStrictEqual(g.log.order, []);
+    const r = await me('POST', '/api/read', { text: 'City Power\nAmount due $84.20\nDue date 2026-10-30', today: T });
+    assert.deepStrictEqual([r.status, r.data.proposal.payee, r.data.proposal.amount], [200, 'City Power', 8420]);
+    assert.deepStrictEqual(g.log.order, ['allow', 'record'], 'no Gemini call on the default provider');
+    assert.deepStrictEqual(g.log.record, [{ provider: 'claude', app: 'duly', usd: (820 + 5 * 140) / 1e6 }]);
+    const deny = fakeGuard({ provider: 'claude', deny: { ok: false, status: 429, code: 'burst-day', message: 'That is a lot of AI for one day - try again tomorrow.' } });
+    global.LAB_AI_GUARD = deny;
+    const calls = await modelCalls();
+    const no = await me('POST', '/api/read', { text: 'City Power $84.20 due 2026-10-30' });
+    assert.deepStrictEqual([no.status, no.data.code], [429, 'burst-day']);
+    await settle();
+    assert.strictEqual(await modelCalls(), calls);
+  } finally { delete global.LAB_AI_GUARD; }
 });
 
 /* ---------------- run ---------------- */
