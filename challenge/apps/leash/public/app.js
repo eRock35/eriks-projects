@@ -39,7 +39,9 @@
     dirty: false,
     saving: false,
     tab: 'pick',
+    view: 'score',      // 'score' | 'profile' | 'drill' | 'charter'
     reading: null,      // the AI's reading, under review
+    probes: null,       // the reading's drills for the agent itself (this page only, never stored)
     busy: false,
     shownScore: 0,
     moreFixes: false,
@@ -92,7 +94,7 @@
   }
   /** The 403 an unconfirmed free account gets, with its resend button. */
   function verifyNote(where, e, what) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then come back and ' + esc(what) + ' again. Nothing you pasted is lost - and ticking what it can do by hand works meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then come back and ' + esc(what) + ' again. Nothing you pasted is lost - and ticking what it can do by hand works meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     $('#resend', where).onclick = function () {
       var b = this; b.disabled = true;
       fetch(e.data.resend || (BASE + 'api/auth/verify/send'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
@@ -107,7 +109,7 @@
 
   function setAgent(agent, kind, id) {
     state.agent = C.cleanAgent(agent); state.kind = kind; state.id = id || null; state.dirty = false;
-    state.reading = null; state.moreFixes = false;
+    state.reading = null; state.probes = null; state.moreFixes = false;
     stopDrill(); state.drill = { phase: 'idle' };
     keep(K_OPEN, kind === 'saved' ? { id: id } : null);
     fillAll();
@@ -145,13 +147,55 @@
 
   /* ---------------- the top of the page ---------------- */
 
+  /* ---------------- views ----------------
+   * Four views, one at a time on a phone: Score (the ring and its fixes),
+   * Agent, Drill, Charter. From 900px the score and its fixes stay in the
+   * left column, so "Score" there means the agent beside it. */
+  var WIDE = window.matchMedia ? window.matchMedia('(min-width: 900px)') : { matches: false };
+  var PANES = { profile: '#profile', drill: '#drill', charter: '#charter' };
+  function showView(v, opts) {
+    opts = opts || {};
+    var changedView = v !== state.view;
+    state.view = v;
+    var wide = Boolean(WIDE.matches);
+    var eff = wide && v === 'score' ? 'profile' : v;
+    $('#paneScore').hidden = !wide && v !== 'score';
+    Object.keys(PANES).forEach(function (k) {
+      var el = $(PANES[k]);
+      el.hidden = k !== eff;
+      el.classList.toggle('pane-in', changedView && k === eff);
+    });
+    $('#paneScore').classList.toggle('pane-in', changedView && v === 'score' && !wide);
+    $$('[data-nav]').forEach(function (b) {
+      var on = b.getAttribute('data-nav') === (b.closest('#topnav') ? eff : v);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    drawIntro();
+    if (changedView && !opts.keepScroll) window.scrollTo(0, 0);
+  }
+  $$('[data-nav]').forEach(function (b) { b.onclick = function () { showView(b.getAttribute('data-nav')); }; });
+  if (WIDE.addEventListener) WIDE.addEventListener('change', function () { showView(state.view, { keepScroll: true }); });
+
   function drawIntro() {
-    var el = $('#intro');
+    var el = $('#intro'), ex = $('#exampleOf');
     if (state.kind === 'sample') {
+      // The welcome: shown with the score, out of the way on the other views.
+      ex.hidden = false;
+      ex.innerHTML = '<span class="tagx">Example</span><b>' + esc(S.NAME) + '</b> <span class="muted">(a made-up shop)</span>';
       el.className = 'intro';
-      el.innerHTML = '<p><span class="tagx">Example</span><b>' + esc(S.NAME) + '</b> <span class="made">(a made-up shop)</span><br>This is an example support agent - try the fixes, then check your own.</p>';
+      el.hidden = state.view !== 'score';
+      if (!$('#checkMine', el)) {
+        el.innerHTML = '<h1>Know what your AI agent can do.</h1>' +
+          '<p class="lede">Before it does it. A blast-radius score, its worst day in dollars, the fixes that shrink it, a bad-day drill and a one-page charter.</p>' +
+          '<div class="hero-cta"><button class="btn big" type="button" id="checkMine">Check my agent</button><button class="btn big ghost" type="button" id="pasteMine">Paste its prompt</button></div>' +
+          '<p class="sub">Free, no account: tick what it can do. Or paste its prompt and tools, and AI maps it and suggests drills.</p>';
+        $('#checkMine').onclick = function () { startOwn('pick'); };
+        $('#pasteMine').onclick = function () { startOwn('paste'); };
+      }
       return;
     }
+    ex.hidden = true;
+    el.hidden = false;
     el.className = 'intro mine';
     var name = state.agent.name || P().name || 'My AI agent';
     var status = state.kind === 'local'
@@ -161,10 +205,10 @@
       (state.kind === 'local' ? '<button class="btn small" type="button" id="saveIt">' + (signedIn() ? 'Save to my account' : 'Sign in to save') + '</button>' : '') +
       '<button class="btn small ghost" type="button" id="toSample">See the example</button>';
     var s = $('#saveIt'); if (s) s.onclick = saveAgent;
-    $('#toSample').onclick = function () { setAgent(sampleAgent(), 'sample'); window.scrollTo(0, 0); };
+    $('#toSample').onclick = function () { setAgent(sampleAgent(), 'sample'); showView('score'); window.scrollTo(0, 0); };
   }
 
-  function startOwn() {
+  function startOwn(tab) {
     var had = recall(K_DRAFT);
     if (had && had.agent && had.kind === 'local' && had.agent.profile && Object.keys(had.agent.profile.caps || {}).length) {
       setAgent(had.agent, 'local');
@@ -173,18 +217,19 @@
       setAgent(blankAgent(), 'local');
       changed();
     }
-    setTab('pick');
-    var p = $('#profile');
-    p.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
-    setTimeout(function () { $('#pName').focus({ preventScroll: true }); }, reduced() ? 0 : 450);
+    setTab(tab === 'paste' ? 'paste' : 'pick');
+    showView('profile');
+    // Pasting: land on the box itself, past the fields above it (a jump, not a glide).
+    if (tab === 'paste') $('.tabs').scrollIntoView({ block: 'start' });
+    setTimeout(function () { $(tab === 'paste' ? '#pasteBox' : '#pName').focus({ preventScroll: true }); }, 60);
   }
 
   /* ---------------- the ring and the worst day ---------------- */
 
-  var R = 82, CIRC = 2 * Math.PI * R;
+  var R = 88, CIRC = 2 * Math.PI * R;
   function buildRing() {
-    var arcs = C.GROUPS.map(function (g) { return '<circle class="arc ' + g.id + '" data-g="' + g.id + '" cx="100" cy="100" r="' + R + '" fill="none" stroke-width="20" stroke-dasharray="0 ' + CIRC + '" stroke-dashoffset="0"/>'; }).join('');
-    $('#ring').innerHTML = '<svg viewBox="0 0 200 200" aria-hidden="true" focusable="false"><circle class="track" cx="100" cy="100" r="' + R + '" fill="none" stroke-width="20"/>' + arcs + '</svg>' +
+    var arcs = C.GROUPS.map(function (g) { return '<circle class="arc ' + g.id + '" data-g="' + g.id + '" cx="100" cy="100" r="' + R + '" fill="none" stroke-width="14" stroke-dasharray="0 ' + CIRC + '" stroke-dashoffset="0"/>'; }).join('');
+    $('#ring').innerHTML = '<svg viewBox="0 0 200 200" aria-hidden="true" focusable="false"><circle class="track" cx="100" cy="100" r="' + R + '" fill="none" stroke-width="14"/>' + arcs + '</svg>' +
       '<div class="mid" aria-hidden="true"><span class="num" id="ringNum">0</span><span class="of">of 100</span><span class="band low" id="ringBand">Low</span></div>';
   }
   function drawRing(sc, instant) {
@@ -234,17 +279,15 @@
     if (w.more.length) notes.unshift('Also, alone: ' + w.more.map(function (it) { return partsText(it.parts); }).join('; ') + '.');
     $('#notes').innerHTML = notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('');
     var cta = $('#heroCta');
-    if (state.kind === 'sample') {
-      cta.innerHTML = '<button class="btn big block" type="button" id="checkMine">Check my agent</button><p class="sub">Free, no account: tick what it can do. Or paste its prompt and let AI map it.</p>';
-      $('#checkMine').onclick = startOwn;
-    } else if (!Object.keys(P().caps).length) {
-      cta.innerHTML = '<a class="btn block" href="#profile">Tick what it can do ↓</a>';
+    if (state.kind !== 'sample' && !Object.keys(P().caps).length) {
+      cta.innerHTML = '<button class="btn" type="button" id="toProfile">Tick what it can do</button>';
+      $('#toProfile').onclick = function () { showView('profile'); };
     } else cta.innerHTML = '';
     drawGroupPoints(sc);
     var js = $('#jumpScore');
-    js.innerHTML = '<span class="n">' + sc.score + '</span> ' + esc(sc.band.label);
-    js.className = 'jump-score ' + sc.band.id;
-    js.setAttribute('aria-label', 'Blast radius ' + sc.score + ', ' + sc.band.label + '. Go to the score.');
+    js.innerHTML = '<span>Blast radius <span class="n">' + sc.score + '</span> <span class="bw">' + esc(sc.band.label) + '</span></span><span class="go">See the score</span>';
+    js.className = 'scorebar ' + sc.band.id;
+    js.setAttribute('aria-label', 'Blast radius ' + sc.score + ', ' + sc.band.label + '. See the score and its fixes.');
   }
 
   /* ---------------- fixes ---------------- */
@@ -269,7 +312,7 @@
     var after = C.score(P()).score;
     if (btn) {
       var li = btn.closest('li');
-      if (li) { li.classList.add('applied'); btn.outerHTML = '<span class="done">✓ Applied</span>'; }
+      if (li) { li.classList.add('applied'); btn.outerHTML = '<span class="done">Applied</span>'; }
     }
     drawHero();
     fillCapRows();
@@ -409,7 +452,7 @@
     out.innerHTML = '<p class="busy">Reading it - this takes a few seconds…</p>';
     api('POST', 'api/read', { text: text }).then(function (r) {
       state.busy = false; $('#readBtn').disabled = false;
-      state.reading = r; drawReview();
+      state.reading = r; state.probes = (r.probes || []).slice(); drawReview(); drawProbes();
       loadMe();
     }).catch(function (e) {
       state.busy = false; $('#readBtn').disabled = false;
@@ -426,36 +469,66 @@
     bits.push(f.confidence + ' confidence');
     return bits.join(' · ');
   }
+  /** The reading's drills: what to say to the agent, and what it should do.
+   *  The "say this" line may be the model's; the "it should" line is ours. */
+  function probesHtml(list) {
+    return '<ol class="probes">' + list.map(function (p, i) {
+      var cat = C.BY_ID[p.cap];
+      return '<li><div><p class="pb-cap">' + esc(cat ? cat.label : '') + '</p><p class="pb-ask">' + esc(p.ask) + '</p><p class="pb-should"><b>Pass:</b> ' + esc(p.should.replace(/^It should /, 'it should ')) + '</p></div>' +
+        '<div class="pb-acts"><button class="btn small ghost" type="button" data-probe="' + i + '">Copy</button><span class="small muted">' + (p.by === 'ai' ? 'Suggested by AI' : 'From Leash') + '</span></div></li>';
+    }).join('') + '</ol><p class="probe-note">Run these on your own agent, in a test chat with test accounts - never on live customers. They are ordinary requests, not attacks: you are checking that it says no.</p>';
+  }
+  function wireProbes(root, list) {
+    $$('[data-probe]', root).forEach(function (b) { b.onclick = function () { copy(list[Number(b.getAttribute('data-probe'))].ask, 'Drill copied'); }; });
+  }
+  function drawProbes() {
+    var box = $('#probeBox'), list = state.probes;
+    if (!list || !list.length || state.drill.phase === 'round') { box.innerHTML = ''; return; }
+    box.innerHTML = '<h3 class="read-h">Drills for your own agent</h3><p class="small muted">From the prompt you pasted: ' + list.length + ' things to say to it, and what a safe agent does.</p>' + probesHtml(list);
+    wireProbes(box, list);
+  }
   function drawReview() {
     var r = state.reading, out = $('#readOut');
     if (!r) { out.innerHTML = ''; return; }
-    var n = r.found.length;
-    out.innerHTML = '<h3 style="margin-top:14px">We found ' + n + ' capabilit' + (n === 1 ? 'y' : 'ies') + (n ? ' - apply?' : '') + '</h3>' +
+    var n = r.found.length, tools = r.tools || {}, probes = r.probes || [];
+    out.innerHTML = '<h3 class="read-h">We found ' + n + ' capabilit' + (n === 1 ? 'y' : 'ies') + '</h3>' +
+      (n ? '<p class="preview" id="readPreview"></p>' : '') +
       (r.unverified ? '<p class="warn">' + r.unverified + ' quote' + (r.unverified === 1 ? ' was' : 's were') + ' not found word for word in what you pasted. Check ' + (r.unverified === 1 ? 'it' : 'them') + ' before you apply.</p>' : '') +
       '<ul class="review">' + r.found.map(function (f, i) {
-        var cat = C.BY_ID[f.id];
-        return '<li class="' + (f.verified ? '' : 'unverified') + '"><label class="rv-head"><input type="checkbox" data-take="' + i + '" checked><span><span class="rv-name">' + esc(cat.label) + '</span><br><span class="rv-meta">' + esc(guessLine(f)) + '</span></span></label>' +
+        var cat = C.BY_ID[f.id], tool = Object.prototype.hasOwnProperty.call(tools, f.id) ? tools[f.id] : '';
+        return '<li class="' + (f.verified ? '' : 'unverified') + '"><label class="rv-head"><input type="checkbox" data-take="' + i + '" checked><span><span class="rv-name">' + esc(cat.label) + '</span><br><span class="rv-meta">' + (tool ? 'Tool <span class="rv-tool">' + esc(tool) + '</span> · ' : '') + esc(guessLine(f)) + '</span></span></label>' +
           (f.quote ? '<blockquote>' + esc(f.quote) + '</blockquote>' : '') +
-          (f.verified ? '<p class="ok">✓ Found word for word in your text</p>' : '<p class="unv">⚠ Not found word for word in your text - the AI may have paraphrased. Check it.</p>') + '</li>';
+          (f.verified ? '<p class="ok">Found word for word in your text</p>' : '<p class="unv">Not found word for word in your text - the AI may have paraphrased. Check it.</p>') + '</li>';
       }).join('') + '</ul>' +
-      (r.risks.length ? '<h3>Also worth a look</h3><p class="small muted">Not on the checklist, but the text shows them:</p><ul class="risks">' + r.risks.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') +
-      '<p class="small muted">Applying sets each one\'s autonomy and limits. Logging and undo start at "not logged" and the usual answer - set them in the checklist.</p>' +
-      '<div class="row">' + (n ? '<button class="btn" type="button" id="applyRead">Apply ' + n + ' to the profile</button>' : '') + '<button class="btn ghost" type="button" id="dropRead">Discard</button></div>';
+      '<p class="small muted mt12">Applying sets each one\'s autonomy and limits. Logging and undo start at "not logged" and the usual answer - set them in the checklist.</p>' +
+      '<div class="row">' + (n ? '<button class="btn" type="button" id="applyRead">Apply ' + n + ' to the profile</button>' : '') + '<button class="btn ghost" type="button" id="dropRead">Discard</button></div>' +
+      (probes.length ? '<h3 class="read-h">Drills to run on your agent</h3><p class="small muted">' + probes.length + ' things to say to it, and what a safe agent does. They stay under Drill until you close this agent.</p>' + probesHtml(probes) : '') +
+      (r.risks.length ? '<h3 class="read-h">Also worth a look</h3><p class="small muted">Not on the checklist, but the text shows them:</p><ul class="risks">' + r.risks.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '');
+    wireProbes(out, probes);
     var ap = $('#applyRead');
     if (ap) {
-      var count = function () { var k = $$('[data-take]', out).filter(function (x) { return x.checked; }).length; ap.textContent = 'Apply ' + k + ' to the profile'; ap.disabled = !k; };
+      var taken = function () { return $$('[data-take]', out).filter(function (x) { return x.checked; }).map(function (x) { return r.found[Number(x.getAttribute('data-take'))]; }); };
+      // The blast radius is Leash's own sum over the ticked labels - the
+      // same score() the ring uses - never a number from the model.
+      var count = function () {
+        var take = taken(), k = take.length;
+        ap.textContent = 'Apply ' + k + ' to the profile'; ap.disabled = !k;
+        var now = C.score(P()), then = C.score(C.applyFindings(P(), take));
+        $('#readPreview').innerHTML = 'Blast radius with ' + (k === n ? 'these' : 'the ' + k + ' ticked') + ' applied <span class="n">' + then.score + '</span> <span class="bw ' + then.band.id + '">' + esc(then.band.label) + '</span>' + (now.score !== then.score ? '<span>· now ' + now.score + '</span>' : '');
+      };
       $$('[data-take]', out).forEach(function (x) { x.onchange = count; });
+      count();
       ap.onclick = function () {
-        var take = $$('[data-take]', out).filter(function (x) { return x.checked; }).map(function (x) { return r.found[Number(x.getAttribute('data-take'))]; });
+        var take = taken();
         state.agent.profile = C.applyFindings(P(), take);
         state.reading = null; out.innerHTML = '';
         fillCapRows(); drawHero(); drawFixes(); drawCharter(); drawDrill(); changed();
         setTab('pick');
         toast('Applied ' + take.length + ' - now check logging and undo for each.', 3600);
-        $('#radius').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+        showView('score');
       };
     }
-    $('#dropRead').onclick = function () { state.reading = null; out.innerHTML = ''; };
+    $('#dropRead').onclick = function () { state.reading = null; state.probes = null; out.innerHTML = ''; drawProbes(); };
   }
 
   /* ---------------- the drill ---------------- */
@@ -473,7 +546,7 @@
     box.innerHTML = '<div class="drill-intro"><p><b>Three things go wrong. You have 60 seconds for each.</b> Pick what you would do. The cards come from what your agent can do, and the score comes from how ready you really are - your kill switch, logs, approvals, limits and undo - not just your answers.</p></div>' +
       '<div class="drill-go">' + (on ? '<button class="btn big" type="button" id="drillGo">Start the drill</button>' : '<button class="btn big" type="button" disabled>Start the drill</button><span class="small muted">Switch on what it can do first.</span>') + '</div>' +
       (last ? '<p class="small">Last drill (' + esc(shortDate(last.at)) + '): <b>' + last.readiness + '</b> ready · best call on ' + last.calls + ' of ' + last.rounds + '.</p>' +
-        (hist.length > 1 ? '<div class="history" aria-hidden="true">' + hist.slice(-20).map(function (h) { return '<i style="height:' + Math.max(3, Math.round(h.readiness * 0.44)) + 'px"></i>'; }).join('') + '</div><p class="hist-cap">Readiness, last ' + Math.min(20, hist.length) + ' drills</p>' : '') : '');
+        (hist.length > 1 ? '<svg class="history" viewBox="0 0 ' + (Math.min(20, hist.length) * 18 - 4) + ' 44" width="' + (Math.min(20, hist.length) * 18 - 4) + '" height="44" aria-hidden="true" focusable="false">' + hist.slice(-20).map(function (h, i) { var hh = Math.max(3, Math.round(h.readiness * 0.44)); return '<rect x="' + (i * 18) + '" y="' + (44 - hh) + '" width="14" height="' + hh + '" rx="2"/>'; }).join('') + '</svg><p class="hist-cap">Readiness, last ' + Math.min(20, hist.length) + ' drills</p>' : '') : '');
     var go = $('#drillGo');
     if (go) go.onclick = startDrill;
   }
@@ -483,7 +556,8 @@
     if (!dealt.length) return;
     state.drill = { phase: 'round', dealt: dealt, picks: [], k: 0, left: DRILL_SECS * 1000, paused: false, answered: false, started: Date.now() };
     drawRound(true);
-    $('#drill').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+    drawProbes();
+    showView('drill');
     runClock();
   }
   function runClock() {
@@ -505,8 +579,9 @@
     if (!s) return;
     s.textContent = secs + 's';
     var cls = secs <= 10 ? 'crit' : secs <= 20 ? 'low' : '';
-    s.className = 'secs ' + cls; bar.className = 'bar ' + cls;
-    $('i', bar).style.width = (100 * d.left / (DRILL_SECS * 1000)).toFixed(1) + '%';
+    s.className = 'secs ' + cls; bar.setAttribute('class', 'bar ' + cls);
+    bar.setAttribute('aria-valuenow', String(secs));
+    $('rect', bar).setAttribute('width', (100 * d.left / (DRILL_SECS * 1000)).toFixed(1));
   }
   function drawRound(focus) {
     var d = state.drill, box = $('#drillBody');
@@ -516,7 +591,7 @@
     var pick = d.picks[d.k];
     box.innerHTML = '<div class="round-top"><span class="round-n">Card ' + (d.k + 1) + ' of ' + d.dealt.length + '</span>' +
       '<span class="clock">' + (d.answered ? '' : '<span class="secs" id="secs" aria-hidden="true"></span><button class="btn small ghost" type="button" id="pause">' + (d.paused ? 'Resume' : 'Pause') + '</button>') + '</span></div>' +
-      (d.answered ? '' : '<div class="bar" id="bar" role="progressbar" aria-label="Time left" aria-valuemin="0" aria-valuemax="60"><i></i></div>') +
+      (d.answered ? '' : '<svg class="bar" id="bar" viewBox="0 0 100 6" preserveAspectRatio="none" role="progressbar" aria-label="Time left" aria-valuemin="0" aria-valuemax="60"><rect x="0" y="0" width="100" height="6"/></svg>') +
       '<div class="scenario">' + (cat ? '<span class="focus">' + esc(cat.label) + '</span>' : '<span class="focus">Any agent</span>') + '<h3>' + esc(ev.title) + '</h3><p>' + esc(ev.text) + '</p></div>' +
       (d.paused && !d.answered ? '<p class="small muted">Paused. Talk it through, then resume to answer.</p>' : '') +
       '<ul class="choices">' + ev.responses.map(function (r, j) {
@@ -527,7 +602,7 @@
           (d.answered ? (verdict ? '<span class="verdict"> · ' + esc(verdict) + '</span>' : '') + '<span class="what">' + esc(r.outcome) + '</span>' : '') + '</span></button></li>';
       }).join('') + '</ul>' +
       (d.answered ? '<p class="round-note">' + esc(d.timedOut ? 'Time ran out - in a real incident, it is still running.' : pick === ev.best ? 'Best call.' : 'Not the best call for this agent.') + ' Readiness on this card: ' + ev.prep.points + '/100.</p>' +
-        '<div class="row"><button class="btn" type="button" id="nextCard">' + (d.k + 1 < d.dealt.length ? 'Next card →' : 'See how ready you are') + '</button></div>' : '');
+        '<div class="row"><button class="btn" type="button" id="nextCard">' + (d.k + 1 < d.dealt.length ? 'Next card' : 'See how ready you are') + '</button></div>' : '');
     if (!d.answered) {
       drawClock();
       $('#pause').onclick = function () { d.paused = !d.paused; drawRound(); if (!d.paused) { var b = $('[data-pick]'); if (b) b.focus(); } else $('#pause').focus(); };
@@ -566,6 +641,7 @@
         .catch(function () { toast('The drill result could not be saved.'); });
     } else changed();
     drawDrill();
+    drawProbes();
   }
   function drawResult() {
     var d = state.drill, res = d.res, box = $('#drillBody');
@@ -575,18 +651,18 @@
       '<ul class="rounds">' + res.rounds.map(function (r) { return '<li><span>' + esc(r.title) + (r.timedOut ? ' · time ran out' : r.bestCall ? ' · best call' : '') + '</span><b>' + r.prep + '</b></li>'; }).join('') + '</ul>' +
       (res.saves.length ? '<h3>What would have saved you</h3><ul class="saves">' + res.saves.slice(0, d.allSaves ? res.saves.length : 4).map(function (s, i) {
         var done = s.kind === 'fix' && JSON.stringify(C.applyFix(P(), s.fix)) === JSON.stringify(C.cleanProfile(P()));
-        return '<li><span>' + esc(s.text) + '</span>' + (done ? '<span class="done">✓ Done</span>' : '<button class="btn small ' + (s.kind === 'fix' ? '' : 'ghost') + '" type="button" data-save="' + i + '">' + (s.kind === 'fix' ? 'Apply' : 'Fill it in') + '</button>') + '</li>';
+        return '<li><span>' + esc(s.text) + '</span>' + (done ? '<span class="done">Done</span>' : '<button class="btn small ' + (s.kind === 'fix' ? '' : 'ghost') + '" type="button" data-save="' + i + '">' + (s.kind === 'fix' ? 'Apply' : 'Fill it in') + '</button>') + '</li>';
       }).join('') + '</ul>' + (res.saves.length > 4 && !d.allSaves ? '<button class="link-btn" type="button" id="allSaves">Show ' + (res.saves.length - 4) + ' more</button>' : '') : '<p>Nothing on our list would have saved you more. Nicely done.</p>') +
       '<div class="row"><button class="btn" type="button" id="again">Run another drill</button><button class="btn ghost" type="button" id="drillDone">Done</button></div>';
     d.fresh = false;
     $$('[data-save]', box).forEach(function (b) {
       b.onclick = function () {
         var s = res.saves[Number(b.getAttribute('data-save'))];
-        if (s.kind === 'fix') { applyFix(s.fix); b.outerHTML = '<span class="done">✓ Done</span>'; return; }
+        if (s.kind === 'fix') { applyFix(s.fix); b.outerHTML = '<span class="done">Done</span>'; return; }
         var map = { killOwner: '#cOwner', killHow: '#cHow', review: '#cReview', logRetention: '#cRetention' };
         var f = $(map[s.field] || '#cOwner');
-        $('#charter').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
-        setTimeout(function () { f.focus({ preventScroll: true }); f.classList.add('flash'); setTimeout(function () { f.classList.remove('flash'); }, 1300); }, reduced() ? 0 : 450);
+        showView('charter');
+        setTimeout(function () { f.focus({ preventScroll: true }); f.classList.add('flash'); setTimeout(function () { f.classList.remove('flash'); }, 1300); }, 60);
       };
     });
     var all = $('#allSaves'); if (all) all.onclick = function () { d.allSaves = true; drawResult(); };
@@ -631,7 +707,7 @@
     fillProfileFields(); buildChecklist(); fillCharter(); setTab('pick');
     $('#readOut').innerHTML = '';
   }
-  function drawAll(instant) { drawIntro(); drawHero(instant); drawFixes(); drawDrill(); drawCharter(); }
+  function drawAll(instant) { drawIntro(); drawHero(instant); drawFixes(); drawDrill(); drawProbes(); drawCharter(); }
 
   /* ---------------- agents ---------------- */
 
@@ -652,8 +728,8 @@
           '<div class="row"><button class="btn" type="button" id="newAgent">Check a new agent</button>' + (saved ? '' : '<button class="btn ghost" type="button" id="aSign">Sign in</button>') + '</div>';
         $$('[data-open]', root).forEach(function (b) { b.onclick = function () { openSaved(b.getAttribute('data-open')); }; });
         $$('[data-more]', root).forEach(function (b) { b.onclick = function () { agentMenu(saved.filter(function (a) { return a.id === b.getAttribute('data-more'); })[0]); }; });
-        var lb = $('[data-local]', root); if (lb) lb.onclick = function () { closeSheet(); setAgent(local.agent, 'local'); window.scrollTo(0, 0); };
-        $('[data-sample]', root).onclick = function () { closeSheet(); setAgent(sampleAgent(), 'sample'); window.scrollTo(0, 0); };
+        var lb = $('[data-local]', root); if (lb) lb.onclick = function () { closeSheet(); setAgent(local.agent, 'local'); showView('score'); };
+        $('[data-sample]', root).onclick = function () { closeSheet(); setAgent(sampleAgent(), 'sample'); showView('score'); };
         $('#newAgent', root).onclick = function () {
           if (local && local.kind === 'local' && local.agent && Object.keys((local.agent.profile || {}).caps || {}).length && !confirm('Start a new agent? The one on this device will be replaced. (Sign in to save the ones you want to keep.)')) return;
           closeSheet(); keep(K_DRAFT, null); startOwn();
@@ -665,7 +741,7 @@
     });
   }
   function openSaved(id) {
-    api('GET', 'api/agents/' + encodeURIComponent(id)).then(function (r) { closeSheet(); setAgent(r.agent, 'saved', r.agent.id); window.scrollTo(0, 0); }).catch(function (e) { showError(e); });
+    api('GET', 'api/agents/' + encodeURIComponent(id)).then(function (r) { closeSheet(); setAgent(r.agent, 'saved', r.agent.id); showView('score'); }).catch(function (e) { showError(e); });
   }
   function agentMenu(a) {
     sheet('<h2>' + esc(a.name) + '</h2><label class="field"><span>Name</span><input class="input" id="rn" maxlength="80" value="' + esc(a.name) + '"></label><div id="rnErr"></div>' +
@@ -732,8 +808,8 @@
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted" style="text-align:center;margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).onclick = function () { mode = mode === 'register' ? 'login' : 'register'; draw(root); };
       $('#authForm', root).onsubmit = function (e) {
         e.preventDefault();
@@ -768,9 +844,9 @@
     sheet(
       '<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
       '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div>' +
-      '<p class="small muted" style="margin:6px 0 0">Reading a prompt costs a cent or two. Everything else is free.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<p class="small muted mt8 mb0">Reading a prompt costs a cent or two. Everything else is free.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block mt16" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).onclick = function () {
@@ -832,7 +908,7 @@
     P().rate = Math.min(n, C.LIMITS.maxRate); drawHero(); changed();
   });
   $('#tabPick').onclick = function () { setTab('pick'); };
-  $('#tabPaste').onclick = function () { setTab('paste'); $('#pasteBox').focus(); };
+  $('#tabPaste').onclick = function () { setTab('paste'); };
   $$('[role=tab]').forEach(function (t) {
     t.addEventListener('keydown', function (e) {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -874,6 +950,7 @@
   var draft = recall(K_DRAFT);
   if (draft && draft.agent && draft.kind === 'local') setAgent(draft.agent, 'local');
   else setAgent(sampleAgent(), 'sample');
+  showView('score', { keepScroll: true });
   drawTop();
   loadMe().then(function () {
     drawIntro();

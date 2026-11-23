@@ -189,9 +189,32 @@ app.post('/api/read', ...spend, readJson, async (req, res) => {
   const text = (req.body || {}).text;
   if (typeof text !== 'string' || text.trim().length < Core.LIMITS.textMin) return fail(res, httpError(400, 'Paste the agent\'s system prompt, its tool definitions or a runbook - at least a few lines.'));
   if (text.length > Core.LIMITS.text) return fail(res, httpError(400, `That is over ${Core.groups(Core.LIMITS.text)} characters. Paste the tools and the rules first - they say the most.`));
+  // The lab-wide guard (the monthly cap and the bursts), when the host has
+  // one: asked after the free 400s and before the stream starts, so its no
+  // is a real status with its own friendly words - and no model call.
+  const guard = global.LAB_AI_GUARD;
+  if (guard?.allow) {
+    let a = null;
+    try { a = await guard.allow({ provider: 'claude', req, app: 'leash' }); } catch (e) { console.error('[leash] guard allow failed:', e && e.name ? e.name : 'error'); }
+    if (!a || !a.ok) return res.status((a && a.status) || 503).json({ error: (a && a.message) || 'AI answers are resting right now. Tick what it can do by hand - it is free.', ...(a && a.code ? { code: a.code } : {}) });
+  }
   const send = streamedJson(res);
   try {
-    const raw = await ai.mapCapabilities(await clientFor(req), modelFor(req), text);
+    const model = modelFor(req);
+    const client = await clientFor(req);
+    let used = null;
+    let raw;
+    try {
+      raw = await ai.mapCapabilities(client, model, text, (u) => { used = u; });
+    } finally {
+      // A call that came back is paid for whether or not its answer was
+      // usable. A person's own key is their spend, not the lab's.
+      if (guard?.record && used && !client.__byok) {
+        try {
+          await guard.record({ provider: 'claude', app: 'leash', usd: guard.priceUsd({ provider: 'claude', model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) });
+        } catch (e) { console.error('[leash] guard record failed:', e && e.name ? e.name : 'error'); }
+      }
+    }
     const out = ai.cleanReading(raw, text);
     if (!out) throw httpError(422, 'We could not find anything on the checklist in that. If it is an agent\'s prompt, tick what it can do by hand instead - it is free.');
     send(out);
@@ -325,4 +348,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`leash listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, MODELS };
