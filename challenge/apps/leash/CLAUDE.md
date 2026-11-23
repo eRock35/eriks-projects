@@ -46,7 +46,7 @@ managers, and compliance/risk people at small and mid-size companies.
 worst day, the fixes, the drill and the charter work in the browser with no
 account and no model call. One thing is metered and signed in: **reading a
 pasted prompt, tool definitions or runbook** - which maps the blast radius
-and suggests drills to run on the agent - (Haiku for the free tier, Sonnet
+and suggests tests to run on the agent - (Haiku for the free tier, Sonnet
 for members, via `identity.planFor`), a cent or two. Saving agents is free
 with an account.
 
@@ -265,6 +265,18 @@ Redesigned to the HOA Desk rules; `public/app.css` opens with them.
   `prefers-reduced-motion: no-preference` (tested); complete at rest.
 - Contrast, measured in the browser on every view: 6.11:1 at worst in
   light, 7.69:1 in dark. Nothing sideways at 390 or 320px; targets 44px+.
+- **A shorter hero on phones (2026-11-23).** Under 900px the welcome had
+  pushed the ring and the worst day below the fold. `@media (max-width:
+  899.98px)` in `app.css`: less padding, the headline `clamp(2rem, 8.6vw,
+  2.75rem)`, the lede at `--t4`, the two buttons side by side at 48px (stacked
+  at 320), less air above the score. At 390x844 the ring now sits at
+  430-630px, wholly above the floating bar, and the worst-day sentence starts
+  at 737px (it was 623-823, cut by the bar). Desktop unchanged.
+- **"Tests to run on your agent" (2026-11-23).** The AI-suggested probes
+  were labelled "Drills ..." and clashed with the Bad-day drill. Every
+  visible word for them is now "tests" (both headings, the hero and paste
+  hints, "Test copied"); code names (`probes`, `drills` in the tool schema)
+  are unchanged. Tested.
 
 ## Local run and tests
 
