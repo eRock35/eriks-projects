@@ -113,8 +113,9 @@ const ASK = {
   receipt: 'Here is the photo of the receipt. What does it say?',
 };
 
-/** One photo, one forced tool. Returns the tool's raw input (untrusted). */
-async function readPhoto(client, model, { kind, photo }) {
+/** One photo, one forced tool. Returns the tool's raw input (untrusted).
+ *  `onUsage` is told what the call used, for the lab's AI guard. */
+async function readPhoto(client, model, { kind, photo }, onUsage) {
   const tool = TOOLS[kind];
   if (!tool) throw httpError(400, 'Read a dashboard or a receipt.');
   const res = await client.messages.create({
@@ -128,6 +129,7 @@ async function readPhoto(client, model, { kind, photo }) {
       { type: 'text', text: ASK[kind] },
     ] }],
   }, { timeout: 60000, maxRetries: 1 });
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens) || 0, outputTokens: Number(res.usage.output_tokens) || 0 });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That answer ran long. Try again with a closer photo.');
   const block = (res && Array.isArray(res.content) ? res.content : []).find((b) => b && b.type === 'tool_use' && b.name === tool.name);
   if (!block || !block.input || typeof block.input !== 'object') throw httpError(502, 'The answer did not come back in the expected shape. Try again.');

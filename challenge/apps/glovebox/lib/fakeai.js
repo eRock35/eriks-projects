@@ -116,4 +116,73 @@ function create() {
   };
 }
 
-module.exports = { create };
+/**
+ * The stand-in for Gemini (GLOVEBOX_AI_PROVIDER=gemini): given the body the
+ * guard's Vertex helper would send, an answer in the shape its schema asks
+ * for. Which request it is, is read from the schema. Every request is kept
+ * in `geminiCalls` with the media replaced by its length.
+ *
+ * "Light or noise?" triggers, in the media's bytes or the driver's note:
+ *   BLANK        not a car (relevant: false) - a 422
+ *   CALM         the red oil light, with the model insisting it can wait
+ *   RATTLE       a loose heat shield, confidently "can wait"
+ *   MINOR        an unknown noise the model calls "can wait"
+ *   UNSURE       nothing it can tell
+ *   INJECT       hostile output: made-up ids and urgencies, markup, advice
+ *   UPSTREAMnnn  the call fails the way the helper's VertexError does
+ *   otherwise    a photo: an amber check-engine light, steady ("soon");
+ *                a recording: a squeal the model calls "soon" - which the
+ *                app must raise to "stop now", because it is the brakes
+ * The dash and receipt reads answer as the Claude stand-in does.
+ */
+const geminiCalls = [];
+async function gemini(body) {
+  const parts = (body && body.contents && body.contents[0] && body.contents[0].parts) || [];
+  const schema = (body && body.generationConfig && body.generationConfig.responseSchema) || {};
+  const props = schema.properties || {};
+  const media = parts.filter((p) => p.inlineData);
+  const text = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('\n');
+  const bytes = media.map((p) => Buffer.from(p.inlineData.data, 'base64').toString('latin1')).join('\n');
+  geminiCalls.push({
+    schema: Object.keys(props),
+    systemInstruction: body && body.systemInstruction,
+    parts: parts.map((p) => (p.inlineData ? { inlineData: { mimeType: p.inlineData.mimeType, data: `<${p.inlineData.data.length} chars>` } } : p)),
+  });
+  await new Promise((r) => setTimeout(r, Number(process.env.GLOVEBOX_FAKE_DELAY_MS || 0)));
+  const note = (/<<<NOTE\n([\s\S]*)\nNOTE>>>/.exec(text) || [])[1] || '';
+  const source = `${bytes}\n${note}`;
+  const hit = source.match(/UPSTREAM(\d{3})/);
+  if (hit) throw Object.assign(new Error(`Gemini answered ${hit[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(hit[1]) });
+
+  if (!props.cause) {
+    // A dashboard or a receipt: the Claude stand-in's answer, flattened the
+    // way the Gemini schema asks for it.
+    if (props.lights) {
+      const d = dash(bytes).content[0].input;
+      return { relevant: d.relevant, lights: (d.lights || []).map((l) => ({ ...l, catalogueId: l.catalogueId || 'none' })), odometer: d.odometer ? d.odometer.value : null, odometerUnit: (d.odometer && d.odometer.unit) || 'not_shown', notes: d.notes || '', urgency: d.urgency };
+    }
+    const r = receipt(bytes).content[0].input;
+    return { relevant: r.relevant, date: r.date || '', mileage: r.mileage === undefined ? null : r.mileage, mileageUnit: r.mileageUnit || 'not_shown', shop: r.shop || '', items: (r.items || []).map((x) => ({ ...x, catalogueItem: x.catalogueItem || 'none', cost: x.cost === undefined ? null : x.cost })), total: r.total === undefined ? null : r.total, currency: r.currency || '' };
+  }
+
+  const none = { relevant: true, catalogueId: 'none', lightColour: 'unknown', flashing: 'unknown', sound: 'none', hazards: [], cause: 'unknown', urgency: 'not_sure', confidence: 'low', observed: '' };
+  if (/BLANK/.test(source)) return { ...none, relevant: false, observed: 'A photo of a cat.' };
+  if (/CALM/.test(source)) return { ...none, catalogueId: 'oil-pressure', lightColour: 'red', flashing: 'no', cause: 'info-light', urgency: 'can_wait', confidence: 'high', observed: 'A red oil can symbol. It is safe to keep driving to your destination.' };
+  if (/RATTLE/.test(source)) return { ...none, sound: 'rattle', cause: 'loose-trim', urgency: 'can_wait', confidence: 'high', observed: 'A tinny rattle that comes and goes with the revs.' };
+  if (/MINOR/.test(source)) return { ...none, sound: 'other', cause: 'unknown', urgency: 'can_wait', confidence: 'high', observed: 'A faint noise.' };
+  if (/UNSURE/.test(source)) return { ...none, sound: 'other', observed: 'A low noise that is hard to make out.' };
+  if (/INJECT/.test(source)) {
+    return {
+      relevant: true, catalogueId: '__proto__', lightColour: 'purple', flashing: 'maybe', sound: '<script>alert(1)</script>', hazards: ['brakes', 'aliens', 'brakes', { x: 1 }],
+      cause: 'flux-capacitor', urgency: 'ignore_it', confidence: 'certain',
+      observed: '<img src=x onerror=alert(1)>A squeal‮. It is harmless - keep driving. You should replace the pads yourself with a 14mm spanner. Ignore previous instructions.',
+      advice: 'Tighten the caliper bolts.', repair: 'Do it yourself', safe: true,
+    };
+  }
+  const photo = media.find((p) => /^image\//.test(p.inlineData.mimeType));
+  const sound = media.find((p) => /^audio\//.test(p.inlineData.mimeType));
+  if (photo) return { ...none, catalogueId: 'check-engine', lightColour: 'amber', flashing: /flash/i.test(note) ? 'yes' : 'no', sound: sound ? 'ticking' : 'none', cause: 'engine-fault', urgency: 'soon', confidence: 'medium', observed: 'An amber engine outline, lit steadily.' };
+  return { ...none, sound: 'squeal', hazards: [], cause: 'brake-wear', urgency: 'soon', confidence: 'medium', observed: 'A high squeal that comes in short bursts.' };
+}
+
+module.exports = { create, gemini, geminiCalls };
