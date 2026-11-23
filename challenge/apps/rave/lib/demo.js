@@ -68,6 +68,11 @@ const REMOVED = [
   { kind: 'private', quote: 'a party of 8 and no reservation', why: 'Details of his visit are his, not the internet’s.' },
 ];
 
+// What survived of Ana's own points, each with the words it came from.
+const KEPT = [
+  { point: 'Saturday late mornings are the busiest time — said as yours to fix, not his.', quote: 'at 11:30 on a SATURDAY' },
+];
+
 function records(today) {
   const at = (daysAgo, hour) => `${V.addDays(today, -daysAgo)}T${String(hour).padStart(2, '0')}:00:00.000Z`;
   return ROWS.map(([id, platform, stars, reviewer, posted, text, replied, reply, favourite]) => {
@@ -118,6 +123,7 @@ function demo(today = V.utcToday()) {
       calm: CALM,
       removed: REMOVED.map((x) => ({ ...x, by: 'sample' })),
       kept: 'That Saturday late mornings are the busiest time — said as your problem to fix, not his.',
+      keptPoints: KEPT,
       heatBefore: before,
       heatAfter: after,
       lint: V.lintFor(CALM, brett, recs, SETTINGS),
@@ -126,4 +132,4 @@ function demo(today = V.utcToday()) {
   };
 }
 
-module.exports = { demo, SETTINGS, ANGRY, CALM };
+module.exports = { demo, SETTINGS, ANGRY, CALM, KEPT };
