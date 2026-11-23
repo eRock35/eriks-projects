@@ -48,6 +48,45 @@
   function ids(p) { var a = new Uint8Array(11); crypto.getRandomValues(a); return p + Array.prototype.map.call(a, function (x) { return 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]; }).join(''); }
   var plural = C.plural;
 
+  /* Thin line icons, one stroke width, drawn from this table only. */
+  var ICONS = {
+    feed: '<path d="M3.5 11.5h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20h7"/>',
+    walk: '<ellipse cx="12" cy="15.5" rx="4" ry="3.2"/><circle cx="6.5" cy="10.5" r="1.6"/><circle cx="10" cy="6.8" r="1.6"/><circle cx="14" cy="6.8" r="1.6"/><circle cx="17.5" cy="10.5" r="1.6"/>',
+    litter: '<path d="M4 10.5h16l-1.5 8h-13z"/><path d="M8 10.5V7.5M12 10.5v-5M16 10.5v-3"/>',
+    water: '<path d="M12 3.5c3 4 5.5 6.8 5.5 10a5.5 5.5 0 0 1-11 0c0-3.2 2.5-6 5.5-10z"/>',
+    clean: '<path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.5 6.5L9 9M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/>',
+    play: '<circle cx="12" cy="12" r="8.5"/><path d="M5.6 6.8c3.6 1.7 5 5.6 4 10.6M18.4 17.2c-3.6-1.7-5-5.6-4-10.6"/>',
+    meds: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
+    other: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>',
+    vaccine: '<path d="M17 3l4 4M19 5l-3 3M14.5 6.5l3 3L9 18H6v-3zM6 18l-3 3M11 10l1.5 1.5"/>',
+    shield: '<path d="M12 3.5l7 2.5v5.5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6z"/>',
+    visit: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>',
+    doc: '<path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4M9.5 12h6M9.5 15.5h6"/>',
+    camera: '<path d="M4 8.5h3l1.5-2.5h7L17 8.5h3v10H4z"/><circle cx="12" cy="13" r="3.2"/>',
+    calendar: '<rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+    phone: '<path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 4.5 5.5a2 2 0 0 1 2-2z"/>',
+    lock: '<rect x="5.5" y="10.5" width="13" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+    user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.5 3.5-5.5 7-5.5s6.2 2 7 5.5"/>',
+    flame: '<path d="M12 3.5c1 3.5 5 5.2 5 10a5 5 0 0 1-10 0c0-1.8.8-3 1.8-4 .4 1.6 1.2 2.4 2.2 2.6-.6-3 .2-6 1-8.6z"/>',
+    alert: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.2v.3"/>',
+    home: '<path d="M4 11l8-6.5 8 6.5v9H4zM9.5 20v-5.5h5V20"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    tap: '<path d="M9 11.5V5.8a1.6 1.6 0 0 1 3.2 0v5M12.2 10.2a1.6 1.6 0 0 1 3.2 0v1M15.4 11a1.6 1.6 0 0 1 3.1.5v3.5a5.5 5.5 0 0 1-5.5 5.5h-1.2a5 5 0 0 1-4-2l-3-4.3a1.5 1.5 0 0 1 2.3-1.9L9 14.5"/>',
+    weight: '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8.5 9.5a4.5 4.5 0 0 1 7 0M12 9.5l1.5-2"/>',
+  };
+  var TASK_ICONS = { feed: 'feed', walk: 'walk', litter: 'litter', water: 'water', clean: 'clean', play: 'play', meds: 'meds' };
+  var HEALTH_ICONS = { vaccine: 'vaccine', flea: 'shield', worm: 'shield', visit: 'visit', med: 'meds' };
+  function icon(name) {
+    return '<svg class="ic" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || ICONS.other) + '</svg>';
+  }
+  function taskIcon(id) { return icon(TASK_ICONS[id] || 'other'); }
+  function healthIcon(id) { return icon(HEALTH_ICONS[id] || 'doc'); }
+  /** Which reader the server uses: "gemini" transcribes each medicine field
+   *  by field for you to confirm; anything else is the older tick list. */
+  function reader() { return state.account && state.account.reader === 'gemini' ? 'gemini' : 'claude'; }
+  function paperTitle() { return reader() === 'gemini' ? 'Snap the vet paperwork' : 'Read the vet paperwork'; }
+  var CHECK_LINE = 'Check every detail against the label, and ask your vet if you’re unsure.';
+
   var state = {
     mode: 'none',
     doc: null,          // the household (or the sitter's slice of it)
@@ -149,7 +188,7 @@
     else toast(msg, 4600);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else works meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else works meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     $('#resend', where).addEventListener('click', function () {
       fetch((e.data && e.data.resend) || (BASE + 'api/auth/verify/send'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function () { toast('Sent - check your email.'); }, function () { toast('Could not send it. Try again in a minute.'); });
@@ -295,21 +334,21 @@
       : esc(C.windowWords(row)) + (row.state === 'overdue' ? ' <span class="chip over">Overdue</span>' : row.state === 'now' ? ' <span class="chip now">Due now</span>' : '');
     var label = row.log ? 'Done: ' : row.state === 'overdue' ? 'Overdue: ' : '';
     return '<button class="' + cls + '" type="button" data-act="task" data-key="' + esc(row.key) + '" aria-label="' + esc(label + row.label + ', ' + (row.log ? C.doneWords(row, tz()) : C.windowWords(row)) + (row.log ? '' : '. Tap to mark done.')) + '">' +
-      '<span class="te" aria-hidden="true">' + esc(row.kind === 'dose' ? '💊' : t.emoji) + '</span>' +
+      '<span class="te" aria-hidden="true">' + (row.kind === 'dose' ? icon('meds') : taskIcon(row.task)) + '</span>' +
       '<span class="tt"><b>' + esc(row.label) + '</b><small>' + sub + '</small></span>' +
-      '<span class="tick" aria-hidden="true">✓</span></button>';
+      '<span class="tick" aria-hidden="true"></span></button>';
   }
   function petBoard(pb) {
     var p = pb.pet;
     var rows = pb.rows.length ? pb.rows.map(taskRow).join('') : '<p class="empty">Nothing due today.</p>';
-    var all = pb.total && pb.done === pb.total ? '<div class="allset">🎉 All done for ' + esc(p.name) + ' today.</div>' : '';
+    var all = pb.total && pb.done === pb.total ? '<p class="allset">' + icon('other') + '<span>All done for ' + esc(p.name) + ' today.</span></p>' : '';
     return '<section class="pet" aria-label="' + esc(p.name) + '"><div class="pet-head"><span class="pet-av" aria-hidden="true">' + esc(emojiOf(p)) + '</span><div><h2>' + esc(p.name) + '</h2><span class="w">' +
       (pb.overdue ? '<span class="chip over">' + esc(plural(pb.overdue, 'thing') + ' overdue') + '</span>' : pb.total ? esc(pb.done + ' of ' + pb.total + ' done') : 'Nothing due') + '</span></div>' + ring(pb.done, pb.total) + '</div>' +
       '<div class="rows">' + rows + '</div>' + all + '</section>';
   }
   function sampleStrip() {
     if (!isSample()) return '';
-    return '<div class="strip" role="note"><p><b>🧪 A sample home.</b> Biscuit, Miso and three made-up people - you’re Alex. Tap anything; nothing leaves this phone.</p>' +
+    return '<div class="strip" role="note"><p><b>A sample home.</b> Biscuit, Miso and three made-up people - you’re Alex. Tap anything; nothing leaves this phone.</p>' +
       '<div class="row"><button class="btn small" type="button" data-act="mine">Start my own</button><button class="btn small ghost" type="button" data-act="clearsample">Clear</button></div></div>';
   }
 
@@ -322,7 +361,7 @@
     var who = $('#who');
     var m = state.me && memberOf(state.me);
     who.hidden = !tabbed;
-    who.textContent = m ? '👤 ' + m.name : '👤 Who are you?';
+    who.textContent = m ? m.name : 'Who are you?';
     $('#acct').hidden = state.mode === 'sitter' || state.mode === 'preview';
     if (state.gone) { main.innerHTML = goneView(); return; }
     if (state.mode === 'none') { main.innerHTML = firstRun(); return; }
@@ -338,45 +377,42 @@
   }
   /** A redraw that keeps the scroll and leaves an open sheet alone. */
   function redraw() { var y = scrollY; draw(); scrollTo(0, y); }
-  function loading() { return '<p class="muted center" style="margin-top:40px">Opening…</p>'; }
+  function loading() { return '<p class="muted center mt40">Opening…</p>'; }
   function goneView() {
     return '<section class="first"><div class="hero"><p class="eyebrow">Pawlog</p><h1>This link isn’t open any more</h1><p class="lede">' + esc(state.gone) + '</p>' +
-      '<div class="choices"><button class="choice" type="button" data-act="forget"><span class="ci" aria-hidden="true">🏠</span><span class="ct"><b>Go to Pawlog</b><span>Start your own household, or try the sample.</span></span><span class="chev" aria-hidden="true">›</span></button></div></div></section>';
+      '<div class="choices"><button class="choice" type="button" data-act="forget"><span class="ci" aria-hidden="true">' + icon('home') + '</span><span class="ct"><b>Go to Pawlog</b><span>Start your own household, or try the sample.</span></span><span class="chev" aria-hidden="true">›</span></button></div></div></section>';
   }
 
   function firstRun() {
     return '<section class="first">' +
-      '<div><div class="hero">' +
+      '<div class="hero">' +
       '<p class="eyebrow">Pet care for the whole house</p>' +
       '<h1>Fed? Walked? Meds given? <em>The whole house knows.</em></h1>' +
-      '<p class="lede">One tap marks it done, with who and when. Tap it again and Pawlog asks “already fed by Sam at 7:42 - do it again?”, so the dog never gets two breakfasts, the pills are never missed and the booster date isn’t lost in a drawer.</p></div>' +
-      '<div class="choices">' +
-      '<button class="choice primary" type="button" data-act="sample"><span class="ci" aria-hidden="true">🐕</span><span class="ct"><b>Try a sample home</b><span>A made-up dog and cat, three people, today half done.</span></span><span class="chev" aria-hidden="true">›</span></button>' +
-      '<button class="choice" type="button" data-act="setup"><span class="ci" aria-hidden="true">＋</span><span class="ct"><b>Set up my pet</b><span>A name and what they are - the routine fills itself in.</span></span><span class="chev" aria-hidden="true">›</span></button>' +
-      '</div>' +
-      '<p class="got-link">Got a link from your household or a pet owner? Just open it - no app, no account.</p>' +
-      '<div class="promise"><span class="ic" aria-hidden="true">🔒</span><div><b>Stays on your phone until you share it.</b><p>No account and no ads. Share one link with the people at home, and a sitter link that closes the day you’re back. First names only.</p></div></div>' +
-      '</div>' +
-      '<div><div class="mock" aria-hidden="true"><div class="pet"><div class="pet-head"><span class="pet-av">🐕</span><div><h2>Biscuit</h2><span class="w">3 of 5 done</span></div>' + ring(3, 5) + '</div><div class="rows">' +
-      '<div class="task is-done"><span class="te">🥣</span><span class="tt"><b>Breakfast</b><small>Fed by Sam 7:42am</small></span><span class="tick">✓</span></div>' +
-      '<div class="task is-done"><span class="te">🦮</span><span class="tt"><b>Morning walk</b><small>Walked by Alex 8:10am</small></span><span class="tick">✓</span></div>' +
-      '<div class="task is-over"><span class="te">💊</span><span class="tt"><b>Ear drops · 4 drops</b><small>8:00am <span class="chip over">Overdue</span></small></span><span class="tick">✓</span></div>' +
-      '</div></div><div class="mock-bubble">Already fed by Sam at 7:42am<small>Do it again?</small></div></div>' +
+      '<p class="lede">One tap marks it done, with who and when - so the dog never gets two breakfasts and nobody misses a dose.</p>' +
+      '<div class="hero-acts"><button class="btn big" type="button" data-act="sample">Try a sample home</button><button class="btn big ghost" type="button" data-act="setup">Set up my pet</button></div>' +
+      '<p class="got-link">Got a link from your household or a pet owner? Just open it - no app, no account.</p></div>' +
+      '<div class="mock" aria-hidden="true"><div class="pet"><div class="pet-head"><span class="pet-av">🐕</span><div><h2>Biscuit</h2><span class="w">2 of 3 done</span></div>' + ring(2, 3) + '</div><div class="rows">' +
+      '<div class="task is-done"><span class="te">' + icon('feed') + '</span><span class="tt"><b>Breakfast</b><small>Fed by Sam 7:42am</small></span><span class="tick"></span></div>' +
+      '<div class="task is-done"><span class="te">' + icon('walk') + '</span><span class="tt"><b>Morning walk</b><small>Walked by Alex 8:10am</small></span><span class="tick"></span></div>' +
+      '<div class="task is-over"><span class="te">' + icon('meds') + '</span><span class="tt"><b>Ear drops · 4 drops</b><small>8:00am <span class="chip over">Overdue</span></small></span><span class="tick"></span></div>' +
+      '</div></div><p class="mock-bubble"><b>Already fed by Sam at 7:42am.</b> Do it again?</p></div>' +
       '<h2 class="how-title">How it works</h2><ol class="how">' +
-      '<li><span class="n" aria-hidden="true">🐾</span><div><b>Add your pets</b><p>Dog, cat, rabbit, bird, fish or reptile - each starts with a routine you can change: meals, walks, litter, water changes, each with a time window.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">👆</span><div><b>Tap it when it’s done</b><p>Everyone sees “Fed by Sam 7:42am”. A second tap within half an hour asks first. Overdue things glow.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">🔗</span><div><b>One link for the house, one for the sitter</b><p>No app, no account. The sitter sees the routine, your notes and the vet’s number - until the day you’re back.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">💉</span><div><b>Medicines and due dates, handled</b><p>Courses with an end date, boosters and flea treatments with reminders in your own calendar. Sign in and AI can read the vet’s paperwork for you.</p></div></li>' +
-      '</ol></div></section>';
+      '<li><span class="n" aria-hidden="true">' + icon('walk') + '</span><div><b>Add your pets</b><p>Dog, cat, rabbit, bird, fish or reptile - each starts with a routine you can change: meals, walks, litter, water changes, each with a time window.</p></div></li>' +
+      '<li><span class="n" aria-hidden="true">' + icon('tap') + '</span><div><b>Tap it when it’s done</b><p>Everyone sees “Fed by Sam 7:42am”. A second tap within half an hour asks first. Overdue things stand out.</p></div></li>' +
+      '<li><span class="n" aria-hidden="true">' + icon('link') + '</span><div><b>One link for the house, one for the sitter</b><p>No app, no account. The sitter sees the routine, your notes and the vet’s number - until the day you’re back.</p></div></li>' +
+      '<li><span class="n" aria-hidden="true">' + icon('camera') + '</span><div><b>Medicines and due dates, handled</b><p>Courses with an end date, boosters and flea treatments with reminders in your own calendar. Sign in and AI can read the vet’s paperwork for you to check.</p></div></li>' +
+      '</ol>' +
+      '<p class="promise">' + icon('lock') + '<span><b>Stays on your phone until you share it.</b> No account and no ads. Share one link with the people at home, and a sitter link that closes the day you’re back. First names only.</span></p>' +
+      '</section>';
   }
 
   function whoView() {
     var d = state.doc;
-    return '<section class="first"><div><div class="hero"><p class="eyebrow">' + esc(d.name) + '</p><h1>Who are you?</h1><p class="lede">Pick your name so everyone sees who fed, walked and gave the meds. First names only.</p></div>' +
+    return '<section class="first"><div class="hero"><p class="eyebrow">' + esc(d.name) + '</p><h1>Who are you?</h1><p class="lede">Pick your name so everyone sees who fed, walked and gave the meds. First names only.</p>' +
       '<div class="whoami">' + d.members.map(function (m, i) {
         return '<button class="choice" type="button" data-act="iam" data-id="' + esc(m.id) + '"><span class="ci" aria-hidden="true"><span class="person"><span class="av c' + ((i % 6) + 1) + '">' + esc(m.name.charAt(0)) + '</span></span></span><span class="ct"><b>' + esc(m.name) + '</b></span><span class="chev" aria-hidden="true">›</span></button>';
       }).join('') +
-      '<form id="joinForm" class="card" style="margin:6px 0 0"><label class="field" style="margin-top:0"><span>Someone new? Add your first name</span><input class="input" id="joinName" maxlength="' + C.LIMITS.name + '" autocomplete="given-name" placeholder="Jamie" required></label><div id="joinErr"></div><button class="btn block" type="submit">That’s me</button></form>' +
+      '<form id="joinForm" class="card m4t"><label class="field mt0"><span>Someone new? Add your first name</span><input class="input" id="joinName" maxlength="' + C.LIMITS.name + '" autocomplete="given-name" placeholder="Jamie" required></label><div id="joinErr"></div><button class="btn block" type="submit">That’s me</button></form>' +
       '</div></div></section>';
   }
 
@@ -385,9 +421,9 @@
     var b = C.board(d, now());
     var soon = C.dueSoon(d, b.day, 14);
     var head = '<div class="page-title"><h1>Today</h1><span class="sum">' + esc(C.WEEKDAYS[C.weekday(b.day)] + ', ' + C.fmtDay(b.day, b.day)) + ' · ' + esc(b.done + ' of ' + b.total + ' done') + (b.overdue ? ' · ' + esc(b.overdue + ' overdue') : '') + '</span></div>';
-    var soonHtml = soon.length ? '<button class="soonline" type="button" data-act="tab" data-tab="health"><span aria-hidden="true">' + esc(soon[0].emoji) + '</span><span class="st"><b>' + esc(soon[0].petName + ': ' + soon[0].title) + '</b> · ' + esc(soon[0].words.toLowerCase()) + (soon.length > 1 ? ' · ' + esc(plural(soon.length - 1, 'more thing')) + ' soon' : '') + '</span><span aria-hidden="true">›</span></button>' : '';
+    var soonHtml = soon.length ? '<button class="soonline" type="button" data-act="tab" data-tab="health">' + healthIcon(soon[0].type) + '<span class="st"><b>' + esc(soon[0].petName + ': ' + soon[0].title) + '</b> · ' + esc(soon[0].words.toLowerCase()) + (soon.length > 1 ? ' · ' + esc(plural(soon.length - 1, 'more thing')) + ' soon' : '') + '</span><span aria-hidden="true">›</span></button>' : '';
     if (!d.pets.length) return head + '<section class="card"><p>No pets yet.</p><button class="btn" type="button" data-act="addpet">Add a pet</button></section>';
-    return head + soonHtml + '<div class="pets dk-grid">' + b.pets.map(petBoard).join('') + '</div>' +
+    return head + soonHtml + '<div class="pets">' + b.pets.map(petBoard).join('') + '</div>' +
       '<p class="fine">Tap when it’s done. A second tap within ' + C.LIMITS.guardMin + ' minutes asks first; you can undo for ' + C.LIMITS.undoMin + ' minutes.' + (state.mode !== 'local' ? ' Everyone with the link sees it within seconds.' : '') + '</p>';
   }
 
@@ -395,7 +431,7 @@
     var pets = state.doc.pets;
     if (!state.pet || !petOf(state.pet)) state.pet = pets.length ? pets[0].id : null;
     if (pets.length < 2) return '';
-    return '<div class="pills" role="group" aria-label="Pet" style="margin-bottom:12px">' + pets.map(function (p) {
+    return '<div class="pills mb12" role="group" aria-label="Pet">' + pets.map(function (p) {
       return '<button class="pill" type="button" data-act="pickpet" data-id="' + esc(p.id) + '" aria-pressed="' + (p.id === state.pet) + '">' + esc(emojiOf(p) + ' ' + p.name) + '</button>';
     }).join('') + '</div>';
   }
@@ -403,24 +439,25 @@
   function healthView() {
     var d = state.doc, t = today();
     var soon = C.dueSoon(d, t);
-    var html = '<div class="page-title"><h1>Health</h1></div>';
-    html += '<section class="card"><div class="sec" style="margin-top:0"><h2>Due soon</h2><span class="ct">next ' + C.LIMITS.soonDays + ' days</span></div>' +
+    var html = '<div class="page-title"><h1>Health</h1></div>' +
+      '<div class="acts"><button class="btn" type="button" data-act="paper">' + icon('camera') + esc(paperTitle()) + '</button><button class="btn ghost" type="button" data-act="ics">' + icon('calendar') + 'Add to my calendar</button></div>';
+    html += '<section class="card"><div class="sec mt0"><h2>Due soon</h2><span class="ct">next ' + C.LIMITS.soonDays + ' days</span></div>' +
       (soon.length ? '<ul class="list">' + soon.map(function (s) {
-        return '<li class="li' + (s.overdue ? ' is-over' : s.inDays <= 7 ? ' is-soon' : '') + '"><span class="le" aria-hidden="true">' + esc(s.emoji) + '</span><span class="lt"><b>' + esc(s.petName + ': ' + s.title) + '</b><small>' + esc(s.words + ' · ' + C.relDay(s.day, t)) + '</small></span>' +
+        return '<li class="li' + (s.overdue ? ' is-over' : s.inDays <= 7 ? ' is-soon' : '') + '"><span class="le" aria-hidden="true">' + healthIcon(s.type) + '</span><span class="lt"><b>' + esc(s.petName + ': ' + s.title) + '</b><small>' + esc(s.words + ' · ' + C.relDay(s.day, t)) + '</small></span>' +
           (s.kind === 'health' ? '<span class="la"><button class="btn small soft" type="button" data-act="given" data-id="' + esc(s.id) + '">Done today</button></span>' : '<span class="la"></span>') + '</li>';
       }).join('') + '</ul>' : '<p class="empty">Nothing due in the next ' + C.LIMITS.soonDays + ' days.</p>') +
-      '<div class="row" style="margin-top:12px"><button class="btn small" type="button" data-act="paper">📄 Read the vet paperwork</button><button class="btn small ghost" type="button" data-act="ics">📅 Add to my calendar</button></div></section>';
+      '</section>';
     if (!d.pets.length) return html;
     html += pickPet();
     var p = petOf(state.pet);
     var meds = d.meds.filter(function (m) { return m.pet === p.id; });
     var active = meds.filter(function (m) { return C.medStatus(m, t).id !== 'ended'; });
     var ended = meds.filter(function (m) { return C.medStatus(m, t).id === 'ended'; });
-    html += '<section class="card"><div class="sec" style="margin-top:0"><h2>' + esc(emojiOf(p) + ' ' + p.name.concat(': medicines')) + '</h2><button class="btn small ghost" type="button" data-act="med">+ Add</button></div>' +
+    html += '<section class="card"><div class="sec mt0"><h2>' + esc(emojiOf(p) + ' ' + p.name.concat(': medicines')) + '</h2><button class="btn small ghost" type="button" data-act="med">+ Add</button></div>' +
       (active.length ? '<ul class="list">' + active.map(function (m) { return medRow(m, t); }).join('') + '</ul>' : '<p class="empty">No medicines right now. Add a course and each dose appears on Today.</p>') +
-      (ended.length ? '<p class="small muted" style="margin:10px 0 0">Finished: ' + ended.map(function (m) { return esc(m.name + ' (' + C.fmtDay(m.until, t) + ')'); }).join(', ') + '</p>' : '') + '</section>';
+      (ended.length ? '<p class="small muted m8t">Finished: ' + ended.map(function (m) { return esc(m.name + ' (' + C.fmtDay(m.until, t) + ')'); }).join(', ') + '</p>' : '') + '</section>';
     var recs = d.health.filter(function (h) { return h.pet === p.id; }).sort(function (a, b) { return (a.due || '9999') < (b.due || '9999') ? -1 : 1; });
-    html += '<section class="card"><div class="sec" style="margin-top:0"><h2>Vaccinations, treatments and visits</h2><button class="btn small ghost" type="button" data-act="health">+ Add</button></div>' +
+    html += '<section class="card"><div class="sec mt0"><h2>Vaccinations, treatments and visits</h2><button class="btn small ghost" type="button" data-act="health">+ Add</button></div>' +
       (recs.length ? '<ul class="list">' + recs.map(function (h) { return healthRow(h, t); }).join('') + '</ul>' : '<p class="empty">Add a vaccination, a flea or worm treatment, or a vet visit - with its due date, it goes on “Due soon” and in your calendar.</p>') + '</section>';
     html += weightCard(p, t);
     html += vetCard(true);
@@ -429,23 +466,22 @@
   function medRow(m, t) {
     var s = C.medStatus(m, t);
     var times = m.times.map(C.fmtTime).join(' & ');
-    return '<li class="li' + (s.left !== undefined && s.left !== null && s.left <= 2 ? ' is-soon' : '') + '"><span class="le" aria-hidden="true">💊</span><span class="lt"><b>' + esc(m.name) + (m.dose ? ' · ' + esc(m.dose) : '') + '</b><small>' + esc(C.repeatWords(m.repeat) + ' at ' + times + ' · ' + s.words) + '</small></span>' +
+    return '<li class="li' + (s.left !== undefined && s.left !== null && s.left <= 2 ? ' is-soon' : '') + '"><span class="le" aria-hidden="true">' + icon('meds') + '</span><span class="lt"><b>' + esc(m.name) + (m.dose ? ' · ' + esc(m.dose) : '') + '</b><small>' + esc(C.repeatWords(m.repeat) + ' at ' + times + ' · ' + s.words) + '</small></span>' +
       '<span class="la"><button class="btn small ghost" type="button" data-act="med" data-id="' + esc(m.id) + '">Edit</button>' + (s.id !== 'ended' ? '<button class="btn small danger" type="button" data-act="stopmed" data-id="' + esc(m.id) + '">Stop</button>' : '') + '</span></li>';
   }
   function healthRow(h, t) {
-    var ty = C.healthOf(h.type);
     var n = h.due ? C.daysBetween(t, h.due) : null;
     var bits = [];
     if (h.given) bits.push((h.type === 'visit' ? 'Last ' : 'Given ') + C.fmtDay(h.given, t));
     if (h.due) bits.push(n < 0 ? C.dueWords(n) : C.dueWords(n) + ' (' + C.fmtDay(h.due, t) + ')');
     if (h.everyMonths) bits.push(h.everyMonths === 1 ? 'every month' : 'every ' + h.everyMonths + ' months');
-    return '<li class="li' + (n !== null && n < 0 ? ' is-over' : n !== null && n <= 14 ? ' is-soon' : '') + '"><span class="le" aria-hidden="true">' + esc(ty.emoji) + '</span><span class="lt"><b>' + esc(h.name) + '</b><small>' + esc(bits.join(' · ')) + '</small></span>' +
+    return '<li class="li' + (n !== null && n < 0 ? ' is-over' : n !== null && n <= 14 ? ' is-soon' : '') + '"><span class="le" aria-hidden="true">' + healthIcon(h.type) + '</span><span class="lt"><b>' + esc(h.name) + '</b><small>' + esc(bits.join(' · ')) + '</small></span>' +
       '<span class="la">' + (h.due ? '<button class="btn small soft" type="button" data-act="given" data-id="' + esc(h.id) + '">Done today</button>' : '') + '<button class="btn small ghost" type="button" data-act="health" data-id="' + esc(h.id) + '">Edit</button></span></li>';
   }
   function weightCard(p, t) {
     var ws = C.weightsOf(state.doc, p.id);
     var u = units();
-    var html = '<section class="card"><div class="sec" style="margin-top:0"><h2>Weight</h2><button class="btn small ghost" type="button" data-act="weight">+ Add</button></div>';
+    var html = '<section class="card"><div class="sec mt0"><h2>Weight</h2><button class="btn small ghost" type="button" data-act="weight">+ Add</button></div>';
     if (!ws.length) return html + '<p class="empty">Weigh ' + esc(p.name) + ' now and then - a slow change is easy to miss and easy to see on a chart.</p></section>';
     var last = ws[ws.length - 1], first = ws[0];
     var diff = last.g - first.g;
@@ -475,23 +511,23 @@
   function vetCard(editable) {
     var v = state.doc.vet || {};
     var body = v.practice || v.phone
-      ? '<div class="vetcard"><span class="le" aria-hidden="true">🩺</span><div><b>' + esc(v.practice || 'The vet') + '</b>' + (v.phone ? '<span class="marked">The one number</span><br><a href="' + esc(C.telHref(v.phone)) + '">📞 ' + esc(v.phone) + '</a>' : '') + '</div></div>'
+      ? '<div class="vetcard"><span class="le" aria-hidden="true">' + icon('visit') + '</span><div><b>' + esc(v.practice || 'The vet') + '</b>' + (v.phone ? '<span class="marked">The one number</span><br><a href="' + esc(C.telHref(v.phone)) + '">' + icon('phone') + esc(v.phone) + '</a>' : '') + '</div></div>'
       : '<p class="empty">Add the vet’s practice name and phone number - the sitter sees them, and they’re one tap away when it matters.</p>';
-    return '<section class="card"><div class="sec" style="margin-top:0"><h2>The vet</h2>' + (editable ? '<button class="btn small ghost" type="button" data-act="vet">' + (v.practice || v.phone ? 'Edit' : '+ Add') + '</button>' : '') + '</div>' + body + '</section>';
+    return '<section class="card"><div class="sec mt0"><h2>The vet</h2>' + (editable ? '<button class="btn small ghost" type="button" data-act="vet">' + (v.practice || v.phone ? 'Edit' : '+ Add') + '</button>' : '') + '</div>' + body + '</section>';
   }
 
   function weekView() {
     var d = state.doc, n = now(), t = today();
     var html = '<div class="page-title"><h1>This week</h1><span class="sum">' + esc(C.fmtDay(C.addDays(t, -6), t) + ' – ' + C.fmtDay(t, t)) + '</span></div>';
-    html += '<div class="pets dk-grid">' + d.pets.map(function (p) {
+    html += '<div class="pets">' + d.pets.map(function (p) {
       var w = C.week(d, p.id, n);
       var days = w.days.map(function (x) {
         var f = x.due ? x.done / x.due : 0;
         var cls = 'bar' + (x.due && x.done === x.due ? ' full' : '') + (x.day < t && x.done < x.due ? ' miss' : '');
-        return '<div class="day' + (x.day === t ? ' today' : '') + '"><span class="' + cls + '" role="img" aria-label="' + esc(C.WEEKDAYS[C.weekday(x.day)] + ': ' + x.done + ' of ' + x.due + ' done') + '"><i style="height:' + Math.round(f * 100) + '%"></i></span><span class="n">' + (x.due ? x.done + '/' + x.due : '–') + '</span><small>' + (x.day === t ? 'Today' : C.WEEKDAYS[C.weekday(x.day)].slice(0, 3)) + '</small></div>';
+        return '<div class="day' + (x.day === t ? ' today' : '') + '"><svg class="' + cls + '" viewBox="0 0 12 56" width="12" height="56" role="img" aria-label="' + esc(C.WEEKDAYS[C.weekday(x.day)] + ': ' + x.done + ' of ' + x.due + ' done') + '"><rect class="bg" x="0" y="0" width="12" height="56" rx="6"/>' + (f > 0 ? '<rect class="fg" x="0" y="' + (56 - Math.max(12, Math.round(f * 56))) + '" width="12" height="' + Math.max(12, Math.round(f * 56)) + '" rx="6"/>' : '') + '</svg><span class="n">' + (x.due ? x.done + '/' + x.due : '–') + '</span><small>' + (x.day === t ? 'Today' : C.WEEKDAYS[C.weekday(x.day)].slice(0, 3)) + '</small></div>';
       }).join('');
-      var lines = w.lines.length ? '<ul class="lines">' + w.lines.map(function (l) { return '<li><span aria-hidden="true">' + esc(C.taskOf(l.task).emoji) + '</span><span>' + esc(l.words) + '</span>' + (l.done === l.due ? '<span class="q">every one</span>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="empty">Nothing was due this week.</p>';
-      var st = w.streak.days ? '<span class="streak">🔥 ' + esc(plural(w.streak.days, 'day') + (w.streak.capped ? '+' : '')) + ' in a row with everything done</span>' : '';
+      var lines = w.lines.length ? '<ul class="lines">' + w.lines.map(function (l) { return '<li>' + taskIcon(l.task) + '<span>' + esc(l.words) + '</span>' + (l.done === l.due ? '<span class="q">every one</span>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="empty">Nothing was due this week.</p>';
+      var st = w.streak.days ? '<span class="streak">' + icon('flame') + esc(plural(w.streak.days, 'day') + (w.streak.capped ? '+' : '')) + ' in a row with everything done</span>' : '';
       return '<section class="pet"><div class="pet-head"><span class="pet-av" aria-hidden="true">' + esc(emojiOf(p)) + '</span><div><h2>' + esc(p.name) + '</h2><span class="w">' + esc(w.done + ' of ' + w.due + ' done this week') + '</span></div>' + ring(w.done, w.due) + '</div>' +
         '<div class="days">' + days + '</div>' + lines + st + '</section>';
     }).join('') + '</div>';
@@ -500,52 +536,59 @@
     var colour = function (name) { var i = order.indexOf(name); return 'c' + (((i < 0 ? order.length + 1 : i) % 6) + 1); };
     var rows = fs.rows.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; });
     html += '<section class="card"><h2>Who did what</h2>' + (fs.total ? '<p class="small muted">' + esc(plural(fs.total, 'job')) + ' this week. Thanks, everyone.</p>' +
-      '<div class="share" role="img" aria-label="' + esc(rows.map(function (r) { return r.name + ' ' + r.n; }).join(', ')) + '">' + rows.map(function (r) { return '<i class="' + colour(r.name) + '" style="width:' + (r.n / fs.total * 100).toFixed(2) + '%"></i>'; }).join('') + '</div>' +
+      shareBar(rows, fs.total, colour) +
       '<ul class="who-list">' + rows.map(function (r) { return '<li><span class="sw ' + colour(r.name) + '" aria-hidden="true"></span><span class="nm">' + esc(r.name) + '</span><span class="ct">' + esc(plural(r.n, 'job')) + '</span></li>'; }).join('') + '</ul>' +
-      '<p class="small muted" style="margin:10px 0 0">A share, not a scoreboard - some weeks one person is home more.</p>' : '<p class="empty">Nothing ticked off yet this week.</p>') + '</section>';
+      '<p class="small muted m8t">A share, not a scoreboard - some weeks one person is home more.</p>' : '<p class="empty">Nothing ticked off yet this week.</p>') + '</section>';
     return html;
+  }
+
+  /** The share of the week's jobs, one rounded bar, drawn as SVG. */
+  function shareBar(rows, total, colour) {
+    var x = 0;
+    var parts = rows.map(function (r) { var w = r.n / total * 100; var out = '<rect class="' + colour(r.name) + '" x="' + x.toFixed(2) + '" y="0" width="' + Math.max(0, w - 0.6).toFixed(2) + '" height="8"/>'; x += w; return out; }).join('');
+    return '<svg class="share" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="' + esc(rows.map(function (r) { return r.name + ' ' + r.n; }).join(', ')) + '">' + parts + '</svg>';
   }
 
   function homeView() {
     var d = state.doc, t = today();
     var html = '<div class="page-title"><h1>' + esc(d.name) + '</h1><button class="btn small ghost" type="button" data-act="homeedit">Rename</button></div>';
-    html += '<section class="card"><div class="sec" style="margin-top:0"><h2>People</h2>' + (state.mode !== 'member' ? '<button class="btn small ghost" type="button" data-act="addperson">+ Add</button>' : '') + '</div><div class="people-row">' + d.members.map(function (m, i) {
+    html += '<section class="card"><div class="sec mt0"><h2>People</h2>' + (state.mode !== 'member' ? '<button class="btn small ghost" type="button" data-act="addperson">+ Add</button>' : '') + '</div><div class="people-row">' + d.members.map(function (m, i) {
       return '<span class="person' + (m.id === state.me ? ' me' : '') + '"><span class="av c' + ((i % 6) + 1) + '" aria-hidden="true">' + esc(m.name.charAt(0)) + '</span>' + esc(m.name) + (m.id === state.me ? ' (you)' : '') + '</span>';
-    }).join('') + '</div>' + (state.mode === 'local' && !isSample() ? '<p class="small muted" style="margin:10px 0 0">Share the household link below and each person adds their own name on their phone.</p>' : '') + '</section>';
-    html += '<section class="card"><div class="sec" style="margin-top:0"><h2>Pets and routines</h2><button class="btn small ghost" type="button" data-act="addpet">+ Add a pet</button></div><ul class="list">' + d.pets.map(function (p) {
+    }).join('') + '</div>' + (state.mode === 'local' && !isSample() ? '<p class="small muted m8t">Share the household link below and each person adds their own name on their phone.</p>' : '') + '</section>';
+    html += '<section class="card"><div class="sec mt0"><h2>Pets and routines</h2><button class="btn small ghost" type="button" data-act="addpet">+ Add a pet</button></div><ul class="list">' + d.pets.map(function (p) {
       var n = d.items.filter(function (i) { return i.pet === p.id; }).length;
       return '<li class="li"><span class="le" aria-hidden="true">' + esc(emojiOf(p)) + '</span><span class="lt"><b>' + esc(p.name) + '</b><small>' + esc(petMeta(p) + ' · ' + plural(n, 'routine item')) + '</small></span><span class="la"><button class="btn small ghost" type="button" data-act="openpet" data-id="' + esc(p.id) + '">Open</button></span></li>';
     }).join('') + '</ul></section>';
     html += shareCard(t);
     html += vetCard(true);
-    html += '<section class="card"><h2>Settings</h2><div class="field" style="margin-top:4px"><span>Weights in</span><div class="pills" role="group" aria-label="Weight units">' + C.UNITS.map(function (u) { return '<button class="pill" type="button" data-act="units" data-u="' + u + '" aria-pressed="' + (u === units()) + '">' + (u === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)') + '</button>'; }).join('') + '</div></div>' +
+    html += '<section class="card"><h2>Settings</h2><div class="field mt4"><span>Weights in</span><div class="pills" role="group" aria-label="Weight units">' + C.UNITS.map(function (u) { return '<button class="pill" type="button" data-act="units" data-u="' + u + '" aria-pressed="' + (u === units()) + '">' + (u === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)') + '</button>'; }).join('') + '</div></div>' +
       '<p class="small muted">Times are in ' + esc(d.tz.replace(/_/g, ' ')) + '.' + (d.tz !== PHONE_TZ && state.mode !== 'member' ? ' <button class="link-btn" type="button" data-act="usetz">Use this phone’s zone (' + esc(PHONE_TZ.replace(/_/g, ' ')) + ')</button>' : '') + '</p>' +
-      '<div class="stack"><button class="btn ghost block" type="button" data-act="ics">📅 Download health due dates (.ics)</button>' +
+      '<div class="stack"><button class="btn ghost block" type="button" data-act="ics">Download health due dates (.ics)</button>' +
       (state.mode === 'owner' ? '<button class="btn danger block" type="button" data-act="deletehome">Delete the shared household</button>' : state.mode === 'member' ? '<button class="btn danger block" type="button" data-act="leave">Leave this household on this phone</button>' : '<button class="btn danger block" type="button" data-act="wipe">Clear this phone</button>') + '</div></section>';
     return html;
   }
   function shareCard(t) {
     if (isSample()) {
       return '<section class="card"><h2>Share with the household</h2><p class="small muted">On your own home this makes one link for everyone - no app, no account - and sitter links that close the day you’re back. The sample stays on this phone, but you can see exactly what a sitter would see.</p>' +
-        '<div class="stack"><button class="btn block" type="button" data-act="previewsitter">👀 Preview Jo’s sitter link</button></div></section>';
+        '<div class="stack"><button class="btn block" type="button" data-act="previewsitter">Preview Jo’s sitter link</button></div></section>';
     }
     if (state.mode === 'local') {
       return '<section class="card"><h2>Share with the household</h2><p>One link for everyone at home. They open it on their phone, pick their name, and the board updates for all of you. No app, no account.</p><p class="small muted">Sharing puts this household on the server under a random code. Anyone with the link can see and tick the board - send it only to your household.</p>' +
-        '<div class="stack"><button class="btn big block" type="button" data-act="sharehome">🔗 Make the household link</button></div><p class="small muted" style="margin:10px 0 0">After that you can make a sitter link that closes on a day you choose.</p></section>';
+        '<div class="stack"><button class="btn big block" type="button" data-act="sharehome">Make the household link</button></div><p class="small muted m8t">After that you can make a sitter link that closes on a day you choose.</p></section>';
     }
     if (state.mode === 'member') {
       return '<section class="card"><h2>The household link</h2><p class="small muted">You’re in through the household link. Send it to anyone else who looks after the pets.</p><div class="linkout">' + esc(linkUrl('h', state.code)) + '</div><button class="btn block" type="button" data-act="sharelink">Share the link</button></section>';
     }
     var o = state.owner || {};
     var sit = (o.sitters || []).map(function (s) {
-      return '<li class="li"><span class="le" aria-hidden="true">🧑‍🍼</span><span class="lt"><b>' + esc(s.name) + '</b><small>Open until the end of ' + esc(C.relDay(s.until, t)) + '</small></span><span class="la"><button class="btn small" type="button" data-act="sharesitter" data-code="' + esc(s.code) + '">Share</button><button class="btn small danger" type="button" data-act="closesitter" data-code="' + esc(s.code) + '">Close</button></span></li>';
+      return '<li class="li"><span class="le" aria-hidden="true">' + icon('user') + '</span><span class="lt"><b>' + esc(s.name) + '</b><small>Open until the end of ' + esc(C.relDay(s.until, t)) + '</small></span><span class="la"><button class="btn small" type="button" data-act="sharesitter" data-code="' + esc(s.code) + '">Share</button><button class="btn small danger" type="button" data-act="closesitter" data-code="' + esc(s.code) + '">Close</button></span></li>';
     }).join('');
     return '<section class="card"><h2>The household link</h2><p class="small muted">Everyone at home opens this - no app, no account - and picks their name.</p>' +
       (o.link ? '<div class="linkout">' + esc(linkUrl('h', o.link)) + '</div><div class="row"><button class="btn" type="button" data-act="sharelink">Share the link</button><button class="btn ghost" type="button" data-act="relink">Replace it</button></div>' : '<p class="empty">Loading…</p>') +
       '<div class="sec"><h2>Sitter links</h2><button class="btn small ghost" type="button" data-act="sitter">+ New</button></div>' +
       (sit ? '<ul class="list">' + sit + '</ul>' : '<p class="empty">Going away? A sitter link shows the pets, the routine, your notes and the vet’s number - and closes on the day you choose.</p>') +
       '<div class="sec"><h2>Your other devices</h2></div><p class="small muted">To run this household from a laptop or another phone, open your owner link there. It carries your key - keep it to yourself.</p><button class="btn small ghost" type="button" data-act="ownerlink">Copy my owner link</button>' +
-      (signedIn() ? '<p class="small muted" style="margin:10px 0 0">Or just sign in there: your account keeps the key.</p>' : '') + '</section>';
+      (signedIn() ? '<p class="small muted m8t">Or just sign in there: your account keeps the key.</p>' : '') + '</section>';
   }
 
   /* ---------------- the sitter's page ---------------- */
@@ -558,20 +601,20 @@
     var names = d.pets.map(function (p) { return p.name; });
     var list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0] || 'the pets';
     var html = '';
-    if (state.mode === 'preview') html += '<div class="strip" role="note"><p><b>👀 A preview.</b> This is exactly what Jo sees on the sitter link - no names but Jo’s, no health records, no other links.</p><div class="row"><button class="btn small" type="button" data-act="endpreview">Back to the sample</button></div></div>';
+    if (state.mode === 'preview') html += '<div class="strip" role="note"><p><b>A preview.</b> This is exactly what Jo sees on the sitter link - no names but Jo’s, no health records, no other links.</p><div class="row"><button class="btn small" type="button" data-act="endpreview">Back to the sample</button></div></div>';
     html += '<section class="sitter-hero"><p class="eyebrow">' + esc(d.name) + '</p><h1>Hi ' + esc(s.name || 'there') + '!</h1><p>Thanks for looking after ' + esc(list) + '. This link is open until the end of ' + esc(C.relDay(s.until, t) === 'Today' ? 'today' : C.WEEKDAYS[C.weekday(s.until)] + ' ' + C.fmtDay(s.until, t)) + '.</p></section>';
     html += '<div class="page-title"><h1>Today</h1><span class="sum">' + esc(b.done + ' of ' + b.total + ' done') + (b.overdue ? ' · ' + esc(b.overdue + ' overdue') : '') + '</span></div>';
-    html += '<div class="pets dk-grid">' + b.pets.map(petBoard).join('') + '</div>';
+    html += '<div class="pets">' + b.pets.map(petBoard).join('') + '</div>';
     html += '<section class="card"><h2>Good to know</h2>' + d.pets.map(function (p) {
       return '<h3>' + esc(emojiOf(p) + ' ' + p.name) + '</h3>' + (p.notes ? '<p class="goodto">' + esc(p.notes) + '</p>' : '<p class="empty">No notes.</p>');
     }).join('') + '</section>';
     html += '<section class="card"><h2>The routine</h2><ul class="list">' + d.items.slice().sort(function (a, b2) { return a.from - b2.from; }).map(function (i) {
       var p = petOf(i.pet);
-      return '<li class="li"><span class="le" aria-hidden="true">' + esc(C.taskOf(i.task).emoji) + '</span><span class="lt"><b>' + esc((p ? p.name + ': ' : '') + i.label) + '</b><small>' + esc(C.repeatWords(i.repeat) + ', ' + C.fmtTime(i.from) + '–' + C.fmtTime(i.to)) + '</small></span><span class="la"></span></li>';
+      return '<li class="li"><span class="le" aria-hidden="true">' + taskIcon(i.task) + '</span><span class="lt"><b>' + esc((p ? p.name + ': ' : '') + i.label) + '</b><small>' + esc(C.repeatWords(i.repeat) + ', ' + C.fmtTime(i.from) + '–' + C.fmtTime(i.to)) + '</small></span><span class="la"></span></li>';
     }).join('') + '</ul>' +
       (d.meds.length ? '<h3>Medicines</h3><ul class="list">' + d.meds.map(function (m) {
         var p = petOf(m.pet);
-        return '<li class="li"><span class="le" aria-hidden="true">💊</span><span class="lt"><b>' + esc((p ? p.name + ': ' : '') + m.name + (m.dose ? ' · ' + m.dose : '')) + '</b><small>' + esc(m.times.map(C.fmtTime).join(' & ') + ' · ' + C.medStatus(m, t).words) + '</small></span><span class="la"></span></li>';
+        return '<li class="li"><span class="le" aria-hidden="true">' + icon('meds') + '</span><span class="lt"><b>' + esc((p ? p.name + ': ' : '') + m.name + (m.dose ? ' · ' + m.dose : '')) + '</b><small>' + esc(m.times.map(C.fmtTime).join(' & ') + ' · ' + C.medStatus(m, t).words) + '</small></span><span class="la"></span></li>';
       }).join('') + '</ul>' : '') + '</section>';
     html += vetCard(false);
     html += '<p class="fine">Tap a job when it’s done - the household sees it straight away. No account needed. <a href="' + esc(BASE) + '">What is Pawlog?</a></p>';
@@ -667,7 +710,7 @@
     var mine = info.mine;
     var canUndo = mine && info.logId && now() - info.at <= C.LIMITS.undoMin * 60000;
     var warn = dose ? 'A double dose can be dangerous. If you’re not sure, check with the vet before giving another.' : row.task === 'feed' ? esc((p ? p.name : 'They') + ' might happily eat twice - which is how pets get round.') : 'It’s been ticked off already.';
-    sheet(head('Hold on') + '<div class="guard"><p class="big" aria-hidden="true">' + (dose ? '💊' : '✋') + '</p><h2>Already ' + esc(verb) + ' by ' + esc(mine ? 'you' : info.by) + ' at ' + esc(info.when) + '</h2><p>' + (dose ? esc(warn) : warn) + '</p></div>' +
+    sheet(head('Hold on') + '<div class="guard"><p class="big" aria-hidden="true">' + icon(dose ? 'meds' : 'alert') + '</p><h2>Already ' + esc(verb) + ' by ' + esc(mine ? 'you' : info.by) + ' at ' + esc(info.when) + '</h2><p>' + (dose ? esc(warn) : warn) + '</p></div>' +
       '<div class="stack"><button class="btn big block" type="button" data-act="closesheet" autofocus>No, leave it</button>' +
       (canUndo ? '<button class="btn ghost block" type="button" data-act="undo" data-log="' + esc(info.logId) + '">Undo my tick</button>' : '') +
       '<button class="btn ghost block" type="button" data-act="again" data-key="' + esc(row.key) + '">Yes, ' + (dose ? 'give another dose' : 'do it again') + '</button></div>');
@@ -725,7 +768,7 @@
       '<div class="ferr"></div><button class="btn block" type="submit">' + (p ? 'Save' : 'Add ' + 'them with a starter routine') + '</button></form>' +
       (p ? '<div class="sec"><h2>Routine</h2><button class="btn small ghost" type="button" data-act="item" data-pet="' + esc(p.id) + '">+ Add</button></div>' +
         (items.length ? '<ul class="list">' + items.map(function (i) {
-          return '<li class="li"><span class="le" aria-hidden="true">' + esc(C.taskOf(i.task).emoji) + '</span><span class="lt"><b>' + esc(i.label) + '</b><small>' + esc(C.repeatWords(i.repeat) + ', ' + C.fmtTime(i.from) + '–' + C.fmtTime(i.to)) + '</small></span><span class="la"><button class="btn small ghost" type="button" data-act="item" data-id="' + esc(i.id) + '">Edit</button></span></li>';
+          return '<li class="li"><span class="le" aria-hidden="true">' + taskIcon(i.task) + '</span><span class="lt"><b>' + esc(i.label) + '</b><small>' + esc(C.repeatWords(i.repeat) + ', ' + C.fmtTime(i.from) + '–' + C.fmtTime(i.to)) + '</small></span><span class="la"><button class="btn small ghost" type="button" data-act="item" data-id="' + esc(i.id) + '">Edit</button></span></li>';
         }).join('') + '</ul>' : '<p class="empty">No routine yet.</p>') +
         '<div class="stack"><button class="btn danger block" type="button" data-act="delpet" data-id="' + esc(p.id) + '">Remove ' + esc(p.name) + '</button></div>' : ''), function (root) {
       bindPills(root, 'data-kind', function (k) { kind = k; });
@@ -767,10 +810,10 @@
     var pet = it ? it.pet : petId;
     var task = it ? it.task : 'feed';
     sheet(head(it ? 'Edit ' + it.label : 'Add to the routine') + '<form id="itemForm">' +
-      '<div class="field"><span>What</span><div class="pills" role="group" aria-label="Kind of job">' + C.TASKS.filter(function (t) { return t.id !== 'meds'; }).map(function (t) { return '<button class="pill" type="button" data-task="' + t.id + '" aria-pressed="' + (t.id === task) + '">' + t.emoji + ' ' + esc(t.label) + '</button>'; }).join('') + '</div></div>' +
+      '<div class="field"><span>What</span><div class="pills" role="group" aria-label="Kind of job">' + C.TASKS.filter(function (t) { return t.id !== 'meds'; }).map(function (t) { return '<button class="pill" type="button" data-task="' + t.id + '" aria-pressed="' + (t.id === task) + '">' + esc(t.label) + '</button>'; }).join('') + '</div></div>' +
       '<label class="field"><span>Label</span><input class="input" id="iLabel" maxlength="' + C.LIMITS.label + '" value="' + esc(it ? it.label : '') + '" placeholder="Breakfast" required></label>' +
       '<div class="two"><label class="field"><span>From</span><input class="input" id="iFrom" type="time" value="' + C.hhmm(it ? it.from : 480) + '" required></label><label class="field"><span>Until</span><input class="input" id="iTo" type="time" value="' + C.hhmm(it ? it.to : 600) + '" required></label></div>' +
-      '<p class="hint" style="margin-top:-4px">After “until” it glows as overdue.</p>' + repeatFields(it && it.repeat) +
+      '<p class="hint mtn4">After “until” it glows as overdue.</p>' + repeatFields(it && it.repeat) +
       '<div class="ferr"></div><button class="btn block" type="submit">' + (it ? 'Save' : 'Add it') + '</button></form>' +
       (it ? '<div class="stack"><button class="btn danger block" type="button" data-act="delitem" data-id="' + esc(it.id) + '">Remove from the routine</button></div>' : ''), function (root) {
       bindPills(root, 'data-task', function (t) { task = t; });
@@ -791,7 +834,7 @@
     var pet = m ? m.pet : state.pet || (d.pets[0] && d.pets[0].id);
     var times = m ? m.times.slice() : [480];
     var draw2 = function (root) {
-      $('#mTimes', root).innerHTML = times.map(function (t, i) { return '<div class="row"><input class="input" style="flex:1 1 120px" type="time" data-ti="' + i + '" value="' + C.hhmm(t) + '" aria-label="Dose time ' + (i + 1) + '">' + (times.length > 1 ? '<button class="btn small ghost" type="button" data-rmt="' + i + '" aria-label="Remove this time">Remove</button>' : '') + '</div>'; }).join('') +
+      $('#mTimes', root).innerHTML = times.map(function (t, i) { return '<div class="row"><input class="input grow" type="time" data-ti="' + i + '" value="' + C.hhmm(t) + '" aria-label="Dose time ' + (i + 1) + '">' + (times.length > 1 ? '<button class="btn small ghost" type="button" data-rmt="' + i + '" aria-label="Remove this time">Remove</button>' : '') + '</div>'; }).join('') +
         (times.length < C.LIMITS.timesPerMed ? '<button class="btn small ghost" type="button" id="addT">+ Another time</button>' : '');
       $$('[data-ti]', root).forEach(function (el) { el.addEventListener('change', function () { var v = C.parseHhmm(el.value); if (v !== null) times[Number(el.getAttribute('data-ti'))] = v; }); });
       $$('[data-rmt]', root).forEach(function (b) { b.addEventListener('click', function () { times.splice(Number(b.getAttribute('data-rmt')), 1); draw2(root); }); });
@@ -800,7 +843,7 @@
     sheet(head(m ? 'Edit ' + m.name : 'Add a medicine') + '<form id="medForm">' + petPick(pet) +
       '<label class="field"><span>Medicine</span><input class="input" id="mName" maxlength="' + C.LIMITS.medName + '" required value="' + esc(m ? m.name : '') + '" placeholder="Ear drops" autocomplete="off"' + (m ? '' : ' autofocus') + '></label>' +
       '<label class="field"><span>Dose</span><input class="input" id="mDose" maxlength="' + C.LIMITS.dose + '" value="' + esc(m ? m.dose : '') + '" placeholder="4 drops, left ear"></label>' +
-      '<div class="field"><span>Times</span><div id="mTimes" class="stack" style="margin-top:0"></div></div>' + repeatFields(m && m.repeat) +
+      '<div class="field"><span>Times</span><div id="mTimes" class="stack mt0"></div></div>' + repeatFields(m && m.repeat) +
       '<div class="two"><label class="field"><span>Starts</span><input class="input" id="mStart" type="date" value="' + esc(m ? m.start : today()) + '"></label><label class="field"><span>Last day <span class="hint">(empty: ongoing)</span></span><input class="input" id="mUntil" type="date" value="' + esc(m && m.until ? m.until : '') + '"></label></div>' +
       '<p class="hint">Each dose appears on Today with the same double-dose guard.</p><div class="ferr"></div><button class="btn block" type="submit">' + (m ? 'Save' : 'Add the course') + '</button></form>' +
       (m ? '<div class="stack"><button class="btn danger block" type="button" data-act="delmed" data-id="' + esc(m.id) + '">Delete this medicine</button></div>' : ''), function (root) {
@@ -828,7 +871,7 @@
     var pet = h ? h.pet : state.pet || (d.pets[0] && d.pets[0].id);
     var type = h ? h.type : 'vaccine';
     sheet(head(h ? 'Edit ' + h.name : 'Add a health record') + '<form id="hForm">' + petPick(pet) +
-      '<div class="field"><span>Type</span><div class="pills" role="group" aria-label="Type">' + C.HEALTH_TYPES.map(function (t) { return '<button class="pill" type="button" data-ht="' + t.id + '" aria-pressed="' + (t.id === type) + '">' + t.emoji + ' ' + esc(t.label) + '</button>'; }).join('') + '</div></div>' +
+      '<div class="field"><span>Type</span><div class="pills" role="group" aria-label="Type">' + C.HEALTH_TYPES.map(function (t) { return '<button class="pill" type="button" data-ht="' + t.id + '" aria-pressed="' + (t.id === type) + '">' + esc(t.label) + '</button>'; }).join('') + '</div></div>' +
       '<label class="field"><span>What</span><input class="input" id="hName" maxlength="' + C.LIMITS.healthName + '" value="' + esc(h ? h.name : '') + '" placeholder="Rabies booster" autocomplete="off"></label>' +
       '<div class="two"><label class="field"><span>Last given</span><input class="input" id="hGiven" type="date" max="' + today() + '" value="' + esc(h && h.given ? h.given : '') + '"></label><label class="field"><span>Next due</span><input class="input" id="hDue" type="date" value="' + esc(h && h.due ? h.due : '') + '"></label></div>' +
       '<label class="field"><span>Repeats</span><select class="input" id="hEvery">' + [0, 1, 2, 3, 6, 12, 24, 36].map(function (n) { var cur = h ? h.everyMonths : C.healthOf(type).months; return '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + (n ? 'Every ' + plural(n, 'month') : 'Doesn’t repeat') + '</option>'; }).join('') + '</select><span class="hint">“Done today” then sets the next due date for you.</span></label>' +
@@ -893,20 +936,31 @@
     share('Pet care for ' + (s ? s.name : 'you'), 'Hi' + (s ? ' ' + s.name : '') + '! Everything for looking after the pets - the routine, notes and the vet - tick things off as you go:', linkUrl('s', code));
   }
 
-  /* ---------------- "Read the vet paperwork" (the one model call) ---------------- */
+  /* ---------------- the vet paperwork (the one model call) ---------------- */
 
+  var PHOTO_MAX = 3 * 1024 * 1024; // decoded bytes; the server refuses over 4 MB
+  /** Shrink a photo on this phone before it goes anywhere: a canvas redraw
+   *  (which also drops its EXIF), smaller and plainer until it is under the
+   *  cap. A photo that will not fit is refused here. */
   function shrink(file) {
     return new Promise(function (resolve, reject) {
       if (!file || !/^image\//.test(file.type || '')) return reject(new Error('not an image'));
       var url = URL.createObjectURL(file);
       var img = new Image();
       img.addEventListener('load', function () {
-        var s = Math.min(1, PHOTO_PX / Math.max(img.naturalWidth, img.naturalHeight));
-        var c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        var dataUrl = c.toDataURL('image/jpeg', 0.85);
+        var steps = [[PHOTO_PX, 0.85], [1280, 0.8], [1024, 0.75], [800, 0.7]];
+        var dataUrl = null;
+        for (var i = 0; i < steps.length; i++) {
+          var s = Math.min(1, steps[i][0] / Math.max(img.naturalWidth, img.naturalHeight));
+          var c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          dataUrl = c.toDataURL('image/jpeg', steps[i][1]);
+          if ((dataUrl.length - 23) * 3 / 4 <= PHOTO_MAX) break;
+          dataUrl = null;
+        }
         URL.revokeObjectURL(url);
+        if (!dataUrl) return reject(new Error('too large'));
         resolve({ type: 'image/jpeg', data: dataUrl.split(',')[1], url: dataUrl });
       });
       img.addEventListener('error', function () { URL.revokeObjectURL(url); reject(new Error('bad image')); });
@@ -915,49 +969,165 @@
   }
   function openPaper() {
     if (!state.doc.pets.length) return toast('Add a pet first.');
-    state.ai = { pet: state.pet || state.doc.pets[0].id, how: 'photo', photo: null, text: '', proposal: null, busy: false };
+    state.ai = { pet: state.pet || state.doc.pets[0].id, how: 'photo', photo: null, text: '', proposal: null, drafts: null, busy: false };
     drawPaper();
   }
   function drawPaper() {
     var a = state.ai;
     if (!a) return;
     var p = petOf(a.pet);
-    var html = head('Read the vet paperwork');
+    var gem = reader() === 'gemini';
+    var html = head(paperTitle());
     if (!signedIn()) {
-      html += '<p>Snap an invoice or a vaccination card and AI fills in the boosters, medicines, weight and next visit for you to check. It needs a free account, which comes with $2 of AI credit (well over a hundred pages).</p>' +
+      html += '<p>' + (gem ? 'Snap the prescription label or the discharge sheet and AI copies each medicine - name, strength, amount, how often, how long - for you to check against the label. Pawlog then works out the dose times.' : 'Snap an invoice or a vaccination card and AI fills in the boosters, medicines, weight and next visit for you to check.') + ' It needs a free account, which comes with $2 of AI credit (well over a hundred pages).</p>' +
         '<p class="small muted">Everything else in Pawlog stays free with no account: the board, the household and sitter links, health records by hand and the calendar.</p>' +
-        '<div class="stack"><button class="btn block" type="button" data-act="signup">Create a free account</button><button class="btn ghost block" type="button" data-act="signin">I have an account</button></div>';
+        '<div class="stack"><button class="btn big block" type="button" data-act="signup">Create a free account</button><button class="btn ghost block" type="button" data-act="signin">I have an account</button></div>';
       return sheet(html);
     }
-    html += petPick(a.pet) + '<div class="field"><span>From</span><div class="pills" role="group" aria-label="Photo or text"><button class="pill" type="button" data-how="photo" aria-pressed="' + (a.how === 'photo') + '">📷 A photo</button><button class="pill" type="button" data-how="text" aria-pressed="' + (a.how === 'text') + '">📝 Pasted text</button></div></div>';
+    if (a.proposal) return sheet(html + resultHtml(a), bindResult);
+    html += petPick(a.pet) + '<div class="field"><span>From</span><div class="pills" role="group" aria-label="Photo or text"><button class="pill" type="button" data-how="photo" aria-pressed="' + (a.how === 'photo') + '">A photo</button><button class="pill" type="button" data-how="text" aria-pressed="' + (a.how === 'text') + '">Pasted text</button></div></div>';
     html += a.how === 'photo'
-      ? '<label class="field"><span>Photo of the paperwork</span><input class="input" id="paFile" type="file" accept="image/*"></label>' + (a.photo ? '<img class="preview-img" alt="The photo to read" src="' + esc(a.photo.url) + '">' : '')
-      : '<label class="field"><span>Paste the text</span><textarea class="input" id="paText" maxlength="8000" placeholder="Vaccinations given today: Rabies (next due 10/2027)…">' + esc(a.text) + '</textarea></label>';
-    html += '<div class="sent"><b>What is sent:</b> ' + (a.how === 'photo' ? 'the photo, shrunk on this phone, read once and never kept' : 'the text, with anything that looks like an address, a phone number or an account number taken out first') + ', and that ' + esc(p ? p.name : 'the pet') + ' is a ' + esc(p ? C.kindOf(p.kind).label.toLowerCase() : 'pet') + '. Not your names, not the pet’s name. Nothing is saved until you tick it.</div>' +
-      '<div class="ferr" id="paOut"></div><button class="btn big block" type="button" data-act="doread"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? 'Reading…' : 'Read it') + '</button>';
-    if (a.proposal) html += proposalHtml(a.proposal);
+      ? '<div class="field"><label class="filepick"><input class="vh" id="paFile" type="file" accept="image/*"><span class="btn ghost block">' + icon('camera') + (a.photo ? 'Choose a different photo' : 'Take or choose a photo') + '</span></label></div>' + (a.photo ? '<img class="preview-img" alt="The photo to read" src="' + esc(a.photo.url) + '">' : '')
+      : '<label class="field"><span>Paste the text</span><textarea class="input" id="paText" maxlength="8000" placeholder="' + (gem ? 'Give 1 tablet twice daily with food for 7 days…' : 'Vaccinations given today: Rabies (next due 10/2027)…') + '">' + esc(a.text) + '</textarea></label>';
+    html += '<p class="sent"><b>What is sent:</b> ' + (a.how === 'photo' ? 'the photo, shrunk on this phone, read once and never kept' : 'the text, with anything that looks like an address, a phone number or an account number taken out first') + ', and that ' + esc(p ? p.name : 'the pet') + ' is a ' + esc(p ? C.kindOf(p.kind).label.toLowerCase() : 'pet') + '. Not your names, not the pet’s name. Nothing is saved until you’ve checked it.</p>' +
+      '<div class="ferr" id="paOut"></div><button class="btn big block" type="button" data-act="doread"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? 'Reading…' : 'Read it') + '</button>' +
+      (gem ? '<p class="fine">AI copies what the paperwork says. It never suggests or changes a dose. ' + CHECK_LINE + '</p>' : '');
     sheet(html, function (root) {
       bindPills(root, 'data-pp', function (v) { a.pet = v; });
-      bindPills(root, 'data-how', function (v) { a.how = v; a.proposal = null; drawPaper(); });
+      bindPills(root, 'data-how', function (v) { a.how = v; drawPaper(); });
       var f = $('#paFile', root);
       if (f) f.addEventListener('change', function () {
         var file = f.files && f.files[0];
-        shrink(file).then(function (ph) { a.photo = ph; a.proposal = null; drawPaper(); }).catch(function () { errBox(root, 'That file isn’t a photo this phone can read.'); });
+        shrink(file).then(function (ph) { a.photo = ph; drawPaper(); }).catch(function (e) { errBox(root, e && e.message === 'too large' ? 'That photo is too large even after shrinking. Try a closer shot of just the label.' : 'That file isn’t a photo this phone can read.'); });
       });
       var tx = $('#paText', root);
       if (tx) tx.addEventListener('input', function () { a.text = tx.value; });
     });
   }
-  function proposalHtml(pr) {
+
+  /** The other things found on the paper (and, on the older reader, the
+   *  medicines too): a tick list. */
+  function proposalRows(pr) {
     var t = today();
     var rows = [];
-    pr.vaccinations.forEach(function (v, i) { rows.push(['v' + i, C.healthOf(v.kind).emoji + ' ' + v.name, [v.given ? 'given ' + C.fmtDay(v.given, t) : '', v.due ? 'due ' + C.fmtDay(v.due, t) : ''].filter(Boolean).join(' · ')]); });
-    pr.medicines.forEach(function (m, i) { rows.push(['m' + i, ['💊', m.name].join(' ') + (m.dose ? ' · ' + m.dose : ''), m.schedule + (m.until ? ' until ' + C.fmtDay(m.until, t) : '')]); });
-    if (pr.weight) rows.push(['w', '⚖️ Weight ' + C.fmtWeight(pr.weight.g, units()), 'today']);
-    if (pr.nextVisit) rows.push(['n', '🩺 ' + pr.nextVisit.what, 'on ' + C.fmtDay(pr.nextVisit.day, t)]);
-    return '<div class="sec"><h2>Found on the paper</h2><span class="ct">check, then add</span></div>' + (pr.stripped ? '<p class="small muted">Addresses, phone and account numbers were left out.</p>' : '') +
-      '<ul class="prop">' + rows.map(function (r) { return '<li><label class="check"><input type="checkbox" data-pick="' + esc(r[0]) + '" checked><span><b>' + esc(r[1]) + '</b><small>' + esc(r[2]) + '</small></span></label></li>'; }).join('') + '</ul>' +
-      '<div class="stack"><button class="btn block" type="button" data-act="applypaper">Add the ticked ones</button></div>';
+    pr.vaccinations.forEach(function (v, i) { rows.push(['v' + i, healthIcon(v.kind), v.name, [v.given ? 'given ' + C.fmtDay(v.given, t) : '', v.due ? 'due ' + C.fmtDay(v.due, t) : ''].filter(Boolean).join(' · ')]); });
+    pr.medicines.forEach(function (m, i) { rows.push(['m' + i, icon('meds'), m.name + (m.dose ? ' · ' + m.dose : ''), m.schedule + (m.until ? ' until ' + C.fmtDay(m.until, t) : '')]); });
+    if (pr.weight) rows.push(['w', icon('weight'), 'Weight ' + C.fmtWeight(pr.weight.g, units()), 'today']);
+    if (pr.nextVisit) rows.push(['n', icon('visit'), pr.nextVisit.what, 'on ' + C.fmtDay(pr.nextVisit.day, t)]);
+    if (!rows.length) return '';
+    return '<ul class="prop">' + rows.map(function (r) { return '<li><label class="check"><input type="checkbox" data-pick="' + esc(r[0]) + '" checked><span class="le" aria-hidden="true">' + r[1] + '</span><span class="pt"><b>' + esc(r[2]) + '</b><small>' + esc(r[3]) + '</small></span></label></li>'; }).join('') + '</ul>';
+  }
+  var RX_HINT = {
+    name: 'Couldn’t read the name - type it from the label.',
+    strength: 'No strength was read. Type it from the label, or tick the box if the label doesn’t give one.',
+    amount: 'Couldn’t read the amount - type it exactly as the label says.',
+    frequency: 'Choose how often, as the label says.',
+    days: 'No number of days was read. Type it from the label, or tick “no end date”.',
+    food: 'The paperwork didn’t say. Choose one, or tick the box to leave it out.',
+    start: 'No start date on the paperwork, so this is set to today.',
+  };
+  function rxOk(i, k, f) {
+    if (!f.flagged) return '';
+    var empty = f.value === null || f.assumed || (k === 'food' && f.value === 'none');
+    var words = k === 'start' ? 'Yes, this start date is right' : k === 'frequency' ? 'This matches the label' : empty ? (k === 'days' ? '' : 'The label doesn’t say') : 'This matches the label';
+    if (k === 'name' || k === 'amount') words = empty ? '' : words;
+    return (empty || k === 'frequency' ? '<span class="hint">' + esc(RX_HINT[k]) + '</span>' : '') +
+      (words ? '<label class="check small"><input type="checkbox" data-ok="' + k + '" id="rx' + i + k + 'ok"><span>' + esc(words) + '</span></label>' : '');
+  }
+  function rxLabel(k, f, extra) { return '<span class="rx-l">' + esc(C.MED_FIELD_LABELS[k]) + (extra || '') + (f.flagged ? ' <span class="chip now" data-chip="' + k + '">Check</span>' : '') + '</span>'; }
+  function rxTimes(times) {
+    return times.map(function (t, j) { return '<input class="input" type="time" data-t="' + j + '" value="' + C.hhmm(t) + '" aria-label="Dose time ' + (j + 1) + '">'; }).join('');
+  }
+  /** One medicine, as read: every field editable, the unsure and missing
+   *  ones marked "Check" with a box to tick (or type over). */
+  function rxCard(dr, i, n) {
+    var F = dr.fields;
+    var text = function (k, max, ph) { return '<div class="field rxf" data-f="' + k + '">' + rxLabel(k, F[k]) + '<input class="input" data-v="' + k + '" maxlength="' + max + '" value="' + esc(F[k].value === null ? '' : F[k].value) + '" placeholder="' + esc(ph) + '" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="' + esc(C.MED_FIELD_LABELS[k]) + '">' + rxOk(i, k, F[k]) + '</div>'; };
+    return '<section class="rx" data-rx="' + i + '" aria-label="Medicine ' + (i + 1) + '">' +
+      '<div class="rx-head"><label class="check"><input type="checkbox" data-rx-on checked><span><b>' + (n > 1 ? 'Medicine ' + (i + 1) + ' of ' + n : 'The medicine') + '</b></span></label><span class="rx-left" data-rx-left></span></div>' +
+      '<div class="rx-body">' +
+      text('name', C.LIMITS.medName, 'As printed on the label') +
+      '<div class="two">' + text('amount', C.LIMITS.medAmount, '1 tablet') + text('strength', C.LIMITS.medStrength, '25 mg') + '</div>' +
+      '<div class="field rxf" data-f="frequency">' + rxLabel('frequency', F.frequency) +
+      '<span class="said">' + (dr.said ? 'The paperwork says: “' + esc(dr.said) + '”' : 'The paperwork didn’t say, or it couldn’t be read.') + '</span>' +
+      '<select class="input" data-v="freq" aria-label="How often"><option value="">Choose…</option>' + C.FREQUENCIES.map(function (f) { return '<option value="' + f.id + '"' + (f.id === dr.freq ? ' selected' : '') + '>' + esc(f.label) + '</option>'; }).join('') + '</select>' +
+      '<div class="rx-times" data-times>' + rxTimes(dr.times) + '</div><span class="hint">Pawlog sets the reminder times - move them to suit your day.</span>' + rxOk(i, 'frequency', F.frequency) + '</div>' +
+      '<div class="two"><div class="field rxf" data-f="start">' + rxLabel('start', F.start) + '<input class="input" type="date" data-v="start" value="' + esc(F.start.value) + '" aria-label="Starts">' + rxOk(i, 'start', F.start) + '</div>' +
+      '<div class="field rxf" data-f="days">' + rxLabel('days', F.days) + '<input class="input" data-v="days" inputmode="numeric" maxlength="3" value="' + esc(F.days.value === null ? '' : F.days.value) + '" placeholder="7" aria-label="For how many days">' +
+      '<label class="check small"><input type="checkbox" data-v="ongoing"><span>No end date</span></label>' + rxOk(i, 'days', F.days) + '</div></div>' +
+      '<div class="field rxf" data-f="food">' + rxLabel('food', F.food) + '<select class="input" data-v="food" aria-label="With food">' + C.FOODS.map(function (f) { return '<option value="' + f.id + '"' + (f.id === F.food.value ? ' selected' : '') + '>' + esc(f.label) + '</option>'; }).join('') + '</select>' + rxOk(i, 'food', F.food) + '</div>' +
+      '<p class="rx-sum" data-sum></p>' +
+      '<label class="check rx-final"><input type="checkbox" data-rx-checked><span>I’ve checked this against the label</span></label>' +
+      '<div class="rx-err" data-rx-err></div></div></section>';
+  }
+  function resultHtml(a) {
+    var pr = a.proposal;
+    var n = (a.drafts || []).length;
+    var rest = proposalRows(pr);
+    var html = '<p class="small muted">Read for ' + esc((petOf(a.pet) || {}).name || 'your pet') + '. ' + (pr.stripped ? 'Addresses, phone and account numbers were left out. ' : '') + 'Nothing is saved yet.</p>';
+    if (n) {
+      html += '<p class="note warn" role="note"><b>' + esc(CHECK_LINE) + '</b> Pawlog copied what the paperwork says - it never suggests or changes a dose. Anything marked “Check” was unclear or missing.</p>' +
+        a.drafts.map(function (d, i) { return rxCard(d, i, n); }).join('');
+    }
+    if (rest) html += '<div class="sec"><h2>' + (n ? 'Also on the paper' : 'Found on the paper') + '</h2><span class="ct">untick to leave out</span></div>' + rest;
+    if (!n && pr.medicines.length) html += '<p class="note warn" role="note"><b>' + esc(CHECK_LINE) + '</b> Open each medicine on Health after adding it and compare the dose and times with the label.</p>';
+    html += '<div class="ferr"></div><div class="stack"><button class="btn big block" type="button" data-act="applypaper">' + (n ? 'Save what I’ve checked' : 'Add the ticked ones') + '</button><button class="btn ghost block" type="button" data-act="rereadpaper">Read a different page</button></div>';
+    return html;
+  }
+  /** What one review card holds right now, in the shape medFromDraft takes. */
+  function rxRead(card, dr, pet) {
+    var v = function (k) { var el = $('[data-v="' + k + '"]', card); return el ? el.value : ''; };
+    var confirmed = {};
+    $$('[data-ok]', card).forEach(function (c) { if (c.checked) confirmed[c.getAttribute('data-ok')] = true; });
+    for (var k in dr.touched) confirmed[k] = true;
+    return {
+      pet: pet, name: v('name'), strength: v('strength'), amount: v('amount'), freq: v('freq'),
+      times: $$('[data-t]', card).map(function (el) { return C.parseHhmm(el.value); }),
+      days: v('days'), ongoing: $('[data-v="ongoing"]', card).checked, food: v('food'), start: v('start'),
+      flagged: C.MED_FIELDS.filter(function (f) { return dr.fields[f].flagged; }), confirmed: confirmed,
+      checked: $('[data-rx-checked]', card).checked,
+    };
+  }
+  /** Keep a card's summary, "to check" count and chips in step with what is
+   *  typed and ticked - without redrawing the inputs. */
+  function rxSync(card, dr) {
+    var x = rxRead(card, dr, state.ai.pet);
+    var open = x.flagged.filter(function (k) { return !x.confirmed[k]; });
+    x.flagged.forEach(function (k) {
+      var chip = $('[data-chip="' + k + '"]', card);
+      if (chip) { chip.textContent = x.confirmed[k] ? 'Checked' : 'Check'; chip.className = 'chip ' + (x.confirmed[k] ? 'done' : 'now'); }
+    });
+    var on = $('[data-rx-on]', card).checked;
+    card.classList.toggle('is-off', !on);
+    $('[data-rx-left]', card).textContent = !on ? 'Left out' : open.length ? plural(open.length, 'thing') + ' to check' : 'All checked';
+    var f = C.frequencyOf(x.freq);
+    var until = x.ongoing ? null : C.courseEnd(x.start, /^\d{1,3}$/.test(String(x.days).trim()) ? Number(String(x.days).trim()) : NaN);
+    var okTimes = f && x.times.length === f.times.length && x.times.every(function (t) { return t !== null; });
+    $('[data-sum]', card).textContent = f && okTimes && C.isDay(x.start) && (x.ongoing || until)
+      ? 'On Today: ' + C.scheduleWords(x.freq, x.times.slice().sort(function (p, q) { return p - q; }), x.start, until, today()) + '.'
+      : 'Fill in how often, the start and the number of days to see the dose times.';
+  }
+  function bindResult(root) {
+    var a = state.ai;
+    $$('[data-rx]', root).forEach(function (card) {
+      var dr = a.drafts[Number(card.getAttribute('data-rx'))];
+      dr.touched = dr.touched || {};
+      var touch = function (k) { dr.touched[k] = true; var box = $('[data-ok="' + k + '"]', card); if (box) box.checked = true; };
+      card.addEventListener('input', function (e) {
+        var k = e.target.getAttribute('data-v');
+        if (k === 'freq') {
+          var f = C.frequencyOf(e.target.value);
+          $('[data-times]', card).innerHTML = rxTimes(f ? f.times : []);
+          touch('frequency');
+        } else if (k === 'ongoing') { if (e.target.checked) { $('[data-v="days"]', card).value = ''; touch('days'); } else delete dr.touched.days; }
+        else if (k === 'days') { $('[data-v="ongoing"]', card).checked = false; touch('days'); }
+        else if (k && C.MED_FIELDS.indexOf(k) >= 0) touch(k);
+        $('[data-rx-err]', card).innerHTML = '';
+        rxSync(card, dr);
+      });
+      card.addEventListener('change', function () { rxSync(card, dr); });
+      rxSync(card, dr);
+    });
   }
   function doRead() {
     var a = state.ai;
@@ -967,9 +1137,14 @@
     else { var tx = $('#paText'); a.text = tx ? tx.value : a.text; if (!a.text.trim()) return errBox($('#sheet'), 'Paste the text first.'); body.text = a.text; }
     a.busy = true; drawPaper();
     api('POST', 'api/read-paperwork', body).then(function (r) {
-      a.busy = false; a.proposal = r.proposal; drawPaper();
-      var s = $('.sec', $('#sheet')); if (s) s.scrollIntoView({ block: 'start' });
+      if (state.ai !== a) return;
+      a.busy = false; a.proposal = r.proposal;
+      a.drafts = (r.proposal.meds || []).map(function (m) { return C.medDraft(m, today()); });
+      a.photo = null; // read once: the page lets go of it too
+      drawPaper();
+      $('#sheet').scrollTop = 0;
     }).catch(function (e) {
+      if (state.ai !== a) return;
       a.busy = false; drawPaper();
       var out = $('#paOut');
       if (e.status === 402) return openCredit(e.data);
@@ -978,13 +1153,30 @@
       showError(e, out);
     });
   }
+  /** Save: every medicine left in must pass medFromDraft - each flagged
+   *  field confirmed or typed, the label box ticked - or NOTHING is saved
+   *  and the first thing still to check is shown. */
   function applyPaper() {
     var a = state.ai, pr = a && a.proposal;
     if (!pr) return;
+    var root = $('#sheet');
     var picked = {};
-    $$('[data-pick]', $('#sheet')).forEach(function (c) { picked[c.getAttribute('data-pick')] = c.checked; });
+    $$('[data-pick]', root).forEach(function (c) { picked[c.getAttribute('data-pick')] = c.checked; });
     var t = today();
     var jobs = [];
+    var bad = null;
+    $$('[data-rx]', root).forEach(function (card) {
+      $('[data-rx-err]', card).innerHTML = '';
+      if (bad || !$('[data-rx-on]', card).checked) return;
+      var dr = a.drafts[Number(card.getAttribute('data-rx'))];
+      try { jobs.push(['med', { med: C.medFromDraft(rxRead(card, dr, a.pet), t) }]); } catch (e) {
+        bad = e;
+        $('[data-rx-err]', card).innerHTML = '<p class="err" role="alert">' + esc(e.message) + '</p>';
+        var at = (e.field && $('[data-f="' + e.field + '"]', card)) || $('[data-rx-err]', card);
+        at.scrollIntoView({ block: 'center' });
+      }
+    });
+    if (bad) return;
     pr.vaccinations.forEach(function (v, i) {
       if (!picked['v' + i]) return;
       var months = v.given && v.due ? Math.max(0, Math.min(36, Math.round(C.daysBetween(v.given, v.due) / 30.44))) : C.healthOf(v.kind).months;
@@ -999,8 +1191,9 @@
     if (pr.nextVisit && picked.n) jobs.push(['health', { health: { pet: a.pet, type: 'visit', name: pr.nextVisit.what, given: null, due: pr.nextVisit.day, everyMonths: 0 } }]);
     if (!jobs.length) return toast('Nothing ticked.');
     var done = 0;
+    var meds = jobs.filter(function (j) { return j[0] === 'med'; }).length;
     jobs.reduce(function (pChain, j) { return pChain.then(function () { return doAct(j[0], j[1]).then(function () { done++; }); }); }, Promise.resolve())
-      .then(function () { closeSheet(true); state.tab = 'health'; redraw(); toast('Added ' + plural(done, 'thing') + '. Check the dates on Health.'); })
+      .then(function () { state.pet = a.pet; closeSheet(true); state.tab = 'health'; redraw(); toast('Added ' + plural(done, 'thing') + '.' + (meds ? ' The doses are on Today.' : ' Check the dates on Health.')); })
       .catch(function (e) { closeSheet(true); redraw(); toast('Added ' + done + ', then: ' + e.message); });
   }
 
@@ -1043,8 +1236,8 @@
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt8" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1065,12 +1258,12 @@
   function openAccountSheet() {
     var me = state.account, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
-    sheet(head('Account') + '<p class="small muted" style="overflow-wrap:anywhere">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><b>Your household</b><p class="small muted" style="margin:4px 0 0">' + (syncOn() ? (state.mode === 'member' ? 'This phone is in someone else’s household through its link - nothing to keep in your account.' : 'Kept in your account, so it follows you to any phone you sign in on. Everyone else keeps using the household link.') : 'Syncing isn’t available right now - your household is safe on this phone.') + '</p></div>' +
-      '<div class="note"><div class="row" style="justify-content:space-between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Reading a page of vet paperwork costs about a cent. Everything else in Pawlog is free.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>' +
-      '<p class="small muted" style="margin-top:8px">Signing out keeps this phone’s copy of your household.</p>',
+    sheet(head('Account') + '<p class="small muted wrapany">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
+      '<div class="note"><b>Your household</b><p class="small muted m4t">' + (syncOn() ? (state.mode === 'member' ? 'This phone is in someone else’s household through its link - nothing to keep in your account.' : 'Kept in your account, so it follows you to any phone you sign in on. Everyone else keeps using the household link.') : 'Syncing isn’t available right now - your household is safe on this phone.') + '</p></div>' +
+      '<div class="note"><div class="row between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted m4t">Reading a page of vet paperwork costs about a cent. Everything else in Pawlog is free.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block mt16" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt8" id="signOut" type="button">Sign out</button>' +
+      '<p class="small muted mt8">Signing out keeps this phone’s copy of your household.</p>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () {
@@ -1148,7 +1341,7 @@
         state.mode = 'local'; state.doc = C.sample(now(), PHONE_TZ); state.tab = 'today'; state.pet = null;
         keep(K_HOME, { mode: 'local', doc: state.doc, savedAt: 0 }); saveMe('sample-alex');
         draw(); scrollTo(0, 0);
-        toast('🧪 A made-up home. You’re Alex - try tapping Miso’s breakfast.');
+        toast('A made-up home. You’re Alex - try tapping Miso’s breakfast.');
         break;
       case 'clearsample': case 'mine':
         keep(K_HOME, null); state.mode = 'none'; state.doc = null; state.me = null;
@@ -1194,6 +1387,7 @@
       case 'paper': openPaper(); break;
       case 'doread': doRead(); break;
       case 'applypaper': applyPaper(); break;
+      case 'rereadpaper': if (state.ai) { state.ai.proposal = null; state.ai.drafts = null; drawPaper(); } break;
       case 'signup': openAccount(null, function () { if (state.doc) openPaper(); }); break;
       case 'signin': openAccount(null, function () { if (state.doc) openPaper(); }, true); break;
       case 'sharehome': shareHome(); break;

@@ -12,7 +12,13 @@ on a chosen day, **medicines** with doses at set times and an end date,
 **weight log** with a chart, **Due soon**, the **week** ("walked 13 of 14
 times"), streaks and a gentle **who did what**, and every due date in your
 **own calendar** (.ics). Optional AI **reads the vet paperwork** (a photo or
-pasted text) into records you tick before they are added.
+pasted text) into records you check before they are added - and, behind
+`PAWLOG_AI_PROVIDER=gemini`, **transcribes each medicine field by field**
+for you to confirm against the label before Pawlog works out the dose times.
+
+Redesigned 2026-11-23 to the lab's white, hairline, one-accent look (see
+"The look") with the Gemini reader built behind its switch (see "Snap the
+vet paperwork"). Nothing live changes until the switch is set.
 
 Built 2026-10-24 as an **everyday** drop: Firstday (2026-10-23) was a
 business one, so today was the other kind. **Staging only**: no custom domain
@@ -208,6 +214,96 @@ or logged (tested). Signed out, the sheet explains it needs a free account
 and that everything else stays free; 402 opens the credit sheet; 403
 `verify-email` shows its sentence.
 
+## "Snap the vet paperwork" on Gemini (behind `PAWLOG_AI_PROVIDER=gemini`)
+
+Erik's plan row: **Pawlog - Gemini - "Snap the vet paperwork to log meds and
+dose times."** The switch is read per request (`providerNow()`); anything
+but the exact value `gemini` - unset included - is Claude, the provider
+Pawlog has always used, so merging changed nothing live. `/api/me` reports
+`reader` and the page follows it (button and sheet title, and which review
+it draws). **Same route, same gates, same parser, same `ai.brief`**; then:
+
+- **Guard order** (both providers): `requireUser, requireBudget,
+  requireDailyCap` -> the 9 MB parser -> `ai.brief` (a 400 costs nothing and
+  never reaches the guard) -> `LAB_AI_GUARD.allow` (its "no" is sent in its
+  own words, no call) -> the call -> `LAB_AI_GUARD.record` with `priceUsd`.
+  On Claude the identity meter charges the person as before and the guard
+  records the lab's key only (not a member's own key). On Gemini the call is
+  `LAB_AI_GUARD.gemini.generate` and the person's ledger is charged the
+  call's real dollars as the Haiku input tokens that cost the same
+  (`chargeGemini`, route `read:gemini-3.8-flash`) - Duly's pattern. A call
+  that failed after it billed (`VertexError.usage`) is still recorded.
+  With no guard (the app on its own) only the local stand-in answers.
+- **The reader only transcribes** (`lib/gemini.js`). Per medicine, seven
+  fields, each `{text|value, confidence: high|medium|low}` and null when the
+  paper does not say or cannot be read: name, strength, amount each time,
+  how often (the paper's words), days (a printed whole number), food
+  (with / without / not stated), start date. **The schema has no field for a
+  time of day, a schedule or advice**, and the system prompt forbids
+  suggesting, calculating, converting, rounding or completing anything. The
+  same call also returns vaccinations, weight and next visit, cleaned by
+  `ai.cleanProposal` as always.
+- **Exactly or not at all** (`gemini.cleanMeds`). A transcribed string is
+  kept to the character or dropped to null - too long, markup or control
+  characters, anything `stripPrivate` would cut, a price: null, never a
+  mended or shortened dose. Days 1-730 whole numbers only; a start date only
+  a real day within 60 days; unknown confidence is `low`; unknown keys never
+  pass; 8 medicines at most. The response adds `meds` (and `medicines` is
+  empty on this provider).
+- **The app computes the schedule, never the model** (`pawlog-core.js`):
+  `parseFrequency` turns the label's words into one of seven `FREQUENCIES`
+  (once to four times a day, every other day, weekly, monthly) **with no
+  fallback** - "as needed", ranges, tapers ("then"), "twice a week" and
+  anything it does not know are null, which is a question for the person.
+  The reminder times are the app's own defaults (8am; 8am/8pm; 8/2/10;
+  8/12/4/8), editable; the last day is `courseEnd(start, days)`.
+- **Nothing is saved until it is confirmed.** `medDraft` flags every field
+  that is missing or less than `high`, an unparsed "how often", and the
+  start when the paper gives none (offered as today, flagged). The review
+  sheet shows each medicine as a card: every field editable, flagged ones
+  marked "Check" with a box ("This matches the label" / "The label doesn't
+  say") or typed over, a live line of what will go on Today, and "I've
+  checked this against the label". `medFromDraft` refuses (400 with the
+  field) until every flagged field is confirmed, the label box is ticked,
+  and name, amount, how often and days (or "no end date") are there; typed
+  values are kept whole or refused, never trimmed. `applyPaper` runs every
+  medicine through it **before** any change is sent - one failure saves
+  nothing. The dose line is the confirmed words joined ("1 tablet · 25 mg ·
+  with food"; `LIMITS.dose` went 60 -> 80 so the longest fits whole).
+- **"Check every detail against the label, and ask your vet if you're
+  unsure."** is always shown with a reading (both providers), with "it
+  never suggests or changes a dose".
+- **The photo**: shrunk on the phone through a canvas (1600px, stepping down
+  to 800px) until it is under 3 MB, refused there if it cannot be; the
+  server's 4 MB check by bytes is unchanged; the page drops its copy once
+  read; never stored or logged (tested by the store dump).
+- **The stand-in** (`lib/fakeai.js` `gemini`): a made-up discharge sheet -
+  generic "Pain relief tablets" all clear, "Ear drops" with gaps, a booster,
+  a weight, a recheck; `BLANK`, `INJECT`, `UPSTREAMnnn` in pasted text.
+- **To switch it on** (Erik's yes): Vertex AI enabled and `aiplatform.user`
+  for `challenge-run@` (the guard's note), then `PAWLOG_AI_PROVIDER=gemini`
+  on the service. To go back: unset it.
+
+## The look (2026-11-23)
+
+Rules in the header of `public/app.css`: pure white (true black in dark),
+hairlines (#E5E5EA), lists over boxes, a card only for a medicine being
+checked, a note and the sample strip; 12px cards, 10px inputs, pill buttons
+and chips; system font, five sizes (13/15/16/20/28, the hero larger); one
+accent, the lab's collar teal `#0d6b5a`; status colours for status only and
+always with words. Phones: a floating translucent pill nav (1.5px line
+icons, label on the active tab). Desktop (900px+): a top nav with an
+underline - `<body class="dk">` and the `desktop.css` link stay (tested),
+but no `dk-*` classes are used and the body padding is undone in `app.css`,
+so the shared rail never appears. Icons are one inline-SVG table in
+`app.js` (`icon()`); pet kinds keep their emoji as the pet's face. **No
+`style=` attribute anywhere** (tested): spacing by utility classes, the
+week bars and the share bar are SVG. Motion only inside
+`prefers-reduced-motion: no-preference`. Taps from Today: tick a job 1;
+snap the paperwork, add a medicine, a record or a weight, the week, share
+the link 2. Measured in Chromium at 320, 390 and 1440: no sideways scroll,
+no target under 44px, lowest text contrast 4.98:1 light and 8.16:1 dark.
+
 ## Routes
 
 Public: `GET /api/health`, `/api/meta`, `/api/me`, the page, `h/:code`,
@@ -225,8 +321,8 @@ household, the sample, or the shared one's code, key and last copy),
 `pawlog-me-v1` (who this phone is, per household), `pawlog-joined-v1` (the
 last household link opened, so the bare address opens it again),
 `pawlog-tab-v1`. The board redraws every 30 s so "Due now" and the glow
-follow the clock with no server. Views: Today, Health, Week, Home (bottom tab
-bar on a phone, a left rail on a desktop via `desktop.css`); a sitter link is
+follow the clock with no server. Views: Today, Health, Week, Home (a floating
+pill on a phone, a top nav on a desktop); a sitter link is
 one page with no tabs. The service worker (`sw.js`, network first) never
 caches `api/` or a link page.
 
@@ -246,7 +342,9 @@ reads triggers in the text: `BLANK`, `INJECT`, `MAXTOKENS`, `UPSTREAMnnn`.
 For `npm run dev` with a signed-in paperwork read, also set
 `REQUIRE_VERIFIED_FOR_FREE_AI=0`.
 
-`test/run.js` (23 tests): cleaning, first names and contact stripping;
+`test/run.js` (29 tests; the last six hold the provider switch, the Gemini
+schema and cleaning, `parseFrequency`, the confirm gate, the route on Gemini
+with a fake guard, and the guard on Claude): cleaning, first names and contact stripping;
 repeats across month ends and leap years, templates; zones and both clock
 changes; the board, the guard (same day and across midnight), undo; medicine
 courses starting, ending and stopping, the double-dose guard; health due
