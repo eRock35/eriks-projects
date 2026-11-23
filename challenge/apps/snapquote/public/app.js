@@ -1,4 +1,7 @@
-/* Snapquote - the page. One file, no build step, every model-written string escaped. */
+/* Snapquote - the page. One file, no build step, every model-written string
+   escaped. No style attribute is ever written: a colour or a width that is
+   only known at run time rides on data-css as custom properties, and the
+   observer below sets them through the CSSOM (see paint). */
 (function () {
   'use strict';
 
@@ -12,7 +15,7 @@
   var BASE = new URL('.', document.baseURI).pathname;
   var PUB = location.pathname.match(/\/q\/([A-Za-z0-9_-]{16,40})\/?$/);
 
-  var state = { me: null, meta: null, templates: null, nf: null, justDrafted: null };
+  var state = { me: null, meta: null, templates: null, nf: null, read: null, justDrafted: null };
 
   /* ---------------- utilities ---------------- */
 
@@ -21,6 +24,27 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
+  /** Run-time values for CSS, as custom properties only: css({ brand: '#123' })
+   *  -> data-css="--brand:#123". Nothing but a `--name` is ever applied. */
+  function css(o) {
+    return ' data-css="' + esc(Object.keys(o).map(function (k) { return '--' + k + ':' + String(o[k]).replace(/[;"<>]/g, ''); }).join(';')) + '"';
+  }
+  function paint(el) {
+    String(el.getAttribute('data-css') || '').split(';').forEach(function (d) {
+      var i = d.indexOf(':');
+      if (i > 2 && d.slice(0, 2) === '--') el.style.setProperty(d.slice(0, i).trim(), d.slice(i + 1).trim());
+    });
+  }
+  new MutationObserver(function (ms) {
+    ms.forEach(function (m) {
+      Array.prototype.forEach.call(m.addedNodes, function (n) {
+        if (n.nodeType !== 1) return;
+        if (n.hasAttribute('data-css')) paint(n);
+        $$('[data-css]', n).forEach(paint);
+      });
+    });
+  }).observe(document.documentElement, { childList: true, subtree: true });
 
   function api(method, path, body) {
     return fetch(BASE + String(path).replace(/^\//, ''), {
@@ -40,16 +64,9 @@
     });
   }
 
-  function store(key, val) {
-    try {
-      if (val === undefined) return localStorage.getItem(key);
-      localStorage.setItem(key, val);
-    } catch (e) { return null; }
-  }
-
   function toast(msg, ms) {
     var t = document.createElement('div');
-    t.className = 'toast'; t.textContent = msg;
+    t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, ms || 2600);
   }
@@ -59,7 +76,7 @@
     if (err && err.status === 402) return openCreditSheet(err.data);
     if (err && err.status === 401) return openAccount('Sign in to keep going.');
     var msg = (err && err.message) || 'Something went wrong.';
-    if (where) { where.innerHTML = '<div class="err">' + esc(msg) + '</div>'; } else { toast(msg, 3500); }
+    if (where) { where.innerHTML = '<div class="err" role="alert">' + esc(msg) + '</div>'; } else { toast(msg, 3500); }
   }
 
   var fmt2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -92,26 +109,29 @@
     if (min < 60 * 48) return (min / 60).toFixed(min < 600 ? 1 : 0).replace(/\.0$/, '') + ' hr';
     return Math.round(min / 1440) + ' days';
   }
+  function clock(secs) { secs = Math.max(0, Math.round(secs)); return Math.floor(secs / 60) + ':' + ('0' + (secs % 60)).slice(-2); }
   function initials(name) {
     return String(name || '?').split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
   }
-  /** Readable ink on a brand color. */
+  /** Readable ink on a brand color: whichever of near-black and white has the
+   *  higher contrast with it (they cross at a luminance of about 0.18). */
   function inkFor(hex) {
     var m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-    if (!m) return '#fff';
+    if (!m) return '#ffffff';
     var n = parseInt(m[1], 16);
     var ch = [n >> 16 & 255, n >> 8 & 255, n & 255].map(function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
     var L = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-    return L > 0.45 ? '#10181a' : '#ffffff';
+    return L > 0.179 ? '#0b1210' : '#ffffff';
   }
+  function brandCss(color) { return css({ brand: /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#0fb58a', 'brand-ink': inkFor(color || '#0fb58a') }); }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
   function confetti(colors) {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var box = document.createElement('div');
     box.className = 'confetti';
-    colors = colors || ['#16c79a', '#0fa3c4', '#ffd166', '#6f7ff0', '#ff8a5b', '#34d399'];
-    for (var i = 0; i < 80; i++) {
+    colors = colors || ['#10b981', '#06b6d4', '#34d399', '#0ea5e9', '#a7f3d0', '#047857'];
+    for (var i = 0; i < 60; i++) {
       var p = document.createElement('i');
       p.style.left = Math.random() * 100 + '%';
       p.style.background = colors[i % colors.length];
@@ -123,19 +143,28 @@
     setTimeout(function () { box.remove(); }, 3400);
   }
 
+  // One family of line icons: 24px box, 1.5px stroke, round joins.
+  function ico(d, cls) { return '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; }
   var ICON = {
-    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
-    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
-    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>',
-    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
-    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>',
-    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>',
-    mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/></svg>',
-    cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-    spark: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9zM5 15l.7 1.8 1.8.7-1.8.7L5 20l-.7-1.8L2.5 17.5l1.8-.7z"/></svg>',
-    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
-    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    back: ico('<path d="m15 18-6-6 6-6"/>'),
+    eye: ico('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'),
+    up: ico('<path d="m18 15-6-6-6 6"/>'),
+    down: ico('<path d="m6 9 6 6 6-6"/>'),
+    x: ico('<path d="M18 6 6 18M6 6l12 12"/>'),
+    plus: ico('<path d="M12 5v14M5 12h14"/>'),
+    chev: ico('<path d="m9 6 6 6-6 6"/>'),
+    phone: ico('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/>'),
+    mail: ico('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>'),
+    mic: ico('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/>'),
+    stop: ico('<rect x="7" y="7" width="10" height="10" rx="2"/>'),
+    cam: ico('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/>'),
+    spark: ico('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 2.3 2.3.7-2.3.7L19 21l-.7-2.3-2.3-.7 2.3-.7z"/>'),
+    send: ico('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>'),
+    lock: ico('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+    check: ico('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
+    chat: ico('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>'),
+    share: ico('<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>'),
+    flame: ico('<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-1.8.8-3 1.8-4 .2 1.5 1 2.4 2 2.8C10.5 9 11 6 12 3Z"/>'),
   };
 
   /* ---------------- money, the same rules as lib/quote.js ---------------- */
@@ -191,6 +220,9 @@
   }
   function signedIn() { return state.me && state.me.signedIn; }
   function profile() { return (state.me && state.me.profile) || {}; }
+  /** "Read the job" (photos + a voice note -> line items) is switched on. */
+  function voiceOn() { return Boolean(state.me && state.me.voice); }
+  function voiceSecs() { return (state.meta && state.meta.maxVoiceSeconds) || 60; }
   // Passkeys are bound to the shared domain; on a staging *.run.app host they
   // cannot work, so the buttons are not offered there.
   function pkOk() { return Boolean(window.Passkey && Passkey.supported() && !/\.run\.app$/.test(location.hostname)); }
@@ -203,15 +235,15 @@
     var el = $('#topRight');
     var me = state.me;
     if (!me || !me.signedIn) {
-      el.innerHTML = '<button class="btn small" id="signInTop">Sign in</button>';
+      el.innerHTML = '<button class="btn small quiet" id="signInTop" type="button">Sign in</button>';
       $('#signInTop').onclick = function () { openAccount(); };
       return;
     }
     var b = me.budget || {};
     var p = me.profile || {};
     el.innerHTML =
-      '<span class="pill credit" title="AI credit">' + (b.unlimited ? '∞' : '$' + Number(b.remainingUsd || 0).toFixed(2)) + '</span>' +
-      '<button class="avatar-btn" id="acctBtn" aria-label="Account" style="--brand:' + esc(p.color || '') + ';color:' + inkFor(p.color) + '">' + logoHtml(p) + '</button>';
+      '<span class="credit num" title="AI credit left">' + (b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2)) + '</span>' +
+      '<button class="avatar-btn" id="acctBtn" type="button" aria-label="Account"' + brandCss(p.color) + '><span>' + logoHtml(p) + '</span></button>';
     $('#acctBtn').onclick = function () { openAccount(); };
   }
 
@@ -225,10 +257,11 @@
     scrim.innerHTML = '<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>' + html + '</div>';
     scrim.addEventListener('click', function (e) { if (e.target === scrim) closeSheet(); });
     document.body.appendChild(scrim);
+    document.body.classList.add('sheet-open');
     if (onMount) onMount(scrim.firstChild);
     return scrim.firstChild;
   }
-  function closeSheet() { var s = $('#scrim'); if (s) s.remove(); }
+  function closeSheet() { var s = $('#scrim'); if (s) s.remove(); document.body.classList.remove('sheet-open'); }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
 
   function openAccount(reason) {
@@ -244,11 +277,11 @@
         '<label class="field"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
-        '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button>' +
+        '<button class="btn lg block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button>' +
         '</form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="center small muted" style="margin-top:14px">' +
-        (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap">Sign in</button>' : 'New here? <button class="link-btn" id="swap">Create an account</button>') +
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="center small muted mt16">' +
+        (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') +
         '</p>';
       $('#swap', root).onclick = function () { mode = mode === 'register' ? 'login' : 'register'; draw(root); };
       $('#authForm', root).onsubmit = function (e) {
@@ -286,19 +319,19 @@
     var remaining = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     var pct = b.unlimited ? 100 : Math.max(0, Math.min(100, (b.remainingUsd / (b.allowanceUsd || 1)) * 100));
     sheet(
-      '<div class="row spread"><h2>' + esc(profile().name || 'Your account') + '</h2></div>' +
+      '<h2>' + esc(profile().name || 'Your account') + '</h2>' +
       '<p class="muted small">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'Member model (Sonnet)' : 'Free model (Haiku)') + '</p>' +
-      '<div class="card" style="margin:14px 0"><div class="row spread"><b>AI credit</b><span class="num">' + remaining + '</span></div>' +
-      '<div class="bar" style="margin-top:10px"><i style="width:' + pct + '%"></i></div>' +
-      '<p class="small muted" style="margin:10px 0 0">Drafting a quote from photos costs about 1–2¢. Polishing and follow-ups well under a cent. Editing, sending, templates and the customer page are free.</p>' +
-      '<div id="billing" style="margin-top:12px"></div></div>' +
+      '<div class="card my16"><div class="row spread"><b>AI credit</b><span class="num">' + remaining + '</span></div>' +
+      '<div class="bar mt12"><i' + css({ w: pct + '%' }) + '></i></div>' +
+      '<p class="small muted mt12 mb0">' + (voiceOn() ? 'Reading a job from photos and a voice note, or drafting a whole quote, costs about 1–2¢.' : 'Drafting a quote from photos costs about 1–2¢.') + ' Polishing and follow-ups well under a cent. Editing, sending, templates and the customer page are free.</p>' +
+      '<div id="billing" class="mt12"></div></div>' +
       '<a class="btn ghost block" href="#/business" id="bizLink">Business profile</a>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" style="margin-top:10px">Sign out</button>',
+      (pkOk() ? '<button class="btn ghost block mt8" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt8" id="signOut" type="button">Sign out</button>',
       function (root) {
         $('#bizLink', root).onclick = function () { closeSheet(); };
         $('#signOut', root).onclick = function () {
-          api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; state.templates = null; drawTop(); location.hash = '#/'; route(); });
+          api('POST', 'api/auth/logout').then(function () { closeSheet(); return loadMe(); }).then(function () { state.templates = null; state.nf = null; state.read = null; location.hash = '#/'; route(); });
         };
         var pk = $('#pkEnrol', root);
         if (pk) pk.onclick = function () {
@@ -317,13 +350,13 @@
       if (b.elsewhere) { el.innerHTML = '<a class="btn small ghost" href="' + esc(b.elsewhere) + '">Add credit</a>'; return; }
       if (!b.available) { el.innerHTML = ''; return; }
       if (!b.member) {
-        el.innerHTML = '<button class="btn small" id="joinM">Become a member · $' + esc(b.monthlyUsd) + '/mo</button>' +
-          '<p class="small muted" style="margin:8px 0 0">Membership covers every app on this site, runs the better model, and lets you add credit.</p>';
+        el.innerHTML = '<button class="btn small" id="joinM" type="button">Become a member · $' + esc(b.monthlyUsd) + '/mo</button>' +
+          '<p class="small muted mt8 mb0">Membership covers every app on this site, runs the better model, and lets you add credit.</p>';
         $('#joinM', el).onclick = function () { checkout('api/auth/billing/membership', {}); };
         return;
       }
       el.innerHTML = '<div class="row wrap-row">' + (b.topUps || []).map(function (t) {
-        return '<button class="btn small ghost" data-usd="' + esc(t.usd) + '">' + esc(t.label) + '</button>';
+        return '<button class="btn small ghost" type="button" data-usd="' + esc(t.usd) + '">' + esc(t.label) + '</button>';
       }).join('') + '</div>';
       $$('[data-usd]', el).forEach(function (btn) {
         btn.onclick = function () { checkout('api/auth/billing/credit', { usd: Number(btn.dataset.usd) }); };
@@ -349,18 +382,23 @@
     if (leaving) { try { leaving(); } catch (e) { /* never block navigation */ } leaving = null; }
     closeSheet();
     stopListening();
+    stopRecording(true);
     if (PUB) return renderPublic(PUB[1]);
     var h = location.hash.replace(/^#\/?/, '');
     var parts = h.split('/');
     var tab = parts[0] || 'quotes';
     $$('#tabbar button').forEach(function (b) {
       var t = b.dataset.tab;
-      b.classList.toggle('on', t === tab || (t === 'quotes' && (tab === 'quote' || tab === 'sample')));
+      var on = t === tab || (t === 'quotes' && (tab === 'quote' || tab === 'sample')) || (t === 'new' && tab === 'review');
+      b.classList.toggle('on', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     window.scrollTo(0, 0);
+    document.body.classList.toggle('has-bar', tab === 'quote' || tab === 'review');
     if (tab === 'quote' && parts[1]) return renderEditor(parts[1]);
     if (tab === 'sample') return renderSample();
     if (tab === 'new') return renderNew();
+    if (tab === 'review') return renderReview();
     if (tab === 'stats') return renderStats();
     if (tab === 'business') return renderBusiness();
     return signedIn() ? renderPipeline() : renderHome();
@@ -372,9 +410,9 @@
 
   function loading() { view.innerHTML = '<div class="loading"><span class="spinner"></span></div>'; }
 
-  function signedOutPitch(emoji, title, body) {
-    view.innerHTML = '<div class="empty"><div class="e">' + emoji + '</div><h2>' + esc(title) + '</h2><p>' + esc(body) + '</p>' +
-      '<div class="row" style="justify-content:center;flex-wrap:wrap"><button class="btn" id="pitchGo">Start free</button><a class="btn ghost" href="#/sample">See a sample quote</a></div></div>';
+  function signedOutPitch(title, body) {
+    view.innerHTML = '<section class="hero slim"><h1>' + esc(title) + '</h1><p class="lede">' + esc(body) + '</p>' +
+      '<div class="ctas"><button class="btn lg" id="pitchGo" type="button">Start free</button><a class="btn lg ghost" href="#/sample">See a sample quote</a></div></section>';
     $('#pitchGo').onclick = function () { openAccount(); };
   }
 
@@ -388,30 +426,28 @@
       var total = tier ? tier.totals.total : d.totals.total;
       var b = d.business;
       var trades = state.meta ? Object.keys(state.meta.trades).filter(function (k) { return k !== 'other'; }).map(function (k) {
-        var t = state.meta.trades[k]; return '<span>' + t.emoji + ' ' + esc(t.label) + '</span>';
+        return '<span class="chip still">' + esc(state.meta.trades[k].label) + '</span>';
       }).join('') : '';
       view.innerHTML =
-        '<section class="hero"><div class="hero-grid"><div>' +
-        '<span class="kicker">⚡ The first quote in usually wins</span>' +
-        '<h1>Snap the job.<br>Say what you see.<br><em>Send the quote.</em></h1>' +
-        '<p>Take a few photos, talk it through on site, and Snapquote writes an itemized, branded quote with your rates, markup and tax — before you’re back in the truck. Your customer signs it from their phone.</p>' +
-        '<div class="ctas"><button class="btn lg" id="heroGo">Try it free</button><a class="btn lg ghost" href="#/sample">See a sample quote</a></div>' +
-        '<div class="trust"><span>✓ $2 free credit</span><span>✓ No card</span><span>✓ Photos never stored</span></div>' +
-        '</div>' +
-        '<div class="mini-quote" style="--b:' + esc(b.color) + '"><div class="mq-head" style="color:' + inkFor(b.color) + '"><div class="mq-logo">' + esc(b.logo) + '</div><div><b>' + esc(b.name) + '</b><div class="small" style="opacity:.85">' + esc(d.number) + ' · ' + esc(d.title) + '</div></div></div>' +
-        '<div class="mq-stamp">ACCEPTED</div>' +
-        '<div class="mq-body">' + lines.map(function (l) { return '<div class="mq-line"><span>' + esc(l.description) + '</span><b class="num">' + money0(l.price) + '</b></div>'; }).join('') +
-        '<div class="mq-total"><small>Total · ' + esc(tier ? tier.label : '') + '</small><span class="num">' + money(total) + '</span></div>' +
-        '<a class="mq-accept" href="#/sample" style="color:' + inkFor(b.color) + '">Accept quote</a></div></div>' +
-        '</div></section>' +
-        '<div class="steps">' +
-        '<div class="step"><div class="ic">📸</div><h3>Snap</h3><p>Up to four photos of the job. We shrink them on your phone, read them once, and never keep them.</p></div>' +
-        '<div class="step"><div class="ic">🎙️</div><h3>Say it</h3><p>Dictate like you’d brief a helper: rooms, sizes, condition, what they want. Good / Better / Best if you like.</p></div>' +
-        '<div class="step"><div class="ic">✅</div><h3>Send &amp; get signed</h3><p>Tweak any line, then text a branded link. They pick an option and sign. You see when they open it.</p></div>' +
-        '</div>' +
-        '<div class="section-title" style="justify-content:center"><h2>Built for the trades</h2></div><div class="trades">' + trades + '</div>' +
-        '<div class="cta-band"><h2>Your next quote, in about a minute.</h2><p>Every quote tracked on a pipeline, with a win-rate scoreboard and a weekly streak to keep you quick.</p>' +
-        '<button class="btn lg" id="bandGo">Create a free account</button></div>';
+        '<section class="hero">' +
+        '<p class="eyebrow">The first quote in usually wins</p>' +
+        '<h1>Snap the job.<br>Send the quote.</h1>' +
+        '<p class="lede">A few photos and a voice note become an itemized quote with your rates, markup and tax — before you’re back in the truck.</p>' +
+        '<div class="ctas"><button class="btn lg" id="heroGo" type="button">Try it free</button><a class="btn lg ghost" href="#/sample">See a sample quote</a></div>' +
+        '<p class="trust">$2 free credit · No card · Photos and recordings never stored</p>' +
+        '</section>' +
+        '<a class="mini-quote" href="#/sample"' + brandCss(b.color) + ' aria-label="Open the sample quote">' +
+        '<div class="mq-head"><span class="mq-logo">' + esc(b.logo) + '</span><span class="grow"><b>' + esc(b.name) + '</b><small>' + esc(d.number) + ' · ' + esc(d.title) + '</small></span><span class="status st-accepted">Accepted</span></div>' +
+        lines.map(function (l) { return '<div class="mq-line"><span>' + esc(l.description) + '</span><b class="num">' + money0(l.price) + '</b></div>'; }).join('') +
+        '<div class="mq-total"><span>Total' + (tier ? ' · ' + esc(tier.label) : '') + '</span><b class="num">' + money(total) + '</b></div></a>' +
+        '<section class="section"><ol class="steps">' +
+        '<li><span class="n">1</span><div><h3>Snap</h3><p>Up to four photos of the job. Shrunk on your phone, read once, never kept.</p></div></li>' +
+        '<li><span class="n">2</span><div><h3>Say it</h3><p>Talk it through like you’d brief a helper: rooms, sizes, condition, what they want.</p></div></li>' +
+        '<li><span class="n">3</span><div><h3>Send and get signed</h3><p>Check every line, then text a branded link. They pick an option and sign. You see when they open it.</p></div></li>' +
+        '</ol></section>' +
+        '<section class="section center"><h2>Built for the trades</h2><div class="chips center-row">' + trades + '</div></section>' +
+        '<section class="section cta-band"><h2>Your next quote, in about a minute.</h2><p class="muted">Every quote tracked on a pipeline, with a win-rate scoreboard and a weekly streak to keep you quick.</p>' +
+        '<button class="btn lg" id="bandGo" type="button">Create a free account</button></section>';
       $('#heroGo').onclick = function () { openAccount(); };
       $('#bandGo').onclick = function () { openAccount(); };
     }).catch(function (e) { showError(e, view); });
@@ -420,7 +456,7 @@
   /* ---------------- the customer's quote (and the sample) ---------------- */
 
   var CAT_ORDER = ['labor', 'material', 'equipment', 'other'];
-  var CATS = { labor: { label: 'Labor', emoji: '🛠️' }, material: { label: 'Materials', emoji: '🧱' }, equipment: { label: 'Equipment', emoji: '🚜' }, other: { label: 'Other', emoji: '📎' } };
+  var CATS = { labor: { label: 'Labor' }, material: { label: 'Materials' }, equipment: { label: 'Equipment' }, other: { label: 'Other' } };
 
   /**
    * Draw a public quote into `root`. The same function draws a customer's
@@ -435,11 +471,10 @@
     var tier = p.tiers ? p.tiers.filter(function (t) { return t.key === p._sel; })[0] : null;
     var totals = tier ? tier.totals : p.totals;
     var b = p.business;
-    var ink = inkFor(b.color);
     var lines = (p.items || []).map(function (l) { return { l: l, isNew: false }; })
       .concat(tier ? tier.items.map(function (l) { return { l: l, isNew: true }; }) : []);
 
-    var h = '<article class="qdoc" style="--brand:' + esc(b.color) + ';--brand-ink:' + ink + '">' +
+    var h = '<article class="qdoc"' + brandCss(b.color) + '>' +
       '<header class="qd-head"><div class="qd-biz"><div class="qd-logo">' + esc(b.logo || initials(b.name)) + '</div><div><h2>' + esc(b.name) + '</h2>' +
       '<div class="sub">' + [b.trade, b.license].filter(Boolean).map(esc).join(' · ') + '</div></div></div>' +
       '<div class="qd-contact">' +
@@ -454,38 +489,38 @@
       (p.scope ? '<p class="qd-scope">' + esc(p.scope) + '</p>' : '');
 
     if (p.tiers) {
-      h += '<div class="qd-h">Choose your option</div><div class="qd-tiers">' + p.tiers.map(function (t) {
-        return '<button class="qd-tier' + (t.key === p._sel ? ' on' : '') + '" data-tier="' + esc(t.key) + '">' +
-          (t.key === p.recommended ? '<span class="rec">Most popular</span>' : '') + '<span class="radio"></span>' +
-          '<div class="nm">' + esc({ good: 'Good', better: 'Better', best: 'Best' }[t.key] || t.key) + '</div><div class="lb">' + esc(t.label) + '</div>' +
-          '<div class="pr">' + money(t.totals && t.totals.total) + '</div><div class="sm">' + esc(t.summary) + '</div></button>';
+      h += '<h3 class="qd-h">Choose your option</h3><div class="qd-tiers">' + p.tiers.map(function (t) {
+        return '<button type="button" class="qd-tier' + (t.key === p._sel ? ' on' : '') + '" data-tier="' + esc(t.key) + '" aria-pressed="' + (t.key === p._sel) + '">' +
+          '<span class="radio"></span>' +
+          '<span class="nm">' + esc({ good: 'Good', better: 'Better', best: 'Best' }[t.key] || t.key) + (t.key === p.recommended ? ' <span class="rec">Most popular</span>' : '') + '</span><span class="lb">' + esc(t.label) + '</span>' +
+          '<span class="pr num">' + money(t.totals && t.totals.total) + '</span><span class="sm">' + esc(t.summary) + '</span></button>';
       }).join('') + '</div>';
     }
 
-    h += '<div class="qd-h">What’s included' + (tier ? ' · ' + esc(tier.label) : '') + '</div>';
+    h += '<h3 class="qd-h">What’s included' + (tier ? ' · ' + esc(tier.label) : '') + '</h3>';
     CAT_ORDER.forEach(function (c) {
       var rows = lines.filter(function (x) { return x.l.category === c; });
       if (!rows.length) return;
       var sum = rows.reduce(function (a, x) { return a + x.l.price; }, 0);
-      h += '<div class="qd-group"><h4><span>' + CATS[c].emoji + ' ' + CATS[c].label + '</span><span class="num">' + money(sum) + '</span></h4>' + rows.map(function (x) {
+      h += '<div class="qd-group"><h4><span>' + CATS[c].label + '</span><span class="num">' + money(sum) + '</span></h4>' + rows.map(function (x) {
         var l = x.l;
-        return '<div class="qd-line' + (x.isNew ? ' new' : '') + '"><div class="d">' + esc(l.description) + '</div><div class="a">' + money(l.price) + '</div>' +
-          '<div class="q">' + esc(l.qty) + ' ' + esc(l.unit) + ' × ' + money(l.unitPrice) + '</div></div>';
+        return '<div class="qd-line' + (x.isNew ? ' new' : '') + '"><div class="d">' + esc(l.description) + '</div><div class="a num">' + money(l.price) + '</div>' +
+          '<div class="q num">' + esc(l.qty) + ' ' + esc(l.unit) + ' × ' + money(l.unitPrice) + '</div></div>';
       }).join('') + '</div>';
     });
 
     if (totals) {
-      h += '<div class="qd-totals"><div class="r"><span>Subtotal</span><span>' + money(totals.subtotal) + '</span></div>' +
+      h += '<div class="qd-totals num"><div class="r"><span>Subtotal</span><span>' + money(totals.subtotal) + '</span></div>' +
         (totals.discount ? '<div class="r"><span>Discount</span><span>−' + money(totals.discount) + '</span></div>' : '') +
         (totals.tax ? '<div class="r"><span>Tax (' + esc(p.taxPct) + '%)</span><span>' + money(totals.tax) + '</span></div>' : '') +
-        '<div class="r t"><span>Total</span>' + money(totals.total) + '</div></div>';
+        '<div class="r t"><span>Total</span><span>' + money(totals.total) + '</span></div></div>';
     }
 
     var boxes = '';
-    if (p.timeline) boxes += '<div class="qd-box"><h5>🗓️ Timeline</h5><p>' + esc(p.timeline) + '</p></div>';
-    if (p.terms) boxes += '<div class="qd-box"><h5>💳 Payment terms</h5><p>' + esc(p.terms) + '</p></div>';
-    if ((p.assumptions || []).length) boxes += '<div class="qd-box"><h5>📐 Assumptions</h5><ul>' + p.assumptions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
-    if ((p.exclusions || []).length) boxes += '<div class="qd-box"><h5>🚫 Not included</h5><ul>' + p.exclusions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    if (p.timeline) boxes += '<div class="qd-box"><h5>Timeline</h5><p>' + esc(p.timeline) + '</p></div>';
+    if (p.terms) boxes += '<div class="qd-box"><h5>Payment terms</h5><p>' + esc(p.terms) + '</p></div>';
+    if ((p.assumptions || []).length) boxes += '<div class="qd-box"><h5>Assumptions</h5><ul>' + p.assumptions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    if ((p.exclusions || []).length) boxes += '<div class="qd-box"><h5>Not included</h5><ul>' + p.exclusions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
     if (boxes) h += '<div class="qd-cols">' + boxes + '</div>';
 
     h += '<div id="respond">' + respondHtml(p, opts, totals, tier) + '</div>';
@@ -499,26 +534,26 @@
     var r = p.response;
     if (p.status === 'accepted' && r) {
       var tl = r.tier && p.tiers ? (p.tiers.filter(function (t) { return t.key === r.tier; })[0] || {}).label : null;
-      return '<div class="qd-stamp"><div class="ok">✓</div><h3>Accepted</h3><div class="sig">' + esc(r.name) + '</div>' +
+      return '<div class="qd-stamp"><div class="ok">' + ICON.check + '</div><h3>Accepted</h3><div class="sig">' + esc(r.name) + '</div>' +
         '<div class="small muted">' + esc(dateFmt(r.at, { month: 'long', day: 'numeric', year: 'numeric' })) + (tl ? ' · ' + esc(tl) : '') + '</div>' +
-        '<p class="small muted" style="margin:10px 0 0">' + esc(b.name) + ' can see your acceptance and will be in touch to schedule.</p></div>';
+        '<p class="small muted mt12 mb0">' + esc(b.name) + ' can see your acceptance and will be in touch to schedule.</p></div>';
     }
     if (p.status === 'declined') {
-      return '<div class="qd-stamp off"><div class="ok">–</div><h3>Declined</h3><p class="small muted" style="margin:6px 0 0">Changed your mind? Get in touch with ' + esc(b.name) + '.</p></div>';
+      return '<div class="qd-stamp off"><h3>Declined</h3><p class="small muted mt8 mb0">Changed your mind? Get in touch with ' + esc(b.name) + '.</p></div>';
     }
     if (p.status === 'expired') {
-      return '<div class="qd-stamp off"><div class="ok">⏱</div><h3>This quote has expired</h3><p class="small muted" style="margin:6px 0 0">It was valid until ' + esc(dateFmt(p.validUntil)) + '. Prices may have changed — ask ' + esc(b.name) + ' for an updated one.</p></div>';
+      return '<div class="qd-stamp off"><h3>This quote has expired</h3><p class="small muted mt8 mb0">It was valid until ' + esc(dateFmt(p.validUntil)) + '. Prices may have changed — ask ' + esc(b.name) + ' for an updated one.</p></div>';
     }
-    var who = opts.preview ? '<div class="banner" style="margin-bottom:12px"><span class="e">👀</span><div>This is your preview — exactly what your customer sees. They accept or ask for changes here.</div></div>' : '';
-    var asked = p.status === 'changes' ? '<div class="banner warn" style="margin-bottom:12px"><span class="e">✏️</span><div>You asked for changes. ' + esc(b.name) + ' will send an update — or you can accept this version now.</div></div>' : '';
+    var who = opts.preview ? '<div class="note mb12"><div>This is your preview — exactly what your customer sees. They accept or ask for changes here.</div></div>' : '';
+    var asked = p.status === 'changes' ? '<div class="note warn mb12"><div>You asked for changes. ' + esc(b.name) + ' will send an update — or you can accept this version now.</div></div>' : '';
     return '<div class="qd-respond">' + who + asked + '<h3>Ready to go ahead?</h3>' +
-      '<p class="small muted" style="margin:6px 0 14px">' + (p.tiers ? 'You’ve chosen <b>' + esc(tier ? tier.label : '') + '</b>. ' : '') + 'Type your full name to sign. By accepting you agree to the scope and terms above.</p>' +
-      '<input class="input sig" id="sigName" placeholder="Your full name" autocomplete="name" value="' + esc(p._name || '') + '"' + (opts.preview ? ' disabled' : '') + '>' +
+      '<p class="small muted">' + (p.tiers ? 'You’ve chosen <b>' + esc(tier ? tier.label : '') + '</b>. ' : '') + 'Type your full name to sign. By accepting you agree to the scope and terms above.</p>' +
+      '<label class="vh" for="sigName">Your full name</label><input class="input sig" id="sigName" placeholder="Your full name" autocomplete="name" value="' + esc(p._name || '') + '"' + (opts.preview ? ' disabled' : '') + '>' +
       '<div id="accErr"></div>' +
-      '<button class="btn lg block qd-accept" id="acceptBtn" style="margin-top:12px"' + (opts.preview ? ' disabled' : '') + '>Accept · ' + money(totals && totals.total) + '</button>' +
-      '<div class="row" style="justify-content:center;gap:18px;margin-top:14px"><button class="link-btn" id="chgBtn">Request changes</button><button class="link-btn" id="decBtn" style="color:var(--faint)">Decline</button></div>' +
-      '<div id="chgBox" class="hidden" style="margin-top:12px"><textarea class="input" id="chgText" maxlength="1000" placeholder="What would you like changed? e.g. “Can you add the upstairs hallway?”"></textarea>' +
-      '<button class="btn block ghost" id="chgSend" style="margin-top:8px">Send to ' + esc(b.name) + '</button></div></div>';
+      '<button type="button" class="btn lg block qd-accept mt12" id="acceptBtn"' + (opts.preview ? ' disabled' : '') + '>Accept · ' + money(totals && totals.total) + '</button>' +
+      '<div class="row center-row mt12"><button type="button" class="link-btn" id="chgBtn">Request changes</button><button type="button" class="link-btn quiet" id="decBtn">Decline</button></div>' +
+      '<div id="chgBox" class="hidden mt12"><label class="vh" for="chgText">What would you like changed?</label><textarea class="input" id="chgText" maxlength="1000" placeholder="What would you like changed? e.g. “Can you add the upstairs hallway?”"></textarea>' +
+      '<button type="button" class="btn block ghost mt8" id="chgSend">Send to ' + esc(b.name) + '</button></div></div>';
   }
 
   function wireDoc(root, p, opts) {
@@ -538,17 +573,17 @@
     };
     acc.onclick = function () {
       var name = $('#sigName', root).value.trim();
-      if (!/\S+\s+\S+/.test(name)) { $('#accErr', root).innerHTML = '<div class="err">Type your full name — first and last — to sign.</div>'; $('#sigName', root).focus(); return; }
+      if (!/\S+\s+\S+/.test(name)) { $('#accErr', root).innerHTML = '<div class="err" role="alert">Type your full name — first and last — to sign.</div>'; $('#sigName', root).focus(); return; }
       acc.disabled = true; acc.innerHTML = '<span class="spinner"></span>';
       post('accept', { name: name, tier: p._sel || null }).then(function (np) {
         np._sel = p._sel; Object.keys(p).forEach(function (k) { delete p[k]; }); Object.assign(p, np);
-        drawDoc(root, p, opts); confetti([p.business.color, '#ffd166', '#34d399', '#6f7ff0']);
-        $('#respond', root).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        drawDoc(root, p, opts); confetti([p.business.color, '#34d399', '#06b6d4', '#a7f3d0']);
+        $('#respond', root).scrollIntoView({ block: 'center' });
       }).catch(function (e) {
         if (e.demo) {
           // The sample shows the moment without pretending it happened.
           p.status = 'accepted'; p.response = { kind: 'accepted', name: name, tier: p._sel || null, at: new Date().toISOString() };
-          drawDoc(root, p, opts); confetti([p.business.color, '#ffd166', '#34d399', '#6f7ff0']);
+          drawDoc(root, p, opts); confetti([p.business.color, '#34d399', '#06b6d4', '#a7f3d0']);
           toast('That’s the moment. On a real quote, it lands on the pro’s pipeline as won.', 3600);
           return;
         }
@@ -579,7 +614,7 @@
     loading();
     api('GET', 'api/demo').then(function (d) {
       view.innerHTML = '<div class="sample-bar"><div><div class="eyebrow">Sample quote</div><div class="small muted">What your customer gets — pick an option, try signing it.</div></div>' +
-        '<button class="btn small" id="sampleGo">' + (signedIn() ? 'Make one' : 'Try it free') + '</button></div><div id="doc"></div>';
+        '<button type="button" class="btn small" id="sampleGo">' + (signedIn() ? 'Make one' : 'Try it free') + '</button></div><div id="doc"></div>';
       $('#sampleGo').onclick = function () { signedIn() ? (location.hash = '#/new') : openAccount(); };
       drawDoc($('#doc'), d, { demo: true });
     }).catch(function (e) { showError(e, view); });
@@ -592,22 +627,21 @@
     loading();
     api('GET', 'api/public/' + token).then(function (p) {
       document.title = p.title + ' — ' + p.business.name;
-      var meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.setAttribute('content', p.business.color);
       view.innerHTML = '<div id="doc"></div>';
       drawDoc($('#doc'), p, { token: token, preview: p.preview });
     }).catch(function (e) {
-      view.innerHTML = '<div class="empty"><div class="e">🔗</div><h2>This link isn’t working</h2><p>' + esc(e.message) + ' Ask whoever sent it for a fresh link.</p></div>';
+      view.innerHTML = '<section class="hero slim"><h1>This link isn’t working</h1><p class="lede">' + esc(e.message) + ' Ask whoever sent it for a fresh link.</p></section>';
     });
   }
 
   /* ---------------- pipeline ---------------- */
 
   var COLUMNS = [
-    { key: 'draft', label: 'Drafts', color: 'var(--faint)', has: ['draft'], empty: 'Nothing in progress.' },
-    { key: 'sent', label: 'Sent', color: 'var(--blue)', has: ['sent'], empty: 'Nothing waiting to be opened.' },
-    { key: 'viewed', label: 'Viewed', color: 'var(--violet)', has: ['viewed', 'changes'], empty: 'Opened quotes land here.' },
-    { key: 'won', label: 'Won', color: 'var(--good)', has: ['accepted'], empty: 'Your wins show up here. 🏆' },
-    { key: 'lost', label: 'Lost', color: 'var(--bad)', has: ['declined', 'expired'], empty: 'Nothing lost. Keep it that way.' },
+    { key: 'draft', label: 'Drafts', has: ['draft'], empty: 'Nothing in progress.' },
+    { key: 'sent', label: 'Sent', has: ['sent'], empty: 'Nothing waiting to be opened.' },
+    { key: 'viewed', label: 'Viewed', has: ['viewed', 'changes'], empty: 'Opened quotes land here.' },
+    { key: 'won', label: 'Won', has: ['accepted'], empty: 'Your wins show up here.' },
+    { key: 'lost', label: 'Lost', has: ['declined', 'expired'], empty: 'Nothing lost. Keep it that way.' },
   ];
 
   function renderPipeline() {
@@ -623,25 +657,25 @@
       var sentWeek = qs.filter(function (q) { return q.sentAt && Date.parse(q.sentAt) > weekAgo; }).length;
       var unread = qs.filter(function (q) { return q.unread; });
 
-      var html = '<div class="page-head"><div><h1>Pipeline</h1><div class="sub">' + open.length + ' open · <b class="num">' + money0(openVal) + '</b> in play</div></div>' +
-        '<a class="btn small" href="#/new">＋ New quote</a></div>';
-      if (!p.setUp) html += '<a class="banner" href="#/business" style="text-decoration:none;color:inherit;margin-bottom:12px"><span class="e">🏷️</span><div class="grow"><b>Add your business details</b><div class="small muted">Name, logo, colors and rates go on every quote.</div></div><span>›</span></a>';
-      if (unread.length) html += '<a class="banner warn" href="#/quote/' + esc(unread[0].id) + '" style="text-decoration:none;color:inherit;margin-bottom:12px"><span class="e">✏️</span><div class="grow"><b>' + esc(unread[0].customer || 'A customer') + ' asked for changes</b><div class="small muted">' + esc(unread[0].title) + '</div></div><span>›</span></a>';
+      var html = '<div class="page-head"><div><h1>Pipeline</h1><p class="sub">' + open.length + ' open · <span class="num">' + money0(openVal) + '</span> in play</p></div>' +
+        '<a class="btn" href="#/new">' + ICON.plus + 'New quote</a></div>';
+      if (!p.setUp) html += '<a class="note link mb12" href="#/business"><div class="grow"><b>Add your business details</b><div class="small muted">Name, logo, colors and rates go on every quote.</div></div>' + ICON.chev + '</a>';
+      if (unread.length) html += '<a class="note warn link mb12" href="#/quote/' + esc(unread[0].id) + '"><div class="grow"><b>' + esc(unread[0].customer || 'A customer') + ' asked for changes</b><div class="small muted">' + esc(unread[0].title) + '</div></div>' + ICON.chev + '</a>';
 
       if (!qs.length) {
-        html += '<div class="card empty"><div class="e">📸</div><h2>Snap your first quote</h2><p>Photos and a quick voice note in, a professional quote out — usually in under a minute.</p>' +
-          '<div class="row" style="justify-content:center;flex-wrap:wrap"><a class="btn" href="#/new">New quote</a><a class="btn ghost" href="#/sample">See a sample</a></div></div>';
+        html += '<section class="hero slim"><h2>Snap your first quote</h2><p class="lede">Photos and a quick voice note in, a professional quote out — usually in under a minute.</p>' +
+          '<div class="ctas"><a class="btn lg" href="#/new">New quote</a><a class="btn lg ghost" href="#/sample">See a sample</a></div></section>';
         view.innerHTML = html;
         return;
       }
-      html += '<div class="kpis"><div class="kpi"><b>' + moneyShort(openVal) + '</b><span>Open value</span></div>' +
-        '<div class="kpi"><b>' + sentWeek + '</b><span>Sent this week</span></div>' +
-        '<div class="kpi"><b>' + (decided ? Math.round(won.length / decided * 100) + '%' : '—') + '</b><span>Win rate</span></div></div>';
+      html += '<dl class="kpis"><div><dt>Open value</dt><dd class="num">' + moneyShort(openVal) + '</dd></div>' +
+        '<div><dt>Sent this week</dt><dd class="num">' + sentWeek + '</dd></div>' +
+        '<div><dt>Win rate</dt><dd class="num">' + (decided ? Math.round(won.length / decided * 100) + '%' : '—') + '</dd></div></dl>';
       html += '<div class="board">' + COLUMNS.map(function (c) {
         var rows = qs.filter(function (q) { return c.has.indexOf(q.status) >= 0; });
         var sum = rows.reduce(function (a, q) { return a + q.value; }, 0);
-        return '<section class="col"><div class="col-head"><b><i class="dot" style="background:' + c.color + '"></i>' + c.label + ' <span class="count">' + rows.length + '</span></b><span class="sum">' + (rows.length ? moneyShort(sum) : '') + '</span></div>' +
-          (rows.length ? rows.map(card).join('') : '<div class="col-empty">' + c.empty + '</div>') + '</section>';
+        return '<section class="col' + (rows.length ? '' : ' none') + '"><div class="col-head"><h2><i class="dot d-' + c.key + '"></i>' + c.label + ' <span class="count num">' + rows.length + '</span></h2><span class="sum num">' + (rows.length ? moneyShort(sum) : '') + '</span></div>' +
+          (rows.length ? '<div class="rows">' + rows.map(card).join('') + '</div>' : '<p class="col-empty">' + c.empty + '</p>') + '</section>';
       }).join('') + '</div>';
       view.innerHTML = html;
       $$('.qcard').forEach(function (b) { b.onclick = function () { location.hash = '#/quote/' + b.dataset.id; }; });
@@ -653,68 +687,78 @@
       : q.status === 'accepted' ? 'Won ' + timeAgo(q.respondedAt || q.updatedAt)
         : q.status === 'expired' ? 'Expired ' + dateFmt(q.validUntil, { month: 'short', day: 'numeric' })
           : q.viewedAt ? 'Opened ' + timeAgo(q.viewedAt) : 'Sent ' + timeAgo(q.sentAt);
-    return '<button class="qcard" data-id="' + esc(q.id) + '">' + (q.unread ? '<i class="flag" title="New message"></i>' : '') +
-      '<div class="t">' + esc(q.customer || 'No customer yet') + '</div><div class="c">' + esc(q.number) + (q.tiers ? ' · ' + q.tiers + ' options' : '') + ' · ' + esc(q.title) + '</div>' +
-      '<div class="b"><span class="v">' + money0(q.value) + '</span>' +
-      (q.status === 'changes' || q.status === 'expired' || q.status === 'declined' ? statusChip(q.status) : '<span class="when">' + esc(when) + '</span>') + '</div></button>';
+    return '<button type="button" class="qcard" data-id="' + esc(q.id) + '">' +
+      '<span class="main"><span class="t">' + (q.unread ? '<i class="flag" title="New message"></i>' : '') + esc(q.customer || 'No customer yet') + '</span><span class="c">' + esc(q.number) + (q.tiers ? ' · ' + q.tiers + ' options' : '') + ' · ' + esc(q.title) + '</span></span>' +
+      '<span class="side"><span class="v num">' + money0(q.value) + '</span>' +
+      (q.status === 'changes' || q.status === 'expired' || q.status === 'declined' ? statusChip(q.status) : '<span class="when">' + esc(when) + '</span>') + '</span></button>';
   }
 
   /* ---------------- new quote ---------------- */
 
   function freshForm() {
-    return { photos: [], trade: profile().trade || 'handyman', title: '', description: '', customer: { name: '', contact: '', address: '' }, tiers: false };
+    return { photos: [], voice: null, trade: profile().trade || 'handyman', title: '', description: '', customer: { name: '', contact: '', address: '' }, tiers: false };
   }
 
   function renderNew() {
     if (!state.nf) state.nf = freshForm();
     var nf = state.nf;
     var meta = state.meta || { trades: {} };
+    var voice = voiceOn();
     var tpl = signedIn() ? (state.templates ? Promise.resolve(state.templates) : api('GET', 'api/templates').then(function (r) { state.templates = r.templates; return r.templates; }).catch(function () { return []; })) : Promise.resolve([]);
     tpl.then(function (templates) {
       view.innerHTML =
-        '<div class="page-head"><div><h1>New quote</h1><div class="sub">Photos + a few words. We’ll do the write-up.</div></div></div>' +
-        (templates.length ? '<div class="chips" style="margin-bottom:14px"><span class="small muted" style="align-self:center;white-space:nowrap">Start from:</span>' + templates.map(function (t) {
-          return '<button class="chip" data-tpl="' + esc(t.id) + '">📋 ' + esc(t.name) + '</button>';
-        }).join('') + '<button class="chip" id="blankQ">Blank quote</button></div>' : '') +
+        '<div class="page-head"><div><h1>New quote</h1><p class="sub">' + (voice ? 'Photos and a voice note. We list the work; your prices do the rest.' : 'Photos and a few words. We’ll do the write-up.') + '</p></div></div>' +
+        (templates.length ? '<div class="chips mb16"><span class="small muted chips-lab">Start from</span>' + templates.map(function (t) {
+          return '<button type="button" class="chip" data-tpl="' + esc(t.id) + '">' + esc(t.name) + '</button>';
+        }).join('') + '<button type="button" class="chip" id="blankQ">Blank quote</button></div>' : '') +
         '<div class="dk-2"><div>' +
-        '<div class="group-title">Photos <span class="tiny faint" style="text-transform:none;letter-spacing:0">' + nf.photos.length + ' of 4</span></div>' +
-        '<div class="card"><div class="photos" id="photos"></div><input type="file" id="fileIn" accept="image/*" multiple hidden>' +
-        '<p class="tiny faint" style="margin:10px 0 0">Shrunk on your phone before upload, read once to draft the quote, then discarded. Only the quote is saved.</p></div>' +
-        '<div class="group-title">The job</div>' +
-        '<div class="card"><div class="trade-pick" id="tradePick">' + Object.keys(meta.trades).map(function (k) {
+        '<section class="block"><div class="block-head"><h2>Photos</h2><span class="small muted num" id="phCount">' + nf.photos.length + ' of 4</span></div>' +
+        '<div class="photos" id="photos"></div><input type="file" id="fileIn" accept="image/*" multiple hidden>' +
+        '<p class="tiny muted mt8 mb0">Shrunk on your phone before upload, read once, then discarded. Only the quote is saved.</p></section>' +
+        (voice ? '<section class="block"><div class="block-head"><h2>Voice note</h2><span class="small muted">Up to ' + voiceSecs() + ' seconds</span></div><div id="voiceBox"></div>' +
+          '<p class="tiny muted mt8 mb0">Talk it through like you’d brief a helper. Heard once to list the work, never stored.</p></section>' : '') +
+        '<section class="block"><div class="block-head"><h2>The job</h2></div>' +
+        '<div class="trade-pick" id="tradePick" role="group" aria-label="Trade">' + Object.keys(meta.trades).map(function (k) {
           var t = meta.trades[k];
-          return '<button data-trade="' + k + '" class="' + (k === nf.trade ? 'on' : '') + '"><span class="e">' + t.emoji + '</span>' + esc(t.label) + '</button>';
+          return '<button type="button" data-trade="' + k + '" class="chip' + (k === nf.trade ? ' on' : '') + '" aria-pressed="' + (k === nf.trade) + '">' + esc(t.label) + '</button>';
         }).join('') + '</div>' +
-        '<label class="field" style="margin:14px 0 12px"><span>Job title (optional)</span><input class="input" id="jobTitle" maxlength="90" placeholder="e.g. Kitchen repaint" value="' + esc(nf.title) + '"></label>' +
-        '<label class="field" style="margin:0"><span>Describe it — or tap the mic and talk</span><div class="dictate"><textarea class="input" id="desc" maxlength="3000" placeholder="e.g. Two bedrooms and the hall, walls and trim, about 9ft ceilings. Some nail holes, one water stain on the ceiling. They want it done before the 15th.">' + esc(nf.description) + '</textarea>' +
-        (SR ? '<button class="mic" id="micBtn" type="button">' + ICON.mic + '<span>Dictate</span></button>' : '') + '</div></label></div>' +
+        '<label class="field mt16"><span>Job title (optional)</span><input class="input" id="jobTitle" maxlength="90" placeholder="e.g. Kitchen repaint" value="' + esc(nf.title) + '"></label>' +
+        '<label class="field mb0"><span>' + (voice ? 'Anything to add in writing (optional)' : 'Describe it — or tap the mic and talk') + '</span><div class="dictate"><textarea class="input" id="desc" maxlength="' + (voice ? 1500 : 3000) + '" placeholder="e.g. Two bedrooms and the hall, walls and trim, about 9ft ceilings. Some nail holes, one water stain on the ceiling.">' + esc(nf.description) + '</textarea>' +
+        (SR && !voice ? '<button class="mic" id="micBtn" type="button">' + ICON.mic + '<span>Dictate</span></button>' : '') + '</div></label></section>' +
         '</div><div class="dk-sticky">' +
-        '<div class="group-title">Customer</div>' +
-        '<div class="group"><div class="cell"><label for="cName">Name</label><input id="cName" maxlength="80" placeholder="Jordan Rivera" value="' + esc(nf.customer.name) + '" autocomplete="off"></div>' +
+        '<section class="block"><div class="block-head"><h2>Customer</h2></div><div class="group">' +
+        '<div class="cell"><label for="cName">Name</label><input id="cName" maxlength="80" placeholder="Jordan Rivera" value="' + esc(nf.customer.name) + '" autocomplete="off"></div>' +
         '<div class="cell"><label for="cContact">Phone or email</label><input id="cContact" maxlength="120" placeholder="(555) 555-0123" value="' + esc(nf.customer.contact) + '" autocomplete="off"></div>' +
-        '<div class="cell"><label for="cAddr">Job address</label><input id="cAddr" maxlength="160" placeholder="118 Maple Crest Dr" value="' + esc(nf.customer.address) + '" autocomplete="off"></div></div>' +
-        '<div class="group-title">Pricing</div>' +
-        '<div class="tier-opt"><button id="tSingle" class="' + (nf.tiers ? '' : 'on') + '"><div class="gbb"><i style="flex:3;background:var(--accent)"></i></div><b>One price</b><span>A single clear total</span></button>' +
-        '<button id="tTiers" class="' + (nf.tiers ? 'on' : '') + '"><div class="gbb"><i></i><i></i><i></i></div><b>Good · Better · Best</b><span>Three options, more yeses</span></button></div>' +
-        '<p class="tiny faint" style="margin:10px 4px 0">Your rate (' + money0(profile().hourlyRate || 75) + '/hr), markup (' + esc(profile().markupPct != null ? profile().markupPct : 15) + '%) and tax (' + esc(profile().taxPct || 0) + '%) are applied automatically — <a href="#/business">change</a>.</p>' +
-        '<div class="snap-bar"><div id="snapErr"></div><button class="btn lg block" id="snapBtn">' + ICON.spark + ' Snap my quote</button>' +
-        '<p class="center tiny faint" style="margin:8px 0 0">' + (signedIn() ? 'About 1–2¢ of credit · <button class="link-btn tiny" id="startBlank">or build it by hand, free</button>' : 'Free to try — $2 of credit on sign-up') + '</p></div>' +
-        '</div></div>';
+        '<div class="cell"><label for="cAddr">Job address</label><input id="cAddr" maxlength="160" placeholder="118 Maple Crest Dr" value="' + esc(nf.customer.address) + '" autocomplete="off"></div></div></section>' +
+        (voice ? '' :
+          '<section class="block"><div class="block-head"><h2>Pricing</h2></div>' +
+          '<div class="tier-opt"><button type="button" id="tSingle" class="' + (nf.tiers ? '' : 'on') + '"><b>One price</b><span>A single clear total</span></button>' +
+          '<button type="button" id="tTiers" class="' + (nf.tiers ? 'on' : '') + '"><b>Good · Better · Best</b><span>Three options, more yeses</span></button></div></section>') +
+        '<p class="tiny muted mt12">Your rate (' + money0(profile().hourlyRate || 75) + '/hr), markup (' + esc(profile().markupPct != null ? profile().markupPct : 15) + '%) and tax (' + esc(profile().taxPct || 0) + '%) are applied automatically — <a href="#/business">change</a>.</p>' +
+        '<div class="snap-bar"><div id="snapErr"></div>' +
+        (voice
+          ? '<button type="button" class="btn lg block" id="readBtn">' + ICON.spark + 'Read the job</button>' +
+            '<p class="center tiny muted mt8 mb0">' + (signedIn() ? 'You check every line before anything is saved · about 1–2¢<br><button type="button" class="link-btn tiny" id="snapBtn">Draft a whole quote instead</button> · <button type="button" class="link-btn tiny" id="startBlank">build it by hand, free</button>' : 'Free to try — $2 of credit on sign-up') + '</p>'
+          : '<button type="button" class="btn lg block" id="snapBtn">' + ICON.spark + 'Snap my quote</button>' +
+            '<p class="center tiny muted mt8 mb0">' + (signedIn() ? 'About 1–2¢ of credit · <button type="button" class="link-btn tiny" id="startBlank">or build it by hand, free</button>' : 'Free to try — $2 of credit on sign-up') + '</p>') +
+        '</div></div></div>';
 
       drawPhotos();
+      if (voice) drawVoice();
       $$('#tradePick button').forEach(function (b) {
-        b.onclick = function () { nf.trade = b.dataset.trade; $$('#tradePick button').forEach(function (x) { x.classList.toggle('on', x === b); }); };
+        b.onclick = function () { nf.trade = b.dataset.trade; $$('#tradePick button').forEach(function (x) { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); };
       });
       $('#jobTitle').oninput = function (e) { nf.title = e.target.value; };
       $('#desc').oninput = function (e) { nf.description = e.target.value; };
       $('#cName').oninput = function (e) { nf.customer.name = e.target.value; };
       $('#cContact').oninput = function (e) { nf.customer.contact = e.target.value; };
       $('#cAddr').oninput = function (e) { nf.customer.address = e.target.value; };
-      $('#tSingle').onclick = function () { nf.tiers = false; this.classList.add('on'); $('#tTiers').classList.remove('on'); };
-      $('#tTiers').onclick = function () { nf.tiers = true; this.classList.add('on'); $('#tSingle').classList.remove('on'); };
+      var ts = $('#tSingle'); if (ts) ts.onclick = function () { nf.tiers = false; this.classList.add('on'); $('#tTiers').classList.remove('on'); };
+      var tt = $('#tTiers'); if (tt) tt.onclick = function () { nf.tiers = true; this.classList.add('on'); $('#tSingle').classList.remove('on'); };
       $('#fileIn').onchange = function (e) { addPhotos(e.target.files); e.target.value = ''; };
-      if (SR) wireMic($('#micBtn'), $('#desc'), function (v) { nf.description = v; });
-      $('#snapBtn').onclick = snap;
+      var mb = $('#micBtn'); if (mb) wireMic(mb, $('#desc'), function (v) { nf.description = v; });
+      var sn = $('#snapBtn'); if (sn) sn.onclick = snap;
+      var rb = $('#readBtn'); if (rb) rb.onclick = readJob;
       var sb = $('#startBlank'); if (sb) sb.onclick = function () { startQuote({ customer: nf.customer }); };
       $$('[data-tpl]').forEach(function (b) { b.onclick = function () { startQuote({ templateId: b.dataset.tpl, customer: nf.customer }); }; });
       var bq = $('#blankQ'); if (bq) bq.onclick = function () { startQuote({ customer: nf.customer }); };
@@ -723,13 +767,20 @@
 
   function startQuote(body) {
     if (!signedIn()) return openAccount();
-    api('POST', 'api/quotes', body).then(function (q) { state.nf = null; location.hash = '#/quote/' + q.id; }).catch(function (e) { showError(e); });
+    api('POST', 'api/quotes', body).then(function (q) { dropForm(); location.hash = '#/quote/' + q.id; }).catch(function (e) { showError(e); });
+  }
+
+  /** The form is done with: let go of the photos and the recording. They only
+   *  ever lived in this page's memory. */
+  function dropForm() {
+    if (state.nf && state.nf.voice && state.nf.voice.url) URL.revokeObjectURL(state.nf.voice.url);
+    state.nf = null;
   }
 
   function drawPhotos() {
     var nf = state.nf; var el = $('#photos'); if (!el) return;
     var h = nf.photos.map(function (p, i) {
-      return '<div class="ph filled"><img src="' + p.url + '" alt="Job photo ' + (i + 1) + '"><button class="x" data-rm="' + i + '" aria-label="Remove photo">×</button></div>';
+      return '<div class="ph filled"><img src="' + p.url + '" alt="Job photo ' + (i + 1) + '"><button type="button" class="x" data-rm="' + i + '" aria-label="Remove photo ' + (i + 1) + '">' + ICON.x + '</button></div>';
     }).join('');
     for (var i = nf.photos.length; i < 4; i++) {
       h += i === nf.photos.length
@@ -739,7 +790,7 @@
     el.innerHTML = h;
     var add = $('#addPh'); if (add) add.onclick = function () { $('#fileIn').click(); };
     $$('[data-rm]', el).forEach(function (b) { b.onclick = function () { nf.photos.splice(Number(b.dataset.rm), 1); drawPhotos(); }; });
-    var gt = $$('.group-title .tiny')[0]; if (gt) gt.textContent = nf.photos.length + ' of 4';
+    var c = $('#phCount'); if (c) c.textContent = nf.photos.length + ' of 4';
   }
 
   /** Shrink on the phone: max 1024px on the long side, JPEG, under ~1.4 MB.
@@ -772,44 +823,194 @@
     }, Promise.resolve()).catch(function (e) { toast(e.message); });
   }
 
-  function snap() {
-    var nf = state.nf;
-    if (!signedIn()) return openAccount('Sign up free — $2 of AI credit, enough for roughly 100 quotes.');
-    if (!nf.photos.length && nf.description.trim().length < 8) {
-      $('#snapErr').innerHTML = '<div class="err">Add a photo or say a sentence about the job first.</div>';
+  /* ---- the voice note: up to 60 seconds, recorded here, never stored ---- */
+
+  var recorder = null; // { rec, stream, tick, stopAt, started, cancelled }
+  function recType() {
+    if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+    var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    for (var i = 0; i < types.length; i++) if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+    return '';
+  }
+  function stopRecording(cancel) {
+    if (!recorder) return;
+    recorder.cancelled = Boolean(cancel);
+    try { recorder.rec.stop(); } catch (e) { /* already stopped */ }
+  }
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(String(fr.result).split(',')[1] || ''); };
+      fr.onerror = function () { reject(new Error('That recording could not be read.')); };
+      fr.readAsDataURL(blob);
+    });
+  }
+  function audioSeconds(blob) {
+    return new Promise(function (resolve) {
+      var a = document.createElement('audio'); var url = URL.createObjectURL(blob);
+      var done = function (v) { URL.revokeObjectURL(url); resolve(v); };
+      a.preload = 'metadata';
+      a.onloadedmetadata = function () { done(isFinite(a.duration) ? a.duration : null); };
+      a.onerror = function () { done(null); };
+      setTimeout(function () { done(null); }, 3000);
+      a.src = url;
+    });
+  }
+  function setVoice(blob, secs) {
+    var nf = state.nf; if (!nf) return;
+    if (nf.voice && nf.voice.url) URL.revokeObjectURL(nf.voice.url);
+    nf.voice = blob ? { blob: blob, type: (blob.type || 'audio/webm').split(';')[0], url: URL.createObjectURL(blob), secs: secs } : null;
+    drawVoice();
+  }
+
+  function drawVoice() {
+    var box = $('#voiceBox'); var nf = state.nf; if (!box || !nf) return;
+    var max = voiceSecs();
+    var maxBytes = (state.meta && state.meta.maxVoiceBytes) || 2097152;
+    var can = recType() !== null;
+    if (recorder) {
+      box.innerHTML = '<div class="voice rec"><button type="button" class="rec-btn on" id="recStop" aria-label="Stop recording">' + ICON.stop + '</button>' +
+        '<div class="grow"><div class="row spread"><b>Recording…</b><span class="num" id="recClock" aria-live="off">0:00 / ' + clock(max) + '</span></div>' +
+        '<div class="bar mt8"><i id="recBar"></i></div><p class="tiny muted mt8 mb0">Stops by itself at ' + max + ' seconds.</p></div></div>';
+      $('#recStop').onclick = function () { stopRecording(false); };
       return;
     }
-    stopListening();
-    var started = Date.now();
+    if (nf.voice) {
+      box.innerHTML = '<div class="voice have"><audio controls src="' + esc(nf.voice.url) + '"></audio>' +
+        '<div class="row mt8"><span class="small muted grow">' + (nf.voice.secs ? clock(nf.voice.secs) + ' recorded' : 'Recorded') + '</span>' +
+        (can ? '<button type="button" class="btn small ghost" id="recAgain">Record again</button>' : '') + '<button type="button" class="btn small plain" id="recDrop">Remove</button></div></div>';
+      var again = $('#recAgain'); if (again) again.onclick = startRecording;
+      $('#recDrop').onclick = function () { setVoice(null); };
+      return;
+    }
+    box.innerHTML = '<div class="voice">' +
+      (can ? '<button type="button" class="rec-btn" id="recStart" aria-label="Record a voice note">' + ICON.mic + '</button><div class="grow"><b>Record a voice note</b><div class="small muted">Rooms, sizes, condition, what they want.</div></div>'
+        : '<div class="grow"><b>Recording isn’t available in this browser</b><div class="small muted">Choose a recording instead, ' + max + ' seconds at most.</div></div>') +
+      '</div><label class="link-btn tiny file-pick">Or choose a recording<input class="vh" type="file" accept="audio/*" id="voiceFile"></label><div id="voiceErr"></div>';
+    var st = $('#recStart'); if (st) st.onclick = startRecording;
+    $('#voiceFile').onchange = function (e) {
+      var f = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      var say = function (m) { $('#voiceErr').innerHTML = '<div class="err" role="alert">' + esc(m) + '</div>'; };
+      if (f.size > maxBytes) return say('That recording is too big. Keep it to ' + max + ' seconds.');
+      audioSeconds(f).then(function (secs) {
+        if (secs !== null && secs > max + 0.5) return say('That recording is longer than ' + max + ' seconds. Trim it, or record one here.');
+        setVoice(f, secs);
+      });
+    };
+  }
+
+  function startRecording() {
+    var max = voiceSecs();
+    var type = recType();
+    if (type === null || recorder) return;
+    var maxBytes = (state.meta && state.meta.maxVoiceBytes) || 2097152;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      var opts = { audioBitsPerSecond: 32000 }; if (type) opts.mimeType = type;
+      var rec = new MediaRecorder(stream, opts);
+      var chunks = [];
+      var me = recorder = { rec: rec, stream: stream, started: Date.now(), cancelled: false };
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = function () {
+        clearInterval(me.tick); clearTimeout(me.stopAt);
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        var secs = Math.min(max, (Date.now() - me.started) / 1000);
+        recorder = null;
+        if (me.cancelled || !state.nf) { drawVoice(); return; }
+        var blob = new Blob(chunks, { type: (rec.mimeType || type || 'audio/webm').split(';')[0] });
+        if (!blob.size || secs < 1) { drawVoice(); toast('That was too short to hear. Hold on a little longer.'); return; }
+        if (blob.size > maxBytes) { drawVoice(); toast('That recording came out too big. Try a shorter one.'); return; }
+        setVoice(blob, secs);
+      };
+      rec.start(1000);
+      drawVoice();
+      me.tick = setInterval(function () {
+        var s = (Date.now() - me.started) / 1000;
+        var c = $('#recClock'); if (c) c.textContent = clock(s) + ' / ' + clock(max);
+        var b = $('#recBar'); if (b) b.style.setProperty('--w', Math.min(100, s / max * 100) + '%');
+      }, 250);
+      // The cap: sixty seconds, then it stops by itself.
+      me.stopAt = setTimeout(function () { stopRecording(false); }, max * 1000);
+    }).catch(function () { toast('Microphone access is off for this site. You can choose a recording instead.', 3800); });
+  }
+
+  /** The waiting screen both readers share. Returns { done(cb), fail() }. */
+  function working(title, steps, photos) {
     var ov = document.createElement('div');
     ov.className = 'drafting';
-    var steps = nf.photos.length
-      ? ['Looking at your photos', 'Measuring up the job', 'Pricing labor & materials', 'Writing it up']
-      : ['Reading your notes', 'Measuring up the job', 'Pricing labor & materials', 'Writing it up'];
+    ov.setAttribute('role', 'status');
     ov.innerHTML = '<div class="box">' +
-      (nf.photos.length ? '<div class="thumbs">' + nf.photos.map(function (p) { return '<div><img src="' + p.url + '" alt=""></div>'; }).join('') + '</div>' : '') +
-      '<div class="doc"><i></i><i></i><i></i><i></i><i></i></div>' +
-      '<h2>Drafting your quote…</h2><ol>' + steps.map(function (s) { return '<li><i></i>' + s + '</li>'; }).join('') + '</ol></div>';
+      (photos.length ? '<div class="thumbs">' + photos.map(function (p) { return '<div><img src="' + p.url + '" alt=""></div>'; }).join('') + '</div>' : '') +
+      '<h2>' + esc(title) + '</h2><ol>' + steps.map(function (s) { return '<li><i></i>' + esc(s) + '</li>'; }).join('') + '</ol></div>';
     document.body.appendChild(ov);
     var lis = $$('li', ov), at = 0;
     lis[0].classList.add('on');
     var tick = setInterval(function () {
       if (at >= lis.length - 1) return;
-      lis[at].classList.remove('on'); lis[at].classList.add('done'); lis[at].firstChild.textContent = '✓';
+      lis[at].classList.remove('on'); lis[at].classList.add('done');
       at++; lis[at].classList.add('on');
-    }, 1700);
+    }, 1500);
+    return {
+      done: function (cb) { clearInterval(tick); lis.forEach(function (li) { li.classList.remove('on'); li.classList.add('done'); }); setTimeout(function () { ov.remove(); cb(); }, 400); },
+      fail: function () { clearInterval(tick); ov.remove(); },
+    };
+  }
+
+  /** Claude drafts a whole quote, prices and all (the reader the app has
+   *  always had). */
+  function snap() {
+    var nf = state.nf;
+    if (!signedIn()) return openAccount('Sign up free — $2 of AI credit, enough for roughly 100 quotes.');
+    if (!nf.photos.length && nf.description.trim().length < 8) {
+      $('#snapErr').innerHTML = '<div class="err" role="alert">Add a photo or say a sentence about the job first.</div>';
+      return;
+    }
+    stopListening(); stopRecording(true);
+    var started = Date.now();
+    var w = working('Drafting your quote…', [nf.photos.length ? 'Looking at your photos' : 'Reading your notes', 'Measuring up the job', 'Pricing labor and materials', 'Writing it up'], nf.photos);
     api('POST', 'api/quotes/draft', {
       photos: nf.photos.map(function (p) { return { type: p.type, data: p.data }; }),
       description: nf.description, title: nf.title, trade: nf.trade, customer: nf.customer, tiers: nf.tiers,
     }).then(function (q) {
-      clearInterval(tick);
-      lis.forEach(function (li) { li.classList.remove('on'); li.classList.add('done'); li.firstChild.textContent = '✓'; });
       state.justDrafted = { id: q.id, secs: Math.max(1, Math.round((Date.now() - started) / 1000)), photos: nf.photos.length };
-      state.nf = null;
+      dropForm();
       loadMe();
-      setTimeout(function () { ov.remove(); location.hash = '#/quote/' + q.id; }, 450);
+      w.done(function () { location.hash = '#/quote/' + q.id; });
+    }).catch(function (e) { w.fail(); showError(e, $('#snapErr')); });
+  }
+
+  /** Read the job: photos and the voice note become line items to check.
+   *  Nothing is saved by this - the review screen is where a quote is made. */
+  function readJob() {
+    var nf = state.nf;
+    if (!signedIn()) return openAccount('Sign up free — $2 of AI credit, enough for roughly 100 quotes.');
+    if (recorder) { $('#snapErr').innerHTML = '<div class="err" role="alert">Stop the recording first.</div>'; return; }
+    if (!nf.photos.length && !nf.voice && nf.description.trim().length < 8) {
+      $('#snapErr').innerHTML = '<div class="err" role="alert">Add a photo, record a voice note, or type a sentence about the job first.</div>';
+      return;
+    }
+    var started = Date.now();
+    var steps = [];
+    if (nf.photos.length) steps.push('Looking at your photos');
+    if (nf.voice) steps.push('Listening to your voice note');
+    steps.push('Listing the work', 'Pricing it from your own rates');
+    var w = working('Reading the job…', steps, nf.photos);
+    (nf.voice ? blobToBase64(nf.voice.blob) : Promise.resolve(null)).then(function (b64) {
+      return api('POST', 'api/quotes/read', {
+        photos: nf.photos.map(function (p) { return { type: p.type, data: p.data }; }),
+        audio: b64 ? { type: nf.voice.type, data: b64 } : undefined,
+        note: nf.description, title: nf.title, trade: nf.trade,
+      });
+    }).then(function (r) {
+      state.read = {
+        title: r.title, heard: r.heard, trade: r.trade, lines: r.lines, questions: r.questions || [], photoCount: r.photoCount, hadVoice: r.hadVoice,
+        pricing: r.pricing, note: nf.description, customer: clone(nf.customer), secs: Math.max(1, Math.round((Date.now() - started) / 1000)),
+      };
+      loadMe();
+      w.done(function () { location.hash = '#/review'; });
     }).catch(function (e) {
-      clearInterval(tick); ov.remove();
+      w.fail();
+      if (e && e.data && e.data.code === 'ai-off') { loadMe().then(renderNew); return toast(e.message, 4000); }
       showError(e, $('#snapErr'));
     });
   }
@@ -836,6 +1037,120 @@
     };
   }
 
+  /* ---------------- check the lines (after a read) ---------------- */
+
+  var CONF = { high: 'Sure', medium: 'Likely', low: 'Check this' };
+
+  function lineTags(l) {
+    var flags = l.flags || [];
+    var t = '<span class="tag' + (l.confidence === 'low' ? ' warn' : l.confidence === 'high' ? ' good' : '') + '">' + CONF[l.confidence || 'high'] + '</span>';
+    if (flags.indexOf('qty') >= 0) t += '<span class="tag warn">Quantity is a guess</span>';
+    var src = l.priceSource || { kind: 'you', label: 'Your price' };
+    t += '<span class="tag' + (numIn(l.unitPrice) > 0 ? '' : ' warn') + '">' + esc(numIn(l.unitPrice) > 0 ? src.label : 'Needs your price') + '</span>';
+    return t;
+  }
+  function needsLook(l) { return (l.flags || []).length > 0 || !(numIn(l.unitPrice) > 0); }
+
+  function renderReview() {
+    var rd = state.read;
+    if (!signedIn() || !rd) { location.hash = '#/new'; return; }
+    var from = [rd.photoCount ? rd.photoCount + ' photo' + (rd.photoCount > 1 ? 's' : '') : '', rd.hadVoice ? 'your voice note' : '', !rd.photoCount && !rd.hadVoice ? 'your note' : ''].filter(Boolean).join(' and ');
+    view.innerHTML =
+      '<div class="ed-top"><button type="button" class="icon-btn" id="rvBack" aria-label="Back to the job">' + ICON.back + '</button><span class="small muted grow">Read in ' + rd.secs + 's from ' + esc(from) + '</span></div>' +
+      '<div class="page-head tight"><div><h1>Check the lines</h1><p class="sub" id="rvSub"></p></div></div>' +
+      '<label class="field"><span>Job title</span><input class="input" id="rvTitle" maxlength="90" value="' + esc(rd.title) + '"></label>' +
+      (rd.heard ? '<figure class="heard"><figcaption>What I heard</figcaption><blockquote>' + esc(rd.heard) + '</blockquote></figure>' : '') +
+      '<div class="dk-2"><div>' +
+      '<section class="block"><div class="block-head"><h2>Line items</h2><span class="small muted">Edit, remove or add</span></div>' +
+      '<div class="items" id="rvItems"></div><button type="button" class="add-line" id="rvAdd">' + ICON.plus + 'Add line</button></section>' +
+      '</div><div class="dk-sticky">' +
+      ((rd.questions || []).length ? '<section class="block"><div class="block-head"><h2>Worth checking on site</h2></div><ul class="checks">' + rd.questions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></section>' : '') +
+      '<section class="block"><div class="block-head"><h2>Totals</h2><span class="small muted">Worked out from your rates</span></div><div id="rvTotals" class="totals"></div></section>' +
+      '<p class="tiny muted mt12">The AI only describes the work. Every price is yours — from your price list, templates, past quotes and hourly rate — and the totals, markup (' + esc(rd.pricing.markupPct) + '%) and tax (' + esc(rd.pricing.taxPct) + '%) are calculated by Snapquote. Your photos and recording were not kept.</p>' +
+      '</div></div>' +
+      '<div class="actionbar"><div class="sum"><b id="rvBar" class="num"></b><span id="rvState">Nothing saved yet</span></div>' +
+      '<button type="button" class="btn ghost" id="rvDrop">Discard</button><button type="button" class="btn" id="rvSave">Save as quote</button></div>';
+
+    var armed = false;
+    function totals() {
+      var t = totalsFor(rd.lines, { markupPct: rd.pricing.markupPct, taxPct: rd.pricing.taxPct, discount: 0 });
+      var look = rd.lines.filter(needsLook).length;
+      $('#rvSub').textContent = rd.lines.length + ' line' + (rd.lines.length === 1 ? '' : 's') + (look ? ' · ' + look + ' to check' : ' · all priced');
+      $('#rvTotals').innerHTML = '<div class="r"><span class="muted">Subtotal</span><span>' + money(t.subtotal) + '</span></div>' +
+        '<div class="r"><span class="muted">Tax (' + esc(rd.pricing.taxPct) + '%)</span><span>' + money(t.tax) + '</span></div>' +
+        '<div class="r big"><span>Total</span><span>' + money(t.total) + '</span></div>' +
+        '<div class="r private"><span>' + ICON.lock + 'Your cost ' + money(t.cost) + '</span><span>Margin ' + money(t.margin) + '</span></div>';
+      $('#rvBar').textContent = money(t.total);
+      armed = false; $('#rvState').textContent = 'Nothing saved yet'; $('#rvState').className = '';
+    }
+    function draw() {
+      var el = $('#rvItems');
+      el.innerHTML = (rd.lines.length ? rd.lines.map(function (l, i) {
+        var pl = priceLine(l, rd.pricing.markupPct);
+        return '<div class="item rv' + (needsLook(l) ? ' look' : '') + '" data-i="' + i + '"><div class="top-row"><textarea class="desc" rows="1" data-f="description" maxlength="160" placeholder="What is it?" aria-label="Line ' + (i + 1) + ' description">' + esc(l.description) + '</textarea>' +
+          '<div class="ctl"><button type="button" data-act="rm" aria-label="Remove line ' + (i + 1) + '">' + ICON.x + '</button></div></div>' +
+          '<div class="tags" data-tags>' + lineTags(l) + '</div>' +
+          '<div class="nums"><select data-f="category" aria-label="Category">' + CAT_ORDER.map(function (c) { return '<option value="' + c + '"' + (c === l.category ? ' selected' : '') + '>' + CATS[c].label + '</option>'; }).join('') + '</select>' +
+          '<input class="n" data-f="qty" inputmode="decimal" aria-label="Quantity" value="' + esc(l.qty) + '">' +
+          '<input class="n unit" data-f="unit" list="units" aria-label="Unit" maxlength="12" value="' + esc(l.unit) + '">' +
+          '<div class="money-in"><input class="n" data-f="unitPrice" inputmode="decimal" aria-label="Your price per unit" value="' + esc(l.unitPrice || '') + '" placeholder="0"></div>' +
+          '<div class="amt"><span data-amt class="num">' + money(pl.price) + '</span></div></div></div>';
+      }).join('') : '<p class="col-empty">No lines left. Add one, or go back and read the job again.</p>') +
+        '<datalist id="units">' + ((state.meta && state.meta.units) || []).map(function (u) { return '<option value="' + esc(u) + '">'; }).join('') + '</datalist>';
+      $$('.item', el).forEach(function (row) {
+        var i = Number(row.dataset.i);
+        var l = rd.lines[i];
+        $$('[data-f]', row).forEach(function (inp) {
+          inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', function () {
+            var f = inp.dataset.f;
+            l[f] = inp.value;
+            // The person has now said it themselves: the doubt is settled.
+            if (f === 'qty') l.flags = (l.flags || []).filter(function (x) { return x !== 'qty'; });
+            if (f === 'unitPrice') { l.flags = (l.flags || []).filter(function (x) { return x !== 'price'; }); l.priceSource = { kind: 'you', label: 'Your price' }; }
+            if (f === 'description') { l.flags = (l.flags || []).filter(function (x) { return x !== 'unclear'; }); if (l.confidence === 'low') l.confidence = 'medium'; autoGrow(inp); }
+            $('[data-amt]', row).textContent = money(priceLine(l, rd.pricing.markupPct).price);
+            $('[data-tags]', row).innerHTML = lineTags(l);
+            row.classList.toggle('look', needsLook(l));
+            totals();
+          });
+        });
+        autoGrow($('.desc', row));
+        $('[data-act=rm]', row).onclick = function () { rd.lines.splice(i, 1); draw(); totals(); };
+      });
+    }
+    draw(); totals();
+    $('#rvTitle').oninput = function (e) { rd.title = e.target.value; };
+    $('#rvBack').onclick = function () { location.hash = '#/new'; };
+    $('#rvAdd').onclick = function () {
+      rd.lines.push({ description: '', category: 'labor', qty: 1, unit: 'hr', unitPrice: rd.pricing.hourlyRate || 0, confidence: 'high', flags: [], priceSource: { kind: 'rate', label: 'Your hourly rate' } });
+      draw(); totals();
+      var rows = $$('#rvItems .desc'); if (rows.length) rows[rows.length - 1].focus();
+    };
+    $('#rvDrop').onclick = function () {
+      if (!confirm('Discard these lines? Nothing has been saved.')) return;
+      state.read = null; location.hash = '#/new';
+    };
+    $('#rvSave').onclick = function () {
+      var items = rd.lines.filter(function (l) { return String(l.description || '').trim(); });
+      var st = $('#rvState');
+      if (!items.length) { st.textContent = 'Keep at least one line'; st.className = 'dirty'; return; }
+      var unpriced = items.filter(function (l) { return !(numIn(l.unitPrice) > 0); }).length;
+      if (unpriced && !armed) { armed = true; st.textContent = unpriced + ' line' + (unpriced === 1 ? ' has' : 's have') + ' no price — tap Save again to keep ' + (unpriced === 1 ? 'it' : 'them') + ' at $0'; st.className = 'dirty'; return; }
+      var btn = this; btn.disabled = true;
+      api('POST', 'api/quotes', {
+        customer: rd.customer,
+        read: {
+          title: rd.title, trade: rd.trade, heard: rd.heard, note: rd.note, photoCount: rd.photoCount,
+          items: items.map(function (l) { return { description: l.description, category: l.category, qty: l.qty, unit: l.unit, unitPrice: l.unitPrice }; }),
+        },
+      }).then(function (q) {
+        state.justDrafted = { id: q.id, secs: rd.secs, photos: rd.photoCount, read: true };
+        state.read = null; dropForm();
+        location.hash = '#/quote/' + q.id;
+      }).catch(function (e) { btn.disabled = false; showError(e); });
+    };
+  }
+
   /* ---------------- the editor ---------------- */
 
   var q = null;     // the quote as the server last returned it
@@ -844,7 +1159,7 @@
   var list = 'base';
 
   function renderEditor(id) {
-    if (!signedIn()) return signedOutPitch('🔒', 'Sign in to see that quote', 'Your quotes live in your account.');
+    if (!signedIn()) return signedOutPitch('Sign in to see that quote', 'Your quotes live in your account.');
     loading();
     api('GET', 'api/quotes/' + encodeURIComponent(id)).then(function (r) {
       q = r; ed = clone(r); dirty = false; list = 'base';
@@ -874,73 +1189,76 @@
     return t ? t.items : ed.items;
   }
 
+  var SOURCES = { ai: 'Drafted', read: 'Read from the job', template: 'From template', duplicate: 'Copy' };
+
   function drawEditor() {
     var locked = q.locked;
+    var dis = locked ? ' disabled' : '';
     var jd = state.justDrafted && state.justDrafted.id === q.id ? state.justDrafted : null;
     var steps = [['Created', true], ['Sent', !!q.sentAt], ['Viewed', !!q.viewedAt], [q.status === 'declined' ? 'Declined' : q.status === 'expired' ? 'Expired' : 'Won', ['accepted', 'declined', 'expired'].indexOf(q.status) >= 0]];
     var msgs = (q.messages || []).filter(function (m) { return m.from === 'customer'; });
     var r = q.response;
 
     view.innerHTML =
-      '<div class="ed-top"><button class="icon-btn" id="edBack" aria-label="Back">' + ICON.back + '</button>' +
-      '<div class="grow"><div class="small muted num">' + esc(q.number) + ' · ' + (q.source === 'ai' ? '✨ Drafted' : q.source === 'template' ? '📋 From template' : q.source === 'duplicate' ? 'Copy' : 'Manual') + '</div></div>' +
+      '<div class="ed-top"><button type="button" class="icon-btn" id="edBack" aria-label="Back to the pipeline">' + ICON.back + '</button>' +
+      '<span class="small muted num grow">' + esc(q.number) + ' · ' + (SOURCES[q.source] || 'Manual') + '</span>' +
       statusChip(q.status) +
       (q.publicUrl ? '<a class="icon-btn" href="' + esc(BASE + q.publicUrl) + '" target="_blank" rel="noopener" aria-label="Preview as customer" title="Preview as customer">' + ICON.eye + '</a>' : '') + '</div>' +
-      (jd ? '<div class="banner good" style="margin-bottom:12px"><span class="e">✨</span><div><b>Drafted in ' + jd.secs + 's' + (jd.photos ? ' from ' + jd.photos + ' photo' + (jd.photos > 1 ? 's' : '') : '') + '.</b> <span class="muted">Check the quantities and prices — then send it while you’re still in the driveway.</span></div></div>' : '') +
-      (locked && r ? '<div class="banner good" style="margin-bottom:12px"><span class="e">🏆</span><div><b>Accepted by ' + esc(r.name) + '</b> · ' + esc(dateFmt(r.at)) + (r.tier ? ' · ' + esc(tierLabel(r.tier)) : '') + '<div class="small muted">Locked so the price they signed stays the price. Duplicate to make a new version.</div></div></div>' : '') +
-      (msgs.length ? '<div class="card" style="margin-bottom:12px;border-color:color-mix(in srgb,var(--warn) 40%,transparent)"><div class="card-head"><h3>💬 From ' + esc(q.customer.name || 'your customer') + '</h3></div><div class="msgs">' +
+      (jd ? '<div class="note good mb12"><div><b>' + (jd.read ? 'Saved' : 'Drafted in ' + jd.secs + 's' + (jd.photos ? ' from ' + jd.photos + ' photo' + (jd.photos > 1 ? 's' : '') : '')) + '.</b> <span class="muted">' + (jd.read ? 'Add a line or two of scope, then send it while you’re still in the driveway.' : 'Check the quantities and prices — then send it while you’re still in the driveway.') + '</span></div></div>' : '') +
+      (locked && r ? '<div class="note good mb12"><div><b>Accepted by ' + esc(r.name) + '</b> · ' + esc(dateFmt(r.at)) + (r.tier ? ' · ' + esc(tierLabel(r.tier)) : '') + '<div class="small muted">Locked so the price they signed stays the price. Duplicate to make a new version.</div></div></div>' : '') +
+      (msgs.length ? '<section class="card warn-card mb12"><div class="block-head"><h2>From ' + esc(q.customer.name || 'your customer') + '</h2></div><div class="msgs">' +
         msgs.slice(-4).map(function (m) { return '<div class="m">' + esc(m.text) + '<div class="when">' + esc(timeAgo(m.at)) + '</div></div>'; }).join('') +
-        '</div><p class="small muted" style="margin:10px 0 0">Make the changes below, then tap <b>Send update</b> — same link, fresh validity date.</p></div>' : '') +
-      '<section class="ed-hero"><input class="title-in" id="edTitle" maxlength="90" value="' + esc(ed.title) + '"' + (locked ? ' disabled' : '') + ' aria-label="Job title">' +
+        '</div><p class="small muted mt12 mb0">Make the changes below, then tap <b>Send update</b> — same link, fresh validity date.</p></section>' : '') +
+      '<section class="ed-hero"><label class="vh" for="edTitle">Job title</label><input class="title-in" id="edTitle" maxlength="90" value="' + esc(ed.title) + '"' + dis + '>' +
       '<div class="small muted">' + esc(ed.customer.name || 'No customer yet') + (ed.customer.address ? ' · ' + esc(ed.customer.address) : '') + '</div>' +
-      '<div class="big" id="bigTotal"></div>' +
+      '<div class="big num" id="bigTotal"></div>' +
       '<div class="timeline">' + steps.map(function (s, i) {
         return (i ? '<div class="ln' + (s[1] ? ' on' : '') + '"></div>' : '') + '<div class="s' + (s[1] ? ' on' : '') + '"><i></i>' + s[0] + '</div>';
       }).join('') + '</div></section>' +
-      '<div class="dk-2" style="margin-top:12px"><div>' +
+      '<div class="dk-2"><div>' +
       // scope
-      '<div class="card"><div class="card-head"><h3>Scope</h3><span class="sub">What the customer reads first</span></div>' +
-      '<textarea class="input" id="edScope" maxlength="1500" rows="5"' + (locked ? ' disabled' : '') + '>' + esc(ed.scope) + '</textarea>' +
-      (locked ? '' : '<div class="polish-row"><button class="btn small ghost" data-tone="friendly">' + ICON.spark + ' Friendlier</button><button class="btn small ghost" data-tone="professional">' + ICON.spark + ' More professional</button></div><div id="suggest"></div>') + '</div>' +
+      '<section class="block"><div class="block-head"><h2>Scope</h2><span class="small muted">What the customer reads first</span></div>' +
+      '<label class="vh" for="edScope">Scope</label><textarea class="input" id="edScope" maxlength="1500" rows="5"' + dis + '>' + esc(ed.scope) + '</textarea>' +
+      (locked ? '' : '<div class="polish-row"><button type="button" class="btn small ghost" data-tone="friendly">' + ICON.spark + 'Friendlier</button><button type="button" class="btn small ghost" data-tone="professional">' + ICON.spark + 'More professional</button></div><div id="suggest"></div>') + '</section>' +
       // items
-      '<div class="card"><div class="card-head"><h3>Line items</h3>' + (locked ? '' : '<button class="btn small plain" id="tierToggle">' + (ed.tiers ? 'Remove options' : '＋ Good / Better / Best') + '</button>') + '</div>' +
+      '<section class="block"><div class="block-head"><h2>Line items</h2>' + (locked ? '' : '<button type="button" class="btn small plain" id="tierToggle">' + (ed.tiers ? 'Remove options' : 'Add Good / Better / Best') + '</button>') + '</div>' +
       '<div id="tierTabs"></div><div id="tierMeta"></div><div class="items" id="items"></div>' +
-      (locked ? '' : '<button class="add-line" id="addLine">＋ Add line</button>') + '</div>' +
+      (locked ? '' : '<button type="button" class="add-line" id="addLine">' + ICON.plus + 'Add line</button>') + '</section>' +
       // details
-      '<div class="card"><div class="card-head"><h3>Details</h3></div>' +
-      '<label class="field"><span>Timeline</span><input class="input" id="edTimeline" maxlength="200" value="' + esc(ed.timeline) + '"' + (locked ? ' disabled' : '') + ' placeholder="e.g. 2 days on site; can start next week"></label>' +
-      '<label class="field"><span>Assumptions (one per line)</span><textarea class="input" id="edAssume" rows="3"' + (locked ? ' disabled' : '') + '>' + esc((ed.assumptions || []).join('\n')) + '</textarea></label>' +
-      '<label class="field"><span>Not included (one per line)</span><textarea class="input" id="edExcl" rows="3"' + (locked ? ' disabled' : '') + '>' + esc((ed.exclusions || []).join('\n')) + '</textarea></label>' +
-      '<label class="field"><span>Payment terms</span><textarea class="input" id="edTerms" rows="2" maxlength="400"' + (locked ? ' disabled' : '') + '>' + esc(ed.terms) + '</textarea></label>' +
-      '<label class="field" style="margin:0"><span>' + ICON.lock.replace('<svg', '<svg style="width:13px;height:13px;vertical-align:-2px"') + ' Private notes — only you see these</span><textarea class="input" id="edNotes" rows="3" maxlength="1500"' + (locked ? ' disabled' : '') + ' placeholder="Gate code, parking, what they said about budget…">' + esc(ed.notes) + '</textarea></label></div>' +
+      '<section class="block"><div class="block-head"><h2>Details</h2></div>' +
+      '<label class="field"><span>Timeline</span><input class="input" id="edTimeline" maxlength="200" value="' + esc(ed.timeline) + '"' + dis + ' placeholder="e.g. 2 days on site; can start next week"></label>' +
+      '<label class="field"><span>Assumptions (one per line)</span><textarea class="input" id="edAssume" rows="3"' + dis + '>' + esc((ed.assumptions || []).join('\n')) + '</textarea></label>' +
+      '<label class="field"><span>Not included (one per line)</span><textarea class="input" id="edExcl" rows="3"' + dis + '>' + esc((ed.exclusions || []).join('\n')) + '</textarea></label>' +
+      '<label class="field"><span>Payment terms</span><textarea class="input" id="edTerms" rows="2" maxlength="400"' + dis + '>' + esc(ed.terms) + '</textarea></label>' +
+      '<label class="field mb0"><span class="with-ico">' + ICON.lock + 'Private notes — only you see these</span><textarea class="input" id="edNotes" rows="3" maxlength="1500"' + dis + ' placeholder="Gate code, parking, what they said about budget…">' + esc(ed.notes) + '</textarea></label></section>' +
       '</div><div class="dk-sticky">' +
       // pricing
-      '<div class="card"><div class="card-head"><h3>Pricing</h3><span class="sub">Markup applies to non-labor lines</span></div>' +
-      '<div class="adj"><div><label for="edMarkup">Markup %</label><input class="input num" id="edMarkup" inputmode="decimal" value="' + esc(ed.markupPct) + '"' + (locked ? ' disabled' : '') + '></div>' +
-      '<div><label for="edTax">Tax %</label><input class="input num" id="edTax" inputmode="decimal" value="' + esc(ed.taxPct) + '"' + (locked ? ' disabled' : '') + '></div>' +
-      '<div><label for="edDisc">Discount $</label><input class="input num" id="edDisc" inputmode="decimal" value="' + esc(ed.discount || 0) + '"' + (locked ? ' disabled' : '') + '></div></div>' +
-      '<div id="totals" class="totals" style="margin-top:14px"></div>' +
-      '<div class="row spread small muted" style="margin-top:10px"><span>Valid for</span><span><input class="input num" id="edValid" inputmode="numeric" style="width:64px;padding:6px 8px;text-align:right;display:inline-block" value="' + esc(ed.validDays || 30) + '"' + (locked ? ' disabled' : '') + '> days</span></div></div>' +
+      '<section class="block"><div class="block-head"><h2>Pricing</h2><span class="small muted">Markup applies to non-labor lines</span></div>' +
+      '<div class="adj"><div><label for="edMarkup">Markup %</label><input class="input num" id="edMarkup" inputmode="decimal" value="' + esc(ed.markupPct) + '"' + dis + '></div>' +
+      '<div><label for="edTax">Tax %</label><input class="input num" id="edTax" inputmode="decimal" value="' + esc(ed.taxPct) + '"' + dis + '></div>' +
+      '<div><label for="edDisc">Discount $</label><input class="input num" id="edDisc" inputmode="decimal" value="' + esc(ed.discount || 0) + '"' + dis + '></div></div>' +
+      '<div id="totals" class="totals mt16"></div>' +
+      '<div class="row spread small muted mt12"><label for="edValid">Valid for</label><span><input class="input num valid-in" id="edValid" inputmode="numeric" value="' + esc(ed.validDays || 30) + '"' + dis + '> days</span></div></section>' +
       // customer
-      '<div class="group-title">Customer</div><div class="group">' +
-      '<div class="cell"><label for="ecName">Name</label><input id="ecName" maxlength="80" value="' + esc(ed.customer.name) + '"' + (locked ? ' disabled' : '') + '></div>' +
-      '<div class="cell"><label for="ecContact">Phone / email</label><input id="ecContact" maxlength="120" value="' + esc(ed.customer.contact) + '"' + (locked ? ' disabled' : '') + '></div>' +
-      '<div class="cell"><label for="ecAddr">Address</label><input id="ecAddr" maxlength="160" value="' + esc(ed.customer.address) + '"' + (locked ? ' disabled' : '') + '></div></div>' +
-      (q.description ? '<p class="hint">Your original notes: “' + esc(q.description.slice(0, 220)) + (q.description.length > 220 ? '…' : '') + '”</p>' : '') +
+      '<section class="block"><div class="block-head"><h2>Customer</h2></div><div class="group">' +
+      '<div class="cell"><label for="ecName">Name</label><input id="ecName" maxlength="80" value="' + esc(ed.customer.name) + '"' + dis + '></div>' +
+      '<div class="cell"><label for="ecContact">Phone / email</label><input id="ecContact" maxlength="120" value="' + esc(ed.customer.contact) + '"' + dis + '></div>' +
+      '<div class="cell"><label for="ecAddr">Address</label><input id="ecAddr" maxlength="160" value="' + esc(ed.customer.address) + '"' + dis + '></div></div>' +
+      (q.description ? '<p class="hint">Your original notes: “' + esc(q.description.slice(0, 220)) + (q.description.length > 220 ? '…' : '') + '”</p>' : '') + '</section>' +
       // follow-up
-      (q.sentAt && !locked ? '<div class="card follow" style="margin-top:12px"><div class="card-head"><h3>Follow up</h3><span class="sub">' + (q.viewedAt ? 'Opened ' + esc(timeAgo(q.viewedAt)) : 'Not opened yet') + '</span></div><div id="followBox"></div>' +
-        '<button class="btn small ghost block" id="followBtn">' + ICON.spark + ' ' + (q.followUp ? 'Write another' : 'Draft a follow-up') + '</button></div>' : '') +
+      (q.sentAt && !locked ? '<section class="block follow"><div class="block-head"><h2>Follow up</h2><span class="small muted">' + (q.viewedAt ? 'Opened ' + esc(timeAgo(q.viewedAt)) : 'Not opened yet') + '</span></div><div id="followBox"></div>' +
+        '<button type="button" class="btn small ghost block" id="followBtn">' + ICON.spark + (q.followUp ? 'Write another' : 'Draft a follow-up') + '</button></section>' : '') +
       // more
-      '<div class="group-title">More</div><div class="more-actions">' +
-      '<button class="btn ghost" id="dupBtn">Duplicate</button><button class="btn ghost" id="tplBtn">Save as template</button>' +
-      (q.sentAt && ['sent', 'viewed', 'changes', 'expired'].indexOf(q.status) >= 0 ? '<button class="btn ghost" id="wonBtn">🏆 Mark won</button><button class="btn ghost" id="lostBtn">Mark lost</button>' : '') +
-      (q.status === 'declined' ? '<button class="btn ghost" id="reopenBtn">Reopen</button>' : '') +
-      '<button class="btn danger" id="delBtn">Delete</button></div>' +
+      '<section class="block"><div class="block-head"><h2>More</h2></div><div class="more-actions">' +
+      '<button type="button" class="btn ghost" id="dupBtn">Duplicate</button><button type="button" class="btn ghost" id="tplBtn">Save as template</button>' +
+      (q.sentAt && ['sent', 'viewed', 'changes', 'expired'].indexOf(q.status) >= 0 ? '<button type="button" class="btn ghost" id="wonBtn">Mark won</button><button type="button" class="btn ghost" id="lostBtn">Mark lost</button>' : '') +
+      (q.status === 'declined' ? '<button type="button" class="btn ghost" id="reopenBtn">Reopen</button>' : '') +
+      '<button type="button" class="btn danger" id="delBtn">Delete</button></div></section>' +
       '</div></div>' +
       // action bar
-      '<div class="actionbar"><div class="sum"><b id="barTotal"></b><span id="saveState">' + (locked ? 'Accepted · locked' : 'All changes saved') + '</span></div>' +
-      (locked ? (q.publicUrl ? '<button class="btn" id="shareBtn">Share link</button>' : '') :
-        '<button class="btn ghost" id="saveBtn">Save</button><button class="btn" id="sendBtn">' + ICON.send + ' ' + (!q.sentAt ? 'Send' : q.status === 'changes' ? 'Send update' : 'Share') + '</button>') + '</div>';
+      '<div class="actionbar"><div class="sum"><b id="barTotal" class="num"></b><span id="saveState">' + (locked ? 'Accepted · locked' : 'All changes saved') + '</span></div>' +
+      (locked ? (q.publicUrl ? '<button type="button" class="btn" id="shareBtn">Share link</button>' : '') :
+        '<button type="button" class="btn ghost" id="saveBtn">Save</button><button type="button" class="btn" id="sendBtn">' + ICON.send + (!q.sentAt ? 'Send' : q.status === 'changes' ? 'Send update' : 'Share') + '</button>') + '</div>';
 
     drawTierTabs(); drawItems(); refreshTotals(); drawFollow();
     wireEditor();
@@ -955,17 +1273,17 @@
     var el = $('#tierTabs'); var meta = $('#tierMeta');
     if (!ed.tiers) { el.innerHTML = ''; meta.innerHTML = ''; list = 'base'; return; }
     var tot = computeTotals(ed).tiers;
-    el.innerHTML = '<div class="tier-tabs"><button data-list="base" class="' + (list === 'base' ? 'on' : '') + '">In every option<small>' + ed.items.length + ' lines</small></button>' +
+    el.innerHTML = '<div class="tier-tabs"><button type="button" data-list="base" class="' + (list === 'base' ? 'on' : '') + '">In every option<small>' + ed.items.length + ' lines</small></button>' +
       ed.tiers.map(function (t) {
-        return '<button data-list="' + t.key + '" class="' + (list === t.key ? 'on' : '') + '">' + esc({ good: 'Good', better: 'Better', best: 'Best' }[t.key]) + '<small>' + money0(tot[t.key].total) + '</small></button>';
+        return '<button type="button" data-list="' + t.key + '" class="' + (list === t.key ? 'on' : '') + '">' + esc({ good: 'Good', better: 'Better', best: 'Best' }[t.key]) + '<small class="num">' + money0(tot[t.key].total) + '</small></button>';
       }).join('') + '</div>';
     $$('[data-list]', el).forEach(function (b) { b.onclick = function () { list = b.dataset.list; drawTierTabs(); drawItems(); }; });
     if (list === 'base') {
-      meta.innerHTML = '<p class="small muted" style="margin:0 0 10px">Lines here are in all three options. Each option adds its own lines on top.</p>';
+      meta.innerHTML = '<p class="small muted">Lines here are in all three options. Each option adds its own lines on top.</p>';
     } else {
       var t = ed.tiers.filter(function (x) { return x.key === list; })[0];
-      meta.innerHTML = '<div class="tier-meta"><input class="input" id="tLabel" maxlength="40" placeholder="Option name" value="' + esc(t.label) + '"' + (q.locked ? ' disabled' : '') + '>' +
-        '<input class="input" id="tSummary" maxlength="280" placeholder="One line on what this option gets them" value="' + esc(t.summary) + '"' + (q.locked ? ' disabled' : '') + '></div>';
+      meta.innerHTML = '<div class="tier-meta"><input class="input" id="tLabel" maxlength="40" placeholder="Option name" aria-label="Option name" value="' + esc(t.label) + '"' + (q.locked ? ' disabled' : '') + '>' +
+        '<input class="input" id="tSummary" maxlength="280" placeholder="One line on what this option gets them" aria-label="Option summary" value="' + esc(t.summary) + '"' + (q.locked ? ' disabled' : '') + '></div>';
       $('#tLabel').oninput = function (e) { t.label = e.target.value; touch(); };
       $('#tSummary').oninput = function (e) { t.summary = e.target.value; touch(); };
     }
@@ -974,28 +1292,27 @@
   function itemRow(it, i, n) {
     var l = priceLine(it, ed.markupPct);
     var dis = q.locked ? ' disabled' : '';
-    return '<div class="item" data-i="' + i + '"><div class="top-row"><textarea class="desc" rows="1" data-f="description" maxlength="160" placeholder="What is it?"' + dis + '>' + esc(it.description) + '</textarea>' +
-      (q.locked ? '' : '<div class="ctl"><button data-act="up" aria-label="Move up"' + (i === 0 ? ' disabled style="opacity:.3"' : '') + '>' + ICON.up + '</button><button data-act="down" aria-label="Move down"' + (i === n - 1 ? ' disabled style="opacity:.3"' : '') + '>' + ICON.down + '</button><button data-act="rm" aria-label="Remove line">' + ICON.x + '</button></div>') + '</div>' +
-      '<div class="nums"><select data-f="category" aria-label="Category"' + dis + '>' + CAT_ORDER.map(function (c) { return '<option value="' + c + '"' + (c === it.category ? ' selected' : '') + '>' + CATS[c].emoji + ' ' + CATS[c].label + '</option>'; }).join('') + '</select>' +
+    return '<div class="item" data-i="' + i + '"><div class="top-row"><textarea class="desc" rows="1" data-f="description" maxlength="160" placeholder="What is it?" aria-label="Line ' + (i + 1) + ' description"' + dis + '>' + esc(it.description) + '</textarea>' +
+      (q.locked ? '' : '<div class="ctl"><button type="button" data-act="up" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '>' + ICON.up + '</button><button type="button" data-act="down" aria-label="Move down"' + (i === n - 1 ? ' disabled' : '') + '>' + ICON.down + '</button><button type="button" data-act="rm" aria-label="Remove line">' + ICON.x + '</button></div>') + '</div>' +
+      '<div class="nums"><select data-f="category" aria-label="Category"' + dis + '>' + CAT_ORDER.map(function (c) { return '<option value="' + c + '"' + (c === it.category ? ' selected' : '') + '>' + CATS[c].label + '</option>'; }).join('') + '</select>' +
       '<input class="n" data-f="qty" inputmode="decimal" aria-label="Quantity" value="' + esc(it.qty) + '"' + dis + '>' +
-      '<input class="n" data-f="unit" list="units" aria-label="Unit" style="text-align:left" maxlength="12" value="' + esc(it.unit) + '"' + dis + '>' +
+      '<input class="n unit" data-f="unit" list="units" aria-label="Unit" maxlength="12" value="' + esc(it.unit) + '"' + dis + '>' +
       '<div class="money-in"><input class="n" data-f="unitPrice" inputmode="decimal" aria-label="Unit price" value="' + esc(it.unitPrice) + '"' + dis + '></div>' +
-      '<div class="amt"><span data-amt>' + money(l.price) + '</span><small data-cost>' + (l.marked && ed.markupPct ? 'cost ' + money(l.cost) : '') + '</small></div></div></div>';
+      '<div class="amt"><span data-amt class="num">' + money(l.price) + '</span><small data-cost class="num">' + (l.marked && ed.markupPct ? 'cost ' + money(l.cost) : '') + '</small></div></div></div>';
   }
 
   function drawItems() {
     var items = listItems();
     var el = $('#items');
     el.innerHTML = (items.length ? items.map(function (it, i) { return itemRow(it, i, items.length); }).join('')
-      : '<div class="col-empty">' + (list === 'base' ? 'No lines yet.' : 'This option adds nothing on top — add what makes it worth more.') + '</div>') +
+      : '<p class="col-empty">' + (list === 'base' ? 'No lines yet.' : 'This option adds nothing on top — add what makes it worth more.') + '</p>') +
       '<datalist id="units">' + ((state.meta && state.meta.units) || []).map(function (u) { return '<option value="' + esc(u) + '">'; }).join('') + '</datalist>';
     $$('.item', el).forEach(function (row) {
       var i = Number(row.dataset.i);
       $$('[data-f]', row).forEach(function (inp) {
         var ev = inp.tagName === 'SELECT' ? 'change' : 'input';
         inp.addEventListener(ev, function () {
-          var f = inp.dataset.f;
-          items[i][f] = (f === 'qty' || f === 'unitPrice') ? inp.value : inp.value;
+          items[i][inp.dataset.f] = inp.value;
           if (inp.classList.contains('desc')) autoGrow(inp);
           var l = priceLine(items[i], ed.markupPct);
           $('[data-amt]', row).textContent = money(l.price);
@@ -1026,7 +1343,7 @@
       el.innerHTML = '<div class="tier-totals">' + ed.tiers.map(function (x) {
         return '<div><span>' + esc(x.label || x.key) + '</span><b>' + money0(t.tiers[x.key].total) + '</b></div>';
       }).join('') + '</div>' +
-        '<div class="r private" style="margin-top:8px"><span>Better: your cost ' + money0(h.cost) + '</span><span>margin ' + money0(h.margin) + '</span></div>';
+        '<div class="r private mt8"><span>' + ICON.lock + 'Better: your cost ' + money0(h.cost) + '</span><span>margin ' + money0(h.margin) + '</span></div>';
       var tabs = $$('#tierTabs [data-list] small');
       ed.tiers.forEach(function (x, i) { if (tabs[i + 1]) tabs[i + 1].textContent = money0(t.tiers[x.key].total); });
       if (tabs[0]) tabs[0].textContent = ed.items.length + ' lines';
@@ -1036,7 +1353,7 @@
         (s.discount ? '<div class="r"><span class="muted">Discount</span><span>−' + money(s.discount) + '</span></div>' : '') +
         '<div class="r"><span class="muted">Tax (' + esc(numIn(ed.taxPct, 30)) + '%)</span><span>' + money(s.tax) + '</span></div>' +
         '<div class="r big"><span>Total</span><span>' + money(s.total) + '</span></div>' +
-        '<div class="r private"><span>' + ICON.lock.replace('<svg', '<svg style="width:12px;height:12px;vertical-align:-1px"') + ' Your cost ' + money(s.cost) + '</span><span>Margin ' + money(s.margin) + '</span></div>';
+        '<div class="r private"><span>' + ICON.lock + 'Your cost ' + money(s.cost) + '</span><span>Margin ' + money(s.margin) + '</span></div>';
     }
     $('#bigTotal').innerHTML = money(h.total) + '<small>' + (t.tiers ? 'Better option' : 'incl. tax') + '</small>';
     $('#barTotal').textContent = money(h.total);
@@ -1045,13 +1362,13 @@
   function drawFollow() {
     var box = $('#followBox'); if (!box) return;
     var f = q.followUp;
-    if (!f) { box.innerHTML = '<p class="small muted" style="margin:0 0 10px">Quiet customer? A friendly nudge wins a surprising number of jobs.</p>'; return; }
+    if (!f) { box.innerHTML = '<p class="small muted">Quiet customer? A friendly nudge wins a surprising number of jobs.</p>'; return; }
     var phone = /[0-9]{3}/.test(ed.customer.contact || '') && !/@/.test(ed.customer.contact || '') ? ed.customer.contact.replace(/[^0-9+]/g, '') : '';
     var email = /@/.test(ed.customer.contact || '') ? ed.customer.contact : '';
-    box.innerHTML = '<div class="eyebrow" style="margin-bottom:6px">Text</div><div class="box">' + esc(f.sms) + '</div>' +
-      '<div class="row" style="margin:8px 0 14px"><button class="btn small ghost" data-copy="sms">Copy</button><a class="btn small ghost" href="sms:' + esc(phone) + '?&body=' + encodeURIComponent(f.sms) + '">Open Messages</a></div>' +
-      '<div class="eyebrow" style="margin-bottom:6px">Email · ' + esc(f.emailSubject) + '</div><div class="box">' + esc(f.emailBody) + '</div>' +
-      '<div class="row" style="margin:8px 0 12px"><button class="btn small ghost" data-copy="email">Copy</button><a class="btn small ghost" href="mailto:' + esc(email) + '?subject=' + encodeURIComponent(f.emailSubject) + '&body=' + encodeURIComponent(f.emailBody) + '">Open Mail</a></div>';
+    box.innerHTML = '<div class="eyebrow">Text</div><div class="box">' + esc(f.sms) + '</div>' +
+      '<div class="row mt8 mb16"><button type="button" class="btn small ghost" data-copy="sms">Copy</button><a class="btn small ghost" href="sms:' + esc(phone) + '?&body=' + encodeURIComponent(f.sms) + '">Open Messages</a></div>' +
+      '<div class="eyebrow">Email · ' + esc(f.emailSubject) + '</div><div class="box">' + esc(f.emailBody) + '</div>' +
+      '<div class="row mt8 mb12"><button type="button" class="btn small ghost" data-copy="email">Copy</button><a class="btn small ghost" href="mailto:' + esc(email) + '?subject=' + encodeURIComponent(f.emailSubject) + '&body=' + encodeURIComponent(f.emailBody) + '">Open Mail</a></div>';
     $$('[data-copy]', box).forEach(function (b) {
       b.onclick = function () { copy(b.dataset.copy === 'sms' ? f.sms : f.emailBody); };
     });
@@ -1096,7 +1413,7 @@
         ];
         list = 'better';
       }
-      tt.textContent = ed.tiers ? 'Remove options' : '＋ Good / Better / Best';
+      tt.textContent = ed.tiers ? 'Remove options' : 'Add Good / Better / Best';
       drawTierTabs(); drawItems(); touch();
     };
     var al = $('#addLine');
@@ -1109,10 +1426,10 @@
     $$('[data-tone]').forEach(function (b) {
       b.onclick = function () {
         var box = $('#suggest');
-        b.disabled = true; var was = b.innerHTML; b.innerHTML = '<span class="spinner" style="border-color:var(--fill2);border-top-color:var(--accent)"></span>';
+        b.disabled = true; var was = b.innerHTML; b.innerHTML = '<span class="spinner"></span>';
         api('POST', 'api/quotes/' + q.id + '/polish', { tone: b.dataset.tone, scope: ed.scope }).then(function (r) {
-          box.innerHTML = '<div class="suggest"><div class="lbl">✨ ' + (r.tone === 'friendly' ? 'Friendlier' : 'More professional') + '</div><div style="white-space:pre-wrap">' + esc(r.scope) + '</div>' +
-            '<div class="row" style="margin-top:10px"><button class="btn small" id="useSug">Use this</button><button class="btn small ghost" id="dropSug">Keep mine</button></div></div>';
+          box.innerHTML = '<div class="suggest"><div class="eyebrow">' + (r.tone === 'friendly' ? 'Friendlier' : 'More professional') + '</div><div class="pre">' + esc(r.scope) + '</div>' +
+            '<div class="row mt12"><button type="button" class="btn small" id="useSug">Use this</button><button type="button" class="btn small ghost" id="dropSug">Keep mine</button></div></div>';
           $('#useSug').onclick = function () { ed.scope = r.scope; $('#edScope').value = r.scope; autoGrow($('#edScope')); box.innerHTML = ''; touch(); };
           $('#dropSug').onclick = function () { box.innerHTML = ''; };
           loadMe();
@@ -1122,11 +1439,11 @@
 
     var fb = $('#followBtn');
     if (fb) fb.onclick = function () {
-      fb.disabled = true; fb.innerHTML = '<span class="spinner" style="border-color:var(--fill2);border-top-color:var(--accent)"></span> Writing…';
+      fb.disabled = true; fb.innerHTML = '<span class="spinner"></span>Writing…';
       api('POST', 'api/quotes/' + q.id + '/follow-up').then(function (f) {
         q.followUp = f; drawFollow(); loadMe();
-        fb.innerHTML = ICON.spark + ' Write another';
-      }).catch(function (e) { fb.innerHTML = ICON.spark + ' Draft a follow-up'; showError(e); }).then(function () { fb.disabled = false; });
+        fb.innerHTML = ICON.spark + 'Write another';
+      }).catch(function (e) { fb.innerHTML = ICON.spark + 'Draft a follow-up'; showError(e); }).then(function () { fb.disabled = false; });
     };
 
     var sv = $('#saveBtn'); if (sv) sv.onclick = function () { save().then(function () { toast('Saved.'); }); };
@@ -1206,15 +1523,15 @@
     var msg = 'Hi' + (first_ ? ' ' + first_ : '') + ', here’s your quote for ' + q.title + (p.name ? ' from ' + p.name : '') + '. You can pick an option and accept it right from your phone: ' + link;
     var phone = /[0-9]{3}/.test(q.customer.contact || '') && !/@/.test(q.customer.contact || '') ? q.customer.contact.replace(/[^0-9+]/g, '') : '';
     var email = /@/.test(q.customer.contact || '') ? q.customer.contact : '';
-    sheet('<h2>' + (first ? '🚀 Quote ready to send' : 'Share this quote') + '</h2>' +
+    sheet('<h2>' + (first ? 'Quote ready to send' : 'Share this quote') + '</h2>' +
       '<p class="muted small">' + (first ? 'The clock is running — valid until ' : 'Valid until ') + esc(dateFmt(q.validUntil)) + '. You’ll see here when they open it.</p>' +
-      '<div class="share-link"><span>' + esc(link) + '</span><button class="btn small" id="cpy">Copy</button></div>' +
+      '<div class="share-link"><span>' + esc(link) + '</span><button type="button" class="btn small" id="cpy">Copy</button></div>' +
       '<div class="share-grid">' +
-      '<a href="sms:' + esc(phone) + '?&body=' + encodeURIComponent(msg) + '"><span class="e">💬</span>Text</a>' +
-      '<a href="mailto:' + esc(email) + '?subject=' + encodeURIComponent('Your quote: ' + q.title) + '&body=' + encodeURIComponent(msg) + '"><span class="e">✉️</span>Email</a>' +
-      (navigator.share ? '<button id="natShare"><span class="e">📤</span>More…</button>' : '<a href="' + esc(link) + '" target="_blank" rel="noopener"><span class="e">👀</span>Preview</a>') +
+      '<a href="sms:' + esc(phone) + '?&body=' + encodeURIComponent(msg) + '">' + ICON.chat + 'Text</a>' +
+      '<a href="mailto:' + esc(email) + '?subject=' + encodeURIComponent('Your quote: ' + q.title) + '&body=' + encodeURIComponent(msg) + '">' + ICON.mail + 'Email</a>' +
+      (navigator.share ? '<button type="button" id="natShare">' + ICON.share + 'More</button>' : '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + ICON.eye + 'Preview</a>') +
       '</div>' +
-      (navigator.share ? '<a class="btn ghost block" style="margin-top:12px" href="' + esc(link) + '" target="_blank" rel="noopener">Preview as your customer</a>' : ''),
+      (navigator.share ? '<a class="btn ghost block mt12" href="' + esc(link) + '" target="_blank" rel="noopener">Preview as your customer</a>' : ''),
       function (root) {
         $('#cpy', root).onclick = function () { copy(link); };
         var ns = $('#natShare', root);
@@ -1226,35 +1543,33 @@
   /* ---------------- scoreboard ---------------- */
 
   function renderStats() {
-    if (!signedIn()) return signedOutPitch('🏆', 'Your win rate, front and center', 'Every quote you send is tracked: win rate, money won, how fast you quote, and a weekly streak to keep you quick.');
+    if (!signedIn()) return signedOutPitch('Your win rate, front and center', 'Every quote you send is tracked: win rate, money won, how fast you quote, and a weekly streak to keep you quick.');
     loading();
     api('GET', 'api/stats').then(function (s) {
       var c = 2 * Math.PI * 54;
       var wr = s.winRate == null ? 0 : s.winRate;
       var weeksOn = s.chart.map(function (w) { return w.count > 0; });
       view.innerHTML =
-        '<div class="page-head"><div><h1>Scoreboard</h1><div class="sub">' + (s.sentThisWeek ? s.sentThisWeek + ' sent this week — keep it rolling.' : 'Send one this week to keep the streak alive.') + '</div></div></div>' +
+        '<div class="page-head"><div><h1>Scoreboard</h1><p class="sub">' + (s.sentThisWeek ? s.sentThisWeek + ' sent this week — keep it rolling.' : 'Send one this week to keep the streak alive.') + '</p></div></div>' +
         '<div class="score-top">' +
-        '<div class="card ringbox"><div class="ring"><svg viewBox="0 0 132 132"><circle cx="66" cy="66" r="54" fill="none" stroke="var(--fill2)" stroke-width="12"/>' +
-        '<circle cx="66" cy="66" r="54" fill="none" stroke="url(#rg)" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + c + '" id="ringArc" style="transition:stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)"/>' +
-        '<defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent2)"/></linearGradient></defs></svg>' +
-        '<div class="val"><b>' + (s.winRate == null ? '—' : s.winRate + '%') + '</b><span>win rate</span></div></div>' +
-        '<div class="small muted" style="margin-top:8px">' + s.won + ' won of ' + s.decided + ' decided</div></div>' +
-        '<div class="card streak-card"><div><div class="flame">🔥</div><b>' + s.streakWeeks + '</b><span>week' + (s.streakWeeks === 1 ? '' : 's') + ' in a row with a quote out</span></div>' +
-        '<div class="wk" title="Last 8 weeks">' + weeksOn.map(function (on) { return '<i class="' + (on ? 'on' : '') + '"></i>'; }).join('') + '</div></div></div>' +
-        '<div class="kgrid">' +
-        kstat('💵', 'Total won', money0(s.totalWon), s.won + ' job' + (s.won === 1 ? '' : 's')) +
-        kstat('📤', 'Total quoted', money0(s.totalQuoted), s.sent + ' sent') +
-        kstat('⏳', 'Pipeline', money0(s.pipelineValue), 'open and unexpired') +
-        kstat('📏', 'Average quote', money0(s.averageQuote), 'across sent quotes') +
-        kstat('⚡', 'Time to send', durationFmt(s.avgMinutesToSend), 'from draft to sent') +
-        kstat('🗂️', 'Quotes', String(s.quotes), (s.byStatus.draft || 0) + ' in draft') +
-        '</div>' +
-        '<div class="card" style="margin-top:12px"><div class="card-head"><h3>Last 8 weeks</h3><div class="chart-legend"><span><i style="background:var(--c-quoted)"></i>Quoted</span><span><i style="background:var(--c-won)"></i>Won</span></div></div>' +
-        '<div class="chart" id="chart"></div><p class="tiny faint" style="margin:8px 0 0">By the week each quote was sent, so “won” is always part of “quoted”.</p></div>' +
-        '<div class="card" style="margin-top:12px"><div class="card-head"><h3>Where your quotes are</h3></div>' + statusBar(s.byStatus) + '</div>' +
-        (s.sent ? '' : '<div class="banner" style="margin-top:12px"><span class="e">💡</span><div>Your scoreboard fills in as you send quotes. <a href="#/new">Snap one now</a>.</div></div>');
-      requestAnimationFrame(function () { var a = $('#ringArc'); if (a) a.style.strokeDashoffset = c * (1 - wr / 100); });
+        '<div class="ringbox"><div class="ring"><svg viewBox="0 0 132 132" aria-hidden="true"><circle class="ring-track" cx="66" cy="66" r="54" fill="none" stroke-width="10"/>' +
+        '<circle class="ring-arc" cx="66" cy="66" r="54" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + (c * (1 - wr / 100)) + '"/></svg>' +
+        '<div class="val"><b class="num">' + (s.winRate == null ? '—' : s.winRate + '%') + '</b><span>win rate</span></div></div>' +
+        '<div class="small muted mt8">' + s.won + ' won of ' + s.decided + ' decided</div></div>' +
+        '<div class="streak-card"><div class="streak-n">' + ICON.flame + '<b class="num">' + s.streakWeeks + '</b></div><span class="small muted">week' + (s.streakWeeks === 1 ? '' : 's') + ' in a row with a quote out</span>' +
+        '<div class="wk" title="Last 8 weeks" role="img" aria-label="' + weeksOn.filter(Boolean).length + ' of the last 8 weeks had a quote sent">' + weeksOn.map(function (on) { return '<i class="' + (on ? 'on' : '') + '"></i>'; }).join('') + '</div></div></div>' +
+        '<dl class="kgrid">' +
+        kstat('Total won', money0(s.totalWon), s.won + ' job' + (s.won === 1 ? '' : 's')) +
+        kstat('Total quoted', money0(s.totalQuoted), s.sent + ' sent') +
+        kstat('Pipeline', money0(s.pipelineValue), 'open and unexpired') +
+        kstat('Average quote', money0(s.averageQuote), 'across sent quotes') +
+        kstat('Time to send', durationFmt(s.avgMinutesToSend), 'from draft to sent') +
+        kstat('Quotes', String(s.quotes), (s.byStatus.draft || 0) + ' in draft') +
+        '</dl>' +
+        '<section class="block"><div class="block-head"><h2>Last 8 weeks</h2><div class="chart-legend"><span><i class="lg-quoted"></i>Quoted</span><span><i class="lg-won"></i>Won</span></div></div>' +
+        '<div class="chart" id="chart"></div><p class="tiny muted mt8 mb0">By the week each quote was sent, so “won” is always part of “quoted”.</p></section>' +
+        '<section class="block"><div class="block-head"><h2>Where your quotes are</h2></div>' + statusBar(s.byStatus) + '</section>' +
+        (s.sent ? '' : '<div class="note mt16"><div>Your scoreboard fills in as you send quotes. <a href="#/new">Snap one now</a>.</div></div>');
       // Drawn at the container's real width, so 11px labels are 11px on a
       // phone and on a monitor rather than scaling with the viewBox.
       var drawChart = function () { var el = $('#chart'); if (!el) return window.removeEventListener('resize', drawChart); el.innerHTML = barChart(s.chart, el.clientWidth); wireChart(s.chart); };
@@ -1263,14 +1578,14 @@
     }).catch(function (e) { showError(e, view); });
   }
 
-  function kstat(icon, label, value, sub) {
-    return '<div class="kstat"><div class="l">' + icon + ' ' + esc(label) + '</div><div class="v">' + esc(value) + '</div><div class="s">' + esc(sub) + '</div></div>';
+  function kstat(label, value, sub) {
+    return '<div class="kstat"><dt>' + esc(label) + '</dt><dd><span class="v num">' + esc(value) + '</span><span class="s">' + esc(sub) + '</span></dd></div>';
   }
 
   /** Grouped bars: quoted vs won per week. One axis, rounded data-ends on the
    *  baseline, 2px gap between the pair, a hover tooltip per week. */
   function barChart(rows, width) {
-    var W = Math.max(280, Math.round(width || 640)), H = W < 500 ? 200 : 240, padL = 44, padR = 8, padT = 12, padB = 26;
+    var W = Math.max(260, Math.round(width || 640)), H = W < 500 ? 200 : 240, padL = 44, padR = 8, padT = 12, padB = 26;
     var max = Math.max.apply(null, rows.map(function (r) { return r.quoted; }).concat([1]));
     var step = Math.pow(10, Math.floor(Math.log10(max)));
     var nice = Math.ceil(max / step) * step; if (nice / step > 5) step *= 2; nice = Math.ceil(max / step) * step;
@@ -1279,23 +1594,23 @@
     var gw = iw / rows.length, bw = Math.max(6, Math.min(26, (gw - 16) / 2));
     var out = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Quoted and won value by week, last 8 weeks">';
     for (var g = 0; g <= nice; g += step) {
-      out += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(g) + '" y2="' + y(g) + '" stroke="var(--line)"/>' +
-        '<text x="' + (padL - 8) + '" y="' + (y(g) + 4) + '" text-anchor="end" font-size="11" fill="var(--faint)">' + moneyShort(g) + '</text>';
+      out += '<line class="ax" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(g) + '" y2="' + y(g) + '"/>' +
+        '<text class="axt" x="' + (padL - 8) + '" y="' + (y(g) + 4) + '" text-anchor="end">' + moneyShort(g) + '</text>';
     }
-    var bar = function (x, v, color) {
+    var bar = function (x, v, cls) {
       if (!v) return '';
       var top = y(v), h = padT + ih - top, r = Math.min(4, h);
       // Rounded top, square foot on the baseline.
-      return '<path d="M' + x + ',' + (padT + ih) + 'V' + (top + r) + 'Q' + x + ',' + top + ' ' + (x + r) + ',' + top + 'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + top + ' ' + (x + bw) + ',' + (top + r) + 'V' + (padT + ih) + 'Z" fill="' + color + '"/>';
+      return '<path class="' + cls + '" d="M' + x + ',' + (padT + ih) + 'V' + (top + r) + 'Q' + x + ',' + top + ' ' + (x + r) + ',' + top + 'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + top + ' ' + (x + bw) + ',' + (top + r) + 'V' + (padT + ih) + 'Z"/>';
     };
     rows.forEach(function (r, i) {
       var cx = padL + gw * i + gw / 2;
-      out += bar(cx - bw - 1, r.quoted, 'var(--c-quoted)') + bar(cx + 1, r.won, 'var(--c-won)');
+      out += bar(cx - bw - 1, r.quoted, 'b-quoted') + bar(cx + 1, r.won, 'b-won');
       var d = new Date(r.week + 'T00:00:00Z');
-      if (W >= 500 || i % 2 === 1) out += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="var(--faint)">' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) + '</text>';
+      if (W >= 500 || i % 2 === 1) out += '<text class="axt" x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle">' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) + '</text>';
       out += '<rect class="hit" data-w="' + i + '" x="' + (padL + gw * i) + '" y="' + padT + '" width="' + gw + '" height="' + ih + '" rx="6"/>';
     });
-    out += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + (padT + ih) + '" y2="' + (padT + ih) + '" stroke="var(--fill2)"/></svg>';
+    out += '<line class="ax base" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + (padT + ih) + '" y2="' + (padT + ih) + '"/></svg>';
     return out;
   }
 
@@ -1307,7 +1622,7 @@
         var r = rows[Number(h.dataset.w)];
         var bb = h.getBoundingClientRect(), cb = box.getBoundingClientRect();
         tip.innerHTML = '<div>Week of ' + esc(new Date(r.week + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })) + '</div>' +
-          '<div><i style="background:var(--c-quoted)"></i>Quoted ' + money0(r.quoted) + ' · ' + r.count + '</div><div><i style="background:var(--c-won)"></i>Won ' + money0(r.won) + '</div>';
+          '<div><i class="lg-quoted"></i>Quoted ' + money0(r.quoted) + ' · ' + r.count + '</div><div><i class="lg-won"></i>Won ' + money0(r.won) + '</div>';
         tip.style.left = Math.max(70, Math.min(cb.width - 70, bb.left - cb.left + bb.width / 2)) + 'px';
         tip.style.top = (bb.top - cb.top + 8) + 'px';
         tip.classList.remove('hidden');
@@ -1319,13 +1634,13 @@
   }
 
   function statusBar(by) {
-    var parts = [['draft', 'Draft', 'var(--faint)'], ['sent', 'Sent', 'var(--blue)'], ['viewed', 'Viewed', 'var(--violet)'], ['changes', 'Changes', 'var(--warn)'], ['accepted', 'Won', 'var(--good)'], ['declined', 'Declined', 'var(--bad)'], ['expired', 'Expired', 'var(--faint)']];
+    var parts = [['draft', 'Draft'], ['sent', 'Sent'], ['viewed', 'Viewed'], ['changes', 'Changes'], ['accepted', 'Won'], ['declined', 'Declined'], ['expired', 'Expired']];
     var total = parts.reduce(function (a, p) { return a + (by[p[0]] || 0); }, 0);
-    if (!total) return '<p class="small muted" style="margin:0">No quotes yet.</p>';
-    return '<div class="stack-bar">' + parts.filter(function (p) { return by[p[0]]; }).map(function (p) {
-      return '<i style="width:' + (by[p[0]] / total * 100) + '%;background:' + p[2] + '" title="' + p[1] + ': ' + by[p[0]] + '"></i>';
+    if (!total) return '<p class="small muted mb0">No quotes yet.</p>';
+    return '<div class="stack-bar" role="img" aria-label="Quotes by status">' + parts.filter(function (p) { return by[p[0]]; }).map(function (p) {
+      return '<i class="sb-' + p[0] + '"' + css({ w: (by[p[0]] / total * 100) + '%' }) + ' title="' + p[1] + ': ' + by[p[0]] + '"></i>';
     }).join('') + '</div><div class="legend">' + parts.filter(function (p) { return by[p[0]]; }).map(function (p) {
-      return '<span><i style="background:' + p[2] + '"></i>' + p[1] + ' <b style="color:var(--text)">' + by[p[0]] + '</b></span>';
+      return '<span><i class="sb-' + p[0] + '"></i>' + p[1] + ' <b class="num">' + by[p[0]] + '</b></span>';
     }).join('') + '</div>';
   }
 
@@ -1335,44 +1650,73 @@
   var LOGOS = ['🎨', '🌿', '🔧', '🧽', '🏠', '🚰', '⚡', '📷', '🎉', '🪚', '🧱', '🪴', '🛠️', '✨', '🌊', '☀️'];
 
   function renderBusiness() {
-    if (!signedIn()) return signedOutPitch('🏷️', 'Your brand on every quote', 'Name, logo, colors, license number, rates and terms — set once, on every quote you send.');
+    if (!signedIn()) return signedOutPitch('Your brand on every quote', 'Name, logo, colors, license number, rates and terms — set once, on every quote you send.');
     var p = clone(profile());
+    p.rates = (p.rates || []).map(function (r) { return clone(r); });
     var meta = state.meta || { trades: {} };
+    var maxRates = meta.maxRates || 40;
     view.innerHTML =
-      '<div class="page-head"><div><h1>Business</h1><div class="sub">How every quote looks and adds up.</div></div></div>' +
+      '<div class="page-head"><div><h1>Business</h1><p class="sub">How every quote looks and adds up.</p></div></div>' +
       '<div class="dk-2"><div>' +
       '<div class="brand-preview" id="bprev"></div>' +
-      '<div class="group-title">Identity</div><div class="group">' +
+      '<section class="block"><div class="block-head"><h2>Identity</h2></div><div class="group">' +
       '<div class="cell"><label for="bName">Business name</label><input id="bName" maxlength="60" placeholder="Brightline Painting Co." value="' + esc(p.name) + '"></div>' +
-      '<div class="cell"><label for="bTrade">Trade</label><select id="bTrade">' + Object.keys(meta.trades).map(function (k) { return '<option value="' + k + '"' + (k === p.trade ? ' selected' : '') + '>' + meta.trades[k].emoji + ' ' + esc(meta.trades[k].label) + '</option>'; }).join('') + '</select></div>' +
-      '<div class="cell"><label for="bLogo">Logo</label><input id="bLogo" maxlength="4" placeholder="Emoji or initials" value="' + esc(p.logo) + '"></div>' +
-      '<div class="logos" id="logos">' + LOGOS.map(function (l) { return '<button data-logo="' + l + '" class="' + (l === p.logo ? 'on' : '') + '">' + l + '</button>'; }).join('') + '</div>' +
-      '<div class="cell" style="border-top:1px solid var(--line)"><span class="lbl">Brand color</span></div>' +
-      '<div class="swatches" id="swatches">' + SWATCHES.map(function (c) { return '<button data-c="' + c + '" style="background:' + c + '" class="' + (c === p.color ? 'on' : '') + '" aria-label="' + c + '"></button>'; }).join('') +
-      '<label title="Custom color"><input type="color" id="bColor" value="' + esc(p.color) + '"></label></div></div>' +
-      '<div class="group-title">Contact (shown on quotes)</div><div class="group">' +
+      '<div class="cell"><label for="bTrade">Trade</label><select id="bTrade">' + Object.keys(meta.trades).map(function (k) { return '<option value="' + k + '"' + (k === p.trade ? ' selected' : '') + '>' + esc(meta.trades[k].label) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="cell"><label for="bLogo">Logo</label><input id="bLogo" maxlength="4" placeholder="Emoji or initials" value="' + esc(p.logo) + '"></div></div>' +
+      '<div class="logos" id="logos" role="group" aria-label="Pick a logo">' + LOGOS.map(function (l) { return '<button type="button" data-logo="' + l + '" class="' + (l === p.logo ? 'on' : '') + '">' + l + '</button>'; }).join('') + '</div>' +
+      '<p class="lbl mt16">Brand color</p>' +
+      '<div class="swatches" id="swatches" role="group" aria-label="Brand color">' + SWATCHES.map(function (c) { return '<button type="button" data-c="' + c + '"' + css({ c: c }) + ' class="' + (c === p.color ? 'on' : '') + '" aria-label="' + c + '"></button>'; }).join('') +
+      '<label title="Custom color" class="custom-color"><span class="vh">Custom color</span><input type="color" id="bColor" value="' + esc(p.color) + '"></label></div></section>' +
+      '<section class="block"><div class="block-head"><h2>Contact</h2><span class="small muted">Shown on quotes</span></div><div class="group">' +
       '<div class="cell"><label for="bPhone">Phone</label><input id="bPhone" type="tel" maxlength="30" placeholder="(555) 555-0100" value="' + esc(p.phone) + '"></div>' +
       '<div class="cell"><label for="bEmail">Email</label><input id="bEmail" type="email" maxlength="120" placeholder="hello@yourbusiness.com" value="' + esc(p.email) + '"></div>' +
-      '<div class="cell"><label for="bLic">License #</label><input id="bLic" maxlength="40" placeholder="Optional" value="' + esc(p.license) + '"></div></div>' +
+      '<div class="cell"><label for="bLic">License #</label><input id="bLic" maxlength="40" placeholder="Optional" value="' + esc(p.license) + '"></div></div></section>' +
       '</div><div class="dk-sticky">' +
-      '<div class="group-title">Money</div><div class="group">' +
+      '<section class="block"><div class="block-head"><h2>Money</h2></div><div class="group">' +
       '<div class="cell"><label for="bRate">Hourly rate</label><input id="bRate" inputmode="decimal" value="' + esc(p.hourlyRate) + '"><span class="unit">$/hr</span></div>' +
       '<div class="cell"><label for="bMarkup">Markup</label><input id="bMarkup" inputmode="decimal" value="' + esc(p.markupPct) + '"><span class="unit">%</span></div>' +
       '<div class="cell"><label for="bTax">Sales tax</label><input id="bTax" inputmode="decimal" value="' + esc(p.taxPct) + '"><span class="unit">%</span></div>' +
       '<div class="cell"><label for="bValid">Quotes valid</label><input id="bValid" inputmode="numeric" value="' + esc(p.validDays) + '"><span class="unit">days</span></div></div>' +
-      '<p class="hint">Markup is added to materials, equipment and other lines — never to labor, which your rate already covers. Customers see the marked-up price only.</p>' +
-      '<div class="group-title">Payment terms</div><div class="group"><div class="cell stack"><textarea id="bTerms" maxlength="400" rows="3">' + esc(p.terms) + '</textarea></div></div>' +
-      '<div id="bErr"></div><button class="btn block lg" id="bSave" style="margin-top:16px">Save</button>' +
-      '<div class="group-title">Account</div><div class="card"><div class="row spread"><div><b class="small">' + esc(state.me.email) + '</b><div class="tiny muted">' + (state.me.tier === 'paid' ? 'Member · Sonnet' : 'Free · Haiku') + '</div></div><button class="btn small ghost" id="acct">Manage</button></div></div>' +
-      '</div></div>';
+      '<p class="hint">Markup is added to materials, equipment and other lines — never to labor, which your rate already covers. Customers see the marked-up price only.</p></section>' +
+      '<section class="block"><div class="block-head"><h2>Price list</h2><span class="small muted num" id="rateCount"></span></div>' +
+      '<p class="small muted">What things cost you, per unit. ' + (voiceOn() ? 'When a job is read from photos and a voice note, each line is priced from this list first, then your templates and past quotes, then your hourly rate. The AI never sets a price.' : 'Kept with your business so every quote starts from your own numbers.') + '</p>' +
+      '<div id="rateRows" class="rates"></div><button type="button" class="add-line" id="rateAdd">' + ICON.plus + 'Add a price</button></section>' +
+      '<section class="block"><div class="block-head"><h2>Payment terms</h2></div><label class="vh" for="bTerms">Payment terms</label><textarea class="input" id="bTerms" maxlength="400" rows="3">' + esc(p.terms) + '</textarea></section>' +
+      '<div id="bErr"></div><button type="button" class="btn block lg mt16" id="bSave">Save</button>' +
+      '<section class="block"><div class="block-head"><h2>Account</h2></div><div class="row spread"><div class="grow wrap-any"><b class="small">' + esc(state.me.email) + '</b><div class="tiny muted">' + (state.me.tier === 'paid' ? 'Member · Sonnet' : 'Free · Haiku') + '</div></div><button type="button" class="btn small ghost" id="acct">Manage</button></div></section>' +
+      '</div></div>' +
+      '<datalist id="units">' + (meta.units || []).map(function (u) { return '<option value="' + esc(u) + '">'; }).join('') + '</datalist>';
 
     var preview = function () {
-      var ink = inkFor(p.color);
-      $('#bprev').innerHTML = '<div class="qdoc" style="--brand:' + esc(p.color) + ';--brand-ink:' + ink + ';border-radius:0;border:0;box-shadow:none"><div class="qd-head"><div class="qd-biz"><div class="qd-logo">' + esc(p.logo || initials(p.name || 'Your Business')) + '</div><div><h2>' + esc(p.name || 'Your business name') + '</h2>' +
+      $('#bprev').innerHTML = '<div class="qdoc flat"' + brandCss(p.color) + '><div class="qd-head"><div class="qd-biz"><div class="qd-logo">' + esc(p.logo || initials(p.name || 'Your Business')) + '</div><div><h2>' + esc(p.name || 'Your business name') + '</h2>' +
         '<div class="sub">' + [(meta.trades[p.trade] || {}).label, p.license].filter(Boolean).map(esc).join(' · ') + '</div></div></div>' +
-        '<div class="qd-contact">' + (p.phone ? '<a>' + ICON.phone + esc(p.phone) + '</a>' : '') + (p.email ? '<a>' + ICON.mail + esc(p.email) + '</a>' : '') + (!p.phone && !p.email ? '<a>This is how your quotes will look</a>' : '') + '</div></div></div>';
+        '<div class="qd-contact">' + (p.phone ? '<span>' + ICON.phone + esc(p.phone) + '</span>' : '') + (p.email ? '<span>' + ICON.mail + esc(p.email) + '</span>' : '') + (!p.phone && !p.email ? '<span>This is how your quotes will look</span>' : '') + '</div></div></div>';
     };
     preview();
+
+    var drawRates = function () {
+      $('#rateCount').textContent = p.rates.length + ' of ' + maxRates;
+      $('#rateAdd').disabled = p.rates.length >= maxRates;
+      $('#rateRows').innerHTML = p.rates.length ? p.rates.map(function (r, i) {
+        return '<div class="rate" data-i="' + i + '"><div class="rate-top"><input class="input" data-r="name" maxlength="80" placeholder="e.g. Eggshell wall paint" aria-label="Price ' + (i + 1) + ' name" value="' + esc(r.name) + '">' +
+          '<button type="button" class="icon-btn" data-rrm aria-label="Remove price ' + (i + 1) + '">' + ICON.x + '</button></div>' +
+          '<div class="rate-nums"><select data-r="category" aria-label="Kind">' + CAT_ORDER.map(function (c) { return '<option value="' + c + '"' + (c === r.category ? ' selected' : '') + '>' + CATS[c].label + '</option>'; }).join('') + '</select>' +
+          '<div class="money-in"><input class="n" data-r="unitPrice" inputmode="decimal" aria-label="Your price" placeholder="0" value="' + esc(r.unitPrice || '') + '"></div>' +
+          '<span class="per">per</span><input class="n unit" data-r="unit" list="units" maxlength="12" aria-label="Unit" value="' + esc(r.unit) + '"></div></div>';
+      }).join('') : '<p class="col-empty">No prices yet. Add what you buy and charge for most.</p>';
+      $$('#rateRows .rate').forEach(function (row) {
+        var r = p.rates[Number(row.dataset.i)];
+        $$('[data-r]', row).forEach(function (inp) { inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', function () { r[inp.dataset.r] = inp.value; }); });
+        $('[data-rrm]', row).onclick = function () { p.rates.splice(Number(row.dataset.i), 1); drawRates(); };
+      });
+    };
+    drawRates();
+    $('#rateAdd').onclick = function () {
+      p.rates.push({ name: '', category: 'material', unit: 'ea', unitPrice: '' });
+      drawRates();
+      var ins = $$('#rateRows [data-r=name]'); if (ins.length) ins[ins.length - 1].focus();
+    };
+
     var bind = function (sel, key, ev) { $(sel).addEventListener(ev || 'input', function (e) { p[key] = e.target.value; preview(); }); };
     bind('#bName', 'name'); bind('#bTrade', 'trade', 'change'); bind('#bLogo', 'logo'); bind('#bPhone', 'phone'); bind('#bEmail', 'email'); bind('#bLic', 'license');
     bind('#bRate', 'hourlyRate'); bind('#bMarkup', 'markupPct'); bind('#bTax', 'taxPct'); bind('#bValid', 'validDays'); bind('#bTerms', 'terms');
@@ -1383,8 +1727,8 @@
     $('#bSave').onclick = function () {
       var btn = this; btn.disabled = true;
       api('PUT', 'api/profile', p).then(function (np) {
-        state.me.profile = np; drawTop(); toast('Saved. Every quote wears it now.');
-        if (!state.nf) state.nf = null;
+        state.me.profile = np; p.rates = (np.rates || []).map(function (r) { return clone(r); }); drawRates();
+        drawTop(); toast('Saved. Every quote wears it now.');
       }).catch(function (e) { showError(e, $('#bErr')); }).then(function () { btn.disabled = false; });
     };
   }
@@ -1402,7 +1746,7 @@
   // Inside the lab, a way back to it. Never on a customer's quote page.
   if (BASE !== '/' && !PUB) {
     var lab = document.createElement('a');
-    lab.href = '/'; lab.className = 'pill'; lab.textContent = '🧪 Lab'; lab.style.textDecoration = 'none'; lab.style.color = 'var(--muted)';
+    lab.href = '/'; lab.className = 'lab-link'; lab.textContent = 'Lab';
     lab.title = 'Back to the challenge lab';
     var brandEl = document.querySelector('.top .brand');
     brandEl.parentNode.insertBefore(lab, brandEl.nextSibling);
