@@ -6,9 +6,10 @@
  * GloveboxCore, run here. Receipt photos are shrunk and kept in this
  * browser's IndexedDB. The warning-light finder is a catalogue in the page
  * (GloveboxLights) and makes no request. The only requests this page makes
- * are the account's and the one AI call ("Read my dashboard" / "Read a
- * receipt"), which sends one shrunk photo, signed in, and only when the
- * person taps Read it.
+ * are the account's and the AI calls - "Read my dashboard" / "Read a receipt"
+ * (one shrunk photo) and "Light or noise?" (one shrunk photo and/or at most
+ * 15 seconds of sound) - signed in, and only when the person taps the button.
+ * No photo or recording is ever stored, here or on the server.
  *
  * Every string that was typed (a nickname, a shop, a note), imported, or came
  * back from the server is escaped before it is drawn, and no handler is
@@ -28,9 +29,78 @@
   var esc = C.esc, plural = C.plural;
   var TZ = (function () { try { return C.cleanTz(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) { return 'UTC'; } })();
   var LOCALE = (navigator.languages && navigator.languages[0]) || navigator.language || 'en-US';
-  var TABS = [['next', '🔧', 'Next'], ['log', '🧾', 'Log'], ['lights', '⚠️', 'Lights'], ['report', '📄', 'History'], ['more', '⚙️', 'More']];
+  var X = window.GloveboxDiagnose;
+  var TABS = [['next', 'next', 'Next'], ['log', 'log', 'Log'], ['lights', 'lights', 'Lights'], ['report', 'report', 'History'], ['more', 'more', 'More']];
   var PHOTO_PX = 1600, RECEIPT_PX = 1400;
-  var GROUP_ICON = { red: '🛑', amber: '⚠️', info: 'ℹ️' };
+
+  /* Line icons: 24px, 1.5px strokes, drawn in the text colour. */
+  var CIRCLE = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z';
+  var DROP = 'M12 3.5s6 6.2 6 10.5a6 6 0 0 1-12 0c0-4.3 6-10.5 6-10.5z';
+  var WRENCH = 'M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.1-.4-.4-2.1z';
+  var ICONS = {
+    next: WRENCH, tool: WRENCH,
+    log: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+    lights: 'M12 4 2.8 19.5h18.4zM12 10v4.5M12 17.2v.1',
+    report: 'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',
+    more: CIRCLE + 'M8 12h.01M12 12h.01M16 12h.01',
+    dots: 'M6 12h.01M12 12h.01M18 12h.01',
+    car: 'M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11M4 11h16v6H4zM7 17v2M17 17v2M7.5 14h.01M16.5 14h.01',
+    plug: 'M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4',
+    plus: 'M12 5v14M5 12h14', chev: 'M9 6l6 6-6 6', back: 'M15 6l-6 6 6 6', check: 'M5 12.5l4.5 4.5L19 7.5',
+    clock: CIRCLE + 'M12 7.5V12l3 2',
+    calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+    alert: CIRCLE + 'M12 7.5v5M12 16v.1',
+    ok: CIRCLE + 'M8 12.5l3 3 5-6',
+    stop: 'M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3zM12 8v4.5M12 16v.1',
+    info: CIRCLE + 'M12 11v5.5M12 7.8v.1',
+    unsure: CIRCLE + 'M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8M12 16.6v.1',
+    no: CIRCLE + 'M9 9l6 6M15 9l-6 6',
+    ban: CIRCLE + 'M5.6 5.6l12.8 12.8',
+    camera: 'M4 8h3l1.5-2h7L17 8h3v11H4zM12 16.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z',
+    mic: 'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4',
+    square: 'M7 7h10v10H7z',
+    spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z',
+    book: 'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10',
+    lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+    search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l4.5 4.5',
+    bulb: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.3 1 2.1h5c0-.8.4-1.6 1-2.1A6 6 0 0 0 12 3z',
+    receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',
+    trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+    pencil: 'M4 20l1-4L16.5 4.5l3 3L8 19zM14.5 6.5l3 3',
+    user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20a7.5 7.5 0 0 1 15 0',
+    box: 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8',
+    ruler: 'M3 16L16 3l5 5L8 21zM7 12l2 2M10 9l2 2M13 6l2 2',
+    coins: CIRCLE + 'M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1.1 0-2-.4-2.5-1.2M12 6.5V8M12 16v1.5',
+    share: 'M12 15V4M8 7.5L12 4l4 3.5M5 12v8h14v-8',
+    earlier: 'M4 12a8 8 0 1 0 2.6-5.9M4 4v4h4M12 8v4l3 2',
+    gauge: 'M4 16a8 8 0 1 1 16 0M12 16l4-5',
+    clip: 'M8 12.5l5.5-5.5a2.5 2.5 0 0 1 3.5 3.5L10 17.5a4 4 0 0 1-5.7-5.7L11 5',
+    wrenchmech: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20a7.5 7.5 0 0 1 15 0M9.5 16.5l2.5 2 2.5-2',
+    // the plan's sixteen items
+    oil: DROP, brakefluid: DROP + 'M9 14.5h6',
+    rotate: 'M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5',
+    tyres: CIRCLE + 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
+    brakes: CIRCLE + 'M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM7 9.5a5.5 5.5 0 0 1 10 0',
+    coolant: 'M12 4a2 2 0 0 0-2 2v8.3a4 4 0 1 0 4 0V6a2 2 0 0 0-2-2zM12 10v6',
+    airfilter: 'M3 9h10a3 3 0 1 0-3-3M3 14h15a3 3 0 1 1-3 3',
+    cabin: 'M5 19c0-8 5-13 14-14 0 9-4 14-12 14zM5 19l7-7',
+    plugs: 'M13 3L5 13.5h6L10 21l8-10.5h-6z',
+    fuelfilter: 'M5 20V5h8v15M4 20h10M7 8h4v3H7zM13 10h2.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V9l-2.5-2.5',
+    timing: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1',
+    battery: 'M3 8h18v11H3zM7 8V5.5h3V8M14 8V5.5h3V8M6.5 13.5h3M14.5 13.5h3M16 12v3',
+    wipers: 'M3 18a14 14 0 0 1 18 0M12 18L18 7',
+    inspection: 'M7 5h10v16H7zM10 3h4v4h-4zM9.5 13l2 2 3.5-4',
+    registration: 'M3 6h18v12H3zM7 11h4M7 14h3M15.5 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+    insurance: 'M12 3l7 3v5.5c0 4.2-2.8 7.6-7 9.5-4.2-1.9-7-5.3-7-9.5V6z',
+  };
+  function ic(name, cls) {
+    return '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (ICONS[name] || ICONS.tool) + '"/></svg>';
+  }
+  var CHEV = '<span class="chev" aria-hidden="true">' + ic('chev') + '</span>';
+  function itemIc(it) { return ic(ICONS[it.id] ? it.id : 'tool'); }
+  var GROUP_ICON = { red: ic('stop'), amber: ic('lights'), info: ic('info') };
+  var BAND_ICON = { overdue: 'alert', soon: 'clock', coming: 'calendar', good: 'ok' };
+  function bandIcon(id) { return ic(BAND_ICON[id] || 'info'); }
   var LIT = { red: 'lit-red', amber: 'lit-amber', green: 'lit-green', blue: 'lit-blue' };
   var BAND_SUB = { overdue: 'Past the miles or the date - book these in', soon: 'Within about a month', coming: 'In the next few months' };
 
@@ -46,6 +116,7 @@
     lights: { group: null, q: '', id: null },
     report: { costs: false, notes: false, link: null, linkFor: null, dropped: 0 },
     add: null,
+    dx: null,
     day: null,
     storageWarned: false,
   };
@@ -225,15 +296,16 @@
     var c = car();
     var overdue = c ? C.board(c, today()).overdue.length : 0;
     var tabOn = state.tab === 'light' ? 'lights' : state.tab === 'plan' || state.tab === 'add' ? (state.tab === 'add' ? 'next' : 'more') : state.tab;
-    var html = '<nav class="tabbar dk-tabbar" aria-label="Sections"><div class="tabbar-inner"><a class="rail-brand" href="./#start" data-act="home"><span aria-hidden="true">🧤</span>Glovebox</a>' + TABS.map(function (t) {
+    var html = '<nav class="tabbar" aria-label="Sections"><div class="tabbar-inner">' + TABS.map(function (t) {
       var on = t[0] === tabOn;
-      return '<a class="tab' + (on ? ' on' : '') + '" href="#' + t[0] + '" data-act="tab" data-tab="' + t[0] + '"' + (on ? ' aria-current="page"' : '') + '><span aria-hidden="true">' + t[1] + '</span>' + t[2] +
+      return '<a class="tab' + (on ? ' on' : '') + '" href="#' + t[0] + '" data-act="tab" data-tab="' + t[0] + '"' + (on ? ' aria-current="page"' : '') + '>' + ic(t[1]) + '<span class="tl">' + t[2] + '</span>' +
         (t[0] === 'next' && overdue ? '<em class="badge" aria-label="' + overdue + ' overdue">' + overdue + '</em>' : '') + '</a>';
     }).join('') + '</div></nav>';
     if (isDemo() && state.tab !== 'lights' && state.tab !== 'light') html += '<div class="strip"><p><b>The example garage.</b> Tap away - nothing here is saved.</p><button class="btn small light" type="button" data-act="mine">Start my own</button></div>';
+    if (state.tab === 'add' || state.tab === 'plan' || state.tab === 'light' || state.tab === 'more' || state.tab === 'report') html += '<div class="narrow">';
     var body = state.tab === 'next' ? nextHtml() : state.tab === 'log' ? logHtml() : state.tab === 'lights' ? lightsHtml() : state.tab === 'light' ? lightHtml() :
       state.tab === 'report' ? reportHtml() : state.tab === 'add' ? addHtml() : state.tab === 'plan' ? planHtml() : moreHtml();
-    main.innerHTML = html + body + footer();
+    main.innerHTML = html + body + (/<div class="narrow">$/.test(html) ? '</div>' : '') + footer();
     wire();
   }
   function footer() {
@@ -248,17 +320,19 @@
   /* ---------------- first run ---------------- */
 
   function litSvg(id, colour) { var l = L.light(id); return '<span class="lit ' + LIT[colour || l.colour] + '">' + L.svg(l) + '</span>'; }
+  function dxOn() { return Boolean(state.me && state.me.diagnose); }
   function startHtml() {
     var have = state.mine && state.mine.cars.length;
     return '<section class="hero"><div class="cluster" aria-hidden="true">' + litSvg('check-engine') + litSvg('oil-pressure') + litSvg('tpms') +
-      '<span class="gauge"><b>OIL</b>in 3 wks</span></div>' +
+      '<span class="gauge">Oil change in 3 weeks</span></div>' +
       '<h1>Know what your car needs next.</h1>' +
-      '<p class="lede">Glovebox keeps your car’s service plan and history on your phone, tells you what’s due - by miles or months, whichever comes first - and what that light on the dashboard means.</p></section>' +
+      '<p class="lede">Your car’s service plan and history, on your phone. What’s due - by miles or months, whichever comes first - and what that light on the dashboard means.</p>' +
+      '<div class="btns">' + (have ? '<button class="btn" type="button" data-act="mine">Open my garage</button>' : '<button class="btn" type="button" data-act="addcar">Add my car</button>') +
+      '<button class="btn ghost" type="button" data-act="example">See an example</button></div></section>' +
       '<div class="choices">' +
-      (have ? '<button class="choice primary" type="button" data-act="mine"><span class="ci" aria-hidden="true">🚗</span><span class="ct"><b>My garage</b><span>' + esc(plural(state.mine.cars.length, 'car')) + ' on this phone</span></span><span class="chev" aria-hidden="true">›</span></button>' : '') +
-      '<button class="choice' + (have ? '' : ' primary') + '" type="button" data-act="example"><span class="ci" aria-hidden="true">🚙</span><span class="ct"><b>See an example garage</b><span>A family SUV with three years of history - one thing overdue - and an old hatchback</span></span><span class="chev" aria-hidden="true">›</span></button>' +
-      (have ? '' : '<button class="choice" type="button" data-act="addcar"><span class="ci" aria-hidden="true">➕</span><span class="ct"><b>Add my car</b><span>On this phone. No account, nothing uploaded.</span></span><span class="chev" aria-hidden="true">›</span></button>') +
-      '<button class="choice" type="button" data-act="lights"><span class="ci" aria-hidden="true">⚠️</span><span class="ct"><b>What’s this warning light?</b><span>Pick the colour, then the shape - 42 lights explained, free</span></span><span class="chev" aria-hidden="true">›</span></button>' +
+      '<button class="choice" type="button" data-act="lights"><span class="ci" aria-hidden="true">' + ic('lights') + '</span><span class="ct"><b>What’s this warning light?</b><span>Pick the colour, then the shape. 42 lights explained, free.</span></span>' + CHEV + '</button>' +
+      (dxOn() ? '<button class="choice" type="button" data-act="dx"><span class="ci" aria-hidden="true">' + ic('mic') + '</span><span class="ct"><b>Light or noise? Ask AI</b><span>Snap the light or record the noise for a likely cause and how urgent it is.</span></span>' + CHEV + '</button>' : '') +
+      (have ? '<button class="choice" type="button" data-act="addcar"><span class="ci" aria-hidden="true">' + ic('plus') + '</span><span class="ct"><b>Add another car</b><span>' + esc(plural(state.mine.cars.length, 'car')) + ' on this phone so far.</span></span>' + CHEV + '</button>' : '') +
       '</div>' +
       '<section class="card"><h2>How it works</h2><ol class="steps">' +
       '<li><span class="sn">1</span><span><b>Tell it about your car.</b> Make, model, fuel and what the odometer says. Glovebox builds a plan - oil, ' + esc(sp('tyres')) + ', brakes, filters, battery, renewals - and skips what doesn’t apply (no oil changes on an EV).</span></li>' +
@@ -274,14 +348,14 @@
     if (!cs.length) return '';
     var c = car();
     return '<div class="cars noprint" role="group" aria-label="Your cars">' + cs.map(function (x) {
-      return '<button class="carchip" type="button" data-act="car" data-id="' + esc(x.id) + '" aria-pressed="' + (x.id === c.id) + '"><span aria-hidden="true">' + (x.fuel === 'ev' ? '🔌' : '🚗') + '</span><span class="cn">' + esc(C.carName(x)) + '</span></button>';
-    }).join('') + (isDemo() ? '' : '<button class="carchip add" type="button" data-act="addcar">+ Add a car</button>') + '</div>';
+      return '<button class="carchip" type="button" data-act="car" data-id="' + esc(x.id) + '" aria-pressed="' + (x.id === c.id) + '">' + ic(x.fuel === 'ev' ? 'plug' : 'car') + '<span class="cn">' + esc(C.carName(x)) + '</span></button>';
+    }).join('') + (isDemo() ? '' : '<button class="carchip add" type="button" data-act="addcar">' + ic('plus') + 'Add a car</button>') + '</div>';
   }
 
   /* ---------------- Next ---------------- */
 
   function emptyHtml() {
-    return '<div class="card empty"><div class="big" aria-hidden="true">🚗</div><p><b>No car yet.</b></p><p class="muted small">Add yours - it takes a minute - and Glovebox works out what’s due.</p><button class="btn" type="button" data-act="addcar">Add my car</button> <button class="btn ghost" type="button" data-act="example">See the example</button></div>';
+    return '<div class="empty"><div class="big" aria-hidden="true">' + ic('car') + '</div><p><b>No car yet.</b></p><p class="muted small">Add yours - it takes a minute - and Glovebox works out what’s due.</p><button class="btn" type="button" data-act="addcar">Add my car</button> <button class="btn ghost" type="button" data-act="example">See the example</button></div>';
   }
   function odoHtml(c, b) {
     var pc = b.pace;
@@ -296,32 +370,32 @@
     var t = today(), u = units();
     var b = C.board(c, t);
     var pc = b.pace;
-    var head = '<section class="card"><div class="carhead"><div class="cm"><h1>' + esc(C.carName(c)) + '</h1><p class="sub">' + esc([c.nick ? C.carTitle(c) : '', C.fuelWord(c.fuel, region())].filter(Boolean).join(' · ')) + '</p></div>' + odoHtml(c, b) + '</div>' +
+    var head = '<section><div class="carhead"><div class="cm"><h1>' + esc(C.carName(c)) + '</h1><p class="sub">' + esc([c.nick ? C.carTitle(c) : '', C.fuelWord(c.fuel, region())].filter(Boolean).join(' · ')) + '</p></div>' + odoHtml(c, b) + '</div>' +
       '<p class="paceline">' + esc(C.paceText(pc, u)) + (pc.lower ? ' · ' + esc(plural(pc.lower, 'reading')) + ' lower than an earlier one set aside' : '') + '</p>' +
-      (pc.stale && pc.latest ? '<div class="warnbox"><span aria-hidden="true">🕒</span><span>The last odometer reading was ' + esc(C.agoWords(pc.age)) + '. Update it so the due dates stay right.</span><button class="btn small" type="button" data-act="reading">Update mileage</button></div>'
-        : '<div class="btns"><button class="btn small ghost" type="button" data-act="reading">Update mileage</button><button class="btn small ghost" type="button" data-act="logsvc">+ Log a service</button></div>') +
+      (pc.stale && pc.latest ? '<div class="warnbox"><span class="icw" aria-hidden="true">' + ic('clock') + '</span><span>The last odometer reading was ' + esc(C.agoWords(pc.age)) + '. Update it so the due dates stay right.</span><button class="btn small" type="button" data-act="reading">Update mileage</button></div>'
+        : '<div class="btns"><button class="btn small ghost" type="button" data-act="reading">Update mileage</button><button class="btn small ghost" type="button" data-act="logsvc">Log a service</button></div>') +
       '</section>';
     head += '<section class="card"><p class="headline">' + esc(C.headline(c, t, u, region())) + '</p><div class="bchips">' + C.BANDS.map(function (bd) {
       var n = b[bd.id].length;
-      return n ? '<a class="bchip b-' + bd.id + '" href="#band-' + bd.id + '" data-act="jump" data-band="' + bd.id + '"><span aria-hidden="true">' + bd.icon + '</span><b>' + n + '</b> ' + esc(bd.label.toLowerCase()) + '</a>' : '';
+      return n ? '<a class="bchip b-' + bd.id + '" href="#band-' + bd.id + '" data-act="jump" data-band="' + bd.id + '">' + bandIcon(bd.id) + '<b>' + n + '</b> ' + esc(bd.label.toLowerCase()) + '</a>' : '';
     }).join('') + '</div></section>';
     if (c.belt === 'unsure' && c.fuel !== 'ev') {
-      head += '<section class="card ask"><h2>⚙️ Timing belt or chain?</h2><p class="small muted">If it has a belt, it’s replaced on a schedule (often every 100,000 km / 60,000 miles or 5-7 years) - and one that snaps can wreck the engine. Your manual or any garage can tell you which it has.</p><div class="btns"><button class="btn small" type="button" data-act="belt" data-v="belt">It has a belt</button><button class="btn small ghost" type="button" data-act="belt" data-v="chain">It has a chain</button></div></section>';
+      head += '<section class="card box"><h2>' + ic('timing') + 'Timing belt or chain?</h2><p class="small muted">If it has a belt, it’s replaced on a schedule (often every 100,000 km / 60,000 miles or 5-7 years) - and one that snaps can wreck the engine. Your manual or any garage can tell you which it has.</p><div class="btns"><button class="btn small" type="button" data-act="belt" data-v="belt">It has a belt</button><button class="btn small ghost" type="button" data-act="belt" data-v="chain">It has a chain</button></div></section>';
     }
     var bands = ['overdue', 'soon', 'coming'].map(function (id) { return bandHtml(c, id, b[id]); }).join('');
     var other = b.overdue.length + b.soon.length + b.coming.length;
-    if (b.good.length) bands += '<details class="band b-good" id="band-good"' + (other ? '' : ' open') + '><summary class="bhead"><span class="btag"><span aria-hidden="true">✅</span>All good · ' + b.good.length + '</span><span class="small fold-show">Show ›</span><span class="small fold-hide">Hide</span></summary><ul class="ilist">' +
+    if (b.good.length) bands += '<details class="band b-good" id="band-good"' + (other ? '' : ' open') + '><summary class="bhead"><span class="btag">' + bandIcon('good') + 'All good · ' + b.good.length + '</span><span class="small fold-show">Show</span><span class="small fold-hide">Hide</span></summary><ul class="ilist">' +
       b.good.map(function (st) { return '<li>' + compactRow(st) + '</li>'; }).join('') + '</ul></details>';
-    if (b.none.length) bands += '<section class="card"><h2>🗓️ Renewals with no date yet</h2><p class="small muted">Give Glovebox the dates and they join the board (and your calendar file).</p><ul class="ilist">' + b.none.map(function (st) {
-      return '<li><button class="irow-compact" type="button" data-act="setdate" data-item="' + st.item.id + '"><span class="ie" aria-hidden="true">' + esc(st.item.emoji) + '</span><span class="ib"><span class="iname">' + esc(sp(st.item.name)) + '</span><span class="imeta">Tap to add the date</span></span><span class="chev" aria-hidden="true">›</span></button></li>';
+    if (b.none.length) bands += '<section class="card"><h2>' + ic('calendar') + 'Renewals with no date yet</h2><p class="small muted">Give Glovebox the dates and they join the board (and your calendar file).</p><ul class="ilist">' + b.none.map(function (st) {
+      return '<li><button class="irow-compact" type="button" data-act="setdate" data-item="' + st.item.id + '"><span class="ie" aria-hidden="true">' + itemIc(st.item) + '</span><span class="ib"><span class="iname">' + esc(sp(st.item.name)) + '</span><span class="imeta">Tap to add the date</span></span>' + CHEV + '</button></li>';
     }).join('') + '</ul></section>';
-    bands += '<p class="manual"><span aria-hidden="true">📘</span><span><b>Your manual wins.</b> These are generic intervals - <button class="link-btn" type="button" data-act="tab" data-tab="plan" style="padding:0;min-height:0">change any of them</button> to match your owner’s manual or how you drive.</span></p>';
+    bands += '<p class="manual">' + ic('book') + '<span><b>Your manual wins.</b> These are generic intervals - <button class="link-btn inline" type="button" data-act="tab" data-tab="plan">change any of them</button> to match your owner’s manual or how you drive.</span></p>';
     return '<div class="boardgrid"><div>' + carsBar() + head + bands + '</div><aside class="side">' + sideCards(c) + '</aside></div>';
   }
   function bandHtml(c, id, list) {
     if (!list.length) return '';
     var bd = C.BANDS.filter(function (x) { return x.id === id; })[0];
-    return '<section class="band b-' + id + '" id="band-' + id + '"><div class="bhead"><h2 class="btag"><span aria-hidden="true">' + bd.icon + '</span>' + esc(bd.label) + ' · ' + list.length + '</h2><span class="small">' + esc(BAND_SUB[id]) + '</span></div><ul class="ilist">' +
+    return '<section class="band b-' + id + '" id="band-' + id + '"><div class="bhead"><h2 class="btag">' + bandIcon(bd.id) + esc(bd.label) + ' · ' + list.length + '</h2><span class="small">' + esc(BAND_SUB[id]) + '</span></div><ul class="ilist">' +
       list.map(function (st) { return '<li>' + itemCard(c, st) + '</li>'; }).join('') + '</ul></section>';
   }
   function lastLine(st) {
@@ -337,23 +411,23 @@
     var it = st.item, t = today();
     var meta = lastLine(st);
     var rule = C.dueRule(st, units(), t);
-    return '<div class="icard b-' + st.band + '"><div class="irow"><span class="ie" aria-hidden="true">' + esc(it.emoji) + '</span><div class="ib"><span class="iname">' + esc(sp(it.name)) + '</span><span class="idue">' + esc(C.dueText(st, units(), t)) + '</span>' +
+    return '<div class="icard b-' + st.band + '"><div class="irow"><span class="ie" aria-hidden="true">' + itemIc(it) + '</span><div class="ib"><span class="iname">' + esc(sp(it.name)) + '</span><span class="idue">' + esc(C.dueText(st, units(), t)) + '</span>' +
       (meta ? '<span class="imeta">' + esc(meta) + '</span>' : '') +
       (st.unknown ? '<span class="imeta"><span class="norec">No record</span> counted from when you added the car</span>' : '') + '</div></div>' +
-      (rule ? '<p class="rule">' + esc(rule) + '</p>' : '') +
-      '<div class="iacts"><button class="pa done" type="button" data-act="done" data-item="' + it.id + '"><span aria-hidden="true">✓</span>' + (it.kind === 'date' ? 'Renewed' : 'Done') + '</button>' +
-      '<button class="pa icon" type="button" data-act="itemmore" data-item="' + it.id + '" aria-label="More about ' + esc(sp(it.name)) + '">⋯</button></div></div>';
+      '<div class="iacts"><button class="pa done" type="button" data-act="done" data-item="' + it.id + '">' + ic('check') + (it.kind === 'date' ? 'Renewed' : 'Done') + '</button>' +
+      '<button class="pa icon" type="button" data-act="itemmore" data-item="' + it.id + '" aria-label="More about ' + esc(sp(it.name)) + '">' + ic('dots') + '</button></div>' +
+      (rule ? '<p class="rule">' + esc(rule) + '</p>' : '') + '</div>';
   }
   function compactRow(st) {
     var it = st.item;
-    return '<button class="irow-compact" type="button" data-act="itemmore" data-item="' + it.id + '"><span class="ie" aria-hidden="true">' + esc(it.emoji) + '</span><span class="ib"><span class="iname">' + esc(sp(it.name)) + '</span><span class="imeta">' + esc(C.dueText(st, units(), today())) + (st.unknown ? ' · no record' : '') + '</span></span><span class="chev" aria-hidden="true">›</span></button>';
+    return '<button class="irow-compact" type="button" data-act="itemmore" data-item="' + it.id + '"><span class="ie" aria-hidden="true">' + itemIc(it) + '</span><span class="ib"><span class="iname">' + esc(sp(it.name)) + '</span><span class="imeta">' + esc(C.dueText(st, units(), today())) + (st.unknown ? ' · no record' : '') + '</span></span>' + CHEV + '</button>';
   }
   function sideCards(c) {
     var k = C.costs(c, today(), cur());
-    var costCard = !k.count ? '<section class="card"><h2>💸 What it’s cost</h2><p class="small muted">Add a cost when you log a service and Glovebox keeps the totals - this year, all time, and per ' + (units() === 'mi' ? 'mile' : 'km') + '.</p><button class="btn small ghost" type="button" data-act="logsvc">Log a service</button></section>' : '';
-    return costCard + (k.count ? '<section class="card"><h2>💸 What it’s cost</h2><div class="stats"><div class="stat"><b>' + esc(bigMoney(k.year)) + '</b><span>this year</span></div><div class="stat"><b>' + esc(bigMoney(k.all)) + '</b><span>all logged</span></div><div class="stat"><b>' + (k.perKm ? esc(money(units() === 'mi' ? k.perKm * C.KM_PER_MI : k.perKm)) : '-') + '</b><span>per ' + (units() === 'mi' ? 'mile' : 'km') + '</span></div></div><div class="btns"><button class="btn small ghost" type="button" data-act="tab" data-tab="log">The service log</button></div></section>' : '') +
-      '<section class="card"><h2>⚠️ A light just came on?</h2><p class="small muted">Pick its colour, then its shape. Red means stop safely.</p><button class="btn small" type="button" data-act="tab" data-tab="lights">Look it up</button></section>' +
-      '<section class="card"><h2>🤝 Selling it?</h2><p class="small muted">Hand the buyer a tidy service history in one link.</p><button class="btn small ghost" type="button" data-act="tab" data-tab="report">Make the history</button></section>';
+    var costCard = !k.count ? '<section class="card"><h2>What it’s cost</h2><p class="small muted">Add a cost when you log a service and Glovebox keeps the totals - this year, all time, and per ' + (units() === 'mi' ? 'mile' : 'km') + '.</p><button class="btn small ghost" type="button" data-act="logsvc">Log a service</button></section>' : '';
+    return costCard + (k.count ? '<section class="card"><h2>What it’s cost</h2><div class="stats"><div class="stat"><b>' + esc(bigMoney(k.year)) + '</b><span>this year</span></div><div class="stat"><b>' + esc(bigMoney(k.all)) + '</b><span>all logged</span></div><div class="stat"><b>' + (k.perKm ? esc(money(units() === 'mi' ? k.perKm * C.KM_PER_MI : k.perKm)) : '-') + '</b><span>per ' + (units() === 'mi' ? 'mile' : 'km') + '</span></div></div><div class="btns"><button class="btn small ghost" type="button" data-act="tab" data-tab="log">The service log</button></div></section>' : '') +
+      '<section class="card"><h2>A light just came on?</h2><p class="small muted">Pick its colour, then its shape. Red means stop safely.</p><div class="row"><button class="btn small ghost" type="button" data-act="tab" data-tab="lights">Look it up</button>' + (dxOn() ? '<button class="btn small ghost" type="button" data-act="dx">' + ic('mic', 's') + 'Light or noise?</button>' : '') + '</div></section>' +
+      '<section class="card"><h2>Selling it?</h2><p class="small muted">Hand the buyer a tidy service history in one link.</p><button class="btn small ghost" type="button" data-act="tab" data-tab="report">Make the history</button></section>';
   }
 
   /* ---------------- sheets for an item, a reading, a service ---------------- */
@@ -364,22 +438,22 @@
     var st = C.statusOf(c, it, today());
     var iv = st.iv;
     var every = it.kind === 'date' ? 'Every ' + plural(iv.months || 12, 'month') : 'Every ' + [iv.km ? dist(iv.km, { step: 100 }) : '', iv.months ? plural(iv.months, 'month') : ''].filter(Boolean).join(' or ') + (iv.km && iv.months ? ', whichever comes first' : '');
-    var html = '<h2>' + esc(it.emoji) + ' ' + esc(sp(it.name)) + '</h2>' +
+    var html = '<h2>' + itemIc(it) + esc(sp(it.name)) + '</h2>' +
       (st.band !== 'off' && st.band !== 'none' ? '<p><b>' + esc(C.dueText(st, units(), today())) + '</b></p>' : '') +
       '<p class="small">' + esc(sp(it.why)) + '</p>' +
-      '<div class="note"><div class="row spread"><span><b>' + esc(every) + '</b>' + (iv.custom ? ' <span class="small muted">(your setting)</span>' : '') + '</span><button class="btn small ghost" type="button" data-act="planitem" data-item="' + id + '">Change</button></div><p class="small muted" style="margin:6px 0 0">A generic interval - your owner’s manual wins.</p></div>' +
+      '<div class="note"><div class="row spread"><span><b>' + esc(every) + '</b>' + (iv.custom ? ' <span class="small muted">(your setting)</span>' : '') + '</span><button class="btn small ghost" type="button" data-act="planitem" data-item="' + id + '">Change</button></div><p class="small muted mt8 mb0">A generic interval - your owner’s manual wins.</p></div>' +
       '<ul class="menu">' +
-      (it.kind === 'date' ? '<li><button type="button" data-act="setdate" data-item="' + id + '"><span class="mi" aria-hidden="true">🗓️</span><span>Set the date it’s due<small>From the renewal letter or your insurer</small></span></button></li>' : '') +
-      '<li><button type="button" data-act="done" data-item="' + id + '"><span class="mi" aria-hidden="true">✓</span><span>' + (it.kind === 'date' ? 'Renewed - log it' : 'Done - log it') + '<small>With the date, mileage and cost</small></span></button></li>' +
-      '<li><button type="button" data-act="donepast" data-item="' + id + '"><span class="mi" aria-hidden="true">🕰️</span><span>It was done earlier<small>Tell Glovebox when it was last done</small></span></button></li>' +
-      '<li><button type="button" data-act="trackoff" data-item="' + id + '"><span class="mi" aria-hidden="true">🚫</span><span>Stop tracking this<small>You can turn it back on in the plan</small></span></button></li>' +
+      (it.kind === 'date' ? '<li><button type="button" data-act="setdate" data-item="' + id + '"><span class="mi" aria-hidden="true">' + ic('calendar') + '</span><span>Set the date it’s due<small>From the renewal letter or your insurer</small></span></button></li>' : '') +
+      '<li><button type="button" data-act="done" data-item="' + id + '"><span class="mi" aria-hidden="true">' + ic('check') + '</span><span>' + (it.kind === 'date' ? 'Renewed - log it' : 'Done - log it') + '<small>With the date, mileage and cost</small></span></button></li>' +
+      '<li><button type="button" data-act="donepast" data-item="' + id + '"><span class="mi" aria-hidden="true">' + ic('earlier') + '</span><span>It was done earlier<small>Tell Glovebox when it was last done</small></span></button></li>' +
+      '<li><button type="button" data-act="trackoff" data-item="' + id + '"><span class="mi" aria-hidden="true">' + ic('ban') + '</span><span>Stop tracking this<small>You can turn it back on in the plan</small></span></button></li>' +
       '</ul>';
     sheet(html);
   }
   function readingSheet(prefill) {
     var c = car(); if (!c) return;
     var pc = C.paceOf(c, today());
-    sheet('<h2>🧭 Update mileage</h2><p class="small muted">What does the odometer say? ' + (pc.latest ? 'Last reading: ' + esc(dist(pc.latest.km)) + ' on ' + esc(C.dateLabel(pc.latest.d, today())) + '.' : '') + ' A reading every few weeks keeps the mileage-based dates right.</p>' +
+    sheet('<h2>' + ic('gauge') + 'Update mileage</h2><p class="small muted">What does the odometer say? ' + (pc.latest ? 'Last reading: ' + esc(dist(pc.latest.km)) + ' on ' + esc(C.dateLabel(pc.latest.d, today())) + '.' : '') + ' A reading every few weeks keeps the mileage-based dates right.</p>' +
       '<form id="rdForm"><label class="field"><span>Odometer</span><span class="unitwrap"><input class="input" name="km" inputmode="decimal" autocomplete="off" required placeholder="' + (pc.latest ? esc(C.num(C.fromKm(pc.est, units()))) : '') + '" value="' + (prefill ? esc(prefill) : '') + '"><span class="u">' + esc(units()) + '</span></span></label>' +
       '<label class="field"><span>Date</span><input class="input" type="date" name="d" value="' + today() + '" max="' + today() + '"></label><div id="rdErr" aria-live="polite"></div><button class="btn block" type="submit">Save the reading</button></form>', function (root) {
       var force = false;
@@ -391,7 +465,7 @@
         if (r instanceof Error) {
           if (r.code === 'lower' || r.code === 'jump') {
             force = true;
-            $('#rdErr', root).innerHTML = '<p class="warnbox"><span aria-hidden="true">⚠️</span><span>' + esc(r.message) + '</span></p>';
+            $('#rdErr', root).innerHTML = '<p class="warnbox"><span class="icw" aria-hidden="true">' + ic('lights') + '</span><span>' + esc(r.message) + '</span></p>';
             $('button[type=submit]', root).textContent = 'Save it anyway';
           } else $('#rdErr', root).innerHTML = '<p class="err" role="alert">' + esc(r.message) + '</p>';
         }
@@ -402,7 +476,7 @@
     var c = car(); var it = C.item(id);
     if (!c || !it) return;
     var cur0 = c.dates[id] || '';
-    sheet('<h2>' + esc(it.emoji) + ' ' + esc(sp(it.name)) + '</h2><p class="small muted">' + esc(sp(it.why)) + '</p><form id="sdForm"><label class="field"><span>Next due</span><input class="input" type="date" name="d" value="' + esc(cur0) + '" required></label><div id="sdErr"></div><button class="btn block" type="submit">Save the date</button>' +
+    sheet('<h2>' + itemIc(it) + esc(sp(it.name)) + '</h2><p class="small muted">' + esc(sp(it.why)) + '</p><form id="sdForm"><label class="field"><span>Next due</span><input class="input" type="date" name="d" value="' + esc(cur0) + '" required></label><div id="sdErr"></div><button class="btn block" type="submit">Save the date</button>' +
       (cur0 ? '<div class="btns"><button class="link-btn danger" type="button" id="sdClear">Clear the date</button></div>' : '') + '</form>', function (root) {
       $('#sdForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -425,20 +499,20 @@
     var kmTxt = p.km != null ? C.num(C.fromKm(p.km, units())) : '';
     var pc = C.paceOf(c, t);
     var photo = p.photo || null;
-    var html = '<h2>' + esc(p.title || '🧾 Log a service') + '</h2>' + (p.intro ? '<p class="small muted">' + esc(p.intro) + '</p>' : '') +
-      (p.photo || p.past ? '' : '<p class="small"><button class="link-btn" type="button" data-act="read" data-kind="receipt" style="padding:0;min-height:0">✨ Snap the receipt and let AI fill this in</button></p>') +
+    var html = '<h2>' + ic(p.icon || 'receipt') + esc(p.title || 'Log a service') + '</h2>' + (p.intro ? '<p class="small muted">' + esc(p.intro) + '</p>' : '') +
+      (p.photo || p.past ? '' : '<p class="small"><button class="link-btn" type="button" data-act="read" data-kind="receipt">' + ic('spark', 's') + 'Snap the receipt and let AI fill this in</button></p>') +
       '<form id="logForm"><div class="two"><label class="field"><span>Date</span><input class="input" type="date" name="d" value="' + esc(p.d || (p.past ? '' : t)) + '" max="' + t + '" required></label>' +
       '<label class="field"><span>Odometer then <small>optional</small></span><span class="unitwrap"><input class="input" name="km" inputmode="decimal" autocomplete="off" value="' + esc(kmTxt) + '" placeholder="' + (pc.latest && !p.past ? '≈ ' + esc(C.num(C.fromKm(pc.est, units()))) : '') + '"><span class="u">' + esc(units()) + '</span></span></label></div>' +
       '<fieldset class="field"><legend>What was done</legend><div class="checks">' + all.map(function (it) {
-        return '<label class="check"><input type="checkbox" name="items" value="' + it.id + '"' + (pick.indexOf(it.id) >= 0 ? ' checked' : '') + '><span aria-hidden="true">' + esc(it.emoji) + '</span>' + esc(sp(it.short)) + '</label>';
+        return '<label class="check"><input type="checkbox" name="items" value="' + it.id + '"' + (pick.indexOf(it.id) >= 0 ? ' checked' : '') + '>' + esc(sp(it.short)) + '</label>';
       }).join('') + '</div></fieldset>' +
       '<label class="field"><span>Anything else <small>optional</small></span><input class="input" name="other" maxlength="' + C.LIMITS.other + '" value="' + esc(p.other || '') + '" placeholder="Front brake pads, a new headlight bulb…"></label>' +
       '<div class="two"><label class="field"><span>Cost <small>' + esc(p.cur && p.cur !== cur() ? p.cur : cur()) + ', optional</small></span><input class="input" name="cost" inputmode="decimal" autocomplete="off" value="' + (p.cost != null ? esc(String(p.cost)) : '') + '"></label>' +
       '<label class="field"><span>Shop <small>optional</small></span><input class="input" name="shop" maxlength="' + C.LIMITS.shop + '" value="' + esc(p.shop || '') + '" autocomplete="organization"></label></div>' +
       '<label class="field"><span>Note <small>optional</small></span><textarea class="input" name="note" maxlength="' + C.LIMITS.note + '" placeholder="Anything worth remembering">' + esc(p.note || '') + '</textarea></label>' +
       (isDemo() ? '' : (photo ? '<label class="toggle"><input type="checkbox" name="keepPhoto" checked> Keep the receipt photo on this phone (never uploaded)</label>'
-        : '<label class="btn small ghost" style="cursor:pointer">📎 Add a receipt photo<input class="vh" type="file" accept="image/*" id="logPhoto"></label> <span class="small muted" id="logPhotoNote">Stays on this phone.</span>')) +
-      (p.curNote ? '<p class="warnbox"><span aria-hidden="true">💱</span><span>' + esc(p.curNote) + '</span></p>' : '') +
+        : '<label class="btn small ghost filelabel">' + ic('clip', 's') + 'Add a receipt photo<input class="vh" type="file" accept="image/*" id="logPhoto"></label> <span class="small muted" id="logPhotoNote">Stays on this phone.</span>')) +
+      (p.curNote ? '<p class="warnbox"><span class="icw" aria-hidden="true">' + ic('coins') + '</span><span>' + esc(p.curNote) + '</span></p>' : '') +
       '<div id="logErr" aria-live="polite"></div><button class="btn block" type="submit">Add to the log</button></form>';
     sheet(html, function (root) {
       var f = $('#logPhoto', root);
@@ -515,7 +589,7 @@
     receipts.get(sid).then(function (r) {
       if (!r || !r.blob) return;
       var u = URL.createObjectURL(r.blob);
-      sheet('<h2>🧾 Receipt</h2><img class="preview" style="max-height:70vh" src="' + esc(u) + '" alt="The receipt photo"><p class="small muted">Kept on this phone only - never uploaded, and left out of the history you share.</p><div class="btns"><button class="btn ghost danger" type="button" id="delRc">Delete the photo</button></div>', function (root) {
+      sheet('<h2>' + ic('receipt') + 'Receipt</h2><img class="preview tall" src="' + esc(u) + '" alt="The receipt photo"><p class="small muted">Kept on this phone only - never uploaded, and left out of the history you share.</p><div class="btns"><button class="btn ghost danger" type="button" id="delRc">Delete the photo</button></div>', function (root) {
         $('#delRc', root).addEventListener('click', function () {
           receipts.del(sid).then(function () {
             var c = car();
@@ -536,22 +610,22 @@
     var t = today();
     var k = C.costs(c, t, cur());
     var per = k.perKm ? money(units() === 'mi' ? k.perKm * C.KM_PER_MI : k.perKm) : '-';
-    var html = carsBar() + '<div class="sec-head"><h1>Service log</h1><div class="row"><button class="btn small" type="button" data-act="logsvc">+ Log a service</button><button class="btn small ghost" type="button" data-act="read" data-kind="receipt">✨ Read a receipt</button></div></div>';
-    html += '<section class="card"><div class="stats"><div class="stat"><b>' + esc(bigMoney(k.year)) + '</b><span>this year · ' + esc(plural(k.yearCount, 'entry', 'entries')) + '</span></div><div class="stat"><b>' + esc(bigMoney(k.all)) + '</b><span>all logged</span></div><div class="stat"><b>' + esc(per) + '</b><span>per ' + (units() === 'mi' ? 'mile' : 'km') + '</span></div></div>' +
-      '<p class="small muted" style="margin:10px 0 0">' + (k.perKm ? 'Per ' + (units() === 'mi' ? 'mile' : 'km') + ' over the ' + esc(dist(k.distance, { step: 100 })) + ' your readings cover since the first cost.' : 'Cost per ' + (units() === 'mi' ? 'mile' : 'km') + ' appears once costs and a few readings are logged.') +
+    var html = carsBar() + '<div class="sec-head"><h1>Service log</h1><div class="row"><button class="btn small" type="button" data-act="logsvc">Log a service</button><button class="btn small ghost" type="button" data-act="read" data-kind="receipt">' + ic('spark', 's') + 'Read a receipt</button></div></div>';
+    html += '<section><div class="stats"><div class="stat"><b>' + esc(bigMoney(k.year)) + '</b><span>this year · ' + esc(plural(k.yearCount, 'entry', 'entries')) + '</span></div><div class="stat"><b>' + esc(bigMoney(k.all)) + '</b><span>all logged</span></div><div class="stat"><b>' + esc(per) + '</b><span>per ' + (units() === 'mi' ? 'mile' : 'km') + '</span></div></div>' +
+      '<p class="small muted mt12 mb0">' + (k.perKm ? 'Per ' + (units() === 'mi' ? 'mile' : 'km') + ' over the ' + esc(dist(k.distance, { step: 100 })) + ' your readings cover since the first cost.' : 'Cost per ' + (units() === 'mi' ? 'mile' : 'km') + ' appears once costs and a few readings are logged.') +
       (k.other ? ' ' + esc(plural(k.other, 'entry', 'entries')) + ' in another currency not added in.' : '') + '</p></section>';
-    if (!c.services.length) return html + '<div class="card empty"><div class="big" aria-hidden="true">🧾</div><p><b>Nothing logged yet.</b></p><p class="muted small">Add the last oil change or service you remember - even roughly - and the board gets sharper. Snap an old receipt and AI fills it in.</p><button class="btn" type="button" data-act="logsvc">Log a service</button></div>';
+    if (!c.services.length) return html + '<div class="empty"><div class="big" aria-hidden="true">' + ic('receipt') + '</div><p><b>Nothing logged yet.</b></p><p class="muted small">Add the last oil change or service you remember - even roughly - and the board gets sharper. Snap an old receipt and AI fills it in.</p><button class="btn" type="button" data-act="logsvc">Log a service</button></div>';
     var byYear = {};
     c.services.slice().reverse().forEach(function (s) { (byYear[s.d.slice(0, 4)] = byYear[s.d.slice(0, 4)] || []).push(s); });
     Object.keys(byYear).sort().reverse().forEach(function (y) {
       var list = byYear[y];
       var sum = list.reduce(function (n, s) { return n + (s.cost !== null && s.cur === cur() ? s.cost : 0); }, 0);
       html += '<div class="yearhead">' + esc(y) + '<span>' + esc(plural(list.length, 'entry', 'entries')) + (sum ? ' · ' + esc(money(sum)) : '') + '</span></div><ol class="timeline">' + list.map(function (s) {
-        var names = s.items.map(function (id) { var it = C.item(id); return '<span class="itag">' + esc(it.emoji) + ' ' + esc(sp(it.short)) + '</span>'; });
-        if (s.other) names.push('<span class="itag">🔧 ' + esc(s.other) + '</span>');
+        var names = s.items.map(function (id) { var it = C.item(id); return '<span class="itag">' + esc(sp(it.short)) + '</span>'; });
+        if (s.other) names.push('<span class="itag">' + esc(s.other) + '</span>');
         return '<li class="entry"><div class="ew"><b>' + esc(C.dateLabel(s.d, y + '-01-01')) + '</b><span>' + (s.km !== null ? esc(dist(s.km)) : 'no mileage') + '</span></div><div class="eb"><div class="tagrow">' + names.join('') + '</div>' +
           (s.shop ? '<p class="muted">' + esc(s.shop) + '</p>' : '') + (s.note ? '<p>' + esc(s.note) + '</p>' : '') + (s.photo ? '<div data-thumb="' + esc(s.id) + '"></div>' : '') + '</div>' +
-          '<div class="row" style="flex-direction:column;align-items:flex-end;gap:2px">' + (s.cost !== null ? '<span class="ec">' + esc(money(s.cost, s.cur)) + '</span>' : '') + '<button class="pa icon" type="button" data-act="svcmore" data-sid="' + esc(s.id) + '" aria-label="More for this entry">⋯</button></div></li>';
+          '<div class="col-end">' + (s.cost !== null ? '<span class="ec">' + esc(money(s.cost, s.cur)) + '</span>' : '') + '<button class="pa icon" type="button" data-act="svcmore" data-sid="' + esc(s.id) + '" aria-label="More for this entry">' + ic('dots') + '</button></div></li>';
       }).join('') + '</ol>';
     });
     return html;
@@ -559,8 +633,8 @@
   function svcSheet(sid) {
     var c = car(); var s = c && c.services.filter(function (x) { return x.id === sid; })[0];
     if (!s) return;
-    sheet('<h2>🧾 ' + esc(C.dateLabel(s.d, today())) + '</h2><p>' + esc(s.items.map(function (id) { return sp(C.item(id).name); }).concat(s.other ? [s.other] : []).join(' · ')) + '</p>' +
-      '<ul class="menu"><li><button type="button" class="danger" id="svcDel"><span class="mi" aria-hidden="true">🗑️</span><span>Delete this entry<small>' + (s.photo ? 'And its receipt photo. ' : '') + 'You can undo it straight after.</small></span></button></li></ul>', function (root) {
+    sheet('<h2>' + ic('receipt') + esc(C.dateLabel(s.d, today())) + '</h2><p>' + esc(s.items.map(function (id) { return sp(C.item(id).name); }).concat(s.other ? [s.other] : []).join(' · ')) + '</p>' +
+      '<ul class="menu"><li><button type="button" class="danger" id="svcDel"><span class="mi" aria-hidden="true">' + ic('trash') + '</span><span>Delete this entry<small>' + (s.photo ? 'And its receipt photo. ' : '') + 'You can undo it straight after.</small></span></button></li></ul>', function (root) {
       $('#svcDel', root).addEventListener('click', function () {
         var had = s.photo;
         var r = doAct('delsvc', { sid: sid });
@@ -586,10 +660,10 @@
     var q = state.lights.q;
     if (!q.trim()) return '';
     var r = L.find(q, 10);
-    if (!r.length) return '<p class="muted" style="margin-top:10px">Nothing called that. Try the colour instead, or a shape: “engine”, “oil can”, “exclamation”.</p>';
+    if (!r.length) return '<p class="muted mt12">Nothing called that. Try the colour instead, or a shape: “engine”, “oil can”, “exclamation”.</p>';
     return '<ul class="lresult">' + r.map(function (l) {
       var g = groupInfo(l.group);
-      return '<li><button class="lres" type="button" data-act="light" data-id="' + l.id + '"><span class="lt ' + LIT[l.colour] + '">' + L.svg(l) + '</span><span class="rb"><b>' + esc(sp(l.name)) + '</b><span>' + esc(C.Lights.COLOURS[l.colour].word + ' · ' + g.means) + '</span></span><span class="chev" aria-hidden="true">›</span></button></li>';
+      return '<li><button class="lres" type="button" data-act="light" data-id="' + l.id + '"><span class="lt ' + LIT[l.colour] + '">' + L.svg(l) + '</span><span class="rb"><b>' + esc(sp(l.name)) + '</b><span>' + esc(C.Lights.COLOURS[l.colour].word + ' · ' + g.means) + '</span></span>' + CHEV + '</button></li>';
     }).join('') + '</ul>';
   }
   function lightsHtml() {
@@ -599,15 +673,16 @@
       return '<div class="sec-head"><h1>What’s this warning light?</h1></div><p class="muted">Start with its colour - that says how urgent it is - then pick the shape.</p>' +
         '<div class="colours">' + L.GROUPS.map(function (gr) {
           var l = L.light(sample[gr.id]);
-          return '<button class="colour" type="button" data-act="lgroup" data-g="' + gr.id + '"><span class="sw ' + LIT[l.colour] + '">' + L.svg(l) + '</span><span class="ct"><b>' + esc(gr.label) + '</b><span class="gchip g-' + gr.id + '" style="align-self:flex-start;margin:4px 0"><span aria-hidden="true">' + GROUP_ICON[gr.id] + '</span>' + esc(gr.means) + '</span><span class="cnt">' + esc(L.inGroup(gr.id).length + ' lights') + '</span></span><span class="chev" aria-hidden="true">›</span></button>';
+          return '<button class="colour" type="button" data-act="lgroup" data-g="' + gr.id + '"><span class="sw ' + LIT[l.colour] + '">' + L.svg(l) + '</span><span class="ct"><b>' + esc(gr.label) + '</b><span class="gchip g-' + gr.id + '">' + GROUP_ICON[gr.id] + esc(gr.means) + '</span><span class="cnt">' + esc(L.inGroup(gr.id).length + ' lights') + '</span></span>' + CHEV + '</button>';
         }).join('') + '</div>' +
-        '<div class="searchbox"><span class="sicon" aria-hidden="true">🔎</span><label class="vh" for="lightq">Search the lights</label><input class="input" id="lightq" type="search" autocomplete="off" placeholder="Or search: oil, battery, ' + esc(sp('tyre')) + ', engine…" value="' + esc(state.lights.q) + '"></div><div id="lightResults">' + searchResults() + '</div>' +
-        '<section class="card"><h2>📷 Can’t tell which it is?</h2><p class="small muted">Snap the dashboard with the engine on. AI spots the lit symbols (and the odometer) - and Glovebox shows its own advice for each, never the AI’s. About a cent of credit; a free account comes with $2.</p><button class="btn" type="button" data-act="read" data-kind="dash">Snap my dashboard</button></section>' +
+        '<div class="searchbox"><span class="sicon" aria-hidden="true">' + ic('search') + '</span><label class="vh" for="lightq">Search the lights</label><input class="input" id="lightq" type="search" autocomplete="off" placeholder="Or search: oil, battery, ' + esc(sp('tyre')) + ', engine…" value="' + esc(state.lights.q) + '"></div><div id="lightResults">' + searchResults() + '</div>' +
+        (dxOn() ? '<section class="card box"><h2>' + ic('mic') + 'Light or noise? <span class="ai">' + ic('spark') + 'AI</span></h2><p class="small muted">Snap the warning light, or record up to 15 seconds of the noise. You get a likely cause and how urgent it is - stop now, soon, can wait, or not sure - in Glovebox’s own safety wording. A mechanic should confirm. About a cent of credit; a free account comes with $2.</p><button class="btn" type="button" data-act="dx">Snap or record</button></section>' : '') +
+        '<section class="card box"><h2>' + ic('camera') + 'Can’t tell which it is? <span class="ai">' + ic('spark') + 'AI</span></h2><p class="small muted">Snap the dashboard with the engine on. AI spots the lit symbols (and the odometer) - and Glovebox shows its own advice for each, never the AI’s. About a cent of credit; a free account comes with $2.</p><button class="btn ghost" type="button" data-act="read" data-kind="dash">Snap my dashboard</button></section>' +
         disclaimer();
     }
     var gi = groupInfo(g);
-    return '<p class="back"><button class="link-btn" type="button" data-act="lgroup" data-g="">‹ All colours</button></p><div class="sec-head"><h1>' + esc(gi.label) + ' lights</h1><span class="gchip g-' + g + '"><span aria-hidden="true">' + GROUP_ICON[g] + '</span>' + esc(gi.means) + '</span></div>' +
-      '<p class="' + (g === 'red' ? 'stopbox g-red' : 'muted') + '">' + (g === 'red' ? '<span aria-hidden="true">🛑</span>' : '') + '<span>' + esc(gi.line) + '</span></p>' +
+    return '<p class="back"><button class="link-btn" type="button" data-act="lgroup" data-g="">' + ic('back', 's') + 'All colours</button></p><div class="sec-head"><h1>' + esc(gi.label) + ' lights</h1><span class="gchip g-' + g + '">' + GROUP_ICON[g] + esc(gi.means) + '</span></div>' +
+      '<p class="' + (g === 'red' ? 'stopbox g-red' : 'muted') + '">' + (g === 'red' ? ic('stop') : '') + '<span>' + esc(gi.line) + '</span></p>' +
       '<div class="lgrid">' + L.inGroup(g).map(tile).join('') + '</div>' + disclaimer();
   }
   function disclaimer() {
@@ -615,18 +690,18 @@
   }
   function lightHtml() {
     var l = L.light(state.lights.id);
-    if (!l) return '<div class="card empty"><p>That light isn’t in the list.</p><button class="btn" type="button" data-act="tab" data-tab="lights">All the lights</button></div>';
+    if (!l) return '<div class="empty"><p>That light isn’t in the list.</p><button class="btn" type="button" data-act="tab" data-tab="lights">All the lights</button></div>';
     var gi = groupInfo(l.group);
     var colourWord = C.Lights.COLOURS[l.colour].word;
-    var html = '<p class="back"><button class="link-btn" type="button" data-act="lgroup" data-g="' + l.group + '">‹ ' + esc(gi.label) + ' lights</button></p>' +
-      '<div class="lhero"><span class="lt ' + LIT[l.colour] + '">' + L.svg(l) + '</span><div class="lm"><span class="gchip g-' + l.group + '"><span aria-hidden="true">' + GROUP_ICON[l.group] + '</span>' + esc(colourWord + ' · ' + gi.means) + '</span><h1>' + esc(sp(l.name)) + '</h1>' +
-      (l.fuel ? '<p class="small muted" style="margin:2px 0 0">' + esc(l.fuel.map(function (f) { return L.FUEL_WORDS[f]; }).join(', ')) + '</p>' : '') + '</div></div>';
-    html += '<div class="stopbox g-' + l.group + '"><span aria-hidden="true">' + GROUP_ICON[l.group] + '</span><p>' + esc(l.urgency) + (l.group === 'red' ? '<br><span class="small" style="font-weight:600">Don’t drive on until you know what it is. If you’re unsure or unsafe, call for roadside help.</span>' : '') + '</p></div>';
-    var means = '<section class="card"><h2>What it means</h2><p>' + esc(sp(l.means)) + '</p>' + (l.flashing ? '<p class="warnbox"><span aria-hidden="true">💡</span><span><b>If it’s flashing:</b> ' + esc(l.flashing) + '</span></p>' : '') +
+    var html = '<p class="back"><button class="link-btn" type="button" data-act="lgroup" data-g="' + l.group + '">' + ic('back', 's') + esc(gi.label) + ' lights</button></p>' +
+      '<div class="lhero"><span class="lt ' + LIT[l.colour] + '">' + L.svg(l) + '</span><div class="lm"><span class="gchip g-' + l.group + '">' + GROUP_ICON[l.group] + esc(colourWord + ' · ' + gi.means) + '</span><h1>' + esc(sp(l.name)) + '</h1>' +
+      (l.fuel ? '<p class="small muted mt4 mb0">' + esc(l.fuel.map(function (f) { return L.FUEL_WORDS[f]; }).join(', ')) + '</p>' : '') + '</div></div>';
+    html += '<div class="stopbox g-' + l.group + '">' + GROUP_ICON[l.group] + '<p>' + esc(l.urgency) + (l.group === 'red' ? '<span class="sub">Don’t drive on until you know what it is. If you’re unsure or unsafe, call for roadside help.</span>' : '') + '</p></div>';
+    var means = '<section class="card"><h2>What it means</h2><p>' + esc(sp(l.means)) + '</p>' + (l.flashing ? '<p class="warnbox"><span class="icw" aria-hidden="true">' + ic('bulb') + '</span><span><b>If it’s flashing:</b> ' + esc(l.flashing) + '</span></p>' : '') +
       '<h3>Typical cause</h3><p class="small">' + esc(sp(l.cause)) + '</p></section>';
     // What to do comes first: someone reading this may be at the roadside.
     html += '<div class="twocol"><div><section class="card"><h2>Do this now</h2><ol class="steps2">' + l.now.map(function (s) { return '<li>' + esc(sp(s)) + '</li>'; }).join('') + '</ol></section>' +
-      '<section class="card"><h2>Don’t</h2><ul class="donts">' + l.dont.map(function (s) { return '<li><span aria-hidden="true">✋</span><span>' + esc(sp(s)) + '</span></li>'; }).join('') + '</ul></section></div>' + means + '</div>';
+      '<section class="card"><h2>Don’t</h2><ul class="donts">' + l.dont.map(function (s) { return '<li>' + ic('no') + '<span>' + esc(sp(s)) + '</span></li>'; }).join('') + '</ul></section></div>' + means + '</div>';
     html += disclaimer();
     return html;
   }
@@ -641,14 +716,14 @@
     var packed = C.packReport(c, { today: t, units: units(), costs: rp.costs, notes: rp.notes });
     var clean = C.cleanReport(JSON.parse(JSON.stringify(packed)));
     var html = carsBar() + '<div class="sec-head noprint"><h1>Service history</h1></div>' +
-      '<section class="card noprint"><p>Selling or handing it over? Give the next owner a tidy history - dates, mileage and work done - as a link they can open on any phone, or print it.</p>' +
+      '<section class="noprint"><p class="muted">Selling or handing it over? Give the next owner a tidy history - dates, mileage and work done - as a link they can open on any phone, or print it.</p>' +
       '<label class="toggle"><input type="checkbox" data-opt="costs"' + (rp.costs ? ' checked' : '') + '> Show what each service cost</label>' +
       '<label class="toggle"><input type="checkbox" data-opt="notes"' + (rp.notes ? ' checked' : '') + '> Include your notes</label>' +
       '<div class="btns"><button class="btn" type="button" data-act="mklink"' + (clean ? '' : ' disabled') + '>Make a share link</button><button class="btn ghost" type="button" data-act="print"' + (clean ? '' : ' disabled') + '>Print or save as PDF</button></div>' +
       '<div id="repLink">' + (rp.link && rp.linkFor === c.id ? linkHtml(rp.link, rp.dropped) : '') + '</div>' +
-      '<p class="small muted" style="margin:12px 0 0">🔒 The history travels inside the link itself - nothing is stored on a server. Receipt photos stay on your phone and are never included.</p></section>';
-    if (!clean) return html + '<div class="card empty"><div class="big" aria-hidden="true">📄</div><p><b>Nothing to show a buyer yet.</b></p><p class="muted small">Log a service or two first - even old ones from receipts in the glovebox.</p><button class="btn" type="button" data-act="logsvc">Log a service</button></div>';
-    html += '<p class="eyebrow noprint" style="margin-top:18px">What the buyer sees</p><article class="report print-me">' + C.reportHtml(clean, { units: units(), region: region() }) + '</article>';
+      '<p class="small muted mt16 mb0">The history travels inside the link itself - nothing is stored on a server. Receipt photos stay on your phone and are never included.</p></section>';
+    if (!clean) return html + '<div class="empty"><div class="big" aria-hidden="true">' + ic('report') + '</div><p><b>Nothing to show a buyer yet.</b></p><p class="muted small">Log a service or two first - even old ones from receipts in the glovebox.</p><button class="btn" type="button" data-act="logsvc">Log a service</button></div>';
+    html += '<p class="eyebrow noprint mt24">What the buyer sees</p><article class="report print-me">' + C.reportHtml(clean, { units: units(), region: region() }) + '</article>';
     return html;
   }
   function linkHtml(url, dropped) {
@@ -689,8 +764,8 @@
     var f = addForm();
     var t = today();
     var yr = Number(t.slice(0, 4));
-    return '<p class="back"><button class="link-btn" type="button" data-act="addcancel">‹ ' + (cars().length && !isDemo() ? 'Back to the garage' : 'Back') + '</button></p><h1>Add your car</h1><p class="muted">Two minutes, on this phone only. Glovebox builds a maintenance plan from it - you can change any of it later.</p>' +
-      '<form id="addForm" class="card" autocomplete="off">' +
+    return '<p class="back"><button class="link-btn" type="button" data-act="addcancel">' + ic('back', 's') + (cars().length && !isDemo() ? 'Back to the garage' : 'Back') + '</button></p><h1>Add your car</h1><p class="muted">Two minutes, on this phone only. Glovebox builds a maintenance plan from it - you can change any of it later.</p>' +
+      '<form id="addForm" autocomplete="off">' +
       '<div class="three"><label class="field"><span>Make</span><input class="input" name="make" list="makes" maxlength="' + C.LIMITS.make + '" value="' + esc(f.make || '') + '" placeholder="Toyota"></label>' +
       '<label class="field"><span>Model</span><input class="input" name="model" maxlength="' + C.LIMITS.model + '" value="' + esc(f.model || '') + '" placeholder="Corolla"></label>' +
       '<label class="field"><span>Year</span><input class="input" name="year" inputmode="numeric" maxlength="4" value="' + esc(f.year || '') + '" placeholder="' + (yr - 6) + '"></label></div>' +
@@ -700,9 +775,9 @@
       '<label class="field"><span>A nickname <small>optional</small></span><input class="input" name="nick" maxlength="' + C.LIMITS.nick + '" value="' + esc(f.nick || '') + '" placeholder="The family car, Bluebell…"></label>' +
       (f.fuel === 'ev' ? '' : '<fieldset class="field"><legend>Timing belt or chain?</legend>' + segHtml('belt', [['belt', 'Belt', 'replaced on a schedule'], ['chain', 'Chain', 'usually lasts'], ['unsure', 'Not sure', 'ask me later']], f.belt) + '</fieldset>') +
       '<fieldset class="field"><legend>Its last service</legend>' + segHtml('last', [['known', 'I know when'], ['new', 'It’s new', 'or just serviced'], ['unsure', 'Not sure']], f.last) + '</fieldset>' +
-      (f.last === 'known' ? '<div class="two"><label class="field"><span>Date (roughly is fine)</span><input class="input" type="date" name="lastD" max="' + t + '" value="' + esc(f.lastD || '') + '"></label><label class="field"><span>Odometer then <small>optional</small></span><span class="unitwrap"><input class="input" name="lastKm" inputmode="decimal" value="' + esc(f.lastKm || '') + '"><span class="u">' + esc(units()) + '</span></span></label></div><p class="small muted" style="margin-top:-6px">It covers the routine jobs - oil, rotation, filters, the brake check. Log the bigger ones (' + esc(sp('tyres')) + ', timing belt) on their own if you know them.</p>' : '') +
-      (f.last === 'unsure' ? '<p class="small muted" style="margin-top:-6px">No problem - Glovebox counts from today and marks those items “No record”. Add old receipts any time.</p>' : '') +
-      '<details class="more-fields"><summary>Renewal dates <span class="small muted" style="margin-left:6px">optional</span></summary><div class="three">' +
+      (f.last === 'known' ? '<div class="two"><label class="field"><span>Date (roughly is fine)</span><input class="input" type="date" name="lastD" max="' + t + '" value="' + esc(f.lastD || '') + '"></label><label class="field"><span>Odometer then <small>optional</small></span><span class="unitwrap"><input class="input" name="lastKm" inputmode="decimal" value="' + esc(f.lastKm || '') + '"><span class="u">' + esc(units()) + '</span></span></label></div><p class="hint">It covers the routine jobs - oil, rotation, filters, the brake check. Log the bigger ones (' + esc(sp('tyres')) + ', timing belt) on their own if you know them.</p>' : '') +
+      (f.last === 'unsure' ? '<p class="hint">No problem - Glovebox counts from today and marks those items “No record”. Add old receipts any time.</p>' : '') +
+      '<details class="more-fields"><summary>Renewal dates <span class="small muted">optional</span></summary><div class="three">' +
       ['inspection', 'registration', 'insurance'].map(function (id) { var it = C.item(id); return '<label class="field"><span>' + esc(it.short) + ' due</span><input class="input" type="date" name="d_' + id + '" value="' + esc((f.dates && f.dates[id]) || '') + '"></label>'; }).join('') + '</div></details>' +
       '<div id="addErr" aria-live="polite"></div><button class="btn block" type="submit">Add to my garage</button></form>';
   }
@@ -743,15 +818,15 @@
     if (!c) return emptyHtml();
     var mine = C.ITEMS.filter(function (it) { return C.applies(c, it); });
     var not = C.ITEMS.filter(function (it) { return !C.applies(c, it); });
-    var html = '<p class="back"><button class="link-btn" type="button" data-act="tab" data-tab="more">‹ More</button></p><h1>' + esc(C.carName(c)) + '’s plan</h1>' +
-      '<p class="manual"><span aria-hidden="true">📘</span><span><b>Your manual wins.</b> These are cautious generic intervals for a ' + esc(C.fuelWord(c.fuel, region()).toLowerCase()) + ' car. Change any to match your owner’s manual - many give a shorter “severe service” interval for short trips, towing or dusty roads.</span></p><ul class="ilist">';
+    var html = '<p class="back"><button class="link-btn" type="button" data-act="tab" data-tab="more">' + ic('back', 's') + 'More</button></p><h1>' + esc(C.carName(c)) + '’s plan</h1>' +
+      '<p class="manual">' + ic('book') + '<span><b>Your manual wins.</b> These are cautious generic intervals for a ' + esc(C.fuelWord(c.fuel, region()).toLowerCase()) + ' car. Change any to match your owner’s manual - many give a shorter “severe service” interval for short trips, towing or dusty roads.</span></p><ul class="ilist">';
     html += mine.map(function (it) {
       var iv = C.intervalOf(c, it);
       var every = iv.off ? 'Not tracked' : it.kind === 'date' ? 'Every ' + plural(iv.months || 12, 'month') + (c.dates[it.id] ? ' · next ' + C.dateLabel(c.dates[it.id], today()) : ' · no date yet') : 'Every ' + [iv.km ? dist(iv.km, { step: 100 }) : '', iv.months ? plural(iv.months, 'month') : ''].filter(Boolean).join(' or ');
-      return '<li><button class="irow-compact" type="button" data-act="planitem" data-item="' + it.id + '"><span class="ie" aria-hidden="true">' + esc(it.emoji) + '</span><span class="ib"><span class="iname">' + esc(sp(it.name)) + '</span><span class="imeta">' + esc(every) + (iv.custom ? ' · your setting' : '') + '</span></span><span class="chev" aria-hidden="true">›</span></button></li>';
+      return '<li><button class="irow-compact" type="button" data-act="planitem" data-item="' + it.id + '"><span class="ie" aria-hidden="true">' + itemIc(it) + '</span><span class="ib"><span class="iname">' + esc(sp(it.name)) + '</span><span class="imeta">' + esc(every) + (iv.custom ? ' · your setting' : '') + '</span></span>' + CHEV + '</button></li>';
     }).join('') + '</ul>';
-    if (not.length) html += '<p class="small muted" style="margin-top:14px">Not on this car: ' + esc(not.map(function (it) { return sp(it.short) + (it.belt && c.fuel !== 'ev' ? (c.belt === 'chain' ? ' (it has a chain)' : ' (belt or chain not known yet)') : ''); }).join(', ')) + '.' +
-      (c.fuel !== 'ev' && c.belt !== 'belt' ? ' <button class="link-btn" type="button" data-act="editcar" style="padding:0;min-height:0">Change belt / chain</button>' : '') + '</p>';
+    if (not.length) html += '<p class="small muted mt16">Not on this car: ' + esc(not.map(function (it) { return sp(it.short) + (it.belt && c.fuel !== 'ev' ? (c.belt === 'chain' ? ' (it has a chain)' : ' (belt or chain not known yet)') : ''); }).join(', ')) + '.' +
+      (c.fuel !== 'ev' && c.belt !== 'belt' ? ' <button class="link-btn inline" type="button" data-act="editcar">Change belt / chain</button>' : '') + '</p>';
     return html;
   }
   function planSheet(id) {
@@ -759,7 +834,7 @@
     if (!c || !it) return;
     var iv = C.intervalOf(c, it);
     var gen = [iv.baseKm ? dist(iv.baseKm, { step: 100 }) : '', iv.baseMonths ? plural(iv.baseMonths, 'month') : ''].filter(Boolean).join(' or ');
-    sheet('<h2>' + esc(it.emoji) + ' ' + esc(sp(it.name)) + '</h2><p class="small muted">Generic: every ' + esc(gen) + '. ' + esc(sp(it.why)) + '</p><form id="planForm">' +
+    sheet('<h2>' + itemIc(it) + esc(sp(it.name)) + '</h2><p class="small muted">Generic: every ' + esc(gen) + '. ' + esc(sp(it.why)) + '</p><form id="planForm">' +
       (it.kind === 'date' ? '' : '<label class="field"><span>Every <small>' + esc(uWord()) + ' - leave empty for time only</small></span><span class="unitwrap"><input class="input" name="km" inputmode="decimal" value="' + (iv.km ? esc(C.num(Math.round(C.fromKm(iv.km, units()) / 100) * 100)) : '') + '"><span class="u">' + esc(units()) + '</span></span></label>') +
       '<label class="field"><span>Or every <small>months' + (it.kind === 'date' ? '' : ' - leave empty for distance only') + '</small></span><input class="input" name="months" inputmode="numeric" value="' + (iv.months ? esc(String(iv.months)) : '') + '"></label>' +
       '<label class="toggle"><input type="checkbox" name="off"' + (iv.off ? ' checked' : '') + '> Don’t track this on this car</label>' +
@@ -788,7 +863,7 @@
   function editSheet() {
     var c = car(); if (!c) return;
     var f = { fuel: c.fuel, belt: c.belt };
-    sheet('<h2>✏️ ' + esc(C.carName(c)) + '</h2><form id="edForm"><label class="field"><span>Nickname</span><input class="input" name="nick" maxlength="' + C.LIMITS.nick + '" value="' + esc(c.nick) + '"></label>' +
+    sheet('<h2>' + ic('pencil') + esc(C.carName(c)) + '</h2><form id="edForm"><label class="field"><span>Nickname</span><input class="input" name="nick" maxlength="' + C.LIMITS.nick + '" value="' + esc(c.nick) + '"></label>' +
       '<div class="three"><label class="field"><span>Make</span><input class="input" name="make" maxlength="' + C.LIMITS.make + '" value="' + esc(c.make) + '"></label><label class="field"><span>Model</span><input class="input" name="model" maxlength="' + C.LIMITS.model + '" value="' + esc(c.model) + '"></label><label class="field"><span>Year</span><input class="input" name="year" inputmode="numeric" maxlength="4" value="' + (c.year || '') + '"></label></div>' +
       '<fieldset class="field"><legend>Fuel</legend>' + segHtml('fuel', fuelOpts(), f.fuel) + '</fieldset>' +
       '<fieldset class="field"><legend>Timing belt or chain?</legend>' + segHtml('belt', [['belt', 'Belt'], ['chain', 'Chain'], ['unsure', 'Not sure']], f.belt) + '</fieldset>' +
@@ -816,18 +891,18 @@
     var c = car();
     var uval = s.unitsAuto ? 'auto' : s.units;
     var html = '<h1>More</h1>';
-    html += '<section class="card"><h2>📏 Units and money</h2><fieldset class="field"><legend>Distance</legend>' + segHtml('units', [['auto', 'Automatic', C.unitsFor(s.region) === 'mi' ? 'miles here' : 'km here'], ['mi', 'Miles'], ['km', 'Kilometres']], uval) + '</fieldset>' +
+    html += '<section class="card"><h2>' + ic('ruler') + 'Units and money</h2><fieldset class="field"><legend>Distance</legend>' + segHtml('units', [['auto', 'Automatic', C.unitsFor(s.region) === 'mi' ? 'miles here' : 'km here'], ['mi', 'Miles'], ['km', 'Kilometres']], uval) + '</fieldset>' +
       '<label class="field"><span>Currency</span><select class="input" id="curSel"><option value="auto"' + (s.curAuto ? ' selected' : '') + '>Automatic (' + esc(C.currencyFor(s.region)) + ')</option>' + C.CURRENCIES.map(function (x) { return '<option value="' + x + '"' + (!s.curAuto && s.currency === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>' +
       '<p class="small muted">Everything is kept in kilometres underneath, so switching never changes a number.</p></section>';
     if (c) {
-      html += '<section class="card"><h2>🚗 ' + esc(C.carName(c)) + '</h2><div class="btns"><button class="btn ghost" type="button" data-act="tab" data-tab="plan">Its maintenance plan</button><button class="btn ghost" type="button" data-act="editcar">Edit the car</button></div>' +
+      html += '<section class="card"><h2>' + ic('car') + esc(C.carName(c)) + '</h2><div class="btns"><button class="btn ghost" type="button" data-act="tab" data-tab="plan">Its maintenance plan</button><button class="btn ghost" type="button" data-act="editcar">Edit the car</button></div>' +
         (isDemo() ? '' : '<div class="btns"><button class="link-btn danger" type="button" data-act="delcar">Remove ' + esc(C.carName(c)) + ' from this phone</button></div>') + '</section>';
-      html += '<section class="card"><h2>📅 Due dates in your calendar</h2><p class="small muted">Glovebox can’t send reminders - but your calendar can. This makes a calendar file of everything due in the next year, mileage ones at their projected dates. It’s a snapshot: download it again after a service.</p><button class="btn" type="button" data-act="ics">Add due dates to my calendar</button></section>';
+      html += '<section class="card"><h2>' + ic('calendar') + 'Due dates in your calendar</h2><p class="small muted">Glovebox can’t send reminders - but your calendar can. This makes a calendar file of everything due in the next year, mileage ones at their projected dates. It’s a snapshot: download it again after a service.</p><button class="btn ghost" type="button" data-act="ics">Add due dates to my calendar</button></section>';
     }
-    html += '<section class="card"><h2>✨ Read a photo with AI</h2><p class="small muted">Snap the dashboard (which lights, and the odometer) or a receipt (date, mileage, work and cost - you check it before it’s saved). About a cent of AI credit; a free account comes with $2. The photo is read once and never stored.</p><div class="btns"><button class="btn" type="button" data-act="read" data-kind="dash">Read my dashboard</button><button class="btn ghost" type="button" data-act="read" data-kind="receipt">Read a receipt</button></div></section>';
-    html += '<section class="card"><h2>📦 Moving phones</h2><p class="small muted">Your garage lives on this phone only. Export it to a file and import it on the new one. Receipt photos stay behind - they’re kept in this browser, not in the file.</p><div class="btns"><button class="btn ghost" type="button" data-act="export"' + (state.mine && state.mine.cars.length ? '' : ' disabled') + '>Export my garage</button><label class="btn ghost" style="cursor:pointer">Import a file<input class="vh" type="file" accept="application/json,.json" data-file="import"></label></div></section>';
-    html += '<section class="card"><h2>👤 Account</h2>' + (signedIn() ? '<p class="small muted">Signed in as ' + esc(state.me.email) + '. Only reading photos uses it.</p><button class="btn ghost" type="button" data-act="account">Account and credit</button>' : '<p class="small muted">Nothing in Glovebox needs an account except reading a photo with AI. One free account works across every app on this site.</p><button class="btn ghost" type="button" data-act="signin">Sign in or create one</button>') + '</section>';
-    html += '<section class="card"><h2>🔒 Your data</h2><p class="small muted">Cars, services, readings and receipts stay on this phone. The server stores nothing about your car - the AI photo read is the only time a photo leaves the phone, and it isn’t kept.</p>' +
+    html += '<section class="card"><h2>' + ic('spark') + 'Ask AI</h2><p class="small muted">' + (dxOn() ? 'Snap a warning light or record a noise for a likely cause and how urgent it is. ' : '') + 'Snap the dashboard (which lights, and the odometer) or a receipt (date, mileage, work and cost - you check it before it’s saved). About a cent of AI credit each; a free account comes with $2. Photos and recordings are used once and never stored.</p><div class="btns">' + (dxOn() ? '<button class="btn ghost" type="button" data-act="dx">Light or noise?</button>' : '') + '<button class="btn ghost" type="button" data-act="read" data-kind="dash">Read my dashboard</button><button class="btn ghost" type="button" data-act="read" data-kind="receipt">Read a receipt</button></div></section>';
+    html += '<section class="card"><h2>' + ic('box') + 'Moving phones</h2><p class="small muted">Your garage lives on this phone only. Export it to a file and import it on the new one. Receipt photos stay behind - they’re kept in this browser, not in the file.</p><div class="btns"><button class="btn ghost" type="button" data-act="export"' + (state.mine && state.mine.cars.length ? '' : ' disabled') + '>Export my garage</button><label class="btn ghost filelabel">Import a file<input class="vh" type="file" accept="application/json,.json" data-file="import"></label></div></section>';
+    html += '<section class="card"><h2>' + ic('user') + 'Account</h2>' + (signedIn() ? '<p class="small muted">Signed in as ' + esc(state.me.email) + '. Only reading photos uses it.</p><button class="btn ghost" type="button" data-act="account">Account and credit</button>' : '<p class="small muted">Nothing in Glovebox needs an account except reading a photo with AI. One free account works across every app on this site.</p><button class="btn ghost" type="button" data-act="signin">Sign in or create one</button>') + '</section>';
+    html += '<section class="card"><h2>' + ic('lock') + 'Your data</h2><p class="small muted">Cars, services, readings and receipts stay on this phone. The server stores nothing about your car - asking AI is the only time a photo or a recording leaves the phone, and it isn’t kept.</p>' +
       (isDemo() ? '<button class="btn ghost" type="button" data-act="mine">Leave the example</button>' : (state.mine && state.mine.cars.length ? '<button class="link-btn danger" type="button" data-act="wipe">Delete everything from this phone</button>' : '')) + '</section>';
     return html;
   }
@@ -893,23 +968,23 @@
   /* ---------------- the one AI call ---------------- */
 
   var READ = {
-    dash: { title: '📷 Read my dashboard', what: 'Snap the dashboard with the engine on, so the lights show. AI spots the lit symbols and the odometer.', hint: 'The whole instrument panel, in focus, without glare.', btn: 'Read the dashboard' },
-    receipt: { title: '✨ Read a receipt', what: 'Snap a service receipt or invoice. AI reads the date, mileage, work and cost into a log entry - you check it before anything is saved.', hint: 'The whole receipt, flat, in good light.', btn: 'Read the receipt' },
+    dash: { icon: 'camera', title: 'Read my dashboard', what: 'Snap the dashboard with the engine on, so the lights show. AI spots the lit symbols and the odometer.', hint: 'The whole instrument panel, in focus, without glare.', btn: 'Read the dashboard' },
+    receipt: { icon: 'receipt', title: 'Read a receipt', what: 'Snap a service receipt or invoice. AI reads the date, mileage, work and cost into a log entry - you check it before anything is saved.', hint: 'The whole receipt, flat, in good light.', btn: 'Read the receipt' },
   };
   function openRead(kind) {
     var k = READ[kind] ? kind : 'dash';
     var R = READ[k];
     if (!signedIn()) {
-      sheet('<h2>' + R.title + '</h2><p>' + esc(R.what) + '</p>' +
-        '<div class="note"><p><b>It uses about a cent of AI credit, so it needs a free account</b> (it comes with $2).' + (k === 'dash' ? ' The warning-light finder is free and needs nothing - pick the colour, then the shape.' : ' Typing an entry in is free and needs nothing.') + '</p><p class="small muted" style="margin:0">The photo is shrunk on your phone, read once, and never stored.</p></div>' +
+      sheet('<h2>' + ic(R.icon) + R.title + '</h2><p>' + esc(R.what) + '</p>' +
+        '<div class="note"><p><b>It uses about a cent of AI credit, so it needs a free account</b> (it comes with $2).' + (k === 'dash' ? ' The warning-light finder is free and needs nothing - pick the colour, then the shape.' : ' Typing an entry in is free and needs nothing.') + '</p><p class="small muted m0">The photo is shrunk on your phone, read once, and never stored.</p></div>' +
         '<div class="btns"><button class="btn" type="button" id="rdSign">Create a free account</button>' + (k === 'dash' ? '<button class="btn ghost" type="button" data-act="tab" data-tab="lights">Use the free finder</button>' : '<button class="btn ghost" type="button" data-act="closesheet">Not now</button>') + '</div>', function (root) {
         $('#rdSign', root).addEventListener('click', function () { openAccount('A free account comes with $2 of AI credit - about 100 photo reads. Nothing else in Glovebox needs one.', function () { openRead(k); }); });
       });
       return;
     }
     var look = { url: null };
-    sheet('<h2>' + R.title + '</h2><p class="small muted">' + esc(R.hint) + ' Shrunk on your phone, read once by the AI, never stored.</p>' +
-      '<label class="btn block" style="cursor:pointer">📷 Take or choose a photo<input class="vh" type="file" accept="image/*" id="rdFile"></label><div id="rdPrev"></div><div id="rdErr"></div><div id="rdOut"></div>', function (root) {
+    sheet('<h2>' + ic(R.icon) + R.title + '</h2><p class="small muted">' + esc(R.hint) + ' Shrunk on your phone, read once by the AI, never stored.</p>' +
+      '<label class="btn block filelabel">' + ic('camera') + 'Take or choose a photo<input class="vh" type="file" accept="image/*" id="rdFile"></label><div id="rdPrev"></div><div id="rdErr"></div><div id="rdOut"></div>', function (root) {
       $('#rdFile', root).addEventListener('change', function (e) {
         var f = e.target.files && e.target.files[0];
         if (!f) return;
@@ -936,14 +1011,14 @@
   }
   function dashResult(box, r) {
     var c = car();
-    var html = '<section class="card" style="margin:12px 0 0"><p class="eyebrow">What the AI spotted</p>';
+    var html = '<section class="dx-out"><p class="eyebrow">What the AI spotted</p>';
     if (!r.lights.length) html += '<p>No lit warning lights spotted. If you can see one, pick it by colour in the finder - and if it’s red, stop safely.</p>';
     else html += '<ul class="found">' + r.lights.map(function (x) {
       var l = x.id ? L.light(x.id) : null;
       var gi = groupInfo(x.group);
       var icon = l ? '<span class="lt ' + LIT[x.colour === 'red' ? 'red' : l.colour] + '">' + L.svg(l) + '</span>' : '<span class="lt" aria-hidden="true">?</span>';
-      return '<li>' + icon + '<div class="fb"><span class="gchip g-' + x.group + '"><span aria-hidden="true">' + GROUP_ICON[x.group] + '</span>' + esc(gi.means) + '</span>' +
-        (l ? '<p><b>' + esc(sp(l.name)) + '</b>' + (x.colour !== 'unknown' ? ' <span class="small muted">· seen ' + esc(x.colour) + '</span>' : '') + '</p><p>' + esc(sp(l.now[0])) + '</p><p><button class="link-btn" type="button" data-act="light" data-id="' + l.id + '" style="padding:0;min-height:0">What it means and what to do ›</button></p>'
+      return '<li>' + icon + '<div class="fb"><span class="gchip g-' + x.group + '">' + GROUP_ICON[x.group] + esc(gi.means) + '</span>' +
+        (l ? '<p><b>' + esc(sp(l.name)) + '</b>' + (x.colour !== 'unknown' ? ' <span class="small muted">· seen ' + esc(x.colour) + '</span>' : '') + '</p><p>' + esc(sp(l.now[0])) + '</p><p><button class="link-btn" type="button" data-act="light" data-id="' + l.id + '">What it means and what to do' + ic('chev', 's') + '</button></p>'
           : '<p><b>' + esc(x.description || 'A symbol Glovebox can’t match') + '</b></p><p class="small">Glovebox can’t match this one - look it up in your owner’s manual. ' + esc(x.group === 'red' ? 'Treat it as red: find a safe place and stop.' : gi.line) + '</p>') + '</div></li>';
     }).join('') + '</ul>';
     if (r.notes) html += '<p class="small muted">AI’s note: ' + esc(r.notes) + '</p>';
@@ -971,17 +1046,196 @@
     if (r.mileage) km = C.toKm(r.mileage.value, r.mileage.unit || units());
     var rcur = r.currency || cur();
     logSheet({
-      title: '✨ From the receipt', intro: 'Check it against the receipt - fix anything the AI got wrong. Nothing is saved until you tap Add.',
+      icon: 'spark', title: 'From the receipt', intro: 'Check it against the receipt - fix anything the AI got wrong. Nothing is saved until you tap Add.',
       d: r.date || '', km: km, items: items, other: C.clean(others.join(', '), C.LIMITS.other), cost: cost, shop: r.shop, cur: rcur, photo: blob,
       curNote: rcur !== cur() ? 'The receipt is in ' + rcur + '. It’s kept in ' + rcur + ' and left out of your ' + cur() + ' totals.' : '',
     });
   }
 
+  /* ---------------- "Light or noise?": a likely cause, and how urgent ---------------- */
+
+  // A photo of the warning light and/or at most 15 seconds of the noise go
+  // to the AI once. It can only pick from Glovebox's own lists; the urgency
+  // is decided by GloveboxDiagnose.cleanDiagnosis (on the server, and again
+  // here), and every word about what to do is Glovebox's. Nothing is kept:
+  // the photo and the recording live in this sheet and go when it closes.
+  var URG_ICON = { stop_now: 'stop', soon: 'lights', can_wait: 'ok', not_sure: 'unsure' };
+  var DX_SECS = X.LIMITS.audioSeconds;
+  function audioSeconds(blob) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('audio');
+      var done = function (v) { URL.revokeObjectURL(url); resolve(v); };
+      a.preload = 'metadata';
+      a.addEventListener('loadedmetadata', function () { done(isFinite(a.duration) ? a.duration : null); });
+      a.addEventListener('error', function () { done(null); });
+      setTimeout(function () { done(null); }, 4000);
+      a.src = url;
+    });
+  }
+  function recorderType() {
+    if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+    var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    for (var i = 0; i < types.length; i++) if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+    return '';
+  }
+  function openDx() {
+    if (!dxOn()) { toast('That isn’t switched on yet. The warning-light finder is free.'); return; }
+    var title = '<h2>' + ic('mic') + 'Light or noise?</h2>';
+    if (!signedIn()) {
+      sheet(title + '<p>Snap the warning light, or record up to ' + DX_SECS + ' seconds of the noise. AI gives a likely cause and how urgent it is - and a mechanic should confirm.</p>' +
+        '<div class="note"><p><b>It uses about a cent of AI credit, so it needs a free account</b> (it comes with $2). The warning-light finder is free and needs nothing - pick the colour, then the shape.</p><p class="small muted m0">The photo is shrunk on your phone; the photo and the recording are used once and never stored.</p></div>' +
+        '<div class="btns"><button class="btn" type="button" id="dxSign">Create a free account</button><button class="btn ghost" type="button" data-act="tab" data-tab="lights">Use the free finder</button></div>', function (root) {
+        $('#dxSign', root).addEventListener('click', function () { openAccount('A free account comes with $2 of AI credit - about 100 questions. Nothing else in Glovebox needs one.', function () { openDx(); }); });
+      });
+      return;
+    }
+    var dx = { photo: null, photoUrl: null, audio: null, audioUrl: null, rec: null, stream: null, timer: null, tick: null };
+    var canRec = recorderType() !== null;
+    sheet(title + '<p class="small muted">Snap the warning light, record the noise, or both. You get a likely cause and how urgent it is. A mechanic should confirm.</p>' +
+      '<div class="dx-pick"><label class="dx-tile filelabel" id="dxPhotoT">' + ic('camera') + '<b>Photo of the light</b><span>Shrunk on your phone first</span><input class="vh" type="file" accept="image/*" id="dxPhoto"></label>' +
+      '<button class="dx-tile" type="button" id="dxRec"' + (canRec ? '' : ' disabled') + '>' + ic('mic') + '<b id="dxRecB">Record the noise</b><span id="dxRecS">' + (canRec ? 'Up to ' + DX_SECS + ' seconds' : 'This browser can’t record') + '</span><span class="meter" aria-hidden="true"><i id="dxMeter"></i></span></button></div>' +
+      '<p class="small m0"><label class="link-btn filelabel">Or choose a recording - ' + DX_SECS + ' seconds at most<input class="vh" type="file" accept="audio/*" id="dxAudio"></label></p>' +
+      '<div id="dxHave"></div>' +
+      '<label class="field"><span>When does it happen? <small>optional</small></span><input class="input" id="dxNote" maxlength="' + X.LIMITS.note + '" autocomplete="off" placeholder="Only when braking, on a cold start, it flashes…"></label>' +
+      '<div id="dxErr" aria-live="polite"></div><button class="btn block" type="button" id="dxGo" disabled>Get the likely cause</button>' +
+      '<p class="small muted center mt12 mb0">About a cent of AI credit. Sent once, never stored.</p><div id="dxOut" aria-live="polite"></div>', function (root) {
+      var err = $('#dxErr', root), go = $('#dxGo', root), recBtn = $('#dxRec', root);
+      function say(msg) { err.innerHTML = msg ? '<p class="err" role="alert">' + esc(msg) + '</p>' : ''; }
+      function have() {
+        var h = '';
+        if (dx.photo) h += '<div class="dx-have"><img src="' + esc(dx.photoUrl) + '" alt="Your photo of the light"><span class="grow">Photo ready</span><button class="link-btn" type="button" data-dxdrop="photo">Remove</button></div>';
+        if (dx.audio) h += '<div class="dx-have"><audio controls src="' + esc(dx.audioUrl) + '"></audio><button class="link-btn" type="button" data-dxdrop="audio">Remove</button></div>';
+        $('#dxHave', root).innerHTML = h;
+        $('#dxPhotoT', root).classList.toggle('has', Boolean(dx.photo));
+        recBtn.classList.toggle('has', Boolean(dx.audio));
+        go.disabled = !(dx.photo || dx.audio) || Boolean(dx.rec);
+        $('#dxOut', root).innerHTML = '';
+      }
+      function setAudio(blob) {
+        if (dx.audioUrl) URL.revokeObjectURL(dx.audioUrl);
+        dx.audio = blob; dx.audioUrl = blob ? URL.createObjectURL(blob) : null;
+        have();
+      }
+      function stopRec() {
+        clearTimeout(dx.timer); clearInterval(dx.tick);
+        if (dx.rec && dx.rec.state !== 'inactive') try { dx.rec.stop(); } catch (e) { /* stopped */ }
+        if (dx.stream) dx.stream.getTracks().forEach(function (t) { t.stop(); });
+        dx.stream = null;
+      }
+      function recIdle() {
+        dx.rec = null;
+        recBtn.classList.remove('rec');
+        $('#dxRecB', root).textContent = dx.audio ? 'Record again' : 'Record the noise';
+        $('#dxRecS', root).textContent = 'Up to ' + DX_SECS + ' seconds';
+        $('#dxMeter', root).classList.remove('go');
+        have();
+      }
+      sheetBye = function () {
+        if (dx.rec) dx.rec.dropped = true;
+        stopRec();
+        if (dx.photoUrl) URL.revokeObjectURL(dx.photoUrl);
+        if (dx.audioUrl) URL.revokeObjectURL(dx.audioUrl);
+        dx.photo = null; dx.audio = null;
+      };
+      root.addEventListener('click', function (e) {
+        var d = e.target.closest('[data-dxdrop]');
+        if (!d) return;
+        if (d.getAttribute('data-dxdrop') === 'photo') { if (dx.photoUrl) URL.revokeObjectURL(dx.photoUrl); dx.photo = null; dx.photoUrl = null; have(); } else { setAudio(null); recIdle(); }
+      });
+      $('#dxPhoto', root).addEventListener('change', function (e) {
+        var f = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        say('');
+        shrink(f, X.LIMITS.photoPx, 0.8).then(function (blob) {
+          return blob.size > X.LIMITS.photoBytes ? shrink(f, 960, 0.6) : blob;
+        }).then(function (blob) {
+          if (blob.size > X.LIMITS.photoBytes) throw new Error('That photo is too big even after shrinking. Try a closer photo of just the light.');
+          if (dx.photoUrl) URL.revokeObjectURL(dx.photoUrl);
+          dx.photo = blob; dx.photoUrl = URL.createObjectURL(blob);
+          have();
+        }).catch(function (er) { say(er.message); });
+      });
+      $('#dxAudio', root).addEventListener('change', function (e) {
+        var f = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        say('');
+        if (f.size > X.LIMITS.audioBytes) { say('That recording is too big. Keep it to ' + DX_SECS + ' seconds, or record the noise here.'); return; }
+        audioSeconds(f).then(function (secs) {
+          if (secs !== null && secs > DX_SECS + 0.5) { say('That recording is ' + Math.round(secs) + ' seconds long. ' + DX_SECS + ' seconds is the most - trim it, or record the noise here.'); return; }
+          setAudio(f); recIdle();
+        });
+      });
+      recBtn.addEventListener('click', function () {
+        if (dx.rec) { stopRec(); return; }
+        say('');
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+          var type = recorderType();
+          var rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 64000 } : { audioBitsPerSecond: 64000 });
+          var chunks = [], started = Date.now();
+          dx.rec = rec; dx.stream = stream;
+          rec.addEventListener('dataavailable', function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); });
+          rec.addEventListener('stop', function () {
+            if (rec.dropped) return;
+            stopRec();
+            var blob = new Blob(chunks, { type: (rec.mimeType || type || 'audio/webm').split(';')[0] });
+            if (!blob.size) { say('Nothing was recorded. Try again, nearer the noise.'); recIdle(); return; }
+            if (blob.size > X.LIMITS.audioBytes) { say('That recording came out too big. Try again.'); recIdle(); return; }
+            dx.rec = null; setAudio(blob); recIdle();
+          });
+          rec.start();
+          recBtn.classList.add('rec');
+          $('#dxRecB', root).textContent = 'Recording… tap to stop';
+          $('#dxMeter', root).classList.add('go');
+          var left = function () { var n = Math.max(0, DX_SECS - Math.floor((Date.now() - started) / 1000)); $('#dxRecS', root).textContent = n + ' seconds left'; };
+          left(); dx.tick = setInterval(left, 250);
+          dx.timer = setTimeout(stopRec, DX_SECS * 1000);
+          go.disabled = true;
+        }).catch(function () { say('Glovebox couldn’t use the microphone. Allow it in the browser, or choose a recording instead.'); });
+      });
+      go.addEventListener('click', function () {
+        var note = $('#dxNote', root).value;
+        var c = car();
+        go.disabled = true; go.textContent = 'Working it out…'; say('');
+        Promise.all([dx.photo ? blobToBase64(dx.photo) : null, dx.audio ? blobToBase64(dx.audio) : null]).then(function (d) {
+          var body = { note: note, fuel: c ? c.fuel : undefined };
+          if (d[0]) body.photo = { type: 'image/jpeg', data: d[0] };
+          if (d[1]) body.audio = { type: dx.audio.type, data: d[1] };
+          return api('POST', 'api/diagnose', body);
+        }).then(function (r) {
+          go.textContent = 'Ask again'; go.disabled = false;
+          loadMe();
+          dxResult($('#dxOut', root), X.cleanDiagnosis(r.result, { note: note }));
+        }).catch(function (er) { go.disabled = false; go.textContent = 'Get the likely cause'; meteredError(er, err, function () { openDx(); }); });
+      });
+    });
+  }
+  function dxResult(box, r) {
+    var u = X.URGENCY[r.urgency];
+    var cz = r.cause ? X.cause(r.cause) : null;
+    var l = r.light.id ? L.light(r.light.id) : null;
+    var html = '<section class="dx-out"><div class="urg u-' + r.urgency + '" role="status">' + ic(URG_ICON[r.urgency]) + '<div><h3>' + esc(u.label) + '</h3><p>' + esc(u.line) + '</p>' +
+      r.reasons.map(function (id) { return '<p><b>' + esc(X.REASONS[id]) + '</b></p>'; }).join('') + '</div></div><dl class="dx-facts">';
+    html += '<div><dt>Likely cause</dt><dd>' + (cz ? '<b>' + esc(sp(cz.label)) + '</b><span>' + esc(sp(cz.line)) + '</span>' : '<b>Can’t tell from this</b><span>A photo or a few seconds of sound isn’t always enough - a mechanic can find it.</span>') + '</dd></div>';
+    if (l) html += '<div><dt>The light</dt><dd><b>' + esc(sp(l.name)) + '</b><span>' + esc(['Lit ' + (r.light.colour === 'unknown' ? C.Lights.COLOURS[l.colour].word.toLowerCase() : r.light.colour), r.light.flashing === 'yes' ? 'flashing' : ''].filter(Boolean).join(', ')) + '</span><button class="link-btn" type="button" data-act="light" data-id="' + l.id + '">What it means and what to do' + ic('chev', 's') + '</button></dd></div>';
+    if (r.sound !== 'none') html += '<div><dt>The sound</dt><dd><b>' + esc(X.SOUND_WORD[r.sound]) + '</b></dd></div>';
+    if (r.observed) html += '<div><dt>What the AI noticed</dt><dd>' + esc(r.observed) + '</dd></div>';
+    html += '</dl><p class="confirm">' + ic('wrenchmech') + '<span>' + esc(X.CONFIRM) + '</span></p>' +
+      '<p class="small muted mt12 mb0">How urgent it is, and what to do, are Glovebox’s own words - not the AI’s. If in doubt, stop somewhere safe and call for help.</p></section>';
+    box.innerHTML = html;
+    try { box.scrollIntoView({ block: 'nearest' }); } catch (e) { /* older browsers */ }
+  }
+
   /* ---------------- sheets and the account ---------------- */
 
   var lastFocus = null;
+  var sheetBye = null; // what an open sheet must stop when it goes (a recording)
+  function byeSheet() { if (sheetBye) { var f = sheetBye; sheetBye = null; try { f(); } catch (e) { /* already stopped */ } } }
   function sheet(html, onOpen) {
     var s = $('#sheet'), back = $('#sheetBack');
+    byeSheet();
     if (s.hidden) lastFocus = document.activeElement;
     $$('.toast').forEach(function (t) { t.remove(); });
     s.innerHTML = '<button class="btn small ghost close" type="button" data-act="closesheet" aria-label="Close">Close</button>' + html;
@@ -995,6 +1249,7 @@
   }
   function closeSheet(quiet) {
     if ($('#sheet').hidden) return;
+    byeSheet();
     $('#sheet').hidden = true; $('#sheetBack').hidden = true; $('#sheet').innerHTML = '';
     document.body.classList.remove('sheet-open');
     if (!quiet && lastFocus && lastFocus.focus && document.body.contains(lastFocus)) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
@@ -1010,7 +1265,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Glovebox stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err m0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Glovebox stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     var b = $('#resend', where);
     b.addEventListener('click', function () {
       b.disabled = true;
@@ -1019,13 +1274,19 @@
     });
   }
   function meteredError(err, box, retry) {
-    if (err.status === 401) { box.innerHTML = ''; return openAccount('Reading a photo uses about a cent of AI credit, so it needs a free account (it comes with $2).', retry); }
+    if (err.status === 401) { box.innerHTML = ''; return openAccount('Asking AI uses about a cent of AI credit, so it needs a free account (it comes with $2).', retry); }
     if (err.status === 402) { box.innerHTML = ''; return openCredit(err.data); }
     if (err.data && err.data.code === 'verify-email') return verifyNote(box, err);
     showError(err, box);
   }
   function loadMe() {
-    return api('GET', 'api/me').then(function (me) { state.me = me; drawTop(); return me; })
+    return api('GET', 'api/me').then(function (me) {
+      var was = dxOn();
+      state.me = me; drawTop();
+      // "Light or noise?" shows only where it is switched on.
+      if (dxOn() !== was && $('#sheet').hidden && state.tab !== 'add') draw();
+      return me;
+    })
       .catch(function () { state.me = { signedIn: false }; drawTop(); return state.me; });
   }
   function drawTop() { $('#acct').textContent = signedIn() ? 'Account' : 'Sign in'; }
@@ -1042,8 +1303,8 @@
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1065,9 +1326,9 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Reading a photo costs about a cent. Everything else in Glovebox is free and needs no account.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt8 mb0">Asking AI costs about a cent. Everything else in Glovebox is free and needs no account.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () {
@@ -1132,11 +1393,11 @@
       case 'logsvc': logSheet(); break;
       case 'done': {
         var it = C.item(item);
-        if (it && it.kind === 'date') logSheet({ items: [item], title: '✓ ' + sp(it.name) + ' renewed' });
-        else if (it) logSheet({ items: [item], title: '✓ ' + sp(it.name) + ' done' });
+        if (it && it.kind === 'date') logSheet({ items: [item], icon: 'check', title: sp(it.name) + ' renewed' });
+        else if (it) logSheet({ items: [item], icon: 'check', title: sp(it.name) + ' done' });
         break;
       }
-      case 'donepast': { var it2 = C.item(item); if (it2) logSheet({ items: [item], past: true, title: '🕰️ When was it last done?', intro: 'Roughly is fine - from a receipt, the service book or the sticker on the windscreen.' }); break; }
+      case 'donepast': { var it2 = C.item(item); if (it2) logSheet({ items: [item], past: true, icon: 'earlier', title: 'When was it last done?', intro: 'Roughly is fine - from a receipt, the service book or the sticker on the windscreen.' }); break; }
       case 'itemmore': itemSheet(item); break;
       case 'setdate': setDateSheet(item); break;
       case 'planitem': planSheet(item); break;
@@ -1147,6 +1408,7 @@
       case 'lgroup': closeSheet(true); state.lights.group = el.getAttribute('data-g') || null; go('lights'); break;
       case 'light': closeSheet(true); go('light', el.getAttribute('data-id')); break;
       case 'read': openRead(el.getAttribute('data-kind')); break;
+      case 'dx': if (!state.source) { state.source = 'mine'; ensureMine(); } openDx(); break;
       case 'closesheet': closeSheet(); break;
       case 'seg': {
         var k = el.getAttribute('data-k'), v = el.getAttribute('data-v');

@@ -11,8 +11,8 @@
  * glovebox-*, and only those are ever deleted. A history link's report is in
  * the fragment, which is never part of a request, so it is never cached.
  */
-var CACHE = 'glovebox-shell-v1';
-var SHELL = ['./', 'history', 'app.css', 'desktop.css', 'app.js', 'history.js', 'glovebox-core.js', 'glovebox-lights.js', 'demo.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
+var CACHE = 'glovebox-shell-v2';
+var SHELL = ['./', 'history', 'app.css', 'desktop.css', 'app.js', 'history.js', 'glovebox-core.js', 'glovebox-diagnose.js', 'glovebox-lights.js', 'demo.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
