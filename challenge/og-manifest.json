@@ -3,283 +3,283 @@
   "cards": {
     "spar": {
       "inputs": "2bbf71a7c71d1b71",
-      "v": "cf630fc934"
+      "v": "9b2f7ca5ad"
     },
     "snapquote": {
       "inputs": "3374d6c3da708e78",
-      "v": "867d314b98"
+      "v": "cb69ffc471"
     },
     "chaser": {
       "inputs": "6601f86192ed5583",
-      "v": "a1940bf38c"
+      "v": "b687e5f5fe"
     },
     "rave": {
       "inputs": "ae1ed6d9eeeaff9b",
-      "v": "04f15d1680"
+      "v": "6715fd7d28"
     },
     "popquiz": {
       "inputs": "9836271789068aeb",
-      "v": "df9bf57869"
+      "v": "a1ebab4eb5"
     },
     "glowup": {
       "inputs": "9a1353b3e45f6c42",
-      "v": "4bbb082e53"
+      "v": "d7f0184928"
     },
     "booth": {
       "inputs": "6db31537856c796b",
-      "v": "c111e4a9d1"
+      "v": "40a23e5cf9"
     },
     "receipt": {
       "inputs": "ef375d9f897266bf",
-      "v": "801d6dffe2"
+      "v": "9534c78953"
     },
     "tally": {
       "inputs": "f0772c6f4f966e3a",
-      "v": "8d996995a4"
+      "v": "59a1ed9f38"
     },
     "tipout": {
       "inputs": "7a8755f80d4ae12e",
-      "v": "4ba75c4c6d"
+      "v": "d7735fc453"
     },
     "tells": {
       "inputs": "dfcd4be8736adb04",
-      "v": "a477e62bb2"
+      "v": "a936c02a04"
     },
     "covenant": {
       "inputs": "95d7b57c498b7be4",
-      "v": "c28444a697"
+      "v": "9f125a9293"
     },
     "hike": {
       "inputs": "0746fe10d837db47",
-      "v": "d4c9ed9344"
+      "v": "afde847f0b"
     },
     "dibs": {
       "inputs": "3ae62a96380b19de",
-      "v": "bd9d64fa9c"
+      "v": "d422ebad82"
     },
     "leash": {
       "inputs": "fe5828338b86609a",
-      "v": "b6f77959c9"
+      "v": "d43370a665"
     },
     "drip": {
       "inputs": "e386383d1ba78c24",
-      "v": "2563045afc"
+      "v": "6fda253675"
     },
     "boxed": {
       "inputs": "44a208b3bc841705",
-      "v": "2bc881406b"
+      "v": "64f859c432"
     },
     "insidejoke": {
       "inputs": "3f9277443c991a19",
-      "v": "c68345c16d"
+      "v": "e5343622b9"
     },
     "flight": {
       "inputs": "af87e576a7bebe1e",
-      "v": "f2c732187e"
+      "v": "cf798dcd1a"
     },
     "shadow": {
       "inputs": "87657920f1337a61",
-      "v": "be423435e4"
+      "v": "dfcac14b9f"
     },
     "chorus": {
       "inputs": "ec6021f4bba6a882",
-      "v": "e1b7f9bcf3"
+      "v": "a3141cea09"
     },
     "tieout": {
       "inputs": "c1156486d88cc54a",
-      "v": "7f0369f482"
+      "v": "22d9b95463"
     },
     "shelflife": {
       "inputs": "c2e9f3f25fa7f2b7",
-      "v": "2d78780993"
+      "v": "519e065cf0"
     },
     "burnrate": {
       "inputs": "015324b3ff62bcbb",
-      "v": "52fceae978"
+      "v": "afd9adab57"
     },
     "pickup": {
       "inputs": "42d04bc44289f900",
-      "v": "0846a595a9"
+      "v": "56c025019b"
     },
     "parity": {
       "inputs": "c9f27cb2a15a8354",
-      "v": "fe603ca5a9"
+      "v": "8541ded5b9"
     },
     "sprout": {
       "inputs": "46d3c97e7d83ee51",
-      "v": "301d05463f"
+      "v": "ee25183291"
     },
     "lanes": {
       "inputs": "f8f83a42bb43a2a3",
-      "v": "99772c2ef2"
+      "v": "40b1ae42b6"
     },
     "glovebox": {
       "inputs": "a6f19e7f4134672d",
-      "v": "14c0c86d96"
+      "v": "de6a7edef9"
     },
     "triage": {
       "inputs": "6699a9a6cb302ac8",
-      "v": "a2783187fa"
+      "v": "517656f901"
     },
     "settle": {
       "inputs": "f98641341160fa35",
-      "v": "e38a17e484"
+      "v": "1f89a92cef"
     },
     "zoned": {
       "inputs": "b58a45f084dd658b",
-      "v": "05a3175c4e"
+      "v": "9cd2819590"
     },
     "jars": {
       "inputs": "40eb8591f7e832bb",
-      "v": "c6821a6a40"
+      "v": "3a0e0f0837"
     },
     "sniff": {
       "inputs": "5211eba4c01506e5",
-      "v": "7411016475"
+      "v": "bf53298ba7"
     },
     "boomerang": {
       "inputs": "a2a7c5b01f8f8701",
-      "v": "9cfbf2f2ff"
+      "v": "7227e5c87a"
     },
     "drill": {
       "inputs": "593ddc7d8995f3d8",
-      "v": "2bb5f1af24"
+      "v": "23dc258f1e"
     },
     "duly": {
       "inputs": "3a0699efc7594fa9",
-      "v": "b439596c81"
+      "v": "7c39e0adce"
     },
     "rota": {
       "inputs": "bc6e90e6b9510a16",
-      "v": "cd1ec3e929"
+      "v": "1a28608522"
     },
     "kindly": {
       "inputs": "6e54b80c56cbe175",
-      "v": "3fa6b0557e"
+      "v": "7e14f89736"
     },
     "firstday": {
       "inputs": "138b6990c4245f9a",
-      "v": "1362c9eb69"
+      "v": "ea6d8bd3fc"
     },
     "pawlog": {
       "inputs": "e2f6a2241697333b",
-      "v": "421233ae4a"
+      "v": "1290c9032c"
     },
     "duohunt": {
       "inputs": "2a536fb51a457108",
-      "v": "cb2d723df7"
+      "v": "ef97c4c984"
     },
     "proof": {
       "inputs": "3acb49e5a2221492",
-      "v": "904543e336"
+      "v": "51e661b158"
     },
     "rep": {
       "inputs": "40fd1fd4820209fd",
-      "v": "5cb9bb1d24"
+      "v": "a6c3e3b1b6"
     },
     "canon": {
       "inputs": "02b8e960f1639c55",
-      "v": "c14cb0ff89"
+      "v": "913a7c5907"
     },
     "tada": {
       "inputs": "d6ac0ab93af54f27",
-      "v": "2d4b785d4d"
+      "v": "62acd1de56"
     },
     "stray": {
       "inputs": "0a5fefb387ce51b6",
-      "v": "cc33cd6254"
+      "v": "b26d296731"
     },
     "sorted": {
       "inputs": "0b42103e6028b31f",
-      "v": "546c1651e2"
+      "v": "a847443b56"
     },
     "haul": {
       "inputs": "5e3dfd8bdf3c7785",
-      "v": "b0d3b6d771"
+      "v": "84c422f224"
     },
     "sieve": {
       "inputs": "f9094ec4f2b64754",
-      "v": "d94f40dc3d"
+      "v": "188d032008"
     },
     "takeback": {
       "inputs": "f164ddc036e9520c",
-      "v": "33a570788b"
+      "v": "ec43541908"
     },
     "lastday": {
       "inputs": "caf75a3ac3f99851",
-      "v": "4dba0458cc"
+      "v": "f94244c618"
     },
     "again": {
       "inputs": "3b8e8f8cfa81db87",
-      "v": "8c7efea149"
+      "v": "03a12b94da"
     },
     "feedfix": {
       "inputs": "42cf0e87a4357206",
-      "v": "3a263ca188"
+      "v": "cd05df33ee"
     },
     "chapter": {
       "inputs": "fcbfc01ca6f4bb2f",
-      "v": "c36aa5901f"
+      "v": "37a04e9c74"
     },
     "replay": {
       "inputs": "f9fde819f7239f4b",
-      "v": "6531ec1645"
+      "v": "60e797e8bc"
     },
     "whichbox": {
       "inputs": "afc6d120645fe7a5",
-      "v": "28b39bf3ac"
+      "v": "7944a7787c"
     },
     "muster": {
       "inputs": "5f71eb3f6971bb2a",
-      "v": "625c4ba2db"
+      "v": "166c97ae6e"
     },
     "pencil": {
       "inputs": "5adb3450e15abc4c",
-      "v": "73ab932565"
+      "v": "e48be58ce7"
     },
     "waterfall": {
       "inputs": "8c3f08fdd897f547",
-      "v": "5f543020a9"
+      "v": "b2831d577e"
     },
     "ajar": {
       "inputs": "64530a1d949a5e0e",
-      "v": "197218a52f"
+      "v": "ea78274874"
     },
     "rush": {
       "inputs": "3b4755c98afc2461",
-      "v": "4140f1a40b"
+      "v": "6cd39bd1c3"
     },
     "snug": {
       "inputs": "6b0c9395df682f8c",
-      "v": "05fcb481b6"
+      "v": "678ba5b044"
     },
     "ladle": {
       "inputs": "5f86e00f7fe10ea5",
-      "v": "94c4292184"
+      "v": "6f2aee84f9"
     },
     "spotted": {
       "inputs": "1d45ed82b2e3721f",
-      "v": "99672c33e2"
+      "v": "eb21577691"
     },
     "reset": {
       "inputs": "05fc06de00ec1791",
-      "v": "eeb30b01ae"
+      "v": "080fea6e7c"
     },
     "trek": {
       "inputs": "16a820f2c38df8d1",
-      "v": "2ad6ee2abf"
+      "v": "6042fd4daf"
     },
     "stars": {
       "inputs": "ec036ff13ee19b24",
-      "v": "c9caaaa220"
+      "v": "d560427085"
     },
     "punch": {
       "inputs": "2a70970535c4d206",
-      "v": "38dc26118a"
+      "v": "7e5c8fffd9"
     },
     "lab": {
       "inputs": "03b9b72bd8f15039",
-      "v": "72d78475d5"
+      "v": "50d86de0e3"
     }
   }
 }

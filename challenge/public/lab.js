@@ -418,7 +418,9 @@
     $('#sApps').textContent = data.apps.length;
     var first = data.apps.reduce(function (m, a) { return a.dropped < m ? a.dropped : m; }, data.apps[0] ? data.apps[0].dropped : new Date().toISOString().slice(0, 10));
     $('#sDay').textContent = Math.max(1, Math.floor((Date.now() - new Date(first + 'T00:00:00Z')) / 864e5) + 1);
-    $('#sVotes').textContent = totalVotes().toLocaleString();
+    // The small live numbers are off while <html data-counts="off"> (as on
+    // the main site); the readout is then neither shown nor filled.
+    if (document.documentElement.getAttribute('data-counts') !== 'off') $('#sVotes').textContent = totalVotes().toLocaleString();
   }
 
   function drawToday() {

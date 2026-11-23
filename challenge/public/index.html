@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en">
+<!-- data-counts="off" hides the small live numbers (today: the hero's "votes
+     cast" readout), as the main site does: a low count reads as low
+     traction. Remove the attribute to bring them back. See CLAUDE.md. -->
+<html lang="en" data-counts="off">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -15,7 +18,7 @@
   <meta property="og:title" content="The Challenge Lab — a new app every day">
   <meta property="og:description" content="69 apps so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
   <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/">
-  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=72d78475d5">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=50d86de0e3">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -23,7 +26,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="The Challenge Lab — a new app every day">
   <meta name="twitter:description" content="69 apps so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
-  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=72d78475d5">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=50d86de0e3">
   <meta name="twitter:image:alt" content="The Challenge Lab: a new app every day. 69 apps shipped so far.">
   <!-- /lab:og -->
 </head>
@@ -70,7 +73,7 @@
         <ul class="proof" id="stats">
           <li><b id="sApps">–</b><span>apps shipped</span></li>
           <li><b id="sDay">–</b><span>days running</span></li>
-          <li><b id="sVotes">–</b><span>votes cast</span></li>
+          <li class="live-count"><b id="sVotes">–</b><span>votes cast</span></li>
           <li><b id="sNext">–</b><span>until the next drop</span></li>
         </ul>
       </div>

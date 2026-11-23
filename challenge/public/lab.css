@@ -190,6 +190,10 @@ h3 { font-size: 18px; line-height: 1.25; letter-spacing: -0.01em; font-weight: 6
 .proof b { display: block; width: fit-content; min-height: 1em; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: -0.04em; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap;
            color: var(--d-ink); background: linear-gradient(180deg, #FFFFFF 35%, #A9DBFF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .proof span { display: block; margin-top: 10px; font-family: var(--mono); font-size: 12px; line-height: 1.45; letter-spacing: 0.06em; text-transform: uppercase; color: var(--d-ink-2); }
+/* The small live numbers are off while data-counts="off" sits on <html>
+   (index.html): the row is then three readouts, on every width. */
+[data-counts="off"] .live-count { display: none !important; }
+[data-counts="off"] .proof { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (forced-colors: active) { .hero h1, .proof b, .count { background: none; -webkit-text-fill-color: currentColor; } }
 
 /* ---------- App tiles: the app's own two colours behind its emoji ---------- */
@@ -407,6 +411,12 @@ h3 { font-size: 18px; line-height: 1.25; letter-spacing: -0.01em; font-weight: 6
   .proof, .built-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
   .proof li:nth-child(3), .built-grid .bt:nth-child(3) { padding-left: 0; border-left: 0; }
   .proof li:nth-child(n+3)::before { display: none; }
+  [data-counts="off"] .proof { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  [data-counts="off"] .proof li { padding-right: 10px; }
+  [data-counts="off"] .proof li + li { padding-left: 12px; }
+  [data-counts="off"] .proof li:nth-child(n+3)::before { display: block; }
+  [data-counts="off"] .proof b { font-size: clamp(22px, 7vw, 28px); }
+  [data-counts="off"] .proof span { font-size: 11.5px; letter-spacing: 0.04em; }
   .today { padding: 18px; }
   .today::before { left: -6px; top: -6px; } .today::after { right: -6px; bottom: -6px; }
   .cta-row .btn { flex: 1 1 auto; }

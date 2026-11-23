@@ -255,12 +255,22 @@ moved is the look, the order of the page and how 69+ drops are scanned.
   (`test/pulse.js` still measures them).
 - **Order of the page:** hero (headline, and **today's drop, votable right
   there** — the newest drop that is not retired, with Try, Keep / Kill, the
-  reveal and the note) with four readouts under it (apps shipped, days
-  running, votes cast, until the next drop) → **Your streak** and the
+  reveal and the note) with three readouts under it (apps shipped, days
+  running, until the next drop; a fourth, votes cast, is switched off —
+  below) → **Your streak** and the
   **Leaderboard** side by side → the drops → "How it's built" → "How the lab
   works". The leaderboard shows the top five; "Show all N" opens the rest in
   columns (rank, votes, and the split only from this browser's own reveal,
   as before).
+- **Small live numbers are off: `data-counts="off"` on `<html>`** (Erik,
+  2026-11-23), the main site's switch and for the same reason: a low count
+  reads as low traction. Today it covers one thing, the hero's "votes cast"
+  readout (`.live-count`, the sum of the public per-app totals): hidden by
+  CSS, not filled by the script, and the row is three readouts at every
+  width. **Remove the attribute from `public/index.html` to bring it back**;
+  nothing else changes. Give any future small live count the `live-count`
+  class. The per-card "N votes" and the leaderboard's vote counts are the
+  voting itself and are not under the switch.
 - **The drops grid is compact:** a card is the tile, name, drop number and
   date, tagline, Try, Keep / Kill, the reveal line, and "About" (a
   `<details>` holding the blurb, the four features, who it is for and the
@@ -508,6 +518,15 @@ card each.
   is the app's two colours, darkened only as far as white text needs for
   4.5:1 (Spar's orange and Snapquote's teal needed it; the test checks every
   app), its name, tagline, drop number and address.
+- **Redrawn 2026-11-23 to match the redesigned page** (Erik's ask): every
+  card is the lab's navy panel — fine grid, a cyan and a violet glow, the
+  flask mark, letter-spaced labels (Inter; no mono face is bundled and none
+  was added), a luminous rule with ticks above the address. The app's
+  identity is its two colours as a tile behind its emoji, in the page's
+  viewfinder brackets, with a soft glow of the same colours kept to the
+  right of the words. All text sits on the navy in white or near-white; the
+  tile's colours are still deepened to the 4.5:1 the test checks. Redrawn
+  with `npm run og -- --redraw`, so every card has a new `?v=`.
 - **The landing card** (`public/og/lab.png`) shows how many apps have
   shipped and the newest nine as tiles, the newest ringed "NEW", so it is
   redrawn by every drop.
