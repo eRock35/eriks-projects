@@ -396,6 +396,7 @@ button.drow:hover .t { color: var(--link); }
 .ledger .ask { margin: 0 0 10px; }
 .reading { border-top: 1px solid var(--line); padding-top: 24px; }
 .reading > * + * { margin-top: 12px; }
+.rd-head h2:focus { outline: none; }
 .rd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ck-h { margin-top: 24px; font-size: var(--t-cap); font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
 .cks { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--line); }
@@ -431,7 +432,7 @@ button.drow:hover .t { color: var(--link); }
 .checks .n { flex: none; font-weight: 600; font-size: var(--t-sm); }
 .kw { display: flex; flex-wrap: wrap; gap: 8px; }
 .kw span { display: inline-flex; align-items: center; height: 44px; padding: 0 4px 0 14px; border-radius: 999px; border: 1px solid var(--line); font-size: var(--t-cap); font-weight: 500; }
-.kw button { width: 36px; height: 44px; border: 0; background: none; color: var(--muted); font-size: 18px; }
+.kw button { width: 44px; height: 44px; border: 0; background: none; color: var(--muted); font-size: 18px; }
 .loading { display: grid; place-items: center; padding: 48px 0; }
 .spinner { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); display: inline-block; vertical-align: -3px; }
 .spinner.sm { width: 16px; height: 16px; }
