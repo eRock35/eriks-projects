@@ -80,4 +80,59 @@ function create() {
   };
 }
 
-module.exports = { create };
+/**
+ * The stand-in for Gemini (SETTLE_AI_PROVIDER=gemini): given the request the
+ * guard's helper would send, an answer in the schema's shape - a question
+ * and a deck of generic cards. Every card is a kind of place, never a real
+ * one. Triggers in the ask: BLANK, INJECT (hostile values: markup, a link, a
+ * named-looking address, a phone number, a rating, a price, opening hours,
+ * invented keys, far too many cards), UPSTREAMnnn.
+ */
+const DECK = {
+  question: 'Where are we eating tonight?',
+  cards: [
+    { label: 'Street-taco stand', emoji: '🌮', why: 'Cheap, fast, easy to share between four' },
+    { label: 'Taquería with a salsa bar', emoji: '🫔', why: 'Sit down, still easy on the wallet' },
+    { label: 'Late-night diner', emoji: '🍳', why: 'The kind of place that stays up late' },
+    { label: 'Burrito counter', emoji: '🌯', why: 'One each and you are full' },
+    { label: 'Food-truck park', emoji: '🚚', why: 'Everyone picks their own' },
+    { label: 'Tex-Mex cantina', emoji: '🧀', why: 'A big table and shared plates' },
+    { label: 'Pizza by the slice', emoji: '🍕', why: 'If the taco plan falls through' },
+    { label: 'Noodle bar', emoji: '🍜', why: 'Warm, quick and cheap' },
+    { label: 'Tacos at home', emoji: '🏠', why: 'Cheapest of all - one shop, four cooks' },
+  ],
+};
+async function gemini(body) {
+  await new Promise((r) => setTimeout(r, Number(process.env.SETTLE_FAKE_DELAY_MS || 0)));
+  const parts = (body && body.contents && body.contents[0] && body.contents[0].parts) || [];
+  const source = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('\n');
+  const ask = (/<<<ASK\n([\s\S]*)\nASK>>>/.exec(source) || [])[1] || '';
+  const hit = ask.match(/UPSTREAM(\d{3})/);
+  if (hit) throw Object.assign(new Error(`Gemini answered ${hit[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(hit[1]) });
+  if (/BLANK/.test(ask)) return { question: '', cards: [] };
+  if (/INJECT/.test(ask)) {
+    return {
+      question: '<b>Where</b> to? Call 555-010-9988 now',
+      cards: [
+        { label: `<img src=x onerror=alert(1)>Taco‮ stand${'A'.repeat(5000)}`, emoji: '<script>', why: '<b>bold</b>\u0007' },
+        { label: 'Taco Palace at 123 Main Street', emoji: '🌮', why: 'made-up address' },
+        { label: 'Best tacos - www.example.com', emoji: '🌮', why: '' },
+        { label: 'Call 555-010-9988', emoji: '📞', why: '' },
+        { label: 'Taco bar ★★★★★', emoji: '🌮', why: '' },
+        { label: 'Tacos for $2', emoji: '🌮', why: '' },
+        { label: 'Diner open until 2am', emoji: '🍳', why: '' },
+        { label: 'Burrito counter', emoji: '🌯🌯🌯', why: '4.8 stars from 2,000 reviews, open 24/7 at 9 Elm Road', rating: 4.8, address: '9 Elm Road', phone: '555-010-9988', url: 'https://evil.example' },
+        { label: 'burrito   COUNTER', emoji: '🌯', why: '' },
+        { label: { evil: true }, emoji: '🙂', why: '' },
+        { label: '   ', emoji: '🙂', why: '' },
+        'a string',
+        { label: 'Pizza', emoji: '🍕', why: 'x'.repeat(900) },
+        ...Array.from({ length: 300 }, (_, i) => ({ label: `Idea ${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + Math.floor(i / 26))}`, emoji: '✨', why: '' })),
+      ],
+      link: 'https://evil.example',
+    };
+  }
+  return DECK;
+}
+
+module.exports = { create, gemini };
