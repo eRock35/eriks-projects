@@ -1,0 +1,22 @@
+{
+  "name": "asfiled",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "ASFILED_DEV_MOUNT=/asfiled ASFILED_MEMORY=1 ASFILED_FAKE_AI=1 PORT=8187 node server.js",
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 ASFILED_MEMORY=1 ASFILED_FAKE_AI=1 node test/run.js",
+    "data:fetch": "node tools/fetch.js",
+    "data:extract": "node tools/extract.js",
+    "data:build": "node tools/build.js",
+    "data:verify": "node tools/verify.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@google-cloud/firestore": "^7.10.0",
+    "@simplewebauthn/server": "^14.0.2",
+    "express": "^4.19.2"
+  }
+}

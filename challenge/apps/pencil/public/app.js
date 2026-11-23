@@ -217,7 +217,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Pencil stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Pencil stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     var b = $('#resend', where);
     b.addEventListener('click', function () {
       b.disabled = true;
@@ -299,27 +299,28 @@
     var cols = [['\u{1F98A}', 'Priya'], ['\u{1F43B}', 'Marcus'], ['\u{1F33B}', 'Noor'], ['\u{1F680}', 'Kai']];
     var rows = [[3, 13, 6, 4], [0, 26, 26, 26], [8, 2, 16, 0], [1, 5, 3, 17], [13, 4, 2, 7]];
     var tot = [25, 50, 53, 54];
-    return '<div class="pad" aria-hidden="true"><span class="crown">\u{1F451} Priya leads</span><span class="sum">26 ✓</span><table><thead><tr><th></th>' + cols.map(function (c) { return '<th><span class="e">' + c[0] + '</span>' + c[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    return '<div class="pad" aria-hidden="true"><div class="pad-top"><span class="crown">Priya leads</span><span class="sum">Hand adds to 26 ✓</span></div><table><thead><tr><th></th>' + cols.map(function (c) { return '<th><span class="e">' + c[0] + '</span>' + c[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
       rows.map(function (r, i) { return '<tr><td class="r">H' + (i + 1) + '</td>' + r.map(function (v, k) { return '<td' + (i === 1 ? ' class="moon"' : '') + '>' + (i === 1 && k === 0 ? '\u{1F319}' : v) + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '<tr class="tot"><td class="r"></td>' + tot.map(function (v) { return '<td>' + v + '</td>'; }).join('') + '</tr></tbody></table><span class="stub"></span></div>';
+      '<tr class="tot"><td class="r"></td>' + tot.map(function (v) { return '<td>' + v + '</td>'; }).join('') + '</tr></tbody></table></div>';
   }
   function viewFirst() {
-    return '<section class="hero"><div class="hero-grid"><div>' +
+    return '<section class="hero">' +
       '<h1>Keep score at game night.</h1>' +
-      '<p>Every game, every round, and who’s ahead all year. Pencil knows how each game is scored, does the maths nobody wants to argue about, and remembers who won last time.</p>' +
-      '<div class="cta"><button class="btn big white" type="button" data-act="try">Try a game night</button>' +
-      '<div class="row"><button class="btn line" type="button" data-act="new">Start a game</button><button class="btn line" type="button" data-act="joinnew">Join a table</button></div></div>' +
+      '<p class="lede">Every game, every round, and who’s ahead all year.</p>' +
+      '<div class="cta"><button class="btn big" type="button" data-act="try">Try a game night</button><button class="btn big ghost" type="button" data-act="new">Start a game</button></div>' +
+      '<div class="hero-links"><button class="link-btn" type="button" data-act="joinnew">Join a table</button><button class="link-btn" type="button" data-act="ainew">Read a paper sheet</button></div>' +
+      mockSheet() +
       '<p class="gamesline">Hearts · Five dice · Rummy · Bowling · Darts 501 · Cribbage · Mini golf · Euchre · Card golf · Word game · any game you make up</p>' +
-      '</div>' + mockSheet() + '</div></section>' +
-      '<section class="card" style="margin-top:16px"><h2>How it works</h2><ol class="how">' +
-      '<li><div><b>Pick the game, add the players</b><p class="muted small" style="margin:0">Recent players are one tap away, each with an emoji.</p></div></li>' +
-      '<li><div><b>Tap a box, tap the number</b><p class="muted small" style="margin:0">A big keypad, the leader crowned, the dealer moved round. Hearts checks each hand adds to 26; darts calls the bust; bowling counts the strike bonus.</p></div></li>' +
-      '<li><div><b>The winner, called - and remembered</b><p class="muted small" style="margin:0">A recap card to send the group, and a table of wins, streaks and records across every game night.</p></div></li></ol></section>' +
-      '<div class="grid three" style="margin-top:14px">' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">\u{1F4F1}</span><h3>Show the table</h3><p class="muted small">Everyone watches the scores land on their own phone - a six-letter code, no accounts. Hand the pencil to someone else whenever you like.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">\u{1F3C6}</span><h3>Bragging rights</h3><p class="muted small">Wins, win rate and streaks for every game, head to head between any two players, and “Next to beat: Marcus’s 287 in Bowling”.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">\u{1F4DD}</span><h3>Kept it on paper?</h3><p class="muted small">Snap the score sheet and AI copies it in for you to check (with a free account). Everything else is free, needs no sign-in, and stays on this phone.</p></section>' +
-      '</div>';
+      '</section>' +
+      '<section class="sec narrow"><h2>How it works</h2><ol class="how">' +
+      '<li><div><b>Pick the game, add the players</b><p class="muted small m0">Recent players are one tap away, each with an emoji.</p></div></li>' +
+      '<li><div><b>Tap a box, tap the number</b><p class="muted small m0">A big keypad, the leader crowned, the dealer moved round. Hearts checks each hand adds to 26; darts calls the bust; bowling counts the strike bonus.</p></div></li>' +
+      '<li><div><b>The winner, called - and remembered</b><p class="muted small m0">A recap card to send the group, and a table of wins, streaks and records across every game night.</p></div></li></ol></section>' +
+      '<section class="sec narrow"><h2>More than a score sheet</h2><div class="feats">' +
+      '<div class="feat"><h3>Show the table</h3><p class="muted small m0">Everyone watches the scores land on their own phone - a six-letter code, no accounts. Hand the pencil to someone else whenever you like.</p></div>' +
+      '<div class="feat"><h3>Bragging rights</h3><p class="muted small m0">Wins, win rate and streaks for every game, head to head between any two players, and “Next to beat: Marcus’s 287 in Bowling”.</p></div>' +
+      '<div class="feat"><h3>Kept it on paper?</h3><p class="muted small m0">Snap the score sheet and AI copies it in, flags any number it wasn’t sure of, and Pencil adds it up (with a free account). Everything else is free, needs no sign-in, and stays on this phone.</p></div>' +
+      '</div></section>';
   }
   function startTry() {
     state.demo = C.sampleNight({ now: now() });
@@ -348,12 +349,12 @@
     out += '<div class="grid split">';
     out += '<div class="stack">';
     if (playing.length) out += '<section class="card stack"><h2>Playing now</h2><div class="glist">' + playing.map(gameRow).join('') + '</div></section>';
-    else out += '<section class="card stack center"><p style="font-size:2rem;margin:0" aria-hidden="true">\u{1F3B2}</p><p><b>Nothing on the table.</b> Start a game - it takes ten seconds.</p><button class="btn big" type="button" data-act="new">Start a game</button></section>';
+    else out += '<section class="card stack center"><p class="bigemo" aria-hidden="true">\u{1F3B2}</p><p><b>Nothing on the table.</b> Start a game - it takes ten seconds.</p><button class="btn big" type="button" data-act="new">Start a game</button></section>';
     if (done.length) out += '<section class="card stack"><h2>Finished</h2><div class="glist">' + done.slice(0, 8).map(gameRow).join('') + '</div></section>';
     out += '</div><div class="stack">';
-    if (nexts.length) out += '<section class="card stack"><h2>Bragging rights</h2>' + nexts.map(function (x) { return '<p class="story" style="margin:0">' + esc(x.emoji + ' ' + x.next) + '</p>'; }).join('') + '<button class="btn ghost" type="button" data-act="tab" data-tab="table">See our table</button></section>';
-    out += '<section class="card stack"><h2>Someone else keeping score?</h2><p class="muted small" style="margin:0">Watch their table live with the six-letter code on their screen.</p><button class="btn ghost" type="button" data-act="joinnew">Join a table</button></section>';
-    if (!state.trying) out += '<section class="card stack"><h2>Kept it on paper?</h2><p class="muted small" style="margin:0">Snap the sheet and AI copies the names and scores into a new game, for you to check.</p><button class="btn ghost ai" type="button" data-act="ainew"> Read a paper sheet</button></section>';
+    if (nexts.length) out += '<section class="card stack"><h2>Bragging rights</h2>' + nexts.map(function (x) { return '<p class="story m0">' + esc(x.emoji + ' ' + x.next) + '</p>'; }).join('') + '<button class="btn ghost" type="button" data-act="tab" data-tab="table">See our table</button></section>';
+    out += '<section class="card stack"><h2>Someone else keeping score?</h2><p class="muted small m0">Watch their table live with the six-letter code on their screen.</p><button class="btn ghost" type="button" data-act="joinnew">Join a table</button></section>';
+    if (!state.trying) out += '<section class="card stack"><h2>Kept it on paper?</h2><p class="muted small m0">Snap the sheet and AI copies the names and scores into a new game, for you to check.</p><button class="btn ghost ai" type="button" data-act="ainew"> Read a paper sheet</button></section>';
     out += '</div></div>';
     return out;
   }
@@ -407,12 +408,12 @@
       out += '<label class="check"><input type="checkbox" data-flag="doubleOut"' + (st.doubleOut ? ' checked' : '') + '> Finish on a double</label>';
     } else if (info.kind === 'cribbage') {
       out += '<label class="check"><input type="checkbox" data-flag="teams"' + (st.teams ? ' checked' : '') + '> Two teams of two</label>';
-      out += '<p class="hint" style="margin:0">To 121. Skunks are called at the end: under 91, and a double under 61.</p>';
+      out += '<p class="hint m0">To 121. Skunks are called at the end: under 91, and a double under 61.</p>';
     } else if (info.kind === 'golf') {
       out += '<div class="field"><span>Holes</span><div class="seg">' + seg('holes', 9, st.holes, '9') + seg('holes', 18, st.holes, '18') + '</div></div>';
       out += num('max', st.max, 'Most strokes on one hole', 2, 12);
-      out += '<p class="hint" style="margin:0">Add par for each hole on the score sheet, if the course shows it.</p>';
-    } else out += '<p class="muted small" style="margin:0">Ten frames, strikes and spares worked out for you.</p>';
+      out += '<p class="hint m0">Add par for each hole on the score sheet, if the course shows it.</p>';
+    } else out += '<p class="muted small m0">Ten frames, strikes and spares worked out for you.</p>';
     return out;
   }
   function viewSetup() {
@@ -424,21 +425,21 @@
     var max = team ? (info.kind === 'cribbage' || info.preset === 'euchre' ? 4 : 12) : info.max;
     var out = '<div class="sec-head"><h1><span class="emo" aria-hidden="true">' + esc(info.emoji) + '</span> ' + esc(info.name) + '</h1><button class="btn small ghost" type="button" data-act="new">Another game</button></div>';
     out += '<div class="grid split"><div class="stack">';
-    out += '<section class="card stack"><div class="sec-head" style="margin:0"><h2>Who’s playing?</h2><span class="muted small">' + (team ? (info.preset === 'euchre' || info.kind === 'cribbage' ? '4 players, 2 teams' : 'Teams') : info.min === info.max ? info.min + ' players' : info.min + '–' + Math.min(info.max, 12) + ' players') + '</span></div>';
+    out += '<section class="card stack"><div class="sec-head m0"><h2>Who’s playing?</h2><span class="muted small">' + (team ? (info.preset === 'euchre' || info.kind === 'cribbage' ? '4 players, 2 teams' : 'Teams') : info.min === info.max ? info.min + ' players' : info.min + '–' + Math.min(info.max, 12) + ' players') + '</span></div>';
     out += '<div class="plist" id="plist">' + (s.players.length ? s.players.map(function (p, i) {
       return '<div class="prow"><button class="emobtn" type="button" data-act="pemoji" data-i="' + i + '" aria-label="Change ' + esc(p.name) + '’s emoji">' + esc(p.emoji) + '</button><span><b>' + esc(p.name) + '</b>' + (team ? '<small>Team ' + (i % 2 + 1) + '</small>' : '') + '</span><span class="acts"><button class="iconbtn" type="button" data-act="pup" data-i="' + i + '" aria-label="Move ' + esc(p.name) + ' up"' + (i ? '' : ' disabled') + '>↑</button><button class="iconbtn" type="button" data-act="pdown" data-i="' + i + '" aria-label="Move ' + esc(p.name) + ' down"' + (i < s.players.length - 1 ? '' : ' disabled') + '>↓</button><button class="iconbtn" type="button" data-act="prm" data-i="' + i + '" aria-label="Take ' + esc(p.name) + ' out">×</button></span></div>';
-    }).join('') : '<p class="muted small" style="margin:0">Nobody yet - tap a name below or type one.</p>') + '</div>';
+    }).join('') : '<p class="muted small m0">Nobody yet - tap a name below or type one.</p>') + '</div>';
     if (s.players.length < max) {
       out += '<form class="addrow" id="addP" autocomplete="off"><label class="vh" for="pName">First name</label><input class="input" id="pName" maxlength="' + C.LIMITS.name + '" placeholder="Add a player - first name" enterkeyhint="done"><button class="btn" type="submit">Add</button></form>';
       if (recent.length) out += '<div class="field"><span class="small">Recent players</span><div class="chips">' + recent.map(function (p) { return '<button class="pchip" type="button" data-act="padd" data-pid="' + esc(p.id) + '"><span class="emo" aria-hidden="true">' + esc(p.emoji) + '</span>' + esc(p.name) + '</button>'; }).join('') + '</div></div>';
       if (b.groups.length) out += '<div class="chips">' + b.groups.map(function (gr) { return '<button class="chip" type="button" data-act="pgroup" data-gid="' + esc(gr.id) + '">+ ' + esc(gr.name) + '</button>'; }).join('') + '</div>';
     }
     if (team && s.players.length >= 2) {
-      out += '<div class="teams">' + [0, 1].map(function (t) { var ps = s.players.filter(function (p, i) { return i % 2 === t; }); return '<div class="tm"><b>Team ' + (t + 1) + '</b><span class="small">' + esc(C.listNames(ps.map(function (p) { return p.name; }))) + '</span></div>'; }).join('') + '</div><p class="hint" style="margin:0">Partners sit opposite: 1st and 3rd against 2nd and 4th. Move players to change the teams.</p>';
+      out += '<div class="teams">' + [0, 1].map(function (t) { var ps = s.players.filter(function (p, i) { return i % 2 === t; }); return '<div class="tm"><b>Team ' + (t + 1) + '</b><span class="small">' + esc(C.listNames(ps.map(function (p) { return p.name; }))) + '</span></div>'; }).join('') + '</div><p class="hint m0">Partners sit opposite: 1st and 3rd against 2nd and 4th. Move players to change the teams.</p>';
     }
     out += '</section></div><div class="stack">';
     var custom = info.kind === 'any' && (!info.preset || info.preset === 'custom');
-    out += '<section class="card stack"><details class="more"' + (custom || s.rulesOpen ? ' open' : '') + ' id="rulesBox"><summary>Rules: ' + esc(rulesLine({ kind: info.kind, settings: s.settings })) + '</summary><div class="stack" style="margin-top:10px">' + settingsHtml(s, info) + '</div></details></section>';
+    out += '<section class="card stack"><details class="more"' + (custom || s.rulesOpen ? ' open' : '') + ' id="rulesBox"><summary>Rules: ' + esc(rulesLine({ kind: info.kind, settings: s.settings })) + '</summary><div class="stack mt12">' + settingsHtml(s, info) + '</div></details></section>';
     var usesDealer = info.kind === 'hearts' || info.kind === 'cribbage' || (info.kind === 'any' && s.settings.dealer);
     if (usesDealer && s.players.length) out += '<section class="card stack"><label class="field"><span>Who deals first?</span><select class="input" id="sDealer">' + s.players.map(function (p, i) { return '<option value="' + i + '"' + (i === s.dealer ? ' selected' : '') + '>' + esc(p.emoji + ' ' + p.name) + '</option>'; }).join('') + '</select></label></section>';
     if (b.groups.length) out += '<section class="card stack"><label class="field"><span>Count it for</span><select class="input" id="sGroup"><option value="">Just this phone’s history</option>' + b.groups.map(function (gr) { return '<option value="' + esc(gr.id) + '"' + (s.group === gr.id ? ' selected' : '') + '>' + esc(gr.name) + '</option>'; }).join('') + '</select><span class="hint">Our table can show one group’s games on their own.</span></label></section>';
@@ -531,15 +532,15 @@
     var info = C.infoOf(g), ed = canScore(g);
     var pill = watching(g) ? '<span class="pill p-live">Watching</span>' : r.over ? '<span class="pill p-done">Finished</span>' : '<span class="pill p-play">Playing</span>';
     var out = '<section class="card gamehead"><div class="title"><span class="emo" aria-hidden="true">' + esc(info.emoji) + '</span><h1>' + esc(g.name) + '</h1>' + pill + '</div>';
-    out += '<p class="statusline" style="margin:0" aria-live="polite">' + (r.leaders.length && C.started(g) ? '<span class="crown" aria-hidden="true">\u{1F451}</span>' : '') + esc(r.wait || r.line) + (r.extra ? ' ' + esc(r.extra) : '') + '</p>';
-    if (r.wait) out += '<p class="warnline" style="margin:0">' + esc(r.wait) + '</p>';
+    out += '<p class="statusline m0" aria-live="polite">' + (r.leaders.length && C.started(g) ? '<span class="crown" aria-hidden="true">\u{1F451}</span>' : '') + esc(r.wait || r.line) + (r.extra ? ' ' + esc(r.extra) : '') + '</p>';
+    if (r.wait) out += '<p class="warnline m0">' + esc(r.wait) + '</p>';
     if (C.usesDealer(g) && !r.over) {
       var n = g.kind === 'any' ? g.data.rounds.length : g.data.hands.length;
       var d = dealerHere(g, n);
-      if (d) out += '<p class="dealline" style="margin:0">\u{1F0A0} ' + esc(d.name) + ' deals ' + (g.kind === 'any' ? 'round ' : 'hand ') + (n + 1) + (g.kind === 'hearts' ? ' · ' + esc(C.passFor(g, n)) : '') + (g.kind === 'cribbage' ? ' · the crib is ' + esc(C.sideOf(g, C.dealerFor(g, n).side).name) + '’s' : '') + '</p>';
+      if (d) out += '<p class="dealline m0">\u{1F0A0} ' + esc(d.name) + ' deals ' + (g.kind === 'any' ? 'round ' : 'hand ') + (n + 1) + (g.kind === 'hearts' ? ' · ' + esc(C.passFor(g, n)) : '') + (g.kind === 'cribbage' ? ' · the crib is ' + esc(C.sideOf(g, C.dealerFor(g, n).side).name) + '’s' : '') + '</p>';
     }
     var nx = C.nextUp(g);
-    if (nx && !r.over) out += '<p class="dealline" style="margin:0">Up next: <b>' + esc(C.sideOf(g, nx.sid).name) + '</b></p>';
+    if (nx && !r.over) out += '<p class="dealline m0">Up next: <b>' + esc(C.sideOf(g, nx.sid).name) + '</b></p>';
     out += '<div class="toolbar">';
     var w = g.shared ? (g.shared.members || []).filter(function (m) { return m.role === 'watcher'; }).length : 0;
     if (ed) {
@@ -569,8 +570,8 @@
       '<div class="podium">' + r.rows.map(function (row) {
         return '<div class="pl' + (row.place === 1 ? ' first' : '') + '"><span aria-hidden="true">' + medal(row.place) + '</span><span class="emo" aria-hidden="true">' + esc(row.side.emoji) + '</span><span>' + esc(row.side.name) + '</span><b class="t">' + esc(g.kind === 'darts' ? (row.total === 0 ? 'Out' : row.total + ' left') : fmt(row.total)) + '</b></div>';
       }).join('') + '</div>' +
-      (hl.length ? '<ul class="hl" style="text-align:left">' + hl.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
-      '<div class="row" style="justify-content:center;margin-top:14px"><button class="btn white" type="button" data-act="recap">\u{1F5BC} Recap card</button>' + (canScore(g) ? '<button class="btn line" type="button" data-act="rematch">Rematch</button>' : '') + '<button class="btn line" type="button" data-act="tab" data-tab="table">Our table</button></div></section>';
+      (hl.length ? '<ul class="hl tl">' + hl.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
+      '<div class="row jc mt16"><button class="btn white" type="button" data-act="recap">\u{1F5BC} Recap card</button>' + (canScore(g) ? '<button class="btn line" type="button" data-act="rematch">Rematch</button>' : '') + '<button class="btn line" type="button" data-act="tab" data-tab="table">Our table</button></div></section>';
   }
   function viewGame(g) {
     var r = C.result(g);
@@ -578,7 +579,7 @@
     if (watching(g)) out += liveBar(g);
     else if (g.shared) out += sharedBar(g);
     if (r.over) out += winPanel(g, r);
-    out += '<div class="stack" style="margin-top:' + (r.over ? '14px' : '0') + '">' + head(g, r);
+    out += '<div class="stack' + (r.over ? ' mt16' : '') + '">' + head(g, r);
     var ed = canScore(g);
     if (g.kind === 'any') out += anyBody(g, r, ed);
     else if (g.kind === 'hearts') out += heartsBody(g, r, ed);
@@ -597,17 +598,17 @@
     var out = '<div class="sbox" data-end="1" role="region" aria-label="Score sheet" tabindex="0"><table class="sgrid"><thead><tr><th class="nm" scope="col">' + plural(n, 'round') + '</th>';
     rounds.forEach(function (row, i) {
       var d = g.settings.dealer ? dealerHere(g, i) : null;
-      out += '<th scope="col">' + (ed ? '<button class="link-btn" type="button" data-act="roundmenu" data-r="' + i + '" style="min-height:32px;text-decoration:none" aria-label="Round ' + (i + 1) + (row.note ? ': ' + esc(row.note) : '') + '">' + (i + 1) + '</button>' : (i + 1)) + (d ? '<small>' + esc(initial(d.name)) + ' deals</small>' : '') + (row.note ? '<small>✎ note</small>' : '') + '</th>';
+      out += '<th scope="col">' + (ed ? '<button class="link-btn rlink" type="button" data-act="roundmenu" data-r="' + i + '" aria-label="Round ' + (i + 1) + (row.note ? ': ' + esc(row.note) : '') + '">' + (i + 1) + '</button>' : (i + 1)) + (d ? '<small>' + esc(initial(d.name)) + ' deals</small>' : '') + (row.note ? '<small>✎ note</small>' : '') + '</th>';
     });
     if (add) out += '<th scope="col">' + (n + 1) + '<small>next</small></th>';
     out += '</tr></thead><tbody>';
     g.sides.forEach(function (side) {
       out += '<tr class="' + rowClass(r, side, '') + '"><th class="nm" scope="row">' + whoCell(g, r, side) + '</th>';
       rounds.forEach(function (row, i) {
-        if (!C.inRound(side, i)) { out += '<td><span class="cell out" style="display:grid;place-items:center">–</span></td>'; return; }
+        if (!C.inRound(side, i)) { out += '<td><span class="cell out gridc">–</span></td>'; return; }
         var v = row.s[side.id];
         var has = Number.isInteger(v);
-        out += '<td>' + (ed ? '<button class="cell' + (has ? (v < 0 ? ' neg' : '') : ' empty') + '" type="button" data-act="cell" data-r="' + i + '" data-sid="' + esc(side.id) + '" aria-label="' + esc(side.name + ', round ' + (i + 1) + ': ' + (has ? v : 'empty')) + '">' + (has ? esc(fmt(v)) : '·') + '</button>' : '<span class="cell' + (has ? '' : ' empty') + '" style="display:grid;place-items:center">' + (has ? esc(fmt(v)) : '·') + '</span>') + '</td>';
+        out += '<td>' + (ed ? '<button class="cell' + (has ? (v < 0 ? ' neg' : '') : ' empty') + '" type="button" data-act="cell" data-r="' + i + '" data-sid="' + esc(side.id) + '" aria-label="' + esc(side.name + ', round ' + (i + 1) + ': ' + (has ? v : 'empty')) + '">' + (has ? esc(fmt(v)) : '·') + '</button>' : '<span class="cell' + (has ? '' : ' empty') + ' gridc">' + (has ? esc(fmt(v)) : '·') + '</span>') + '</td>';
       });
       if (add) out += '<td><button class="cell new" type="button" data-act="cell" data-r="' + n + '" data-sid="' + esc(side.id) + '" aria-label="' + esc(side.name + ', round ' + (n + 1)) + '">+</button></td>';
       out += '</tr>';
@@ -625,7 +626,7 @@
     return (s || g.sides[0]).id;
   }
   function aiNudge(g) {
-    return '<p class="muted small" style="margin:0">Kept some rounds on paper? <button class="link-btn" type="button" data-act="ainow">Read the sheet in</button></p>';
+    return '<p class="muted small m0">Kept some rounds on paper? <button class="link-btn" type="button" data-act="ainow">Read the sheet in</button></p>';
   }
 
   /* Hearts: a hand at a time, the 26 checked, the moon in one tap. */
@@ -639,14 +640,14 @@
       hands.forEach(function (h, i) {
         var v = h.s[side.id], has = Number.isInteger(v);
         var label = !C.inRound(side, i) ? '–' : h.moon === side.id ? '\u{1F319}' : has ? fmt(v) : '·';
-        out += '<td' + (h.moon ? ' class="moonc"' : '') + '>' + (ed && C.inRound(side, i) ? '<button class="cell" type="button" data-act="hand" data-r="' + i + '" aria-label="' + esc('Hand ' + (i + 1) + ', ' + side.name + ': ' + (h.moon === side.id ? 'shot the moon' : (has ? v : 'empty'))) + '">' + esc(label) + '</button>' : '<span class="cell" style="display:grid;place-items:center">' + esc(label) + '</span>') + '</td>';
+        out += '<td' + (h.moon ? ' class="moonc"' : '') + '>' + (ed && C.inRound(side, i) ? '<button class="cell" type="button" data-act="hand" data-r="' + i + '" aria-label="' + esc('Hand ' + (i + 1) + ', ' + side.name + ': ' + (h.moon === side.id ? 'shot the moon' : (has ? v : 'empty'))) + '">' + esc(label) + '</button>' : '<span class="cell gridc">' + esc(label) + '</span>') + '</td>';
       });
       out += '</tr>';
     });
     out += '</tbody></table></div>';
     if (ed && !r.over) {
       out += '<div class="bigrow"><button class="btn big" type="button" data-act="hand">+ Hand ' + (n + 1) + '</button><button class="btn big moonbtn" type="button" data-act="moon">\u{1F319} Shot the moon</button></div>';
-      out += '<p class="muted small" style="margin:0">Each hand’s points add up to 26 - Pencil checks. The game ends when someone reaches ' + g.settings.endAt + '; lowest wins. ' + aiNudge(g).replace(/^<p class="muted small" style="margin:0">|<\/p>$/g, '') + '</p>';
+      out += '<p class="muted small m0">Each hand’s points add up to 26 - Pencil checks. The game ends when someone reaches ' + g.settings.endAt + '; lowest wins. ' + aiNudge(g).replace(/^<p class="muted small m0">|<\/p>$/g, '') + '</p>';
     }
     return out;
   }
@@ -685,7 +686,7 @@
   }
   function cribBody(g, r, ed) {
     var hands = g.data.hands, n = hands.length, b = C.cribBoard(g);
-    var out = '<section class="card stack"><div class="pegs">' + pegSvg(g) + '</div><div class="row small" style="gap:6px 14px">' + g.sides.map(function (s, k) { return '<span><span aria-hidden="true" style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #1b1d1a;background:' + PEG_COLOURS[k % 3] + ';vertical-align:-1px"></span> ' + esc(s.name) + ' <b>' + b.totals[s.id] + '</b></span>'; }).join('') + '<span class="muted">Filled peg: now · ring: the peg behind</span></div></section>';
+    var out = '<section class="card stack"><div class="pegs">' + pegSvg(g) + '</div><div class="row small gapw">' + g.sides.map(function (s, k) { return '<span><span aria-hidden="true" class="pegdot peg' + (k % 3) + '"></span> ' + esc(s.name) + ' <b>' + b.totals[s.id] + '</b></span>'; }).join('') + '<span class="muted">Filled peg: now · ring: the peg behind</span></div></section>';
     out += '<div class="sbox" data-end="1" role="region" aria-label="Hands" tabindex="0"><table class="sgrid"><thead><tr><th class="nm" scope="col">' + plural(n, 'hand') + '</th>';
     hands.forEach(function (h, i) { var d = C.dealerFor(g, i); out += '<th scope="col">' + (i + 1) + '<small>' + esc(initial(d.person.name)) + '’s crib</small></th>'; });
     out += '</tr></thead><tbody>';
@@ -694,7 +695,7 @@
       hands.forEach(function (h, i) {
         var d = C.dealerFor(g, i), mine = d.side === side.id;
         var v = (h.peg[side.id] || 0) + (h.hand[side.id] || 0) + (mine ? h.crib || 0 : 0);
-        out += '<td><span class="cell" style="display:grid;place-items:center" title="' + esc('Pegging ' + (h.peg[side.id] || 0) + ', hand ' + (h.hand[side.id] || 0) + (mine ? ', crib ' + (h.crib || 0) : '')) + '">' + v + '</span></td>';
+        out += '<td><span class="cell gridc" title="' + esc('Pegging ' + (h.peg[side.id] || 0) + ', hand ' + (h.hand[side.id] || 0) + (mine ? ', crib ' + (h.crib || 0) : '')) + '">' + v + '</span></td>';
       });
       out += '</tr>';
     });
@@ -709,20 +710,20 @@
     var out = '<div class="sbox" role="region" aria-label="Score card" tabindex="0"><table class="sgrid"><thead><tr><th class="nm" scope="col">Hole</th>';
     holes.forEach(function (h, i) { out += '<th scope="col">' + (i + 1) + '</th>'; });
     out += '</tr><tr><th class="nm" scope="row">Par</th>';
-    holes.forEach(function (h, i) { out += '<th>' + (ed ? '<button class="cell' + (h.par ? '' : ' empty') + '" type="button" data-act="par" data-r="' + i + '" style="min-height:40px;height:40px;font-size:.95rem" aria-label="Par for hole ' + (i + 1) + ': ' + (h.par || 'not set') + '">' + (h.par || '–') + '</button>' : (h.par || '–')) + '</th>'; });
+    holes.forEach(function (h, i) { out += '<th>' + (ed ? '<button class="cell' + (h.par ? '' : ' empty') + ' parcell" type="button" data-act="par" data-r="' + i + '" aria-label="Par for hole ' + (i + 1) + ': ' + (h.par || 'not set') + '">' + (h.par || '–') + '</button>' : (h.par || '–')) + '</th>'; });
     out += '</tr></thead><tbody>';
     g.sides.forEach(function (side) {
       out += '<tr class="' + rowClass(r, side, '') + '"><th class="nm" scope="row">' + whoCell(g, r, side) + '</th>';
       holes.forEach(function (h, i) {
         var v = h.s[side.id], has = Number.isInteger(v);
         var txt = has ? (v === 1 ? '1★' : String(v)) : '·';
-        out += '<td>' + (ed ? '<button class="cell' + (has ? '' : ' empty') + '" type="button" data-act="stroke" data-r="' + i + '" data-sid="' + esc(side.id) + '" aria-label="' + esc(side.name + ', hole ' + (i + 1) + ': ' + (has ? plural(v, 'stroke') : 'empty')) + '">' + esc(txt) + '</button>' : '<span class="cell" style="display:grid;place-items:center">' + esc(txt) + '</span>') + '</td>';
+        out += '<td>' + (ed ? '<button class="cell' + (has ? '' : ' empty') + '" type="button" data-act="stroke" data-r="' + i + '" data-sid="' + esc(side.id) + '" aria-label="' + esc(side.name + ', hole ' + (i + 1) + ': ' + (has ? plural(v, 'stroke') : 'empty')) + '">' + esc(txt) + '</button>' : '<span class="cell gridc">' + esc(txt) + '</span>') + '</td>';
       });
       out += '</tr>';
     });
     out += '</tbody></table></div>';
     if (ed && !r.over) { var nh = nextHole(g); if (nh) out += '<button class="btn big block" type="button" data-act="stroke" data-r="' + nh.r + '" data-sid="' + esc(nh.sid) + '">Score hole ' + (nh.r + 1) + '</button>'; }
-    out += '<p class="muted small" style="margin:0">Most strokes on a hole: ' + g.settings.max + '. ★ is a hole in one.</p>';
+    out += '<p class="muted small m0">Most strokes on a hole: ' + g.settings.max + '. ★ is a hole in one.</p>';
     return out;
   }
   function nextHole(g) {
@@ -745,21 +746,21 @@
     var out = '';
     if (ed && !r.over) {
       var side = C.sideOf(g, sid), sh = g.data.sheets[sid];
-      out += '<section class="card dicepad" aria-labelledby="dpT"><div class="sec-head" style="margin:0"><h2 id="dpT">' + esc(side.emoji + ' ' + C.possessive(side.name)) + ' turn</h2><span class="muted small">' + (C.diceSums(sh).filled + 1) + ' of 13</span></div>';
+      out += '<section class="card dicepad" aria-labelledby="dpT"><div class="sec-head m0"><h2 id="dpT">' + esc(side.emoji + ' ' + C.possessive(side.name)) + ' turn</h2><span class="muted small">' + (C.diceSums(sh).filled + 1) + ' of 13</span></div>';
       if (g.sides.length > 1) out += '<div class="chips scroll" role="group" aria-label="Scoring for">' + g.sides.map(function (s) { return '<button class="chip" type="button" data-act="dicefor" data-sid="' + esc(s.id) + '" aria-pressed="' + (s.id === sid) + '"><span aria-hidden="true">' + esc(s.emoji) + '</span>' + esc(s.name) + '</button>'; }).join('') + '</div>';
       out += '<div class="hand" role="group" aria-label="The five dice">' + [0, 1, 2, 3, 4].map(function (i) { return dice[i] ? '<button type="button" data-act="dieout" data-i="' + i + '" aria-label="Take out a ' + dice[i] + '">' + dieSvg(dice[i]) + '</button>' : '<button type="button" class="blank" disabled aria-label="No die yet">' + (i + 1) + '</button>'; }).join('') + '</div>';
       out += '<div class="faces6" role="group" aria-label="Add a die">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button type="button" data-act="die" data-n="' + n + '" aria-label="Add a ' + n + '"' + (full ? ' disabled' : '') + '>' + dieSvg(n) + '</button>'; }).join('') + '</div>';
-      out += '<p class="small" style="margin:0"><b>Upper ' + C.diceSums(sh).upper + '</b> \u00B7 ' + esc(C.diceSums(sh).bonusLine) + '</p>';
+      out += '<p class="small m0"><b>Upper ' + C.diceSums(sh).upper + '</b> \u00B7 ' + esc(C.diceSums(sh).bonusLine) + '</p>';
       out += '<div class="row spread"><span class="small muted">' + (full ? 'Now tap a box on the sheet - it shows what each would score.' + (C.isJoker(dice, sh) ? ' Five of a kind again: a joker' + (g.settings.extra && sh.b.five === 50 ? ', +100 bonus' : '') + '.' : '') : 'Tap the five dice you kept - or tap any box to type a score.') + '</span>' + (dice.length ? '<button class="btn small ghost" type="button" data-act="diceclear">Clear dice</button>' : '') + '</div></section>';
     }
-    out += '<div class="sbox" role="region" aria-label="Five dice sheet" tabindex="0"><table class="sgrid dsheet"><thead><tr><th class="nm" scope="col">Box</th>' + g.sides.map(function (s) { return '<th scope="col"' + (s.id === sid && !r.over ? ' style="color:var(--link)"' : '') + '><span class="emo" aria-hidden="true">' + esc(s.emoji) + '</span><br>' + esc(s.name) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    out += '<div class="sbox" role="region" aria-label="Five dice sheet" tabindex="0"><table class="sgrid dsheet"><thead><tr><th class="nm" scope="col">Box</th>' + g.sides.map(function (s) { return '<th scope="col"' + (s.id === sid && !r.over ? ' class="me"' : '') + '><span class="emo" aria-hidden="true">' + esc(s.emoji) + '</span><br>' + esc(s.name) + '</th>'; }).join('') + '</tr></thead><tbody>';
     var sumRow = function (headHtml, fn, cls) { return '<tr class="sub"><th class="nm" scope="row">' + headHtml + '</th>' + g.sides.map(function (s) { return '<td class="' + (cls || '') + '">' + fn(s, C.diceSums(g.data.sheets[s.id])) + '</td>'; }).join('') + '</tr>'; };
     C.BOXES.forEach(function (bx, bi) {
       out += '<tr><th class="nm bx" scope="row"><b>' + esc(bx.label) + '</b><small>' + esc(bx.face ? 'Count the ' + bx.label.toLowerCase() : bx.hint) + '</small></th>';
       g.sides.forEach(function (s) {
         var sh2 = g.data.sheets[s.id], v = sh2.b[bx.id];
         if (Number.isInteger(v)) { out += '<td><button class="cell" type="button" data-act="boxfilled" data-sid="' + esc(s.id) + '" data-box="' + bx.id + '" aria-label="' + esc(s.name + ', ' + bx.label + ': ' + v) + '"' + (ed ? '' : ' disabled') + '>' + v + '</button></td>'; return; }
-        if (!ed || r.over) { out += '<td><span class="cell empty" style="display:grid;place-items:center">·</span></td>'; return; }
+        if (!ed || r.over) { out += '<td><span class="cell empty gridc">·</span></td>'; return; }
         if (full && s.id === sid) {
           var p = C.diceScore(bx.id, dice, sh2);
           out += '<td><button class="cell ' + (p ? 'preview' : 'zero-prev') + '" type="button" data-act="box" data-sid="' + esc(s.id) + '" data-box="' + bx.id + '" aria-label="' + esc('Score ' + p + ' in ' + bx.label + ' for ' + s.name) + '">' + p + '</button></td>';
@@ -768,11 +769,11 @@
       out += '</tr>';
       if (bi === 5) {
         out += sumRow('Upper total', function (s, m) { return m.upper; });
-        out += sumRow('Bonus <small style="font-weight:600">63+ = 35</small>', function (s, m) { return m.bonus ? '+35' : '<small style="font-weight:700">' + (m.bonusLine === 'No bonus this game' ? 'none' : m.toBonus + ' to go') + '</small>'; });
+        out += sumRow('Bonus <small class="fw6">63+ = 35</small>', function (s, m) { return m.bonus ? '+35' : '<small class="fw7">' + (m.bonusLine === 'No bonus this game' ? 'none' : m.toBonus + ' to go') + '</small>'; });
       }
     });
-    if (g.settings.extra) out += sumRow('Bonus 100s', function (s, m) { var sh3 = g.data.sheets[s.id]; return (sh3.x ? '+' + sh3.x * 100 : '–') + (ed && !r.over && sh3.b.five === 50 ? ' <button class="btn small soft" type="button" data-act="extra" data-sid="' + esc(s.id) + '" style="min-height:36px;padding:0 8px">+100</button>' : ''); });
-    out += sumRow('Total', function (s, m) { return '<b style="font-size:1.2rem">' + m.total + '</b>'; });
+    if (g.settings.extra) out += sumRow('Bonus 100s', function (s, m) { var sh3 = g.data.sheets[s.id]; return (sh3.x ? '+' + sh3.x * 100 : '–') + (ed && !r.over && sh3.b.five === 50 ? ' <button class="btn small soft tight" type="button" data-act="extra" data-sid="' + esc(s.id) + '">+100</button>' : ''); });
+    out += sumRow('Total', function (s, m) { return '<b class="f20">' + m.total + '</b>'; });
     out += '</tbody></table></div>';
     return out;
   }
@@ -806,13 +807,13 @@
     out += '</tbody></table></div>';
     if (ed && !r.over && sid) {
       var side = C.sideOf(g, sid), rl = g.data.rolls[sid] || [], nx = C.bowlNext(rl);
-      out += '<section class="card stack" aria-labelledby="bpT"><div class="sec-head" style="margin:0"><h2 id="bpT">' + esc(side.emoji + ' ' + side.name) + ' · frame ' + nx.frame + ', ball ' + nx.ball + '</h2><span class="muted small">' + plural(nx.max, 'pin') + ' standing</span></div>';
+      out += '<section class="card stack" aria-labelledby="bpT"><div class="sec-head m0"><h2 id="bpT">' + esc(side.emoji + ' ' + side.name) + ' · frame ' + nx.frame + ', ball ' + nx.ball + '</h2><span class="muted small">' + plural(nx.max, 'pin') + ' standing</span></div>';
       if (g.sides.length > 1) out += '<div class="chips scroll" role="group" aria-label="Bowling now">' + g.sides.filter(function (s) { return C.bowlNext(g.data.rolls[s.id] || []); }).map(function (s) { return '<button class="chip" type="button" data-act="bowlfor" data-sid="' + esc(s.id) + '" aria-pressed="' + (s.id === sid) + '"><span aria-hidden="true">' + esc(s.emoji) + '</span>' + esc(s.name) + '</button>'; }).join('') + '</div>';
       out += '<div class="pins" role="group" aria-label="Pins knocked down">';
       if (nx.strike) out += '<button class="mark" type="button" data-act="pins" data-n="10" aria-label="Strike">X</button>';
       if (nx.spare) out += '<button class="mark" type="button" data-act="pins" data-n="' + nx.max + '" aria-label="Spare">/</button>';
       for (var p = 0; p < nx.max; p++) out += '<button type="button" data-act="pins" data-n="' + p + '" aria-label="' + plural(p, 'pin') + '">' + (p === 0 ? '–' : p) + '</button>';
-      out += '</div><p class="muted small" style="margin:0">X is a strike, / a spare, – a miss. Only the pins still standing are offered.</p></section>';
+      out += '</div><p class="muted small m0">X is a strike, / a spare, – a miss. Only the pins still standing are offered.</p></section>';
     }
     return out;
   }
@@ -837,17 +838,17 @@
     }).join('') + '</div>';
     if (ed && !r.over) {
       var side = C.sideOf(g, sid), left = C.dartsLeft(g, sid), typed = state.dartIn || '';
-      out += '<section class="card stack" aria-labelledby="dtT"><div class="sec-head" style="margin:0"><h2 id="dtT">' + esc(side.emoji + ' ' + C.possessive(side.name)) + ' turn · ' + left + ' left</h2></div>';
+      out += '<section class="card stack" aria-labelledby="dtT"><div class="sec-head m0"><h2 id="dtT">' + esc(side.emoji + ' ' + C.possessive(side.name)) + ' turn · ' + left + ' left</h2></div>';
       if (g.sides.length > 1) out += '<div class="chips scroll" role="group" aria-label="Throwing now">' + g.sides.map(function (s) { return '<button class="chip" type="button" data-act="dartsfor" data-sid="' + esc(s.id) + '" aria-pressed="' + (s.id === sid) + '"><span aria-hidden="true">' + esc(s.emoji) + '</span>' + esc(s.name) + '</button>'; }).join('') + '</div>';
       if (state.dartAsk) {
-        out += '<div class="note"><p style="margin:0 0 8px"><b>' + esc(state.dartAsk) + ' checks out ' + left + '.</b> Was the last dart a double' + (left === 50 || left <= 40 ? '' : ' (or the bull)') + '?</p><div class="bigrow"><button class="btn big" type="button" data-act="ddouble" data-yes="1">Yes - game shot</button><button class="btn big ghost" type="button" data-act="ddouble" data-yes="">No - bust</button></div></div>';
+        out += '<div class="note"><p class="mb8"><b>' + esc(state.dartAsk) + ' checks out ' + left + '.</b> Was the last dart a double' + (left === 50 || left <= 40 ? '' : ' (or the bull)') + '?</p><div class="bigrow"><button class="btn big" type="button" data-act="ddouble" data-yes="1">Yes - game shot</button><button class="btn big ghost" type="button" data-act="ddouble" data-yes="">No - bust</button></div></div>';
       } else {
         out += '<div class="kp-show"><b aria-live="polite">' + esc(typed || '—') + '</b><small>score this turn<br>0 to 180</small></div>';
         out += '<div class="kp-quick">' + [26, 41, 45, 60, 81, 85, 100, 140, 180].map(function (q) { return '<button type="button" data-act="dq" data-n="' + q + '">' + q + '</button>'; }).join('') + (left <= 180 ? '<button type="button" data-act="dq" data-n="' + left + '">' + left + ' out</button>' : '') + '</div>';
         out += '<div class="kp">' + [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (d) { return '<button type="button" data-act="dk" data-k="' + d + '">' + d + '</button>'; }).join('') + '<button class="fn" type="button" data-act="dk" data-k="c" aria-label="Clear">C</button><button type="button" data-act="dk" data-k="0">0</button><button class="fn" type="button" data-act="dk" data-k="b" aria-label="Delete">⌫</button></div>';
         out += '<button class="btn big block" type="button" data-act="dscore"' + (typed === '' ? ' disabled' : '') + '>Score ' + esc(typed || 'it') + '</button>';
       }
-      out += '<p class="muted small" style="margin:0">' + (dbl ? 'Finish on a double. Going below zero, to 1, or to zero without a double is a bust - the turn scores nothing.' : 'Any dart can finish. Going below zero is a bust.') + '</p></section>';
+      out += '<p class="muted small m0">' + (dbl ? 'Finish on a double. Going below zero, to 1, or to zero without a double is a bust - the turn scores nothing.' : 'Any dart can finish. Going below zero is a bust.') + '</p></section>';
     }
     return out;
   }
@@ -923,17 +924,17 @@
     var shown = k.s === '' ? '—' : k.s.replace('-', '−');
     if (sp.strokes) {
       body.innerHTML = '<h2>' + esc(sp.title) + '</h2>' + (sp.sub ? '<p class="muted small">' + esc(sp.sub) + '</p>' : '') +
-        '<div class="strokes">' + sp.strokes.map(function (n) { return '<button type="button" data-kq="' + n + '"' + (String(n) === k.s ? ' aria-pressed="true" style="border-color:var(--accent)"' : '') + '>' + n + (sp.par ? '<small>' + esc(C.parLine(n - sp.par) === 'E' ? 'par' : C.parLine(n - sp.par)) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-        '<div id="kpErr"></div><div class="row" style="margin-top:10px"><button class="btn ghost" type="button" data-kk="none">Clear</button>' + (sp.next ? '<span class="small muted">Next: ' + esc(sp.next.label) + '</span>' : '') + '</div>';
+        '<div class="strokes">' + sp.strokes.map(function (n) { return '<button type="button" data-kq="' + n + '"' + (String(n) === k.s ? ' aria-pressed="true"' : '') + '>' + n + (sp.par ? '<small>' + esc(C.parLine(n - sp.par) === 'E' ? 'par' : C.parLine(n - sp.par)) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
+        '<div id="kpErr"></div><div class="row mt12"><button class="btn ghost" type="button" data-kk="none">Clear</button>' + (sp.next ? '<span class="small muted">Next: ' + esc(sp.next.label) + '</span>' : '') + '</div>';
     } else {
-      body.innerHTML = '<h2>' + esc(sp.title) + '</h2>' + (sp.sub ? '<p class="muted small" style="margin:0">' + esc(sp.sub) + '</p>' : '') +
+      body.innerHTML = '<h2>' + esc(sp.title) + '</h2>' + (sp.sub ? '<p class="muted small m0">' + esc(sp.sub) + '</p>' : '') +
         '<div class="kp-show"><b id="kpv" aria-live="polite">' + esc(shown) + '</b><small>' + esc(sp.hint || '') + '</small></div>' +
         (sp.quick && sp.quick.length ? '<div class="kp-quick" role="group" aria-label="Quick numbers">' + sp.quick.map(function (q) { return '<button type="button" data-kq="' + q + '">' + esc(fmt(q)) + '</button>'; }).join('') + '</div>' : '') +
         (sp.only ? '' : '<div class="kp">' + [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (d) { return '<button type="button" data-kk="' + d + '">' + d + '</button>'; }).join('') +
           (sp.neg ? '<button class="fn" type="button" data-kk="neg" aria-label="Plus or minus">±</button>' : '<button class="fn" type="button" data-kk="clear" aria-label="Clear">C</button>') +
           '<button type="button" data-kk="0">0</button><button class="fn" type="button" data-kk="back" aria-label="Delete">⌫</button></div>') +
         '<div id="kpErr"></div><div class="kp-acts"><button class="btn ghost big" type="button" data-kk="none">' + (sp.clearLabel || 'Clear') + '</button><button class="btn big" type="button" data-kk="save">' + (sp.next ? 'Save · ' + esc(sp.next.label) + ' →' : 'Save') + '</button></div>' +
-        (sp.next ? '<p class="center" style="margin:6px 0 0"><button class="link-btn" type="button" data-kk="saveonly">Save and close</button></p>' : '');
+        (sp.next ? '<p class="center mt8"><button class="link-btn" type="button" data-kk="saveonly">Save and close</button></p>' : '');
     }
     $$('[data-kq]', body).forEach(function (b) { b.addEventListener('click', function () { k.s = b.getAttribute('data-kq'); kpSave(true); }); });
     $$('[data-kk]', body).forEach(function (b) { b.addEventListener('click', function () { kpKey(b.getAttribute('data-kk')); }); });
@@ -1029,12 +1030,12 @@
     var d = dealerHere(g, idx);
     var h = editing ? g.data.hands[r] : { s: {}, moon: '', note: '' };
     var sides = g.sides.filter(function (s) { return C.inRound(s, idx); });
-    sheet('<h2>Hand ' + (idx + 1) + '</h2><p class="muted small" style="margin:0">' + esc((d ? d.name + ' deals. ' : '') + C.passFor(g, idx) + '.') + '</p>' +
-      '<div class="field" style="margin:12px 0"><span>\u{1F319} Did anyone shoot the moon?</span><div class="moonrow">' + sides.map(function (s) { return '<button class="moonbtn" type="button" data-moonsid="' + esc(s.id) + '">' + esc(s.emoji + ' ' + s.name) + '</button>'; }).join('') + '</div><span class="hint">' + (g.settings.moon === 'subtract' ? 'The shooter takes 26 off; everyone else scores 0.' : 'The shooter scores 0; everyone else takes 26.') + '</span></div>' +
+    sheet('<h2>Hand ' + (idx + 1) + '</h2><p class="muted small m0">' + esc((d ? d.name + ' deals. ' : '') + C.passFor(g, idx) + '.') + '</p>' +
+      '<div class="field my12"><span>\u{1F319} Did anyone shoot the moon?</span><div class="moonrow">' + sides.map(function (s) { return '<button class="moonbtn" type="button" data-moonsid="' + esc(s.id) + '">' + esc(s.emoji + ' ' + s.name) + '</button>'; }).join('') + '</div><span class="hint">' + (g.settings.moon === 'subtract' ? 'The shooter takes 26 off; everyone else scores 0.' : 'The shooter scores 0; everyone else takes 26.') + '</span></div>' +
       '<form id="hForm"><div>' + sides.map(function (s) { var v = h.s[s.id]; return '<label class="hrow"><span class="who"><span class="emo" aria-hidden="true">' + esc(s.emoji) + '</span><b>' + esc(s.name) + '</b></span><input class="input" type="number" inputmode="numeric" min="0" max="26" data-hp="' + esc(s.id) + '" value="' + (Number.isInteger(v) && !h.moon ? v : '') + '" aria-label="' + esc(s.name + '’s points') + '"></label>'; }).join('') + '</div>' +
       '<p class="sumline" id="hSum" role="status"></p>' +
       '<label class="field"><span>Note (optional)</span><input class="input" id="hNote" maxlength="' + C.LIMITS.note + '" value="' + esc(h.note || '') + '"></label>' +
-      '<div id="hErr"></div><button class="btn big block" type="submit" style="margin-top:10px">' + (editing ? 'Save hand ' + (idx + 1) : 'Add hand ' + (idx + 1)) + '</button></form>', function (root) {
+      '<div id="hErr"></div><button class="btn big block mt12" type="submit">' + (editing ? 'Save hand ' + (idx + 1) : 'Add hand ' + (idx + 1)) + '</button></form>', function (root) {
       var inputs = $$('[data-hp]', root);
       var sum = function () { var t = 0, any = false; inputs.forEach(function (i) { var v = parseInt(i.value, 10); if (isFinite(v)) { t += v; any = true; } }); var el = $('#hSum', root); el.textContent = any ? (t === 26 ? 'Adds up to 26 ✓' : 'Adds up to ' + t + ' - a hand is 26') : 'A hand’s points add up to 26.'; el.className = 'sumline ' + (t === 26 ? 'ok' : any ? 'off' : ''); };
       inputs.forEach(function (i, k) { i.addEventListener('input', sum); i.addEventListener('keydown', function (e) { if (e.key === 'Enter' && k < inputs.length - 1) { e.preventDefault(); inputs[k + 1].focus(); } }); });
@@ -1067,8 +1068,8 @@
   /* Cribbage: one sheet per hand. */
   function openCribHand(g) {
     var idx = g.data.hands.length, d = C.dealerFor(g, idx), dealer = C.sideOf(g, d.side);
-    sheet('<h2>Hand ' + (idx + 1) + '</h2><p class="muted small" style="margin:0">' + esc(d.person.name) + ' deals - the crib is ' + esc(C.possessive(dealer.name)) + '. Counted in order: pegging, the hands from the dealer’s left, then the crib - the first to ' + C.cribBoard(g).to + ' wins on the spot.</p>' +
-      '<form id="cForm"><div class="hrow three" style="margin-top:10px"><span></span><b class="small center">Pegging</b><b class="small center">Hand</b></div>' + g.sides.map(function (s) { return '<div class="hrow three"><span class="who"><span class="emo" aria-hidden="true">' + esc(s.emoji) + '</span><b>' + esc(s.name) + '</b></span><input class="input" type="number" inputmode="numeric" min="0" max="61" data-cp="' + esc(s.id) + '" aria-label="' + esc(s.name + ' pegging') + '"><input class="input" type="number" inputmode="numeric" min="0" max="29" data-ch="' + esc(s.id) + '" aria-label="' + esc(s.name + ' hand') + '"></div>'; }).join('') +
+    sheet('<h2>Hand ' + (idx + 1) + '</h2><p class="muted small m0">' + esc(d.person.name) + ' deals - the crib is ' + esc(C.possessive(dealer.name)) + '. Counted in order: pegging, the hands from the dealer’s left, then the crib - the first to ' + C.cribBoard(g).to + ' wins on the spot.</p>' +
+      '<form id="cForm"><div class="hrow three mt12"><span></span><b class="small center">Pegging</b><b class="small center">Hand</b></div>' + g.sides.map(function (s) { return '<div class="hrow three"><span class="who"><span class="emo" aria-hidden="true">' + esc(s.emoji) + '</span><b>' + esc(s.name) + '</b></span><input class="input" type="number" inputmode="numeric" min="0" max="61" data-cp="' + esc(s.id) + '" aria-label="' + esc(s.name + ' pegging') + '"><input class="input" type="number" inputmode="numeric" min="0" max="29" data-ch="' + esc(s.id) + '" aria-label="' + esc(s.name + ' hand') + '"></div>'; }).join('') +
       '<div class="hrow"><span class="who"><b>' + esc(C.possessive(dealer.name)) + ' crib</b></span><input class="input" type="number" inputmode="numeric" min="0" max="29" id="cCrib" aria-label="The crib"></div>' +
       '<p class="hint">No hand of five cards counts 19, 25, 26 or 27.</p><div id="cErr"></div><button class="btn big block" type="submit">Add hand ' + (idx + 1) + '</button></form>', function (root) {
       $('#cForm', root).addEventListener('submit', function (e) {
@@ -1127,11 +1128,11 @@
     var n = g.kind === 'any' ? g.data.rounds.length : g.data.hands ? g.data.hands.length : 0;
     var cur2 = C.usesDealer(g) ? C.dealerFor(g, n) : null;
     sheet('<h2>Players</h2><div>' + g.sides.map(function (s, i) {
-      return '<div class="prow"><span class="emo" style="font-size:1.6rem;text-align:center" aria-hidden="true">' + esc(s.emoji) + '</span><span><b>' + esc(s.name) + '</b>' + (s.from ? '<small>Joined at round ' + (s.from + 1) + (s.start ? ', starting on ' + fmt(s.start) : '') + '</small>' : '') + '</span><span class="acts"><button class="iconbtn" type="button" data-act="srename" data-sid="' + esc(s.id) + '" aria-label="Rename ' + esc(s.name) + '">✎</button><button class="iconbtn" type="button" data-act="sup" data-sid="' + esc(s.id) + '" aria-label="Move ' + esc(s.name) + ' up"' + (i ? '' : ' disabled') + '>↑</button><button class="iconbtn" type="button" data-act="sdown" data-sid="' + esc(s.id) + '" aria-label="Move ' + esc(s.name) + ' down"' + (i < g.sides.length - 1 ? '' : ' disabled') + '>↓</button><button class="iconbtn" type="button" data-act="sdrop" data-sid="' + esc(s.id) + '" aria-label="Take ' + esc(s.name) + ' out">×</button></span></div>';
+      return '<div class="prow"><span class="emo bigline" aria-hidden="true">' + esc(s.emoji) + '</span><span><b>' + esc(s.name) + '</b>' + (s.from ? '<small>Joined at round ' + (s.from + 1) + (s.start ? ', starting on ' + fmt(s.start) : '') + '</small>' : '') + '</span><span class="acts"><button class="iconbtn" type="button" data-act="srename" data-sid="' + esc(s.id) + '" aria-label="Rename ' + esc(s.name) + '">✎</button><button class="iconbtn" type="button" data-act="sup" data-sid="' + esc(s.id) + '" aria-label="Move ' + esc(s.name) + ' up"' + (i ? '' : ' disabled') + '>↑</button><button class="iconbtn" type="button" data-act="sdown" data-sid="' + esc(s.id) + '" aria-label="Move ' + esc(s.name) + ' down"' + (i < g.sides.length - 1 ? '' : ' disabled') + '>↓</button><button class="iconbtn" type="button" data-act="sdrop" data-sid="' + esc(s.id) + '" aria-label="Take ' + esc(s.name) + ' out">×</button></span></div>';
     }).join('') + '</div>' +
       (cur2 ? '<div class="sheet-sec"><label class="field"><span>Who deals next?</span><select class="input" id="plDealer">' + seats.map(function (st, i) { return '<option value="' + i + '"' + (st.person.id === cur2.person.id ? ' selected' : '') + '>' + esc(st.person.emoji + ' ' + st.person.name) + '</option>'; }).join('') + '</select><span class="hint">The deal then moves one seat each round.</span></label></div>' : '') +
       (canAdd ? '<div class="sheet-sec"><h3>Someone arrived late?</h3><p class="small muted">' + (g.kind === 'any' || g.kind === 'hearts' ? 'They sit out the rounds already played and start on ' + (g.settings.late === 'zero' ? 'zero' : 'last place’s score') + ' (a rule you set when starting).' : 'They get a fresh ' + (g.kind === 'dice' ? 'sheet' : g.kind === 'bowling' ? 'ten frames' : g.kind === 'darts' ? 'start of ' + g.settings.start : 'card') + '.') + '</p><form class="addrow" id="lateF"><input class="input" id="lateName" maxlength="' + C.LIMITS.name + '" placeholder="First name"><button class="btn" type="submit">Add</button></form>' +
-        (recent.length ? '<div class="chips" style="margin-top:8px">' + recent.map(function (p) { return '<button class="pchip" type="button" data-act="late" data-pid="' + esc(p.id) + '"><span aria-hidden="true">' + esc(p.emoji) + '</span>' + esc(p.name) + '</button>'; }).join('') + '</div>' : '') + '<div id="lateErr"></div></div>' : ''), function (root) {
+        (recent.length ? '<div class="chips mt8">' + recent.map(function (p) { return '<button class="pchip" type="button" data-act="late" data-pid="' + esc(p.id) + '"><span aria-hidden="true">' + esc(p.emoji) + '</span>' + esc(p.name) + '</button>'; }).join('') + '</div>' : '') + '<div id="lateErr"></div></div>' : ''), function (root) {
       var dl = $('#plDealer', root);
       if (dl) dl.addEventListener('change', function () { act(gameById(g.id), function (x) { C.setDealer(x, Number(dl.value)); }, 'Dealer changed.'); openPlayers(gameById(g.id)); });
       var f = $('#lateF', root);
@@ -1172,7 +1173,7 @@
       (ed && C.SHEET_KINDS.indexOf(g.kind) >= 0 && !r.over && !state.trying ? '<button class="btn ghost block ai" type="button" data-act="ainow"> Read a paper score sheet in</button>' : '') +
       (ed ? '<button class="btn ghost block" type="button" data-act="rematch">Rematch - same players</button>' : '') +
       (watching(g) ? '<button class="btn ghost block" type="button" data-act="leave">Leave this table</button>' : '<button class="btn danger block" type="button" data-act="delgame">Delete this game</button>') +
-      '</div><p class="tiny muted" style="margin-top:12px">Started ' + esc(dayOf(g.createdAt)) + (g.finishedAt ? ' · finished ' + esc(timeOf(g.finishedAt)) : '') + '.</p>');
+      '</div><p class="tiny muted mt12">Started ' + esc(dayOf(g.createdAt)) + (g.finishedAt ? ' · finished ' + esc(timeOf(g.finishedAt)) : '') + '.</p>');
   }
 
   /* ---------------- showing the table ---------------- */
@@ -1184,7 +1185,7 @@
     }
     sheet('<h2>\u{1F4E1} Show the table</h2><p>Everyone at the table watches the scores land on their own phone - live, with a six-letter code. No accounts, no app. Only you keep score, and you can hand the pencil to someone else at any time.</p>' +
       '<div class="sent"><b>What goes to the table:</b> this game - its name, the players’ first names and emoji, and the scores. Nothing else: not your history, not your other games. It is deleted a day after the last score.</div>' +
-      '<form id="shF" style="margin-top:12px"><label class="field"><span>Your first name, so they know who keeps score</span><input class="input" id="shName" maxlength="' + C.LIMITS.name + '" value="' + esc(prefs.me) + '" autocomplete="given-name"></label><div id="shErr"></div><button class="btn big block" type="submit" style="margin-top:10px">Show it</button></form>', function (root) {
+      '<form id="shF" class="mt12"><label class="field"><span>Your first name, so they know who keeps score</span><input class="input" id="shName" maxlength="' + C.LIMITS.name + '" value="' + esc(prefs.me) + '" autocomplete="given-name"></label><div id="shErr"></div><button class="btn big block mt12" type="submit">Show it</button></form>', function (root) {
       $('#shF', root).addEventListener('submit', function (e) {
         e.preventDefault();
         var name = C.cleanName($('#shName', root).value);
@@ -1206,7 +1207,7 @@
     var watchers = (g.shared.members || []).filter(function (m) { return m.role === 'watcher'; });
     sheet('<h2>\u{1F4E1} The table is live</h2><p class="small muted">On another phone: scan this, or open Pencil and join with the code.</p><div class="code-big" aria-label="Code ' + esc(g.shared.code.split('').join(' ')) + '">' + esc(C.formatCode(g.shared.code)) + '</div><div class="qrbox">' + QR.svg(link, 'Join the table') + '</div>' +
       '<button class="btn block" type="button" data-act="sharelink">Send the link</button>' +
-      '<div class="sheet-sec"><h3>Watching · ' + watchers.length + ' of ' + C.LIMITS.watchers + '</h3>' + (watchers.length ? watchers.map(function (m) { return '<div class="mrow"><span><b>' + esc(m.name) + '</b><small>watching</small></span><span class="row" style="gap:6px"><button class="btn small" type="button" data-act="pencil" data-mid="' + esc(m.id) + '">✏️ Hand the pencil</button><button class="btn small danger" type="button" data-act="rmwatch" data-mid="' + esc(m.id) + '" aria-label="Remove ' + esc(m.name) + '">Remove</button></span></div>'; }).join('') : '<p class="muted small">Nobody yet. Their names appear here as they join.</p>') + '</div>' +
+      '<div class="sheet-sec"><h3>Watching · ' + watchers.length + ' of ' + C.LIMITS.watchers + '</h3>' + (watchers.length ? watchers.map(function (m) { return '<div class="mrow"><span><b>' + esc(m.name) + '</b><small>watching</small></span><span class="row gap8"><button class="btn small" type="button" data-act="pencil" data-mid="' + esc(m.id) + '">✏️ Hand the pencil</button><button class="btn small danger" type="button" data-act="rmwatch" data-mid="' + esc(m.id) + '" aria-label="Remove ' + esc(m.name) + '">Remove</button></span></div>'; }).join('') : '<p class="muted small">Nobody yet. Their names appear here as they join.</p>') + '</div>' +
       '<div class="sheet-sec"><button class="btn danger block" type="button" data-act="unshare">Stop sharing</button><p class="tiny muted">The game stays on this phone. Watchers can no longer open it.</p></div>');
   }
   /** A table as the server sends it, onto this phone: its game (kept under
@@ -1280,12 +1281,12 @@
   function viewJoin() {
     var j = state.join || { code: '', info: null };
     if (!j.info) {
-      return '<section class="card stack" style="max-width:520px;margin:0 auto"><h1>Join a table</h1><p class="muted">Watch someone’s game live on this phone. Ask them for the six-letter code on their screen.</p>' +
+      return '<section class="card stack narrow"><h1>Join a table</h1><p class="muted">Watch someone’s game live on this phone. Ask them for the six-letter code on their screen.</p>' +
         '<form id="jCode" class="stack"><label class="field"><span>Code</span><input class="input code" name="code" maxlength="8" autocomplete="off" autocapitalize="characters" value="' + esc(j.code ? C.formatCode(j.code) : '') + '" placeholder="ABC-234"></label><div id="jErr">' + (j.err ? '<p class="err" role="alert">' + esc(j.err) + '</p>' : '') + '</div><button class="btn big" type="submit">Find the table</button></form></section>';
     }
     var i = j.info;
-    return '<section class="card stack" style="max-width:520px;margin:0 auto"><p class="lab">A table is waiting</p><h1>' + esc(i.name) + '</h1><p class="muted">' + esc((i.by ? i.by + ' keeps score' : 'Someone keeps score') + ' · ' + plural(i.players, 'player') + ' · ' + plural(i.watchers, 'watcher')) + '</p>' +
-      (i.full ? '<p class="err">This table has all the watchers it can take.</p>' : '<form id="jName" class="stack"><label class="field"><span>Your first name</span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" value="' + esc(prefs.me) + '" autocomplete="given-name"></label><p class="hint" style="margin:0">They see your first name. No account, no email - this phone is remembered for this table.</p><div id="jErr"></div><button class="btn big" type="submit">Watch the table</button></form>') +
+    return '<section class="card stack narrow"><p class="lab">A table is waiting</p><h1>' + esc(i.name) + '</h1><p class="muted">' + esc((i.by ? i.by + ' keeps score' : 'Someone keeps score') + ' · ' + plural(i.players, 'player') + ' · ' + plural(i.watchers, 'watcher')) + '</p>' +
+      (i.full ? '<p class="err">This table has all the watchers it can take.</p>' : '<form id="jName" class="stack"><label class="field"><span>Your first name</span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" value="' + esc(prefs.me) + '" autocomplete="given-name"></label><p class="hint m0">They see your first name. No account, no email - this phone is remembered for this table.</p><div id="jErr"></div><button class="btn big" type="submit">Watch the table</button></form>') +
       '<button class="btn ghost" type="button" data-act="joinnew">Another code</button></section>';
   }
   function lookupJoin() {
@@ -1402,7 +1403,7 @@
   }
   function openRecap(g) {
     state.recap = { id: g.id, blob: null, url: null };
-    sheet('<h2>\u{1F5BC} Recap card</h2><p class="small muted">A picture of the result for the group chat - drawn on this phone, never uploaded, never a link.</p><div id="rcOut"></div><div class="row" style="margin-top:10px"><button class="btn" type="button" id="rcDraw">Make the card</button><button class="btn" type="button" id="rcShare" hidden>' + (canShareFiles() ? 'Share it' : 'Download it') + '</button></div>', function (root) {
+    sheet('<h2>\u{1F5BC} Recap card</h2><p class="small muted">A picture of the result for the group chat - drawn on this phone, never uploaded, never a link.</p><div id="rcOut"></div><div class="row mt12"><button class="btn" type="button" id="rcDraw">Make the card</button><button class="btn" type="button" id="rcShare" hidden>' + (canShareFiles() ? 'Share it' : 'Download it') + '</button></div>', function (root) {
       $('#rcDraw', root).addEventListener('click', function () {
         var live = gameById(g.id); if (!live) return;
         drawRecap(live).then(function (blob) {
@@ -1433,26 +1434,26 @@
   function viewTable() {
     var b = bk(), st = C.stats(b.history, { group: state.group });
     var out = '<div class="sec-head"><h1>Our table</h1><span class="muted">' + plural(st.games, 'game') + ' played</span></div>';
-    if (b.groups.length) out += '<div class="chips scroll" role="group" aria-label="Whose games" style="margin-bottom:12px"><button class="chip" type="button" data-act="group" data-gid="" aria-pressed="' + (!state.group) + '">Everyone</button>' + b.groups.map(function (gr) { return '<button class="chip" type="button" data-act="group" data-gid="' + esc(gr.id) + '" aria-pressed="' + (state.group === gr.id) + '">' + esc(gr.name) + '</button>'; }).join('') + '</div>';
+    if (b.groups.length) out += '<div class="chips scroll mb12" role="group" aria-label="Whose games"><button class="chip" type="button" data-act="group" data-gid="" aria-pressed="' + (!state.group) + '">Everyone</button>' + b.groups.map(function (gr) { return '<button class="chip" type="button" data-act="group" data-gid="' + esc(gr.id) + '" aria-pressed="' + (state.group === gr.id) + '">' + esc(gr.name) + '</button>'; }).join('') + '</div>';
     if (!st.games) {
-      return out + '<section class="card empty center stack"><p style="font-size:2.2rem;margin:0" aria-hidden="true">\u{1F3C6}</p><p><b>No finished games yet.</b> Finish one and the table starts keeping wins, streaks and records - and who to beat next time.</p><div class="row" style="justify-content:center"><button class="btn" type="button" data-act="new">Start a game</button>' + (state.trying ? '' : '<button class="btn ghost" type="button" data-act="try">See a made-up table</button>') + '</div></section>' + exportCard(b);
+      return out + '<section class="card empty center stack"><p class="bigemo" aria-hidden="true">\u{1F3C6}</p><p><b>No finished games yet.</b> Finish one and the table starts keeping wins, streaks and records - and who to beat next time.</p><div class="row jc"><button class="btn" type="button" data-act="new">Start a game</button>' + (state.trying ? '' : '<button class="btn ghost" type="button" data-act="try">See a made-up table</button>') + '</div></section>' + exportCard(b);
     }
     var stories = [];
     st.byGame.forEach(function (gm) { gm.rows.forEach(function (r) { if (r.streak >= 2) stories.push({ w: r.streak, t: '\u{1F525} ' + r.name + ' has won ' + r.streak + ' ' + gm.name + ' games in a row' }); }); });
     st.byGame.forEach(function (gm) { if (gm.next) stories.push({ w: 1.5, t: gm.emoji + ' ' + gm.next }); });
     stories.sort(function (a, c) { return c.w - a.w; });
     out += '<div class="grid split"><div class="stack">';
-    if (stories.length) out += '<section class="card stack" aria-labelledby="stT"><h2 id="stT">The stories</h2>' + stories.slice(0, 4).map(function (s) { return '<p class="story" style="margin:0">' + esc(s.t) + '</p>'; }).join('') + '</section>';
+    if (stories.length) out += '<section class="card stack" aria-labelledby="stT"><h2 id="stT">The stories</h2>' + stories.slice(0, 4).map(function (s) { return '<p class="story m0">' + esc(s.t) + '</p>'; }).join('') + '</section>';
     out += '<section class="card" aria-labelledby="lbT"><div class="sec-head"><h2 id="lbT">Leaderboard</h2><span class="muted small">Most wins first</span></div><div class="lb">' + st.overall.map(function (r, i) {
-      return '<div class="lbr"><span class="rk">' + (i + 1) + '</span><span class="emo" aria-hidden="true">' + esc(r.emoji) + '</span><span><b>' + esc(r.name) + '</b><small>' + r.wins + ' of ' + plural(r.played, 'game') + (r.streak >= 2 ? ' · <span class="streak">\u{1F525} ' + r.streak + ' in a row</span>' : '') + '</small><span class="meter" aria-hidden="true"><i style="width:' + r.rate + '%"></i></span></span><span class="w">' + r.rate + '%<small>won</small></span></div>';
+      return '<div class="lbr"><span class="rk">' + (i + 1) + '</span><span class="emo" aria-hidden="true">' + esc(r.emoji) + '</span><span><b>' + esc(r.name) + '</b><small>' + r.wins + ' of ' + plural(r.played, 'game') + (r.streak >= 2 ? ' · <span class="streak">\u{1F525} ' + r.streak + ' in a row</span>' : '') + '</small><progress class="meter" max="100" value="' + r.rate + '" aria-hidden="true"></progress></span><span class="w">' + r.rate + '%<small>won</small></span></div>';
     }).join('') + '</div></section>';
     var gameCard = function (gm) {
-      return '<section class="card" aria-label="' + esc(gm.name) + '"><div class="sec-head"><h3 style="margin:0"><span aria-hidden="true">' + esc(gm.emoji) + '</span> ' + esc(gm.name) + '</h3><span class="muted small">' + plural(gm.played, 'game') + '</span></div><div class="lb">' + gm.rows.slice(0, 4).map(function (r, i) {
+      return '<section class="card" aria-label="' + esc(gm.name) + '"><div class="sec-head"><h3 class="m0"><span aria-hidden="true">' + esc(gm.emoji) + '</span> ' + esc(gm.name) + '</h3><span class="muted small">' + plural(gm.played, 'game') + '</span></div><div class="lb">' + gm.rows.slice(0, 4).map(function (r, i) {
         return '<div class="lbr"><span class="rk">' + (i + 1) + '</span><span class="emo" aria-hidden="true">' + esc(r.emoji) + '</span><span><b>' + esc(r.name) + '</b><small>' + r.wins + ' of ' + r.played + (r.streak >= 2 ? ' · <span class="streak">\u{1F525} ' + r.streak + '</span>' : '') + '</small></span><span class="w">' + r.rate + '%</span></div>';
-      }).join('') + '</div>' + (gm.record ? '<p class="small" style="margin:8px 0 0"><b>Record:</b> ' + esc(gm.record.label.replace(/^Best /, 'best ') + ' - ' + gm.record.name + ', ' + gm.record.value) + '</p>' : '') + '</section>';
+      }).join('') + '</div>' + (gm.record ? '<p class="small mt8"><b>Record:</b> ' + esc(gm.record.label.replace(/^Best /, 'best ') + ' - ' + gm.record.name + ', ' + gm.record.value) + '</p>' : '') + '</section>';
     };
     out += '<div class="grid two">' + st.byGame.slice(0, 4).map(gameCard).join('') + '</div>';
-    if (st.byGame.length > 4) out += '<details class="more card"><summary>' + plural(st.byGame.length - 4, 'more game') + ': ' + esc(st.byGame.slice(4).map(function (gm) { return gm.name; }).join(', ')) + '</summary><div class="grid two" style="margin-top:10px">' + st.byGame.slice(4).map(gameCard).join('') + '</div></details>';
+    if (st.byGame.length > 4) out += '<details class="more card"><summary>' + plural(st.byGame.length - 4, 'more game') + ': ' + esc(st.byGame.slice(4).map(function (gm) { return gm.name; }).join(', ')) + '</summary><div class="grid two mt12">' + st.byGame.slice(4).map(gameCard).join('') + '</div></details>';
     out += '</div><div class="stack">';
     // Head to head.
     var people = [];
@@ -1465,7 +1466,7 @@
       var an = (people.filter(function (p) { return p.id === a; })[0] || {}).name || '', bn = (people.filter(function (p) { return p.id === c2; })[0] || {}).name || '';
       var opt = function (sel, other) { return people.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === sel ? ' selected' : '') + (p.id === other ? ' disabled' : '') + '>' + esc(p.emoji + ' ' + p.name) + '</option>'; }).join(''); };
       out += '<section class="card stack" aria-labelledby="hhT"><h2 id="hhT">Head to head</h2><div class="fields two"><label class="field"><span>One</span><select class="input" id="h2a">' + opt(a, c2) + '</select></label><label class="field"><span>The other</span><select class="input" id="h2b">' + opt(c2, a) + '</select></label></div>' +
-        '<div class="h2h"><div class="score">' + esc(C.h2hLine(h2, an, bn)) + '</div><p class="small muted" style="margin:0">' + (h2.games ? plural(h2.games, 'game') + ' on opposite sides · finishing ahead counts' : 'They haven’t played against each other yet.') + '</p></div>' +
+        '<div class="h2h"><div class="score">' + esc(C.h2hLine(h2, an, bn)) + '</div><p class="small muted m0">' + (h2.games ? plural(h2.games, 'game') + ' on opposite sides · finishing ahead counts' : 'They haven’t played against each other yet.') + '</p></div>' +
         (h2.byGame.length ? '<div>' + h2.byGame.map(function (x) { return '<div class="rec"><span class="ge" aria-hidden="true">' + esc(x.emoji) + '</span><span><b>' + esc(x.name) + '</b><small>' + esc(an + ' ' + x.a + ' – ' + x.b + ' ' + bn + (x.ties ? ' · ' + plural(x.ties, 'tie') : '')) + '</small></span></div>'; }).join('') + '</div>' : '') + '</section>';
     }
     var recs = st.byGame.filter(function (gm) { return gm.record; });
@@ -1476,13 +1477,13 @@
       var line = h.tie ? 'Tie: ' + C.listNames(win.map(function (s) { return s.name; })) : (win[0] ? win[0].name + ' won' + (h.sides.length > 1 && h.kind !== 'darts' ? ' · ' + win[0].total : '') : '');
       var full = gameById(h.id);
       return '<div class="hist"><span class="ge" aria-hidden="true">' + esc(h.emoji) + '</span><span><b>' + esc(h.name) + ' · ' + esc(line) + '</b><small>' + esc(ago(h.at) + ' · ' + h.sides.map(function (s) { return s.name; }).join(', ')) + '</small>' + (h.highlight ? '<small>★ ' + esc(h.highlight) + '</small>' : '') + '</span>' + (full ? '<button class="btn small ghost" type="button" data-act="open" data-id="' + esc(full.id) + '">Open</button>' : '<span></span>') + '</div>';
-    }).join('') + (hist.length > 12 && !state.histMore ? '<button class="btn ghost block" type="button" data-act="histmore" style="margin-top:8px">Show all ' + hist.length + '</button>' : '') + '</section>';
+    }).join('') + (hist.length > 12 && !state.histMore ? '<button class="btn ghost block mt8" type="button" data-act="histmore">Show all ' + hist.length + '</button>' : '') + '</section>';
     out += exportCard(b);
     out += '</div></div>';
     return out;
   }
   function exportCard(b) {
-    return '<section class="card stack" aria-labelledby="exT"><h2 id="exT">Keep a copy</h2><p class="small muted" style="margin:0">Your history as a spreadsheet (CSV) or a file Pencil reads back (JSON) - made on this phone. Import adds games another phone exported; a game already here is skipped.</p><div class="row"><button class="btn small ghost" type="button" data-act="csvout"' + (b.history.length ? '' : ' disabled') + '>Download CSV</button><button class="btn small ghost" type="button" data-act="jsonout"' + (b.history.length ? '' : ' disabled') + '>Download JSON</button><label class="btn small ghost" style="position:relative;overflow:hidden">Import a file<input class="vh" id="impFile" type="file" accept=".csv,.json,text/csv,application/json"></label></div></section>';
+    return '<section class="card stack" aria-labelledby="exT"><h2 id="exT">Keep a copy</h2><p class="small muted m0">Your history as a spreadsheet (CSV) or a file Pencil reads back (JSON) - made on this phone. Import adds games another phone exported; a game already here is skipped.</p><div class="row"><button class="btn small ghost" type="button" data-act="csvout"' + (b.history.length ? '' : ' disabled') + '>Download CSV</button><button class="btn small ghost" type="button" data-act="jsonout"' + (b.history.length ? '' : ' disabled') + '>Download JSON</button><label class="btn small ghost filebtn">Import a file<input class="vh" id="impFile" type="file" accept=".csv,.json,text/csv,application/json"></label></div></section>';
   }
   function bindTable() {
     var a = $('#h2a'), b2 = $('#h2b');
@@ -1520,17 +1521,17 @@
   function viewMore() {
     var b = bk();
     var out = '<div class="sec-head"><h1>More</h1></div><div class="grid two"><div class="stack">';
-    out += '<section class="card stack"><h2>Join a table</h2><p class="small muted" style="margin:0">Watch someone else’s game live, with the code on their screen.</p><button class="btn" type="button" data-act="joinnew">Enter a code</button></section>';
-    out += '<section class="card stack" aria-labelledby="grT"><h2 id="grT">Groups</h2><p class="small muted" style="margin:0">“Family”, “Thursday crew” - start a game with a group in one tap, and see a group’s own leaderboard.</p>' +
+    out += '<section class="card stack"><h2>Join a table</h2><p class="small muted m0">Watch someone else’s game live, with the code on their screen.</p><button class="btn" type="button" data-act="joinnew">Enter a code</button></section>';
+    out += '<section class="card stack" aria-labelledby="grT"><h2 id="grT">Groups</h2><p class="small muted m0">“Family”, “Thursday crew” - start a game with a group in one tap, and see a group’s own leaderboard.</p>' +
       b.groups.map(function (gr) {
-        return '<div class="note stack"><div class="row spread"><b>' + esc(gr.name) + '</b><span class="row" style="gap:4px"><button class="btn small ghost" type="button" data-act="grename" data-gid="' + esc(gr.id) + '">Rename</button><button class="btn small danger" type="button" data-act="gdel" data-gid="' + esc(gr.id) + '">Delete</button></span></div><div class="chips">' +
+        return '<div class="note stack"><div class="row spread"><b>' + esc(gr.name) + '</b><span class="row gap4"><button class="btn small ghost" type="button" data-act="grename" data-gid="' + esc(gr.id) + '">Rename</button><button class="btn small danger" type="button" data-act="gdel" data-gid="' + esc(gr.id) + '">Delete</button></span></div><div class="chips">' +
           b.people.map(function (p) { var on = gr.people.indexOf(p.id) >= 0; return '<button class="pchip" type="button" data-act="gtoggle" data-gid="' + esc(gr.id) + '" data-pid="' + esc(p.id) + '" aria-pressed="' + on + '"><span aria-hidden="true">' + esc(p.emoji) + '</span>' + esc(p.name) + '</button>'; }).join('') + '</div></div>';
       }).join('') +
       (b.groups.length < C.LIMITS.groups ? '<form class="addrow" id="grNew"><input class="input" id="grName" maxlength="' + C.LIMITS.groupName + '" placeholder="New group - Family, Book club…"><button class="btn" type="submit">Add</button></form>' : '') + '</section>';
     out += '</div><div class="stack">';
-    out += '<section class="card stack" aria-labelledby="ppT"><h2 id="ppT">People</h2>' + (b.people.length ? '<div>' + C.recentPeople(b.people, 200).map(function (p) { return '<div class="prow"><button class="emobtn" type="button" data-act="pplemoji" data-pid="' + esc(p.id) + '" aria-label="Change ' + esc(p.name) + '’s emoji">' + esc(p.emoji) + '</button><span><b>' + esc(p.name) + '</b></span><span class="acts"><button class="iconbtn" type="button" data-act="pplrename" data-pid="' + esc(p.id) + '" aria-label="Rename ' + esc(p.name) + '">✎</button><button class="iconbtn" type="button" data-act="pplforget" data-pid="' + esc(p.id) + '" aria-label="Forget ' + esc(p.name) + '">×</button></span></div>'; }).join('') + '</div>' : '<p class="muted small" style="margin:0">Players you add to a game appear here.</p>') + '</section>';
+    out += '<section class="card stack" aria-labelledby="ppT"><h2 id="ppT">People</h2>' + (b.people.length ? '<div>' + C.recentPeople(b.people, 200).map(function (p) { return '<div class="prow"><button class="emobtn" type="button" data-act="pplemoji" data-pid="' + esc(p.id) + '" aria-label="Change ' + esc(p.name) + '’s emoji">' + esc(p.emoji) + '</button><span><b>' + esc(p.name) + '</b></span><span class="acts"><button class="iconbtn" type="button" data-act="pplrename" data-pid="' + esc(p.id) + '" aria-label="Rename ' + esc(p.name) + '">✎</button><button class="iconbtn" type="button" data-act="pplforget" data-pid="' + esc(p.id) + '" aria-label="Forget ' + esc(p.name) + '">×</button></span></div>'; }).join('') + '</div>' : '<p class="muted small m0">Players you add to a game appear here.</p>') + '</section>';
     out += exportCard(b);
-    out += '<section class="card stack"><h2>On this phone</h2><p class="small muted" style="margin:0">Games, people, groups and the history are kept in this browser - no account, nothing on a server - unless you show a table, which sends that one game and is deleted a day after its last score. A free account adds one thing: reading a paper score sheet with AI.</p>' +
+    out += '<section class="card stack"><h2>On this phone</h2><p class="small muted m0">Games, people, groups and the history are kept in this browser - no account, nothing on a server - unless you show a table, which sends that one game and is deleted a day after its last score. A free account adds one thing: reading a paper score sheet with AI.</p>' +
       (state.trying ? '' : '<div class="row"><button class="btn small ghost" type="button" data-act="try">See the made-up game night</button><button class="btn small danger" type="button" data-act="wipe">Erase everything here</button></div>') + '</section>';
     out += '</div></div>';
     return out;
@@ -1592,18 +1593,18 @@
   }
   function drawAi(root) {
     var b = $('.body', root), a = state.ai;
-    var intro = '<h2>\u{1F4DD} Read a paper score sheet</h2><p>Take a photo of the sheet and AI copies out the names across the top and each round’s scores - up to 12 players and 60 rounds. You check every number and match the columns to players before anything is added.</p>';
-    var sent = '<div class="sent">' + (a.photo ? '<img alt="" src="' + esc(a.photo.thumb) + '">' : '') + SENT_LINE + '<span style="display:block;clear:both"></span></div>';
+    var intro = '<h2>\u{1F4DD} Read a paper score sheet</h2><p>Take a photo of the sheet and AI copies out the names across the top and each round’s scores - up to 12 players and 60 rounds. It says which numbers it wasn’t sure of, you check those against the paper, and Pencil does the adding up. Nothing is added until you say so.</p>';
+    var sent = '<div class="sent">' + (a.photo ? '<img alt="" src="' + esc(a.photo.thumb) + '">' : '') + SENT_LINE + '<span class="clr"></span></div>';
     if (state.trying) { b.innerHTML = intro + '<p class="note">This reads a real sheet of your own. Start your own game to try it.</p><button class="btn" type="button" data-act="tryown">Start my own</button>'; return; }
     if (!signedIn()) {
-      b.innerHTML = intro + sent + '<p class="note" style="margin-top:12px">This needs a free account - it comes with $2 of AI credit, and one sheet costs about a cent. Scoring, the table, the stats and the recap card stay free with no account.</p><div class="row" style="margin-top:12px"><button class="btn" type="button" id="aiJoin">Create a free account</button><button class="btn ghost" type="button" id="aiIn">Sign in</button></div>';
+      b.innerHTML = intro + sent + '<p class="note mt12">This needs a free account - it comes with $2 of AI credit, and one sheet costs about a cent. Scoring, the table, the stats and the recap card stay free with no account.</p><div class="row mt12"><button class="btn" type="button" id="aiJoin">Create a free account</button><button class="btn ghost" type="button" id="aiIn">Sign in</button></div>';
       $('#aiJoin', root).addEventListener('click', function () { openAccount('Create a free account to read paper score sheets.', function () { openAi(a.target); }); });
       $('#aiIn', root).addEventListener('click', function () { openAccount('Sign in to read paper score sheets.', function () { openAi(a.target); }, 'login'); });
       return;
     }
     if (a.proposal) return drawProposal(root);
-    b.innerHTML = intro + '<div class="field" style="margin:8px 0 12px"><span>A photo of the sheet, from straight above</span><label class="btn ghost" style="position:relative;overflow:hidden">' + (a.photo ? '\u{1F4F7} Another photo' : '\u{1F4F7} Take or choose a photo') + '<input class="vh" id="aiFile" type="file" accept="image/*" capture="environment"></label></div>' + sent +
-      '<div id="aiOut" style="margin-top:12px"></div><div class="row" style="margin-top:12px"><button class="btn ai" type="button" id="aiGo"' + (a.photo ? '' : ' disabled') + '> Read it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
+    b.innerHTML = intro + '<div class="field my12"><span>A photo of the sheet, from straight above</span><label class="btn ghost filebtn">' + (a.photo ? '\u{1F4F7} Another photo' : '\u{1F4F7} Take or choose a photo') + '<input class="vh" id="aiFile" type="file" accept="image/*" capture="environment"></label></div>' + sent +
+      '<div id="aiOut" class="mt12"></div><div class="row mt12"><button class="btn ai" type="button" id="aiGo"' + (a.photo ? '' : ' disabled') + '> Read it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
     var out = $('#aiOut', root), goB = $('#aiGo', root);
     $('#aiFile', root).addEventListener('change', function (e) {
       var file = e.target.files[0]; if (!file) return;
@@ -1626,25 +1627,66 @@
   function drawProposal(root) {
     var b = $('.body', root), a = state.ai, p = a.proposal;
     var g = a.target === 'new' ? null : gameById(a.target);
-    var conf = function (c) { return '<span class="pill ' + (c === 'high' ? 'p-done' : c === 'medium' ? 'p-play' : 'p-lead') + '">' + esc(c) + '</span>'; };
+    // The cells to look at before anything is added: decided by the core
+    // from the reader's own confidence, never by the page's guess.
+    var flags = C.sheetUnclear(p), open = {};
+    flags.forEach(function (f) { open[f[0] + '-' + f[1]] = true; });
+    var conf = function (c) { return '<span class="pill ' + (c === 'high' ? 'p-done' : c === 'medium' ? 'p-play' : 'p-lead') + '">' + (c === 'high' ? 'Clear' : c === 'medium' ? 'Fairly clear' : 'Hard to read') + '</span>'; };
     var map = p.players.map(function (pl, i) {
       if (!g) return '';
       var hit = g.sides.filter(function (s) { return pl.name && C.norm(s.name) === C.norm(pl.name); })[0];
       return hit ? hit.id : (g.sides[i] && !p.players.some(function (q) { return q.name && C.norm(q.name) === C.norm(g.sides[i].name); }) ? g.sides[i].id : '');
     });
     var head = p.players.map(function (pl, i) {
-      if (!g) return '<th><input class="input" data-pname="' + i + '" maxlength="' + C.LIMITS.name + '" value="' + esc(pl.name) + '" aria-label="Name in column ' + (i + 1) + '" style="width:112px;text-align:left"><div>' + conf(pl.confidence) + '</div></th>';
+      if (!g) return '<th><input class="input pname" data-pname="' + i + '" maxlength="' + C.LIMITS.name + '" value="' + esc(pl.name) + '" aria-label="Name in column ' + (i + 1) + '"><div>' + conf(pl.confidence) + '</div></th>';
       return '<th><select class="input" data-pmap="' + i + '" aria-label="Column ' + (i + 1) + (pl.name ? ' (' + esc(pl.name) + ')' : '') + ' is">' + '<option value="">Leave out</option>' + g.sides.map(function (s) { return '<option value="' + esc(s.id) + '"' + (map[i] === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select><div class="small">' + (pl.name ? esc('“' + pl.name + '” ') : '') + conf(pl.confidence) + '</div></th>';
     }).join('');
+    var addWord = g ? 'Add ' + plural(p.rows.length, g.kind === 'golf' ? 'hole' : g.kind === 'hearts' ? 'hand' : g.kind === 'darts' ? 'row of turns' : 'round', g.kind === 'darts' ? 'rows of turns' : null) : 'Start the game with ' + plural(p.rows.length, 'round');
     b.innerHTML = '<h2>Check it, then add</h2><p class="small muted">AI-written - check every number against the paper. Nothing is added until you tap Add.</p>' +
       (p.note ? '<p class="note small">' + esc(p.note) + '</p>' : '') +
-      '<div class="pgrid"><table><thead><tr><th></th>' + head + '</tr></thead><tbody>' + p.rows.map(function (row, r) { return '<tr><td class="rn">' + (r + 1) + '</td>' + row.map(function (v, i) { return '<td><input class="input" type="number" inputmode="numeric" data-pv="' + r + '-' + i + '" value="' + (v === null ? '' : v) + '" aria-label="Row ' + (r + 1) + ', column ' + (i + 1) + '"></td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' +
-      (!g ? '<div class="field" style="margin-top:12px"><span>Who wins?</span><div class="seg"><button type="button" data-pwin="high" aria-pressed="' + (a.win === 'high') + '">Highest score</button><button type="button" data-pwin="low" aria-pressed="' + (a.win === 'low') + '">Lowest score</button></div></div>' : '') +
-      '<div id="ppErr"></div><div class="row" style="margin-top:12px"><button class="btn" type="button" id="ppAdd">' + (g ? 'Add ' + plural(p.rows.length, g.kind === 'golf' ? 'hole' : g.kind === 'hearts' ? 'hand' : g.kind === 'darts' ? 'row of turns' : 'round', g.kind === 'darts' ? 'rows of turns' : null) : 'Start the game with ' + plural(p.rows.length, 'round')) + '</button><button class="btn ghost" type="button" id="ppBack">Another photo</button></div>';
+      '<div id="ppFix" class="fix" aria-live="polite"></div>' +
+      '<div class="pgrid"><table><thead><tr><th></th>' + head + '</tr></thead><tbody>' + p.rows.map(function (row, r) { return '<tr><td class="rn">' + (r + 1) + '</td>' + row.map(function (v, i) { return '<td' + (open[r + '-' + i] ? ' class="flag"' : '') + ' data-pc="' + r + '-' + i + '"><input class="input" type="number" inputmode="numeric" data-pv="' + r + '-' + i + '" value="' + (v === null ? '' : v) + '" aria-label="Row ' + (r + 1) + ', column ' + (i + 1) + (open[r + '-' + i] ? ' - check this one' : '') + '"></td>'; }).join('') + '</tr>'; }).join('') + '</tbody>' +
+      '<tfoot><tr><td class="rn">Total</td>' + p.players.map(function (pl, i) { return '<td class="num" data-pt="' + i + '"></td>'; }).join('') + '</tr></tfoot></table></div>' +
+      '<p class="tiny muted mt8">Totals are added up by Pencil on this phone - never by AI.</p>' +
+      (!g ? '<div class="field mt12"><span>Who wins?</span><div class="seg"><button type="button" data-pwin="high" aria-pressed="' + (a.win === 'high') + '">Highest score</button><button type="button" data-pwin="low" aria-pressed="' + (a.win === 'low') + '">Lowest score</button></div></div>' : '') +
+      '<div id="ppErr"></div><div class="row mt12"><button class="btn" type="button" id="ppAdd"></button><button class="btn ghost" type="button" id="ppBack">Another photo</button></div>';
+    var readRows = function () { return p.rows.map(function (row, r) { return row.map(function (v, i) { var x = $('[data-pv="' + r + '-' + i + '"]', root).value.trim(); return x === '' ? null : Number(x); }); }); };
+    var left = function () { return flags.filter(function (f) { return open[f[0] + '-' + f[1]]; }); };
+    var colName = function (i) { var el = $('[data-pname="' + i + '"]', root), sel = $('[data-pmap="' + i + '"]', root); var n = el ? el.value : sel && sel.value ? sel.options[sel.selectedIndex].text : p.players[i].name; return C.cleanName(n) || 'column ' + (i + 1); };
+    function totals() {
+      C.sheetTotals(readRows(), p.players.length).forEach(function (t, i) { $('[data-pt="' + i + '"]', root).textContent = t === null ? '–' : fmt(t); });
+    }
+    function settle(key) {
+      if (!open[key]) return;
+      open[key] = false;
+      var td = $('[data-pc="' + key + '"]', root);
+      td.classList.remove('flag'); td.classList.add('seen');
+    }
+    // One unclear number at a time: big, plain, one tap to confirm.
+    function drawFix() {
+      var todo = left(), box = $('#ppFix', root), add = $('#ppAdd', root);
+      add.disabled = todo.length > 0;
+      add.textContent = todo.length ? 'Check ' + plural(todo.length, 'number') + ' first' : addWord;
+      if (!flags.length) { box.innerHTML = ''; return; }
+      if (!todo.length) { box.innerHTML = '<p class="sumline ok m0">✓ ' + (flags.length === 1 ? 'The unclear number is checked.' : 'All ' + flags.length + ' unclear numbers are checked.') + '</p>'; return; }
+      var f = todo[0], key = f[0] + '-' + f[1], inp = $('[data-pv="' + key + '"]', root);
+      box.innerHTML = '<p class="lab">Check against the paper · ' + (flags.length - todo.length + 1) + ' of ' + flags.length + '</p>' +
+        '<p class="m0"><b>Round ' + (f[0] + 1) + ', ' + esc(colName(f[1])) + '</b> - ' + (inp.value.trim() === '' ? 'the reader could not make this one out. Type it, or leave it blank.' : 'the reader was not sure of this one.') + '</p>' +
+        '<div class="fixrow"><input class="input n" id="ppFixV" type="number" inputmode="numeric" value="' + esc(inp.value) + '" aria-label="Round ' + (f[0] + 1) + ', ' + esc(colName(f[1])) + '"><button class="btn" type="button" id="ppFixOk">' + (inp.value.trim() === '' ? 'Save' : 'That’s right') + '</button></div>';
+      var v = $('#ppFixV', root), ok = $('#ppFixOk', root);
+      v.addEventListener('input', function () { ok.textContent = 'Save'; });
+      ok.addEventListener('click', function () { inp.value = v.value.trim(); settle(key); totals(); drawFix(); var nx = $('#ppFixV', root); if (nx) nx.focus(); });
+    }
+    $$('[data-pv]', root).forEach(function (el) {
+      el.addEventListener('input', totals);
+      el.addEventListener('change', function () { settle(el.getAttribute('data-pv')); drawFix(); });
+    });
+    totals(); drawFix();
     $$('[data-pwin]', root).forEach(function (x) { x.addEventListener('click', function () { a.win = x.getAttribute('data-pwin'); $$('[data-pwin]', root).forEach(function (y) { y.setAttribute('aria-pressed', String(y === x)); }); }); });
     $('#ppBack', root).addEventListener('click', function () { a.proposal = null; a.photo = null; drawAi(root); });
     $('#ppAdd', root).addEventListener('click', function () {
-      var rows = p.rows.map(function (row, r) { return row.map(function (v, i) { var x = $('[data-pv="' + r + '-' + i + '"]', root).value.trim(); return x === '' ? null : Number(x); }); });
+      if (left().length) return;
+      var rows = readRows();
       if (rows.some(function (row) { return row.some(function (v) { return v !== null && (!Number.isInteger(v) || v < C.LIMITS.aiMin || v > C.LIMITS.aiMax); }); })) { $('#ppErr', root).innerHTML = '<p class="err">Every score is a whole number.</p>'; return; }
       var prop = { players: p.players, rows: rows };
       if (g) {
@@ -1705,7 +1747,7 @@
   $('#sheetBack').addEventListener('click', function () { closeSheet(); });
   function openGames() {
     var l = list();
-    sheet('<h2>Your games</h2>' + (l.length ? '<div class="glist">' + l.slice(0, 20).map(gameRow).join('') + '</div>' : '<p class="muted">None yet.</p>') + '<div class="row" style="margin-top:12px"><button class="btn small" type="button" data-act="new">+ Start a game</button><button class="btn small ghost" type="button" data-act="joinnew">Join a table</button></div>');
+    sheet('<h2>Your games</h2>' + (l.length ? '<div class="glist">' + l.slice(0, 20).map(gameRow).join('') + '</div>' : '<p class="muted">None yet.</p>') + '<div class="row mt12"><button class="btn small" type="button" data-act="new">+ Start a game</button><button class="btn small ghost" type="button" data-act="joinnew">Join a table</button></div>');
   }
 
   function loadMe() {
@@ -1722,12 +1764,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my12"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my12"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1749,10 +1791,10 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Reading a score sheet costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
-      '<p class="small muted" style="margin-top:12px">Your games are not in your account - they stay on this phone, and on a shared table only while you show one.</p>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt8">Reading a score sheet costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
+      '<p class="small muted mt12">Your games are not in your account - they stay on this phone, and on a shared table only while you show one.</p>' +
+      (pkOk() ? '<button class="btn ghost block mt12" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); draw(); }); });

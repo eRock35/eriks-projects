@@ -1,184 +1,112 @@
 <!doctype html>
-<!-- data-counts="off" hides the small live numbers (today: the hero's "votes
-     cast" readout), as the main site does: a low count reads as low
-     traction. Remove the attribute to bring them back. See CLAUDE.md. -->
-<html lang="en" data-counts="off">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>The Challenge Lab — a new app every day</title>
   <meta name="description" content="Erik's app lab: a brand-new app drops every day. Try them free, then vote to keep it or kill it. The winners graduate.">
-  <meta name="theme-color" content="#070B14">
+  <meta name="theme-color" content="#120f24">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/lab.css">
   <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="The Challenge Lab">
   <meta property="og:title" content="The Challenge Lab — a new app every day">
-  <meta property="og:description" content="69 apps so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
+  <meta property="og:description" content="70 apps so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
   <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/">
-  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=50d86de0e3">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=5e38a3371b">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="The Challenge Lab: a new app every day. 69 apps shipped so far.">
+  <meta property="og:image:alt" content="The Challenge Lab: a new app every day. 70 apps shipped so far.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="The Challenge Lab — a new app every day">
-  <meta name="twitter:description" content="69 apps so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
-  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=50d86de0e3">
-  <meta name="twitter:image:alt" content="The Challenge Lab: a new app every day. 69 apps shipped so far.">
+  <meta name="twitter:description" content="70 apps so far, each trying to fix a real headache, at home or at work, in a way that’s fun to use. Try them free, then vote: keep it or kill it.">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/lab.png?v=5e38a3371b">
+  <meta name="twitter:image:alt" content="The Challenge Lab: a new app every day. 70 apps shipped so far.">
   <!-- /lab:og -->
 </head>
 <body>
-  <a class="skip" href="#drops">Skip to the drops</a>
+  <div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
 
-  <!-- The top bar, the hero and "How it's built" are dark panels in both
-       themes (class "dk"), like the main site's; the page under them is
-       light or dark. -->
-  <header class="nav dk">
-    <div class="wrap nav-inner">
-      <a class="brand" href="/"><img src="/icon.svg" alt="" width="30" height="30"><span>The Challenge Lab</span></a>
-      <nav class="nav-links" aria-label="On this page">
-        <a class="nl-page" href="#drops">Drops</a>
-        <a class="nl-page" href="#standings">Leaderboard</a>
-        <a class="nl-page" href="#built">How it’s built</a>
-        <a href="https://strongtechnicalconsulting.com/"><span class="nl-long">Erik’s projects</span><span class="nl-short" aria-hidden="true">Erik</span> <span aria-hidden="true">↗</span></a>
-      </nav>
-    </div>
+  <header class="nav">
+    <a class="logo" href="/"><span class="flask">🧪</span><span>The Challenge Lab</span></a>
+    <a class="nav-link" href="https://strongtechnicalconsulting.com/">Erik’s projects ↗</a>
   </header>
 
-  <main id="main">
-    <section class="hero dk" aria-labelledby="heroTitle">
-      <div class="hero-fx" aria-hidden="true"><i class="hero-glow" id="heroGlow"></i></div>
-      <div class="wrap">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <p class="kicker"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Live experiment · new drop every day</p>
-            <h1 id="heroTitle">A new app<br>every day.</h1>
-            <p class="lede">This is where the experiments live. Each one tries to fix a real headache, in everyday life or at work, in a way that’s actually fun to use. Try them for free, then vote: <b>keep it</b> or <b>kill it</b>. The keepers graduate to their own home.</p>
-            <div class="cta-row">
-              <a class="btn btn-lum" href="#drops">See the drops <span aria-hidden="true">↓</span></a>
-              <a class="btn btn-line" href="#how">How the lab works</a>
-            </div>
-          </div>
-
-          <!-- Today's drop: the newest one in /api/lab, votable right here.
-               The box keeps its height while the answer is on its way. -->
-          <section class="today" id="today" aria-label="Today’s drop">
-            <p class="today-wait">Loading today’s drop…</p>
-          </section>
-        </div>
-
-        <ul class="proof" id="stats">
-          <li><b id="sApps">–</b><span>apps shipped</span></li>
-          <li><b id="sDay">–</b><span>days running</span></li>
-          <li class="live-count"><b id="sVotes">–</b><span>votes cast</span></li>
-          <li><b id="sNext">–</b><span>until the next drop</span></li>
-        </ul>
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="dot"></span> Live experiment · new drop every day</div>
+      <h1>A new app<br><span class="grad">every day.</span></h1>
+      <p class="lede">This is where the experiments live. Each one tries to fix a real headache, in everyday life or at work, in a way that’s actually fun to use. Try them for free, then vote: <b>keep it</b> or <b>kill it</b>. The keepers graduate to their own home.</p>
+      <div class="stats" id="stats">
+        <div class="stat"><b id="sApps">–</b><span>apps shipped</span></div>
+        <div class="stat"><b id="sDay">–</b><span>days running</span></div>
+        <div class="stat wide"><b id="sNext">–</b><span>until the next drop</span></div>
       </div>
+      <a class="cta" href="#drops">See the drops ↓</a>
     </section>
 
-    <div class="wrap">
-      <div class="deck" id="deck">
-        <!-- This browser's streak, progress and badges, from /api/lab's `me`.
-             Hidden until it answers, drawn in the same pass as the cards. -->
-        <section class="panel me" id="me" aria-labelledby="meTitle" hidden>
-          <p class="kicker">This browser</p>
-          <h2 id="meTitle">Your streak</h2>
-          <div class="me-body">
-            <div class="me-streak" id="meStreak"></div>
-            <div class="me-prog" id="meProg"></div>
-            <div class="me-badges">
-              <div class="mb-head"><h3>Badges</h3><span id="meBadgeCount"></span></div>
-              <ul id="meBadges"></ul>
-              <p class="me-hint" id="meHint" role="status"></p>
-            </div>
-          </div>
-        </section>
-
-        <!-- Keep or kill standings, from /api/lab/leaderboard: rank and votes
-             only. A split is drawn only from this browser's own reveal. -->
-        <section class="panel standings" id="standings" aria-labelledby="standingsTitle" hidden>
-          <p class="kicker">Keep or kill</p>
-          <div class="standings-head"><h2 id="standingsTitle">Leaderboard</h2><span id="standingsLead"></span></div>
-          <ol class="board" id="board"></ol>
-          <button type="button" class="more-btn" id="boardMore" aria-expanded="false" aria-controls="board" hidden></button>
-          <p class="board-note">Ranked by how sure the keep share is, not the raw percentage: one keep is not 100% of anything yet. A drop’s split shows once you’ve voted on it.</p>
-        </section>
-      </div>
-
-      <!-- Newest first by default; the sort is kept in this browser only.
-           The bar is hidden until the drops are drawn, so nothing jumps. -->
-      <section class="drops-sec" aria-labelledby="dropsTitle">
-        <div class="sec-head">
-          <p class="kicker">The experiment floor</p>
-          <h2 id="dropsTitle">The drops</h2>
-        </div>
-        <div class="drops-bar" id="dropsBar" hidden>
-          <div class="find">
-            <label class="sr" for="find">Search the drops</label>
-            <input type="search" id="find" placeholder="Search the drops" autocomplete="off" spellcheck="false" enterkeyhint="search">
-          </div>
-          <div class="seg" role="group" aria-label="Show">
-            <span class="seg-label" aria-hidden="true">Show</span>
-            <button type="button" data-show="all" aria-pressed="true">All</button>
-            <button type="button" data-show="todo" aria-pressed="false">To vote</button>
-            <button type="button" data-show="done" aria-pressed="false">Voted</button>
-          </div>
-          <div class="seg sort" role="group" aria-label="Sort the drops">
-            <span class="seg-label" aria-hidden="true">Sort</span>
-            <button type="button" data-sort="new" aria-pressed="true">Newest</button>
-            <button type="button" data-sort="old" aria-pressed="false">Oldest</button>
-            <button type="button" data-sort="votes" aria-pressed="false">Most votes</button>
-            <button type="button" data-sort="todo" aria-pressed="false">Not voted yet</button>
-            <button type="button" data-sort="az" aria-pressed="false">A–Z</button>
-          </div>
-        </div>
-        <p class="drops-count" id="dropsCount" role="status"></p>
-        <div id="drops" class="drops"></div>
-        <button type="button" class="more-btn wide" id="dropsMore" hidden></button>
-      </section>
-    </div>
+    <!-- This browser's streak, progress and badges, from /api/lab's `me`.
+         Hidden until it answers, drawn in the same pass as the cards. -->
+    <section class="me" id="me" aria-labelledby="meTitle" hidden>
+      <h2 id="meTitle" class="sr">Your lab</h2>
+      <div class="me-streak" id="meStreak"></div>
+      <div class="me-prog" id="meProg"></div>
+      <div class="me-badges"><div class="mb-head"><span>Badges</span><span id="meBadgeCount"></span></div><ul id="meBadges"></ul></div>
+    </section>
 
     <!-- What the drops cost to build, from /api/lab's buildTotals. Hidden
-         until it answers; it sits below the drops, so appearing moves
-         nothing above it. -->
-    <section class="built dk" id="built" aria-labelledby="builtTitle" hidden>
-      <div class="wrap">
-        <div class="built-head">
-          <p class="kicker">Under the hood</p>
-          <h2 id="builtTitle">How it’s built</h2>
-          <p id="builtLead"></p>
-        </div>
-        <div class="built-grid" id="builtGrid"></div>
-        <p class="built-note" id="builtNote"></p>
-      </div>
+         until it answers; it appears in the same draw as the cards below
+         (still empty until then), so nothing already on screen moves. -->
+    <section class="built" id="built" aria-labelledby="builtTitle" hidden>
+      <div class="built-head"><h2 id="builtTitle">How it’s built</h2><p id="builtLead"></p></div>
+      <div class="built-grid" id="builtGrid"></div>
+      <p class="built-note" id="builtNote"></p>
     </section>
 
-    <div class="wrap">
-      <section class="how" id="how" aria-labelledby="howTitle">
-        <div class="sec-head">
-          <p class="kicker">The rules</p>
-          <h2 id="howTitle">How the lab works</h2>
-        </div>
-        <ol class="steps">
-          <li><span class="n" aria-hidden="true">01</span><h3>It drops.</h3><p>A new app lands here every morning, built around a real problem someone has, at home or at work.</p></li>
-          <li><span class="n" aria-hidden="true">02</span><h3>You play.</h3><p>One free account works across every app on the site, with $2 of AI credit to spend however you like.</p></li>
-          <li><span class="n" aria-hidden="true">03</span><h3>You vote.</h3><p>🔥 Keep it or 💀 kill it, then see how the crowd split. Vote on each new drop to keep a streak going. Tell Erik what you’d change.</p></li>
-          <li><span class="n" aria-hidden="true">04</span><h3>Winners graduate.</h3><p>The ones people love get their own address, a proper launch and maybe an iPhone app.</p></li>
-        </ol>
-      </section>
+    <!-- Newest first by default; the choice is kept in this browser only.
+         Hidden until the drops are drawn, so nothing jumps. -->
+    <div class="drops-bar" id="dropsBar" hidden>
+      <h2 id="dropsTitle">The drops</h2>
+      <div class="sort" role="group" aria-label="Sort the drops">
+        <span class="sort-label" aria-hidden="true">Sort</span>
+        <button type="button" data-sort="new" aria-pressed="true">Newest</button>
+        <button type="button" data-sort="old" aria-pressed="false">Oldest</button>
+        <button type="button" data-sort="votes" aria-pressed="false">Most votes</button>
+        <button type="button" data-sort="todo" aria-pressed="false">Not voted yet</button>
+        <button type="button" data-sort="az" aria-pressed="false">A–Z</button>
+      </div>
     </div>
+    <section id="drops" class="drops" aria-live="polite" aria-labelledby="dropsTitle"></section>
+
+    <!-- Keep or kill standings, from /api/lab/leaderboard. Hidden until it
+         answers; it sits below the drops, so appearing moves nothing above. -->
+    <section class="standings" id="standings" aria-labelledby="standingsTitle" hidden>
+      <div class="standings-head"><h2 id="standingsTitle">Leaderboard</h2><span id="standingsLead"></span></div>
+      <ol class="board" id="board"></ol>
+      <p class="board-note">Ranked by how sure the keep share is, not the raw percentage: one keep is not 100% of anything yet. A drop’s split shows once you’ve voted on it.</p>
+    </section>
+
+    <section class="how">
+      <h2>How the lab works</h2>
+      <ol class="steps">
+        <li><span class="n">1</span><b>It drops.</b><p>A new app lands here every morning, built around a real problem someone has at work.</p></li>
+        <li><span class="n">2</span><b>You play.</b><p>One free account works across every app on the site, with $2 of AI credit to spend however you like.</p></li>
+        <li><span class="n">3</span><b>You vote.</b><p>🔥 Keep it or 💀 kill it, then see how the crowd split. Vote on each new drop to keep a streak going. Tell Erik what you’d change.</p></li>
+        <li><span class="n">4</span><b>Winners graduate.</b><p>The ones people love get their own address, a proper launch and maybe an iPhone app.</p></li>
+      </ol>
+    </section>
   </main>
 
   <footer class="foot">
-    <div class="wrap">
-      <span>Built in public by <a href="https://strongtechnicalconsulting.com/">Erik Strong</a>. Everything here is an experiment and may vanish without warning. ·&nbsp;<a href="/pulse">Lab&nbsp;Pulse</a></span>
-    </div>
+    <span>Built in public by <a href="https://strongtechnicalconsulting.com/">Erik Strong</a>. Everything here is an experiment and may vanish without warning. ·&nbsp;<a href="/pulse">Lab&nbsp;Pulse</a></span>
   </footer>
 
-  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
   <script src="/lab.js"></script>
 </body>
 </html>

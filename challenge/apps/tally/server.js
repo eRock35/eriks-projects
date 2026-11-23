@@ -23,6 +23,7 @@ const R = require('./public/rules');
 const B = require('./lib/books');
 const ai = require('./lib/ai');
 const photo = require('./lib/photo');
+const gemini = require('./lib/gemini');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
 
@@ -33,6 +34,15 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('TALLY_FAKE_AI=1 is for lo
 // Free tier on Haiku, members on Sonnet - the split every sibling uses,
 // decided in one place by identity.planFor. Both read photos.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a snapped report. TALLY_AI_PROVIDER=gemini moves it to
+// Gemini on Vertex AI (lib/gemini.js), which reads a Z-report OR a
+// processor's payout report, figure by figure with a confidence each.
+// Anything else - unset included - is Claude, exactly as before, so merging
+// the code changes nothing until the switch is set. Read per request.
+// TALLY_AI_PROVIDER=claude-first (2026-11-23): a photo goes to Claude first,
+// Gemini when Claude fails; pasted text (Gemini only) is on.
+const providerNow = () => (process.env.TALLY_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.TALLY_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -107,7 +117,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
-  if (mine) for (const k of ['field']) if (err[k] !== undefined) body[k] = err[k];
+  if (mine) for (const k of ['field', 'code']) if (err[k] !== undefined) body[k] = err[k];
   res.status(status).json(body);
 };
 
@@ -165,10 +175,14 @@ app.get('/api/demo', (_req, res) => {
 app.get('/api/me', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    if (!req.user) return res.json({ signedIn: false });
+    // Which reader a snap gets: 'report' (Gemini: figures with a confidence
+    // each, checked by rules.checkReport) or 'zreport' (Claude, as before).
+    const reader = providerNow() !== 'claude' ? 'report' : 'zreport';
+    if (!req.user) return res.json({ signedIn: false, reader });
     const s = await loadSettings(req.user.id);
     res.json({
       signedIn: true,
+      reader,
       email: req.user.email,
       name: B.nameFromEmail(req.user.email),
       budget: identityLib.budgetFor(req.user),
@@ -255,26 +269,159 @@ app.delete('/api/days/:date', user, async (req, res) => {
 });
 
 /**
- * Snap the Z-report: one photo, read once by the model, never stored. It
- * proposes the four numbers; the owner checks them and presses Save, which
- * is the ordinary PUT above. The photo is checked by its bytes before any
- * spend (400); nothing readable is a 422.
+ * Snap the report: one photo (or, on Gemini, pasted text), read once by the
+ * model, never stored. It proposes the day's numbers; the owner checks them
+ * and presses Save, which is the ordinary PUT above. The photo is checked by
+ * its bytes before any spend (400); nothing readable is a 422.
+ *
+ * Gates, in order: sign-in, budget and the daily cap (`spend`), the body
+ * parser, the input check, the lab's AI guard (`allow`), then ONE schema'd
+ * call - a forced tool on Claude, a responseSchema on Gemini - then `record`.
+ * Every sum and verdict about the figures is rules.js, never the model.
  */
+const NOT_A_REPORT = 'We couldn’t read an end-of-day report in that photo. Try a closer, flatter, well-lit shot - or type the four numbers.';
+const NO_CARD_TOTAL = 'We couldn’t find a card-sales total on that report. Type the numbers in - it takes a minute.';
+const NO_FIGURES = 'We couldn’t read a card-sales total or a payout on that. Try a closer, flatter, well-lit shot - or type the numbers in.';
+const SNAP_FALLBACK = 'Could not read that photo. Try again, or type the numbers in.';
+
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'tally' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Typing the numbers in still works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'tally', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: the identity meter charges the person. */
+async function snapWithClaude(req, image, today) {
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  let raw;
+  try {
+    raw = await ai.readReport(client, model, image, today, (u) => { used = u; });
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+  const reading = ai.cleanReading(raw, today);
+  if (!reading) throw httpError(422, raw && raw.readable === false ? NOT_A_REPORT : NO_CARD_TOTAL);
+  return reading;
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function snapWithGemini(req, input, today) {
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(input, today);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1900, outputTokens: 260 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, gemini: 'no-helper' });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), gemini: (err && err.code) || 'error' });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  const reading = gemini.cleanReading(out && out.json, today);
+  if (!reading) throw httpError(422, out && out.json && out.json.reportType === 'not_a_report' ? NOT_A_REPORT : NO_FIGURES);
+  return reading;
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `snap:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
+/** Gemini first, for a feature Claude also has. If the Gemini step fails for
+ *  any reason but a burst refusal - a thrown call, output the validator
+ *  rejects (a 422, or `viaGemini()` resolving falsy), the month's Gemini cap,
+ *  no helper - Claude's own path answers the same request, unchanged (its own
+ *  guard, gates and meter). A burst is per person across both providers: its
+ *  refusal goes out as it is. One log line, no user data. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function geminiElseClaude(viaGemini, viaClaude) {
+  let code;
+  try {
+    const out = await viaGemini();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.gemini || (err.status === 422 ? 'unusable' : err.code))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tally] gemini failed (${code}); used claude`);
+  return viaClaude();
+}
+
+/** Claude first (TALLY_AI_PROVIDER=claude-first): the same two paths in the
+ *  other order. If Claude's own path fails for any reason but a burst
+ *  refusal - a thrown SDK error, a reading the validator rejects (a 422), the
+ *  month's Claude cap, no key - Gemini's own path answers the same photo. */
+async function claudeElseGemini(viaClaude, viaGemini) {
+  let code;
+  try {
+    const out = await viaClaude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.status === 422 ? 'unusable' : (err.code || err.status))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tally] claude failed (${code}); used gemini`);
+  return viaGemini();
+}
+
 app.post('/api/days/snap', ...spend, snapJson, async (req, res) => {
   try {
     const b = req.body || {};
-    const image = photo.validate(b.image);
+    const mode = providerNow();
+    const viaGemini = mode !== 'claude';
     const today = todayOf(req);
-    const client = await clientFor(req);
-    const raw = await ai.readReport(client, modelFor(req), image, today);
-    const reading = ai.cleanReading(raw, today);
-    if (!reading) {
-      throw httpError(422, raw && raw.readable === false
-        ? 'We couldn’t read an end-of-day report in that photo. Try a closer, flatter, well-lit shot - or type the four numbers.'
-        : 'We couldn’t find a card-sales total on that report. Type the numbers in - it takes a minute.');
+    let input;
+    if (viaGemini && b.image === undefined && typeof b.text === 'string') {
+      // Pasted text, on Gemini only: scrubbed here as well as on the phone,
+      // so nothing with a full card, account or merchant number is sent.
+      const text = R.scrubReportText(b.text);
+      if (text.replace(/[^0-9]/g, '').length < 3) throw httpError(400, 'Paste the report’s text - the lines with the totals on them.', { field: 'text' });
+      input = { text };
+    } else {
+      input = { image: photo.validate(b.image) };
     }
-    res.json(reading);
-  } catch (err) { fail(res, err, 'Could not read that photo. Try again, or type the numbers in.'); }
+    const viaClaude = async () => { await guardAllow('claude', req); return snapWithClaude(req, input.image, today); };
+    if (!viaGemini) return res.json(await viaClaude());
+    const viaGeminiNow = async () => { await guardAllow('gemini', req); return snapWithGemini(req, input, today); };
+    // Pasted text is Gemini's alone: no Claude path to fall back to. A photo
+    // falls back to the Z-report reader, and says so (`reader: 'zreport'`).
+    // Claude first: the Z-report reader, then Gemini's report reader if it fails.
+    const viaZ = async () => ({ reader: 'zreport', ...(await viaClaude()) });
+    if (input.text !== undefined) return res.json(await viaGeminiNow());
+    res.json(mode === 'claude-first' ? await claudeElseGemini(viaZ, viaGeminiNow) : await geminiElseClaude(viaGeminiNow, viaZ));
+  } catch (err) { fail(res, err, SNAP_FALLBACK); }
 });
 
 /* ------------------------------------------------------------------ *

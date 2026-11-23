@@ -604,6 +604,258 @@ test('deleting a shift kills its links; caps hold', async () => {
   assert.strictEqual((await eve('POST', '/api/shifts', { date: '2026-09-26', card: '5', crew: crewOf(es, { Eve: 1 }), rules: rulesOf(es) })).status, 409);
 });
 
+/* ---------------- the Gemini reader, behind TIPOUT_AI_PROVIDER ---------------- */
+
+const gemini = require('../lib/gemini');
+const fakeGemini = require('../lib/fakeai').gemini;
+const img = (s) => ({ mediaType: 'image/jpeg', data: jpeg(s) });
+const DAY = '2026-11-20';
+
+test('the provider switch defaults to Claude: unset, empty or anything but "gemini" changes nothing', async () => {
+  const ned = await register('ned.default@example.com');
+  for (const v of [undefined, '', 'claude', 'GEMINI', 'off']) {
+    if (v === undefined) delete process.env.TIPOUT_AI_PROVIDER; else process.env.TIPOUT_AI_PROVIDER = v;
+    assert.strictEqual((await ned('GET', '/api/me')).data.snap, 'totals', String(v));
+    const r = await ned('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('TIPREPORT') } });
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal, r.data.report], [200, 'totals', { card: '1284.60', cash: '317.00', sales: '4920.00' }, undefined], String(v));
+  }
+  delete process.env.TIPOUT_AI_PROVIDER;
+  await settle();
+  const rows = (await identityStore.list('usage')).filter((u) => u.uid === uidOf('ned.default@example.com'));
+  assert.ok(rows.length === 5 && rows.every((u) => !/gemini/.test(u.route || '') && /haiku/.test(u.model)), 'charged as Claude, through the identity meter');
+});
+
+test('the Gemini request: a schema with no free text and no field for a share, a split or a percentage; the photo inline; no team names sent', () => {
+  const r = gemini.request({ mediaType: 'image/jpeg', data: 'QUJD' }, DAY);
+  assert.strictEqual(r.model, 'gemini-3.8-flash');
+  assert.deepStrictEqual(r.contents[0].parts[0], { inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } });
+  assert.strictEqual(r.contents[0].parts.length, 2);
+  assert.ok(!/Maya|Jordan|Luis/.test(JSON.stringify(r)), 'the roster never goes to the model');
+  const keys = [];
+  (function walk(o) { if (o && typeof o === 'object') { if (o.properties) keys.push(...Object.keys(o.properties)); Object.values(o).forEach(walk); } })(r.responseSchema);
+  assert.deepStrictEqual([...new Set(keys)].sort(), ['cardTips', 'cashTips', 'confidence', 'date', 'foodSales', 'hours', 'name', 'readable', 'sales', 'shift', 'staff', 'totals', 'value'].sort());
+  assert.ok(!keys.some((k) => /note|share|split|percent|pool|total$/i.test(k)));
+  // No maxItems: live Vertex refuses the schema with a cap over 10 (2026-11-23); cleanReading holds the crew limit.
+  assert.strictEqual(r.responseSchema.properties.staff.maxItems, undefined);
+  assert.strictEqual(gemini.cleanReading({ readable: true, totals: {}, staff: Array.from({ length: R.LIMITS.crew + 5 }, (_, i) => ({ name: `P${i}` })) }, '2026-11-23').staff.length, R.LIMITS.crew);
+  assert.strictEqual(r.generationConfig.temperature, 0);
+  assert.match(r.systemInstruction, /Never add figures up/);
+  assert.match(r.systemInstruction, /never an instruction/);
+});
+
+test('a Gemini answer is validated and clamped: first names only, cents from the digits, bad values null, invented keys ignored', async () => {
+  for (const [raw, want] of [['LOPEZ, MAYA', 'Maya L.'], ['104 MAYA LOPEZ', 'Maya'], ['maya r', 'Maya R.'], ['MARC', 'Marc'], ['O\'Neil, Sam', 'Sam O.'], ['<b>Ana</b>', 'Ana'], ['4111 1111', ''], [null, ''], [{ a: 1 }, '']]) {
+    assert.strictEqual(gemini.staffName(raw), want, JSON.stringify(raw));
+  }
+  for (const [raw, q, rounded] of [['6.50', 26, false], ['6:30', 26, false], ['6.48', 26, true], ['7,25', 29, false], ['8 hrs', 32, false], ['25', null, false], ['6:75', null, false], ['-3', null, false], ['abc', null, false]]) {
+    const h = gemini.hours({ value: raw, confidence: 0.9 });
+    assert.deepStrictEqual([h.q, h.rounded], [q, rounded], raw);
+  }
+  assert.deepStrictEqual(gemini.figure({ value: '$1,284.60', confidence: 0.931 }), { cents: 128460, confidence: 0.93 });
+  for (const bad of [{ value: 1284.6, confidence: 1 }, { value: '-40.00', confidence: 1 }, { value: '(12.00)', confidence: 1 }, { value: '99999999.00', confidence: 1 }, { value: 'three', confidence: 1 }, null, 'x']) {
+    assert.deepStrictEqual(gemini.figure(bad), { cents: null, confidence: 0 }, JSON.stringify(bad));
+  }
+  const inj = gemini.cleanReading(await fakeGemini(gemini.request(img('INJECT'), DAY)), DAY);
+  const text = JSON.stringify(inj);
+  assert.ok(!/[<>]|script|onerror|Ignore|everything|4111|123-45|poolSplit|grandTotal|ssn|Lopez|Perez|Smith/i.test(text.replace(/"Ignore"/, '')), text.slice(0, 400));
+  assert.deepStrictEqual([inj.date, inj.part], [null, 'dinner'], 'a date from 2099 is dropped; the label maps by the app’s own table');
+  assert.deepStrictEqual(inj.totals, { card: { cents: 128461, confidence: 1 }, cash: { cents: null, confidence: 0 }, sales: { cents: null, confidence: 0 } });
+  assert.strictEqual(inj.staff.length, R.LIMITS.crew, 'capped at a shift’s crew');
+  assert.deepStrictEqual(inj.staff[0], { name: 'Maya L.', q: 26, qConfidence: 1, rounded: true, card: { cents: 41231, confidence: 0.97 }, cash: { cents: null, confidence: 0 }, sales: { cents: 165010, confidence: 0.97 } });
+  assert.deepStrictEqual([inj.staff[1].name, inj.staff[1].q, inj.staff[1].card.cents, inj.staff[1].cash.cents, inj.staff[1].sales.cents], ['Jordan', null, null, null, null]);
+  assert.ok(inj.dropped >= 4);
+  for (const junk of [null, 'x', [], { readable: false }]) assert.strictEqual(gemini.cleanReading(junk, DAY), null);
+  assert.deepStrictEqual(gemini.cleanReading({}, DAY).staff, []);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:00:00Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+});
+
+test('Tipout, not the model, does the sums and the matching: totals checked against the lines, names matched to the team', async () => {
+  const read = async (scene) => gemini.cleanReading(await fakeGemini(gemini.request(img(scene), DAY)), DAY);
+  const fox = await read('FOX');
+  const c = R.reportCheck(fox);
+  assert.deepStrictEqual([c.card.cents, c.card.source, c.card.flag], [128460, 'printed', false]);
+  assert.deepStrictEqual([c.cash.cents, c.cash.unclear, c.cash.flag], [31700, true, true], 'a smudged total is flagged');
+  assert.deepStrictEqual([c.sales.cents, c.sales.flag, c.card.linesSum], [492000, false, null], 'lines without tips are never summed');
+  const m = R.matchStaff(fox.staff.map((p) => p.name), PEOPLE);
+  assert.deepStrictEqual(m.map((x) => [x.pid, x.how]), [['pmaya', 'exact'], ['pjordan', 'first'], ['ppriya', 'exact'], ['pluis', 'exact'], ['psam', 'exact'], ['pana', 'exact'], ['ptheo', 'exact'], ['pmarco', 'prefix'], [null, 'none']]);
+  assert.deepStrictEqual(fox.staff.map((p) => p.q), [26, 24, 22, 28, 26, 20, 18, 32, null]);
+  const sums = R.reportCheck(await read('SUMS'));
+  assert.deepStrictEqual([sums.card.cents, sums.card.source, sums.card.lines, sums.card.flag], [41230 + 38815 + 48415, 'summed', 3, true], 'no printed total: Tipout adds the lines, and asks');
+  assert.deepStrictEqual([sums.cash.cents, sums.sales.source], [31700, 'missing'], 'per-person sales are never taken for food sales');
+  const mis = R.reportCheck(await read('MISMATCH'));
+  assert.deepStrictEqual([mis.card.cents, mis.card.linesSum, mis.card.flag], [128460, 128060, true], 'a total the lines do not add up to is flagged, and the printed one kept');
+  assert.deepStrictEqual([mis.cash.cents, mis.cash.linesSum], [20000, null], 'a line with no cash figure: no sum to compare');
+  // Matching: nobody twice, two Sams need the person, initials decide when they can.
+  const team = [{ id: 'a', name: 'Sam R.' }, { id: 'b', name: 'Sam T.' }, { id: 'c', name: 'José' }, { id: 'd', name: 'Samantha' }];
+  assert.deepStrictEqual(R.matchStaff(['Sam T.', 'Sam', 'JOSE', 'Sam R.', 'Sam R.', ''], team).map((x) => [x.pid, x.how]), [['b', 'exact'], ['d', 'prefix'], ['c', 'exact'], ['a', 'exact'], [null, 'none'], [null, 'none']]);
+  assert.deepStrictEqual(R.matchStaff(['Sam'], team.slice(0, 2))[0], { pid: null, how: 'ambiguous', options: ['a', 'b'] });
+  assert.deepStrictEqual(R.matchStaff(['Sam'], [team[3]])[0].how, 'prefix');
+  for (const [label, part] of [['DINNER', 'dinner'], ['PM', 'dinner'], ['AM shift', 'lunch'], ['Late Night', 'late'], ['BRUNCH', 'brunch'], ['ALL DAY', 'allday'], ['Shift 2', null], ['', null]]) assert.strictEqual(R.partFromLabel(label), part, label);
+  // The split itself still comes only from rules.js: a reading changes no share until its numbers are typed into a shift.
+  assert.ok(!/R\.(split|allocate|envelopes)\(/.test(require('fs').readFileSync(path.join(__dirname, '..', 'lib', 'gemini.js'), 'utf8')), 'lib/gemini.js never splits anything');
+});
+
+test('with TIPOUT_AI_PROVIDER=gemini: the same gates before the parser, the guard asked first, one call, recorded and charged, nothing stored', async () => {
+  const gail = await register('gail.gemini@example.com');
+  const seen = [];
+  const dump = store._dump();
+  let allowOk = true;
+  process.env.TIPOUT_AI_PROVIDER = 'gemini';
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user)]); return allowOk ? { ok: true } : { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' }; },
+    record: async (a) => { seen.push(['record', a.provider, a.app, a.usd]); return true; },
+    priceUsd: (a) => { assert.deepStrictEqual([a.provider, a.model], ['gemini', 'gemini-3.8-flash']); return (a.inputTokens * 0.75 + a.outputTokens * 3.75) / 1e6; },
+    gemini: { generate: async (r) => { seen.push(['generate', r.model, Boolean(r.responseSchema), r.contents[0].parts.filter((p) => p.inlineData).length]); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 2000, outputTokens: 400 } }; } },
+  };
+  try {
+    assert.strictEqual((await gail('GET', '/api/me')).data.snap, 'report');
+    // Signed out: 401 with the big body unread, and the guard never asked.
+    assert.strictEqual((await client()('POST', '/api/snap', { image: { type: 'image/jpeg', data: 'A'.repeat(5 * 1024 * 1024) } })).status, 401);
+    // Out of credit: 402, not 413 - the budget gate runs before the parser.
+    const cal = await register('cal.broke.gemini@example.com');
+    await identityStore.merge('users', uidOf('cal.broke.gemini@example.com'), { spentUsd: 100 });
+    assert.strictEqual((await cal('POST', '/api/snap', { image: { type: 'image/jpeg', data: 'A'.repeat(7 * 1024 * 1024) } })).status, 402);
+    // A bad image is a 400 before the guard is even asked.
+    assert.strictEqual((await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: Buffer.from('%PDF-1.4').toString('base64') } })).status, 400);
+    assert.deepStrictEqual(seen, [], 'nothing reached the guard or the model');
+
+    const r = await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('FOX') } }, { 'x-local-date': DAY });
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(seen.map((x) => x.slice(0, 3)), [['allow', 'gemini', 'tipout'], ['generate', 'gemini-3.8-flash', true], ['record', 'gemini', 'tipout']], 'allow -> the call -> record');
+    assert.strictEqual(seen[1][3], 1, 'one photo, inline');
+    assert.ok(Math.abs(seen[2][3] - 0.003) < 1e-9, 'the guard is told the call’s dollars');
+    assert.deepStrictEqual([r.data.reader, r.data.proposal, r.data.filled, r.data.confidence], ['report', { card: '1284.60', cash: '317.00', sales: '4920.00' }, ['card', 'cash', 'sales'], 'medium']);
+    assert.deepStrictEqual([R.isoDay(r.data.report.date), r.data.report.part, r.data.report.staff.length, r.data.report.staff[1].name], [r.data.report.date, 'dinner', 9, 'Jordan P.']);
+    assert.deepStrictEqual(R.reportCheck(r.data.report).cash.flag, true, 'the page works the flags out from the same reading');
+    await settle();
+    const row = (await identityStore.list('usage')).find((u) => u.uid === uidOf('gail.gemini@example.com'));
+    assert.strictEqual(row.route, 'snap:gemini-3.8-flash', 'the person’s ledger says what really ran');
+    assert.ok(Math.abs(row.costUsd - 0.003) < 1e-4, `charged the call’s real dollars (${row.costUsd})`);
+
+    // Hostile output reaches the page clean; nothing readable is a 422.
+    const inj = await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('INJECT') } });
+    assert.ok(inj.status === 200 && !/[<>]|Ignore previous|poolSplit|Lopez/.test(inj.text), inj.text.slice(0, 300));
+    assert.deepStrictEqual(inj.data.proposal, { card: '1284.61', cash: '', sales: '' });
+    assert.deepStrictEqual([(await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('BLANK') } })).status, (await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('NOTIPS') } })).status], [422, 422]);
+    // A provider failure: a plain 502, none of its words.
+    const up = await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM401') } });
+    assert.deepStrictEqual([up.status, /Gemini|Vertex|stand-in|401/.test(up.text)], [502, false], up.text);
+
+    // When the guard says no to both months: Gemini's cap falls back to Claude
+    // (2026-11-23), whose cap says no too - its own words and status, and no call.
+    allowOk = false;
+    seen.length = 0;
+    const no = await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('FOX') } });
+    assert.deepStrictEqual([no.status, no.data.code, /resting until next month/.test(no.data.error)], [503, 'monthly-cap', true]);
+    assert.deepStrictEqual(seen.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['allow', 'claude']], 'no model call after a refusal');
+    assert.strictEqual(store._dump(), dump, 'no photo and no reading stored');
+  } finally { delete process.env.TIPOUT_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+});
+
+test('the guard wraps the Claude path too, and without a guard the Gemini stand-in still answers', async () => {
+  const hal = await register('hal.guard@example.com');
+  const seen = [];
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.push(['allow', a.provider]); return { ok: true }; },
+    record: async (a) => { seen.push(['record', a.provider, a.usd]); return true; },
+    priceUsd: (a) => { seen.push(['price', a.provider, a.model, a.inputTokens, a.outputTokens]); return 0.002; },
+  };
+  try {
+    const r = await hal('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('TIPREPORT') } });
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(seen, [['allow', 'claude'], ['price', 'claude', 'claude-haiku-4-5', 1600, 90], ['record', 'claude', 0.002]]);
+  } finally { delete global.LAB_AI_GUARD; }
+  process.env.TIPOUT_AI_PROVIDER = 'gemini';
+  try {
+    const r = await hal('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('SUMS') } }, { 'x-local-date': DAY });
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.card, r.data.confidence], [200, 'report', '1284.60', 'medium']);
+  } finally { delete process.env.TIPOUT_AI_PROVIDER; }
+});
+
+test('Gemini fails, Claude answers: a thrown call, unusable output or the Gemini cap falls back to the totals reader; a burst does not', async () => {
+  const ivy = await register('ivy.fallback@example.com');
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const guard = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'gemini' && o.denyGemini) || { ok: true }; },
+      record: async (a) => { seen.push(['record', a.provider]); return true; },
+      priceUsd: () => 0.002,
+      gemini: { generate: async (r) => { seen.push(['generate']); if (o.generate) return o.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 2000, outputTokens: 400 } }; } },
+    } };
+  };
+  const snap = async (o) => { const { seen, g } = guard(o); global.LAB_AI_GUARD = g; try { return { r: await ivy('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('TIPREPORT') } }, { 'x-local-date': DAY }), seen }; } finally { delete global.LAB_AI_GUARD; } };
+  process.env.TIPOUT_AI_PROVIDER = 'gemini';
+  try {
+    let { r, seen } = await snap({ generate: async () => { throw Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }); } });
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'gemini'], ['generate'], ['record', 'gemini'], ['allow', 'claude'], ['record', 'claude']]], r.text);
+    assert.ok(!/SECRET/.test(r.text));
+    ({ r, seen } = await snap({ generate: async () => ({ json: { junk: true }, usage: { inputTokens: 10, outputTokens: 1 } }) }));
+    assert.deepStrictEqual([r.status, r.data.reader, seen.filter((x) => x[0] === 'allow')], [200, 'totals', [['allow', 'gemini'], ['allow', 'claude']]]);
+    ({ r, seen } = await snap({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'gemini'], ['allow', 'claude'], ['record', 'claude']]]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await snap({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'gemini']]]);
+    }
+  } finally { delete process.env.TIPOUT_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  // Off: Claude alone, as before.
+  const { r, seen } = await snap();
+  assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'claude'], ['record', 'claude']]]);
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[tipout] gemini failed (http); used claude', '[tipout] gemini failed (unusable); used claude', '[tipout] gemini failed (monthly-cap); used claude']);
+});
+
+test('claude-first: Claude reads the snap, Gemini answers when Claude throws, is unusable or capped - not a burst', async () => {
+  const ivy = await register('ivy.claudefirst@example.com');
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const guard = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'claude' && o.denyClaude) || { ok: true }; },
+      record: async (a) => { seen.push(['record', a.provider]); return true; },
+      priceUsd: () => 0.002,
+      // Gemini reads a clean photo, so the stand-in's failure words stay Claude's.
+      gemini: { generate: async (r) => { seen.push(['generate']); return { json: await r.fake({ contents: [{ ...r.contents[0], parts: r.contents[0].parts.map((p) => (p.inlineData ? { inlineData: { ...p.inlineData, data: jpeg('TIPREPORT') } } : p)) }] }), usage: { inputTokens: 2000, outputTokens: 400 } }; } },
+    } };
+  };
+  const snap = async (o, s = 'TIPREPORT') => { const { seen, g } = guard(o); global.LAB_AI_GUARD = g; try { return { r: await ivy('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg(s) } }, { 'x-local-date': DAY }), seen }; } finally { delete global.LAB_AI_GUARD; } };
+  process.env.TIPOUT_AI_PROVIDER = 'claude-first';
+  try {
+    assert.strictEqual((await ivy('GET', '/api/me')).data.snap, 'totals', 'the page says what Claude reads');
+    let { r, seen } = await snap({});
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'claude'], ['record', 'claude']]], r.text);
+    // Claude throws: Gemini answers 200.
+    ({ r, seen } = await snap({}, 'TIPREPORT UPSTREAM500'));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'report', [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], r.text);
+    assert.ok(!/fake_upstream/.test(r.text));
+    // Claude unusable: Gemini; Claude's billed call still recorded.
+    ({ r, seen } = await snap({}, 'BLANK'));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'report', [['allow', 'claude'], ['record', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], r.text);
+    // Claude's monthly cap: Gemini.
+    ({ r, seen } = await snap({ denyClaude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'report', [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await snap({ denyClaude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'claude']]]);
+    }
+  } finally { delete process.env.TIPOUT_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[tipout] claude failed (500); used gemini', '[tipout] claude failed (unusable); used gemini', '[tipout] claude failed (monthly-cap); used gemini']);
+});
+
+test('the page keeps the strict rules: no inline script, handler or style attribute, in the HTML or written by script', () => {
+  const fs = require('fs');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html) && !/\son[a-z]+\s*=/.test(html) && !/\sstyle\s*=/.test(html));
+  assert.ok(!/style\s*=\s*["'\\]/.test(js), 'app.js writes no style attribute');
+  assert.ok(html.includes('href="desktop.css"') && html.includes('verify-banner.js'));
+});
+
 /* ---------------- run ---------------- */
 
 (async () => {

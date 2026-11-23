@@ -32,8 +32,9 @@ to the Servicemembers Civil Relief Act.
   summary, the log as JSON, the batch) and a **borrower letter** filled on
   the device.
 - **Signed in (free)**: settings follow the account - never a borrower.
-- **Metered AI**: "Draft the letter in plain words" - a decision code, a
-  loan type, dates and amounts only.
+- **Metered AI** (Claude): "Draft the letter in plain words" - a decision
+  code, a loan type, dates and amounts only; it comes back labelled a draft
+  for compliance review, behind the lab's AI guard.
 
 Built 2026-11-09 as a **business** drop: Whichbox (2026-11-08) was everyday,
 so today was the other kind. Veterans Day is Wednesday 2026-11-11, so the
@@ -289,6 +290,74 @@ on the first screen for when results come back a day later.
   `verify-email` its sentence and "Send the link again"; sheets clear the
   confirm-your-email banner. The page fills the placeholders on the device.
 
+## The AI draft, and the lab's guard (2026-11-23 redesign)
+
+Erik's per-app AI plan gives Muster **Claude: "Drafts the SCRA notice letter
+in plain words"** (why: compliance tone). The feature was already here; the
+redesign made it say what it is and put it behind the lab's cost guard.
+
+- **Provider: Claude**, through the lab's existing Anthropic client
+  (`identity.meter`, models via `identityLib.planFor`). `PROVIDER =
+  'claude'` in `server.js`; there is no provider switch and no federation
+  wiring (tested: no other provider's name in the server or `lib/ai.js`).
+- **The guard.** Gates (`requireUser, requireBudget, requireDailyCap`) ->
+  the 8 KB parser -> `ai.brief` (a 400 costs nothing and never reaches the
+  guard) -> `global.LAB_AI_GUARD?.allow({provider: 'claude', req, app:
+  'muster'})` -> the one call -> `record` with `priceUsd` from the call's
+  own usage, in a `finally` (a draft the checks refuse was still paid for; a
+  call that never came back was not). A no is the guard's message plus "The
+  template letter is free." with its status and code, and no model call.
+  Without a guard (tests, `npm run dev`) the identity gates stand alone.
+- **Privacy is unchanged.** What is sent is still only the decision code,
+  loan type, tone, dates and estimated amounts, shown as JSON before the tap;
+  never a name, a loan id, an SSN, a date of birth or anything typed. The
+  name, loan number, servicer and contact line are filled **on the device**
+  into placeholders - so here "the server fills the facts" means the server
+  rebuilds and checks the request and refuses any number or date in the
+  draft that was not sent; it never sees a borrower. Nothing is stored.
+- **A draft, said so.** The answer is `{draft: true, note, subject, letter,
+  points, facts}`. `note` is `MusterCore.DRAFT_NOTE` ("Draft - have your
+  compliance team review it before it goes to a borrower."). `facts` is the
+  server's labelled list from the checked request (`letterFactList`), never
+  the model's. `points` is the model's "in short" lines for the reviewer
+  (the tool's third field): each held to the letter's rules by
+  `cleanAiPoints` - no link, no placeholder, no other law, no number not
+  sent, 12-180 characters, at most four - and a line that breaks one is
+  **dropped, never repaired**. The page shows all three in a note above the
+  letter (`draftNoteHtml`), kept in the page only; picking another case or
+  "Fill from the template again" clears it.
+- The fake model also writes points; `fakeClient.mode = 'badpoints'` sends
+  lines that break each rule.
+
+## Design (2026-11-23: the lab's house style)
+
+The HOA Desk rules, in `public/app.css` (its header comment is the list):
+a pure white page (true black in dark), no gradient or texture, hairline
+cards only where grouping helps (the export tiles, the draft note), lists
+with hairline dividers for cases, row checks, columns, steps and events,
+pill buttons, 10px inputs, the system font stack, five type sizes, a 4/8
+spacing scale. **One accent: the lab card's navy `#1c3d78`** (dark:
+`#8cb8f0`); status colours only for status; the request file's field tints
+are data marks. The first screen is a centred hero ("Find the servicemembers
+in your loan book.", two pill buttons) with the decisions mock under it,
+drawn from the tokens. Phones get a slim floating translucent pill bar
+(1.5px icons, a label on the active item only); desktop gets a top nav row
+with an underline - the shared `desktop.css` rail is undone in `app.css`
+(never edit the synced file). Motion only inside `prefers-reduced-motion:
+no-preference`.
+
+- **No style attribute anywhere** (tested): spacing is utility classes
+  (`.m0 .mt8 .mt12 ...`); computed positions (the ruler's bands, the
+  timeline, the progress bar) are written as `data-l` / `data-w` and applied
+  through the CSSOM by one MutationObserver at the top of `app.js`.
+- Taps from the first screen: the example 1, my portfolio 1 (then the file
+  picker); with a batch open every step is 1 tap on the bar; a case's letter
+  2 (open the case, "Write the letter"); the AI draft 2 to its sheet (Exam
+  pack, "Draft it in plain words"), then "Send these facts".
+- Measured in headless Chrome at 390, 320 and 1440, both themes, across the
+  whole example: lowest text contrast 6.11 light, 7.69 dark; nothing
+  sideways; no target under 44px.
+
 ## Local run and tests
 
 ```
@@ -303,9 +372,9 @@ collection. `npm test` runs with `REQUIRE_VERIFIED_FOR_FREE_AI=0`. The fake
 model refuses a call that does not force a tool, keeps every request, writes
 a letter from the facts it was sent, and takes `fakeClient.mode` (`blank`,
 `badnumber`, `url`, `law`, `placeholder`, `inject`, `maxtokens`,
-`upstream401`, `upstream529`) for one call.
+`upstream401`, `upstream529`, `badpoints`) for one call.
 
-`test/run.js` (35 tests): reading; the column guess (the example exactly,
+`test/run.js` (37 tests; the last two hold the guard and the draft note): reading; the column guess (the example exactly,
 an awkward export with camelCase, co-borrower words, full names, P&I); rate
 formats and the fraction question; ambiguous dates; **every row check**; the
 fixed-width builder (exact positions, padding, truncation, folding,

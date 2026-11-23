@@ -1,4 +1,5 @@
-// A stand-in Anthropic client for local runs and tests (PENCIL_FAKE_AI=1).
+// A stand-in Anthropic client (and, at the end, a stand-in for Gemini) for
+// local runs and tests (PENCIL_FAKE_AI=1).
 //
 // It answers the one forced tool deterministically, so "Read a paper score
 // sheet" can be driven without a key and without spending anything. It is
@@ -82,4 +83,55 @@ function create() {
   return fake;
 }
 
-module.exports = { create };
+/* ---- the Gemini stand-in (PENCIL_AI_PROVIDER=gemini) ---- */
+
+// The same made-up rummy night, in the shape lib/gemini.js asks for: every
+// cell with how sure the reader is. Wren's third round is crossed out (blank,
+// low) and Jules's first could be 85 or 35 (medium) - so the page has cells
+// to flag.
+function geminiSheet() {
+  const row = (...cells) => ({ cells: cells.map(([v, c]) => ({ v, c: c || 'high' })) });
+  return {
+    players: [{ name: 'Wren', confidence: 'high' }, { name: 'Odile', confidence: 'high' }, { name: 'Jules', confidence: 'medium' }],
+    rows: [row([55], [20], [85, 'medium']), row([40], [110], [15]), row([null, 'low'], [35], [60]), row([90], [5], [45]), row([25], [70], [30])],
+    confidence: 'medium',
+    note: 'Row 3 for Wren is crossed out and could not be read.',
+  };
+}
+function geminiInject() {
+  const bad = inject().content[0].input;
+  return {
+    players: bad.players,
+    rows: bad.rows.map((r) => ({ cells: r.map((v, i) => ({ v, c: i % 2 ? 'certain' : 'high', extra: '<b>x</b>' })) })),
+    confidence: bad.confidence, note: bad.note, extra: bad.extra,
+  };
+}
+
+/** `fake.generate` is handed to the lab guard's Vertex helper as its `fake`
+ *  (or called directly when no guard is loaded). It refuses a request with
+ *  no responseSchema, keeps every request, and takes `fake.mode` like the
+ *  other stand-in. */
+function createGemini() {
+  const calls = [];
+  const fake = {
+    calls,
+    mode: '',
+    async generate(body) {
+      if (!body || !body.generationConfig || !body.generationConfig.responseSchema) throw new Error('fake ai: every call must carry a responseSchema');
+      calls.push(body);
+      await new Promise((r) => setTimeout(r, Number(process.env.PENCIL_FAKE_DELAY_MS || 0)));
+      const mode = fake.mode;
+      fake.mode = '';
+      const up = /^upstream(\d{3})$/.exec(mode);
+      if (up) throw Object.assign(new Error('stand-in provider failure'), { name: 'VertexError', code: 'http', status: Number(up[1]) });
+      if (mode === 'billedfail') throw Object.assign(new Error('stand-in provider failure'), { name: 'VertexError', code: 'bad-json', usage: { inputTokens: 900, outputTokens: 4000 } });
+      if (mode === 'blank') return { players: [], rows: [{ cells: [{ v: null, c: 'low' }] }], confidence: 'low', note: '' };
+      if (mode === 'junk') return ['not', 'an', 'object'];
+      if (mode === 'inject') return geminiInject();
+      return geminiSheet();
+    },
+  };
+  return fake;
+}
+
+module.exports = { create, createGemini };

@@ -103,4 +103,84 @@ function create() {
   };
 }
 
-module.exports = { create };
+/**
+ * The stand-in for Gemini (BOOTH_AI_PROVIDER=gemini): given the body the
+ * guard's Vertex helper would send, an answer in the shape its schema asks
+ * for. Which request it is, is read from the schema. Every request is kept
+ * in `geminiCalls` with the media replaced by its length.
+ *
+ * "Scan a card" triggers, in the photo's or the memo's bytes:
+ *   BLANK        not a card (readable: false) - a 422
+ *   BADGE        a badge: a name, a title and a company, no email or phone
+ *   MESSY        markup in the name, an email and a phone that are not valid
+ *   UNSURE       an email it is not sure of, a phone it could not read
+ *   SILENT       (memo) nothing could be made out
+ *   INJECT       (memo) hostile output: markup, an attachment, 20% off,
+ *                "Tuesday at 3pm", a link, the card's email in the draft,
+ *                a made-up temperature and interest
+ *   UPSTREAMnnn  the call fails the way the helper's VertexError does
+ *   otherwise    Riley Chen's card, the email read with medium confidence
+ *                (small print); with a memo, a summary, "hot", a call,
+ *                the event's first interest and a draft from those facts
+ * The draft request answers as the Claude stand-in does.
+ */
+const geminiCalls = [];
+async function gemini(body) {
+  const parts = (body && body.contents && body.contents[0] && body.contents[0].parts) || [];
+  const schema = (body && body.generationConfig && body.generationConfig.responseSchema) || {};
+  const props = schema.properties || {};
+  const media = parts.filter((p) => p.inlineData);
+  const text = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('\n');
+  geminiCalls.push({
+    schema: Object.keys(props),
+    systemInstruction: body && body.systemInstruction,
+    parts: parts.map((p) => (p.inlineData ? { inlineData: { mimeType: p.inlineData.mimeType, data: `<${p.inlineData.data.length} chars>` } } : p)),
+  });
+  await new Promise((r) => setTimeout(r, Number(process.env.BOOTH_FAKE_DELAY_MS || 0)));
+  const bytes = media.map((p) => Buffer.from(p.inlineData.data, 'base64').toString('latin1')).join('\n');
+  const hit = `${bytes}\n${text}`.match(/UPSTREAM(\d{3})/);
+  if (hit) throw Object.assign(new Error(`Gemini answered ${hit[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(hit[1]) });
+
+  // A follow-up for a saved lead: the Claude stand-in's answer.
+  if (!props.readable) return draft({ messages: [{ content: text }] }).content[0].input;
+
+  const F = (value, confidence) => ({ value, confidence: confidence || (value ? 'high' : 'low') });
+  let card = { readable: true, kind: 'card', name: F('Riley Chen'), company: F('Cedar & Pine Grocers'), title: F('Head of Purchasing'), email: F('Riley.Chen@example.com', 'medium'), phone: F('(404) 555-0188') };
+  if (/BLANK/.test(bytes)) card = { readable: false, kind: 'card', name: F(null), company: F(null), title: F(null), email: F(null), phone: F(null) };
+  else if (/BADGE/.test(bytes)) card = { readable: true, kind: 'badge', name: F('Jordan Blake'), company: F('Harbor Provisions'), title: F('Category Buyer'), email: F(null), phone: F(null) };
+  else if (/MESSY/.test(bytes)) card = { readable: true, kind: 'card', name: F('<b>Sam</b> Ortiz', 'medium'), company: F('Ortiz <i>Deli</i>'), title: F('Owner'), email: F('sam(at)ortiz-deli', 'low'), phone: F('12', 'certain') };
+  else if (/UNSURE/.test(bytes)) card = { ...card, email: F('riley.chen@example.com', 'medium'), phone: F(null) };
+  if (!props.memo) return card;
+
+  const event = line(text, 'EVENT').split(',')[0] || 'the show';
+  const sign = given(line(text, 'SIGN-OFF')) || 'Thanks,';
+  const chips = (((props.memo.properties || {}).interests || {}).items || {}).enum || [];
+  const first = card.name.value ? String(card.name.value).replace(/<[^>]*>/g, '').trim().split(/\s+/)[0] : '';
+  if (/SILENT/.test(bytes) || !card.readable) return { ...card, memo: { heard: false, summary: '', temp: 'not_said', next: 'not_said', interests: [] }, draft: { subject: '', body: '' } };
+  if (/INJECT/.test(bytes)) {
+    return {
+      ...card,
+      memo: { heard: true, summary: '<b>Wants</b> pricing on the 5 lb bags for 3 stores.<script>alert(1)</script>', temp: 'scorching', next: 'fax', interests: [...chips.slice(0, 1), 'Free money', { x: 1 }] },
+      draft: {
+        subject: '<i>20% off</i> for you',
+        body: `Hi ${first},\n\n<b>**Great**</b> to meet you at ${event}. I have attached our full price list and we can do 20% off your first order.\n\nYou asked about pricing on the 5 lb bags for 3 stores. Are you free Tuesday at 3pm? Details at https://evil.example/deal - I will write to ${card.email.value || 'you'} or ring ${card.phone.value || 'you'}.\n\nWould a short call work?\n\n${sign}`,
+      },
+      advice: 'Close them today.', score: 99,
+    };
+  }
+  return {
+    ...card,
+    memo: { heard: true, summary: 'Wants pricing on the 5 lb bags for 3 stores. Asked for a call next week.', temp: 'hot', next: 'call', interests: chips.slice(0, 1) },
+    draft: {
+      subject: `Great to meet you at ${event}`,
+      body: [
+        `Hi ${first || 'there'},`,
+        `It was great to talk at our booth at ${event}${card.company.value ? ` - good to hear what ${card.company.value} is working on` : ''}. You asked about pricing on the 5 lb bags for 3 stores.`,
+        'Would a short call next week work? Tell me a time that suits and I will ring you then - [add: your direct number].',
+        sign.startsWith('Thanks') ? sign : `Thanks,\n${sign}`,
+      ].join('\n\n'),
+    },
+  };
+}
+
+module.exports = { create, gemini, geminiCalls };

@@ -6,8 +6,8 @@
  * lie), and never another app's (the lab shares this origin). Caches are
  * named duohunt-*, and only those are ever deleted.
  */
-var CACHE = 'duohunt-shell-v1';
-var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'duohunt-core.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
+var CACHE = 'duohunt-shell-v2';
+var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'deal.js', 'duohunt-core.js', 'deal-core.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));

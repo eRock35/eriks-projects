@@ -100,7 +100,7 @@ function pick(res, name) {
   return block.input;
 }
 
-async function read(client, model, b, today) {
+async function read(client, model, b, today, onUsage) {
   const content = [];
   const intro = `Today is ${today}. The pet is a ${b.kind === 'other' ? 'pet' : b.kind}.`;
   if (b.photo) {
@@ -117,6 +117,7 @@ async function read(client, model, b, today) {
     tool_choice: { type: 'tool', name: 'record_paperwork' },
     messages: [{ role: 'user', content }],
   }, { timeout: 45000, maxRetries: 1 });
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens || 0), outputTokens: Number(res.usage.output_tokens || 0) });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That ran long. Try just the part about vaccinations and medicines.');
   return pick(res, 'record_paperwork');
 }

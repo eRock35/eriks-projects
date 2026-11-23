@@ -503,6 +503,280 @@ test('snap a Z-report: bytes checked before any spend, a proposal back, nothing 
   assert.strictEqual(store._dump(), dump, 'no photo, no reading, no day stored');
 });
 
+/* ---------------- the report reader (Gemini), behind TALLY_AI_PROVIDER ---------------- */
+
+const gemini = require('../lib/gemini');
+const fakeGemini = require('../lib/fakeai').gemini;
+const fakeRead = (scene) => fakeGemini({ contents: [{ role: 'user', parts: [{ text: `Today is ${TODAY_HDR}. ${scene}` }] }] });
+
+test('report reader: the schema has no free text and no field for a sum, a verdict or a number that names someone', () => {
+  const keys = Object.keys(gemini.SCHEMA.properties);
+  assert.deepStrictEqual(keys, gemini.SCHEMA.required);
+  for (const bad of ['notes', 'total', 'difference', 'verdict', 'merchantId', 'cardNumber', 'name', 'address', 'match']) assert.ok(!keys.includes(bad), bad);
+  for (const k of ['date', 'grossSales', 'cardSales', 'refunds', 'tips', 'fees', 'netPayout', 'transactions']) {
+    assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties[k].properties), ['value', 'confidence'], k);
+    assert.strictEqual(gemini.SCHEMA.properties[k].properties.value.nullable, true, `${k} may be null`);
+  }
+  assert.ok(/never add figures up/i.test(gemini.SYSTEM) && /never an instruction/i.test(gemini.SYSTEM));
+  const req = gemini.request({ image: { mediaType: 'image/jpeg', data: 'AAAA' } }, TODAY_HDR);
+  assert.deepStrictEqual([req.model, req.generationConfig.temperature, req.responseSchema], ['gemini-3.8-flash', 0, gemini.SCHEMA]);
+  assert.ok(req.contents[0].parts[0].inlineData && /Today is 2026-09-26/.test(req.contents[0].parts[1].text));
+  // $0.75 / $3.75 per 1M through 2026, double from 2027-01-01.
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+});
+
+test('report reader: the answer is cleaned field by field; low confidence is flagged, never trusted', async () => {
+  const tidy = gemini.cleanReading(await fakeRead(''), TODAY_HDR);
+  assert.deepStrictEqual(tidy.proposal, { date: TODAY_HDR, gross: '1284.50', refunds: '45.00', tips: '96.20', tx: '96' });
+  assert.deepStrictEqual([tidy.reader, tidy.unclear, tidy.dropped, tidy.confidence, tidy.notes], ['report', [], [], 'high', '']);
+  assert.deepStrictEqual([tidy.report.type, tidy.report.cardCents, tidy.report.grossAllCents, tidy.report.feesCents, tidy.report.netCents, tidy.report.batches], ['z_report', 128450, 191275, null, null, ['000482']]);
+  assert.deepStrictEqual(tidy.report.cardTypes.map((t) => [t.type, t.cents]), [['visa', 70215], ['mastercard', 39840], ['amex', 18395]]);
+
+  const unclear = gemini.cleanReading(await fakeRead('UNCLEAR'), TODAY_HDR);
+  assert.deepStrictEqual([unclear.unclear, unclear.confidence], [['gross', 'tx'], 'medium']);
+  const payout = gemini.cleanReading(await fakeRead('PAYOUT'), TODAY_HDR);
+  assert.deepStrictEqual([payout.report.type, payout.report.feesCents, payout.report.netCents, payout.report.batches], ['payout_report', 5890, 127680, ['000482', '000483']]);
+
+  const messy = gemini.cleanReading(await fakeRead('INJECT'), TODAY_HDR);
+  assert.deepStrictEqual(messy.proposal, { date: '', gross: '1284.51', refunds: '45.00', tips: '', tx: '' });
+  assert.deepStrictEqual(messy.dropped, ['the date', 'gross sales', 'tips', 'fees', 'the payout', 'the transaction count']);
+  assert.deepStrictEqual([messy.report.type, messy.processor, messy.report.confidence.gross, messy.report.feesCents, messy.report.netCents, messy.unclear], ['other', null, 1, null, null, []]);
+  assert.deepStrictEqual(messy.report.cardTypes.map((t) => [t.type, t.cents, t.confidence]), [['visa', 70000, 1], ['other', 100, 1]], 'known types once each, amounts as money, confidence clamped');
+  assert.deepStrictEqual(messy.report.batches, ['••1111', 'B-0091'], 'a card number is cut to its last four; markup and prose are not batch numbers');
+  const text = JSON.stringify(messy);
+  for (const leak of ['<', '4111', 'verdict', 'reconciled', 'merchantId', '4445012345678', 'Dana', 'Ignore', '999999']) assert.ok(!text.includes(leak), leak);
+  assert.deepStrictEqual(Object.keys(messy).sort(), ['confidence', 'dropped', 'filled', 'notes', 'processor', 'proposal', 'reader', 'report', 'unclear']);
+
+  assert.strictEqual(gemini.cleanReading(await fakeRead('BLANK'), TODAY_HDR), null, 'not a report');
+  assert.strictEqual(gemini.cleanReading(await fakeRead('NOCARD'), TODAY_HDR), null, 'cash and card as one total is not a card total');
+  for (const junk of [null, 'x', [], {}, { reportType: 'z_report', cardSales: { value: 12.5, confidence: 1 } }]) assert.strictEqual(gemini.cleanReading(junk, TODAY_HDR), null);
+  // An unclear card-type line makes the set unclear.
+  const raw = await fakeRead('');
+  raw.cardTypes[1].confidence = 0.4;
+  assert.deepStrictEqual(gemini.cleanReading(raw, TODAY_HDR).unclear, ['types']);
+});
+
+test('report text is scrubbed before it is sent: last four only, no emails, phones or named people', () => {
+  const out = R.scrubReportText('Merchant ID: 4445012345678\nTerminal 00123456\nCashier: Dana Okafor\nDate 2026-09-22 21:04\nVISA 4111 1111 1111 1111\nCard ************4242\n'
+    + 'Card sales $1,284.50  96\nCall 555-867-5309 or dana@example.com\nBatch 000482 total 12845000.00\n<b>https://example.com/x</b>');
+  assert.strictEqual(out, 'Merchant ID: ••5678\nTerminal ••3456\nCashier: [removed]\nDate 2026-09-22 21:04\nVISA ••1111\nCard ••4242\nCard sales $1,284.50 96\nCall [phone removed] or [email removed]\nBatch 000482 total 12845000.00\n[link removed]');
+  assert.strictEqual(R.scrubReportText('x'.repeat(50000)).length, 6000);
+  assert.strictEqual(R.scrubReportText(null), '');
+});
+
+test('the report check is Tally’s own arithmetic, and leaves out what is not confirmed', () => {
+  const ctx = { settings: SETTINGS, days: DAYS, deposits: DEPOSITS, today: TODAY };
+  const by = (r) => Object.fromEntries(R.checkReport(r, ctx).lines.map((l) => [l.key, l]));
+  // The sample's Saturday batch report: types add up, the report adds up, the fee is the crept 2.9%.
+  const sat = { date: '2026-09-26', cardCents: 187635, tipsCents: 17140, refundsCents: null, feesCents: 8068, netCents: 196707, tx: 142, cardTypes: [{ type: 'visa', cents: 102110 }, { type: 'mastercard', cents: 58875 }, { type: 'amex', cents: 26650 }] };
+  const a = by(sat);
+  assert.deepStrictEqual([a.types.tone, a.sum.tone, a.fee.tone, a.expect.tone, a.day.tone, a.deposit.tone], ['ok', 'ok', 'warn', 'info', 'info', 'info']);
+  assert.ok(/\$80\.68 \(3\.94%\).*estimates \$74\.54 \(3\.64%\) - \$6\.14 more/.test(a.fee.text), a.fee.text);
+  assert.ok(/\$1,973\.21 by Monday, Sep 28/.test(a.expect.text), a.expect.text);
+  assert.strictEqual(R.checkReport(sat, ctx).expected, R.expected({ grossCents: 187635, tipsCents: 17140, txCount: 142 }, SETTINGS).net, 'the same fee model as closing a day');
+  // Tips not confirmed yet: no sum, fee or expectation is worked out as if they were zero.
+  const waiting = by({ ...sat, tipsCents: null, unknown: ['tips'] });
+  assert.deepStrictEqual(Object.keys(waiting).sort(), ['day', 'deposit', 'types']);
+  // A misread line, and a payout that is short of the report's own figures.
+  assert.ok(/\$10\.00 less than the card sales printed/.test(by({ ...sat, cardTypes: [{ type: 'visa', cents: 101110 }, { type: 'mastercard', cents: 58875 }, { type: 'amex', cents: 26650 }] }).types.text));
+  const held = by({ ...sat, netCents: 190000 });
+  assert.deepStrictEqual([held.sum.tone, /\$67\.07 less/.test(held.sum.text)], ['warn', true]);
+  // A closed day: Tuesday Sep 22 (missing in the sample). Same numbers -> the day's own explanation.
+  const tue = DAYS.find((d) => d.date === '2026-09-22');
+  const same = by({ date: tue.date, cardCents: tue.grossCents, tipsCents: tue.tipsCents, refundsCents: tue.refundsCents, tx: tue.txCount });
+  assert.deepStrictEqual([same.day.tone, same.deposit.title, same.deposit.tone], ['ok', 'Missing', 'warn']);
+  const off = by({ date: tue.date, cardCents: tue.grossCents + 450, tipsCents: tue.tipsCents, tx: tue.txCount });
+  assert.ok(off.day.tone === 'warn' && /card sales \$1,289\.00 on the report, \$1,284\.50 in your books/.test(off.day.text), off.day.text);
+  // A payout that is in the books is found by its exact amount.
+  const mon = DEPOSITS[0];
+  const found = by({ date: R.addDays(mon.date, -1), netCents: mon.amountCents });
+  assert.deepStrictEqual([found.deposit.tone, found.deposit.text.includes(R.dayLong(mon.date))], ['ok', true]);
+  // Nothing usable -> no lines, no throw.
+  for (const junk of [null, {}, { cardCents: -5, tx: 1.5, cardTypes: 'x' }]) assert.deepStrictEqual(R.checkReport(junk, {}).lines, []);
+});
+
+/** A stand-in for the lab's guard: counts what the route asks of it. */
+function fakeGuard(over = {}) {
+  const g = { allowed: [], recorded: [], sent: [] };
+  g.allow = async (a) => { g.allowed.push([a.provider, a.app, Boolean(a.req && a.req.user)]); return over.deny || { ok: true }; };
+  g.record = async (a) => { g.recorded.push(a); return true; };
+  g.priceUsd = (a) => { if (a.provider === 'gemini') return gemini.priceUsd(a); return 0.001; };
+  g.gemini = { generate: async (r) => { g.sent.push(r); if (over.fail) throw over.fail; return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 2000, outputTokens: 300 } }; } };
+  return g;
+}
+
+test('the provider switch defaults to Claude: nothing changes until TALLY_AI_PROVIDER=gemini', async () => {
+  assert.strictEqual(process.env.TALLY_AI_PROVIDER, undefined);
+  assert.strictEqual((await client()('GET', '/api/me')).data.reader, 'zreport');
+  assert.strictEqual((await maya('GET', '/api/me')).data.reader, 'zreport');
+  const r = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } });
+  assert.deepStrictEqual([r.status, r.data.reader, r.data.report, r.data.notes], [200, undefined, undefined, 'Card totals were printed separately from cash.'], 'Claude’s reading, in its old shape');
+  assert.strictEqual((await maya('POST', '/api/days/snap', { text: 'Card sales 1,284.50 count 96' })).status, 400, 'pasted text is the report reader’s only');
+  for (const v of ['', 'claude', 'Gemini', 'off', 'vertex']) {
+    process.env.TALLY_AI_PROVIDER = v;
+    assert.strictEqual((await maya('GET', '/api/me')).data.reader, 'zreport', v);
+  }
+  // With the lab's guard loaded, the Claude call asks it first and tells it the cost.
+  delete process.env.TALLY_AI_PROVIDER;
+  const g = global.LAB_AI_GUARD = fakeGuard();
+  try {
+    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } })).status, 200);
+    assert.deepStrictEqual([g.allowed, g.recorded.map((x) => [x.provider, x.app, x.usd]), g.sent.length], [[['claude', 'tally', true]], [['claude', 'tally', 0.001]], 0]);
+  } finally { delete global.LAB_AI_GUARD; }
+});
+
+test('report reader over HTTP: gates, guard, one schema’d call, charged, nothing stored', async () => {
+  process.env.TALLY_AI_PROVIDER = 'gemini';
+  const g = global.LAB_AI_GUARD = fakeGuard();
+  try {
+    const dump = store._dump();
+    assert.strictEqual((await maya('GET', '/api/me')).data.reader, 'report');
+    // Strangers: 401 with the body unread, guard and model untouched.
+    assert.strictEqual((await client()('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: 'A'.repeat(5 * 1024 * 1024) } })).status, 401);
+    // A non-image and an empty paste are 400s before the guard is asked or anything is spent.
+    let calls = await modelCalls();
+    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: Buffer.from('%PDF-1.4').toString('base64') } })).status, 400);
+    assert.deepStrictEqual([(await maya('POST', '/api/days/snap', { text: 'hello there' })).status, (await maya('POST', '/api/days/snap', {})).status], [400, 400]);
+    assert.deepStrictEqual([g.allowed.length, g.sent.length], [0, 0]);
+
+    const good = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('PAYOUT UNCLEAR') } });
+    assert.strictEqual(good.status, 200, JSON.stringify(good.data));
+    assert.deepStrictEqual([good.data.reader, good.data.unclear, good.data.report.type, good.data.report.netCents], ['report', ['gross', 'tx'], 'payout_report', 127680]);
+    assert.deepStrictEqual(g.allowed, [['gemini', 'tally', true]]);
+    assert.deepStrictEqual([g.sent.length, g.sent[0].model, g.sent[0].responseSchema === gemini.SCHEMA, g.sent[0].contents[0].parts[0].inlineData.mimeType], [1, 'gemini-3.8-flash', true, 'image/jpeg']);
+    assert.deepStrictEqual(g.recorded.map((x) => [x.provider, x.app, x.usd]), [['gemini', 'tally', gemini.priceUsd({ inputTokens: 2000, outputTokens: 300 })]]);
+    await settle();
+    assert.strictEqual(await modelCalls(), calls + 1, 'charged to the person’s own ledger too');
+    const row = (await identityStore.list('usage')).find((u) => u.route === 'snap:gemini-3.8-flash');
+    assert.ok(row && row.costUsd > 0 && row.costUsd < 0.01, JSON.stringify(row));
+    calls += 1;
+
+    // Pasted text: what is sent has been scrubbed on the server, whatever the page did.
+    const pasted = await maya('POST', '/api/days/snap', { text: 'Merchant 4445012345678\nCashier: Dana Okafor\nCard 4111 1111 1111 1111\nCard sales 1,284.50\nCount 96' });
+    assert.strictEqual(pasted.status, 200, JSON.stringify(pasted.data));
+    const sentText = g.sent[1].contents[0].parts.map((p) => p.text).join('');
+    assert.ok(/••5678/.test(sentText) && /Card sales 1,284\.50/.test(sentText) && !/4445012345678|4111 1111|Dana/.test(sentText), sentText);
+    assert.strictEqual(g.sent[1].contents[0].parts.some((p) => p.inlineData), false);
+
+    assert.deepStrictEqual([(await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('BLANK') } })).status,
+      (await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('NOCARD') } })).status], [422, 422]);
+    const messy = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('INJECT') } });
+    assert.ok(messy.status === 200 && !/<|4111|verdict|Ignore/.test(JSON.stringify(messy.data)));
+
+    // A provider failure: a status and the app's own words; what it billed is still recorded.
+    // (Since 2026-11-23 a failed Gemini read falls back to Claude, so the photo fails Claude's stand-in too.)
+    const before = g.recorded.length;
+    g.gemini.generate = async () => { throw Object.assign(new Error('Gemini answered 401. secret provider words'), { name: 'VertexError', code: 'http', status: 401, usage: { inputTokens: 1000, outputTokens: 0 } }); };
+    const up = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM401') } });
+    assert.deepStrictEqual([up.status, up.data.error], [502, 'Could not read that photo. Try again, or type the numbers in.']);
+    assert.strictEqual(g.recorded.length, before + 1);
+    g.gemini.generate = async () => { throw Object.assign(new Error('slow'), { name: 'VertexError', code: 'timeout' }); };
+    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM503') } })).status, 503);
+
+    // The guard says no: its friendly message, its status, and no model call.
+    const deny = global.LAB_AI_GUARD = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+    const no = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } });
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error, deny.sent.length, deny.recorded.length], [429, 'burst-minute', 'Lots of people are using AI right now - try again in a minute.', 0, 0]);
+
+    // Out of credit: the identity gate answers before the guard is asked.
+    await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 100 });
+    const broke = global.LAB_AI_GUARD = fakeGuard();
+    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } })).status, 402);
+    assert.deepStrictEqual([broke.allowed.length, broke.sent.length], [0, 0]);
+    await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 0 });
+
+    // No guard at all (the app on its own): the local stand-in answers.
+    delete global.LAB_AI_GUARD;
+    const alone = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } });
+    assert.deepStrictEqual([alone.status, alone.data.proposal.gross, alone.data.unclear], [200, '1284.50', []]);
+    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM500') } })).status, 502);
+    assert.strictEqual(store._dump(), dump, 'no photo, no text, no reading, no day stored');
+  } finally {
+    delete global.LAB_AI_GUARD;
+    delete process.env.TALLY_AI_PROVIDER;
+  }
+});
+
+test('Gemini fails, Claude answers a photo (reader "zreport"): a thrown call, unusable output, the Gemini cap - not a burst, and never pasted text', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const snap = async (over, body = { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } }) => {
+    const g = global.LAB_AI_GUARD = fakeGuard(over);
+    if (over.denyGemini) g.allow = async (a) => { g.allowed.push([a.provider, a.app, true]); return a.provider === 'gemini' ? over.denyGemini : { ok: true }; };
+    if (over.json !== undefined) g.gemini.generate = async (r) => { g.sent.push(r); return { json: over.json, usage: { inputTokens: 10, outputTokens: 1 } }; };
+    try { return { r: await maya('POST', '/api/days/snap', body), g }; } finally { delete global.LAB_AI_GUARD; }
+  };
+  process.env.TALLY_AI_PROVIDER = 'gemini';
+  try {
+    let { r, g } = await snap({ fail: Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }) });
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.gross, g.allowed.map((a) => a[0]), g.recorded.map((x) => x.provider)], [200, 'zreport', '1284.50', ['gemini', 'claude'], ['gemini', 'claude']], JSON.stringify(r.data));
+    assert.ok(!/SECRET/.test(JSON.stringify(r.data)));
+    ({ r, g } = await snap({ json: { reportType: 'not_a_report' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0])], [200, 'zreport', ['gemini', 'claude']]);
+    ({ r, g } = await snap({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.sent.length], [200, 'zreport', ['gemini', 'claude'], 0]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, g } = await snap({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, g.allowed.map((a) => a[0]), g.recorded.length], [429, code, ['gemini'], 0]);
+    }
+    // Pasted text has no Claude path: a failure is the app's own sentence.
+    ({ r, g } = await snap({ fail: Object.assign(new Error('x'), { name: 'VertexError', code: 'http', status: 500 }) }, { text: 'Card sales 1,284.50 count 96' }));
+    assert.deepStrictEqual([r.status, r.data.error, g.allowed.map((a) => a[0])], [502, 'Could not read that photo. Try again, or type the numbers in.', ['gemini']]);
+  } finally { delete process.env.TALLY_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[tally] gemini failed (http); used claude', '[tally] gemini failed (unusable); used claude', '[tally] gemini failed (monthly-cap); used claude']);
+});
+
+test('claude-first: a photo goes to Claude, Gemini answers when Claude throws, is unusable or capped - not a burst; pasted text is on', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const snap = async (over, body) => {
+    const g = global.LAB_AI_GUARD = fakeGuard(over);
+    if (over.denyClaude) g.allow = async (a) => { g.allowed.push([a.provider, a.app, true]); return a.provider === 'claude' ? over.denyClaude : { ok: true }; };
+    // Gemini reads a clean photo, so the stand-in's failure words stay Claude's.
+    g.gemini.generate = async (r) => { g.sent.push(r); return { json: await r.fake({ contents: [{ ...r.contents[0], parts: r.contents[0].parts.map((p) => (p.inlineData ? { inlineData: { ...p.inlineData, data: jpeg('ZREPORT') } } : p)) }] }), usage: { inputTokens: 2000, outputTokens: 300 } }; };
+    try { return { r: await maya('POST', '/api/days/snap', body), g }; } finally { delete global.LAB_AI_GUARD; }
+  };
+  const img = (s) => ({ image: { type: 'image/jpeg', data: jpeg(s) } });
+  process.env.TALLY_AI_PROVIDER = 'claude-first';
+  try {
+    assert.strictEqual((await maya('GET', '/api/me')).data.reader, 'report', 'the page offers pasted text');
+    // Claude answers when it can (reader "zreport"), Gemini untouched.
+    let { r, g } = await snap({}, img('ZREPORT'));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.gross, g.allowed.map((a) => a[0]), g.sent.length], [200, 'zreport', '1284.50', ['claude'], 0]);
+    // Claude throws: Gemini answers 200 (reader "report").
+    ({ r, g } = await snap({}, img('ZREPORT UPSTREAM500')));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.recorded.map((x) => x.provider)], [200, 'report', ['claude', 'gemini'], ['gemini']], JSON.stringify(r.data));
+    assert.ok(!/fake_upstream/.test(JSON.stringify(r.data)));
+    // Claude unusable (not a report to it): Gemini; Claude's billed call still recorded.
+    ({ r, g } = await snap({}, img('BLANK')));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.recorded.map((x) => x.provider)], [200, 'report', ['claude', 'gemini'], ['claude', 'gemini']]);
+    // Claude's monthly cap: Gemini.
+    ({ r, g } = await snap({ denyClaude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }, img('ZREPORT')));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.sent.length], [200, 'report', ['claude', 'gemini'], 1]);
+    // A burst refusal goes out as it is.
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, g } = await snap({ denyClaude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }, img('ZREPORT')));
+      assert.deepStrictEqual([r.status, r.data.code, g.allowed.map((a) => a[0]), g.sent.length, g.recorded.length], [429, code, ['claude'], 0, 0]);
+    }
+    // Pasted text (Gemini only) is on.
+    ({ r, g } = await snap({}, { text: 'Card sales 1,284.50 count 96' }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0])], [200, 'report', ['gemini']], JSON.stringify(r.data));
+  } finally { delete process.env.TALLY_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[tally] claude failed (500); used gemini', '[tally] claude failed (unusable); used gemini', '[tally] claude failed (monthly-cap); used gemini']);
+});
+
+test('the sample carries a made-up reading (no model), in the live reading’s exact shape', async () => {
+  const before = await modelCalls();
+  const d = (await client()('GET', '/api/demo')).data;
+  assert.deepStrictEqual([d.reading.reader, d.reading.unclear, d.reading.report.type, d.reading.proposal.gross], ['report', ['tips'], 'batch_report', '1876.35']);
+  assert.deepStrictEqual(Object.keys(d.reading).sort(), Object.keys(gemini.cleanReading(await fakeRead(''), TODAY_HDR)).sort());
+  await settle();
+  assert.strictEqual(await modelCalls(), before);
+});
+
 test('out of credit: 402 before any model call, while everything free still works', async () => {
   await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 100 });
   await settle();

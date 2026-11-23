@@ -14,6 +14,9 @@ const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Q = require('./lib/quote');
 const ai = require('./lib/ai');
 const photos = require('./lib/photos');
+const audio = require('./lib/audio');
+const gemini = require('./lib/gemini');
+const rates = require('./lib/rates');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
 
@@ -23,6 +26,17 @@ const FAKE_AI = process.env.SNAPQUOTE_FAKE_AI === '1';
 // Free tier on Haiku, paid tier on Sonnet - the same split every sibling app
 // uses, decided in one place by identity.planFor. Both read photos.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a job. Claude drafts a whole quote, as it always has, and
+// stays the default. SNAPQUOTE_AI_PROVIDER=gemini switches on "Read the job"
+// beside it: photos and a voice note become line items on Gemini (Vertex AI,
+// through the lab's AI guard), priced from the pro's own rate card. Read per
+// request, so the switch is a Cloud Run setting and nothing else. Polish and
+// follow-up stay on Claude either way. `claude-first` switches Read the job
+// on exactly as `gemini` does (it has no Claude path); everything else stays
+// Claude.
+const providerNow = () => { const v = process.env.SNAPQUOTE_AI_PROVIDER; return v === 'gemini' || v === 'claude-first' ? v : 'claude'; };
+const readsJobs = () => providerNow() !== 'claude';
 
 const MAX_QUOTES_LISTED = 500;
 const MAX_TEMPLATES = 50;
@@ -53,9 +67,12 @@ app.use((req, res, next) => {
 // signed-out 9 MB body is refused without being read. Everything else stays
 // small.
 const DRAFT_ROUTE = '/api/quotes/draft';
+// The read carries the same four photos plus a voice note of up to 2 MB.
+const READ_ROUTE = '/api/quotes/read';
 const bigJson = express.json({ limit: '9mb' });
+const readJson = express.json({ limit: '12mb' });
 const smallJson = express.json({ limit: '128kb' });
-app.use((req, res, next) => (req.path === DRAFT_ROUTE ? next() : smallJson(req, res, next)));
+app.use((req, res, next) => (req.path === DRAFT_ROUTE || req.path === READ_ROUTE ? next() : smallJson(req, res, next)));
 
 /* ------------------------------------------------------------------ *
  * The shared account
@@ -108,9 +125,87 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
+  if (mine && err.code) body.code = err.code;
   res.status(status).json(body);
 };
-const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
+const httpError = (status, message, extra) => Object.assign(new Error(message), { status, expose: true }, extra || {});
+
+/* ------------------------------------------------------------------ *
+ * The lab's AI guard and the Gemini call
+ * ------------------------------------------------------------------ */
+
+/* The lab's AI guard (the month's cap per provider and the burst limits),
+ * when the host has one: asked before a call, told the cost after. On its
+ * own (tests, local runs) the app has no guard and nothing changes. */
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'snapquote' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. You can still build a quote by hand - everything else works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'snapquote', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** One Claude call, as it has always been (a forced tool; the identity meter
+ *  charges the person), with the lab's guard asked first and told after.
+ *  `fn(client, model, onUsage)` makes the call. */
+async function withClaude(req, fn) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return await fn(client, model, (u) => { used = u; });
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** One Gemini call through the guard's Vertex helper: allowed first, and
+ *  whatever it used - even when it failed after billing - recorded with the
+ *  guard and charged to the person. With no guard (the app on its own) only
+ *  the local stand-in can answer; a real call needs the lab. The provider's
+ *  own words never reach the page: a status only. */
+async function askGemini(req, request, route) {
+  await guardAllow('gemini', req);
+  const guard = global.LAB_AI_GUARD;
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema }, systemInstruction: r.systemInstruction }), usage: { inputTokens: 1800, outputTokens: 400 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  let usage = null;
+  try {
+    const out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+    return out && out.json;
+  } catch (err) {
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage, route);
+    }
+  }
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage, route) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `${route}:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
 
 /** 22 url-safe characters from 16 random bytes: 128 bits. A quote link is the
  *  only thing standing between a stranger and someone's address and price, so
@@ -243,7 +338,7 @@ app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: 
 
 app.get('/api/meta', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  res.json({ trades: Q.TRADES, categories: Q.CATEGORIES, units: Q.UNITS, tiers: Q.TIER_LABELS, maxPhotos: photos.MAX_PHOTOS });
+  res.json({ trades: Q.TRADES, categories: Q.CATEGORIES, units: Q.UNITS, tiers: Q.TIER_LABELS, maxPhotos: photos.MAX_PHOTOS, maxVoiceSeconds: audio.MAX_SECONDS, maxVoiceBytes: audio.MAX_BYTES, maxRates: Q.LIMITS.rates });
 });
 
 // The sample is hand-written and drawn by the customer page's own renderer.
@@ -256,10 +351,14 @@ app.get('/api/demo', (_req, res) => res.json(demo()));
 
 app.get('/api/me', async (req, res) => {
   try {
-    if (!req.user) return res.json({ signedIn: false });
+    // `ai` says which reader is switched on; `voice` that the page may offer
+    // the voice note and the line-item review (Gemini only).
+    const flags = { ai: providerNow(), voice: readsJobs() };
+    if (!req.user) return res.json({ signedIn: false, ...flags });
     const p = await loadProfile(req.user);
     res.json({
       signedIn: true,
+      ...flags,
       email: req.user.email,
       budget: identityLib.budgetFor(req.user),
       tier: identityLib.planFor(req.user, MODELS).tier,
@@ -310,8 +409,7 @@ app.post(DRAFT_ROUTE, ...spend, bigJson, async (req, res) => {
       customer: cleanCustomer(b.customer),
       tiers: b.tiers === true,
     };
-    const client = await clientFor(req);
-    const d = await ai.draft(client, modelFor(req), profile, job, pics);
+    const d = await withClaude(req, (client, model, onUsage) => ai.draft(client, model, profile, job, pics, onUsage));
     const number = await nextNumber(req.user.id);
     const q = blankQuote(profile, {
       number,
@@ -337,7 +435,59 @@ app.post(DRAFT_ROUTE, ...spend, bigJson, async (req, res) => {
   } catch (err) { fail(res, err, 'Could not draft that quote. Try again.'); }
 });
 
-/** A blank quote, or one started from a template. No model call, so free. */
+/**
+ * Read the job (Gemini only). Photos and a voice note in; LINE ITEMS out -
+ * each a task, a quantity with its unit, the materials named and how sure the
+ * model was. The model never outputs money: every price here is looked up in
+ * the pro's own rate card (lib/rates.js) and every total is lib/quote.js's.
+ *
+ * NOTHING IS SAVED. The answer is a proposal the person edits, trims and adds
+ * to on the page; the quote is created by the free POST /api/quotes below
+ * when they say so. The photos and the recording are validated before
+ * anything is spent, handed to the model inline once, and dropped with the
+ * request - never stored, never logged.
+ */
+const READ_OFF = 'Reading a job from a voice note isn’t switched on yet. “Snap my quote” and building one by hand both work.';
+const READ_LEAD = 'Quantities were estimated from photos and a voice note; final measurements are confirmed on site.';
+const readOn = (req, res, next) => (readsJobs() ? next() : res.status(404).json({ error: READ_OFF, code: 'ai-off' }));
+
+app.post(READ_ROUTE, identity.requireUser, readOn, identity.requireBudget, identity.requireDailyCap, readJson, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const pics = photos.validate(b.photos);
+    const voice = audio.validate(b.audio);
+    const note = Q.cleanText(b.note, 1500);
+    if (!pics.length && !voice && note.length < 8) throw httpError(400, 'Add a photo, record a voice note, or type a sentence about the job first.');
+    const profile = await loadProfile(req.user);
+    const trade = Q.TRADES[b.trade] ? b.trade : profile.trade;
+    const [templates, recent] = await Promise.all([
+      store.list(templatesOf(req.user.id), { orderBy: 'createdAt', dir: 'desc', limit: MAX_TEMPLATES }),
+      store.list(quotesOf(req.user.id), { orderBy: 'updatedAt', dir: 'desc', limit: 60 }),
+    ]);
+    const reading = gemini.cleanReading(await askGemini(req, gemini.request({ photos: pics, audio: voice, note, trade }), 'read'));
+    if (!reading.relevant) throw httpError(422, 'That didn’t look or sound like a job to quote. Try a clearer photo, or say what needs doing.');
+    if (!reading.lines.length) throw httpError(422, 'No line items came out of that. Say a little more about the job in the voice note and try again.');
+    const lines = rates.priceLines(reading.lines, rates.buildCard(profile, templates, recent), profile);
+    const pricing = { markupPct: profile.markupPct, taxPct: profile.taxPct, hourlyRate: profile.hourlyRate };
+    res.json({
+      title: Q.clean(b.title, 90) || reading.title || 'New quote',
+      heard: reading.heard,
+      trade,
+      lines,
+      questions: reading.questions,
+      photoCount: pics.length,
+      hadVoice: Boolean(voice),
+      pricing,
+      // The server's arithmetic on the server's prices. The page shows these
+      // and recomputes as lines are edited; the saved quote is computed again.
+      totals: Q.totalsFor(lines, { markupPct: pricing.markupPct, taxPct: pricing.taxPct, discount: 0 }),
+      flagged: lines.filter((l) => l.flags.length).length,
+    });
+  } catch (err) { fail(res, err, 'Could not read that job. Try again.'); }
+});
+
+/** A blank quote, one started from a template, or the lines the person
+ *  reviewed after a read. No model call, so free. */
 app.post('/api/quotes', identity.requireUser, async (req, res) => {
   try {
     const b = req.body || {};
@@ -358,6 +508,25 @@ app.post('/api/quotes', identity.requireUser, async (req, res) => {
         exclusions: t.exclusions || [],
         timeline: t.timeline || '',
         markupPct: t.markupPct ?? profile.markupPct,
+      };
+    }
+    if (!b.templateId && b.read && typeof b.read === 'object') {
+      // The reviewed lines of a read: what the person kept, edited and added.
+      // Cleaned and clamped like any edit; the totals are computed below.
+      const r = b.read;
+      const items = Q.cleanItems(r.items);
+      if (!items.length) throw httpError(400, 'Keep at least one line item.');
+      const heard = Q.clean(r.heard, 400);
+      const typed = Q.cleanText(r.note, 1500);
+      extra = {
+        source: 'read',
+        title: Q.clean(r.title, 90) || 'New quote',
+        trade: Q.TRADES[r.trade] ? r.trade : profile.trade,
+        // Private, like a dictated description: the owner's own notes.
+        description: [typed, heard ? `Voice note: ${heard}` : ''].filter(Boolean).join('\n').slice(0, 3000),
+        items,
+        assumptions: [READ_LEAD],
+        photoCount: Math.max(0, Math.min(photos.MAX_PHOTOS, Math.round(Number(r.photoCount) || 0))),
       };
     }
     const q = blankQuote(profile, { ...extra, number: await nextNumber(req.user.id), customer: cleanCustomer(b.customer) });
@@ -500,8 +669,7 @@ app.post('/api/quotes/:id/polish', ...spend, async (req, res) => {
     // The editor may hold unsaved changes; polish what they are looking at.
     if (typeof b.scope === 'string') q.scope = Q.cleanText(b.scope, 1500);
     if (!q.scope && !hasLines(q)) throw httpError(400, 'Write a line or two of scope first.');
-    const client = await clientFor(req);
-    res.json(await ai.polish(client, modelFor(req), q, b.tone === 'friendly' ? 'friendly' : 'professional'));
+    res.json(await withClaude(req, (client, model, onUsage) => ai.polish(client, model, q, b.tone === 'friendly' ? 'friendly' : 'professional', onUsage)));
   } catch (err) { fail(res, err, 'Could not polish that. Try again.'); }
 });
 
@@ -511,12 +679,11 @@ app.post('/api/quotes/:id/follow-up', ...spend, async (req, res) => {
     if (!q.sentAt) throw httpError(409, 'Send the quote first - there is nothing to follow up on yet.');
     if (q.status === 'accepted') throw httpError(409, 'They already said yes.');
     const profile = await loadProfile(req.user);
-    const client = await clientFor(req);
-    const f = await ai.followUp(client, modelFor(req), q, profile, {
+    const f = await withClaude(req, (client, model, onUsage) => ai.followUp(client, model, q, profile, {
       daysSince: Math.max(0, Math.round((Date.now() - Date.parse(q.lastSentAt || q.sentAt)) / 86400000)),
       viewed: Boolean(q.viewedAt),
       total: Q.valueOf(q),
-    });
+    }, onUsage));
     const followUp = { ...f, at: now() };
     await store.merge(quotesOf(req.user.id), q.id, { followUp });
     res.json(followUp);
@@ -754,4 +921,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`snapquote listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, geminiCalls: FAKE_AI ? require('./lib/fakeai').geminiCalls : null };

@@ -9,8 +9,9 @@ kitchen 3% of food sales, then the rest is split by hours or points) — with
 editable roles, points, percentages and a roster of **first names only**. At
 close they **tick who worked**, set hours with steppers and presets ("Set ticked
 to 6h", a sheet of 3–12h, ± a quarter hour), type **card tips, cash tips** and,
-if a tip-out needs it, **food sales** — or **snap the POS report** and a model
-reads those three numbers once. The split draws as they type: every share in
+if a tip-out needs it, **food sales** — or **snap the POS report**: a model
+transcribes it once, the shift lead checks what it read, and only then is the
+shift filled in (see "Snap the POS report"). The split draws as they type: every share in
 dollars and cents, card and cash separately, the arithmetic in words under each
 name, and **"Paid out $1,601.60 = tips in $1,601.60 — balanced to the cent"**.
 The **cash envelope builder** takes the drawer count (steppers per bill) and
@@ -162,9 +163,10 @@ report photo is a proposal the shift lead checks.
   prove nothing was written. `ai.cleanReading` keeps only non-negative amounts
   with the cents read from the digits, under the per-shift cap; food sales
   must be food only (the model is told to leave a mixed total empty); no names
-  are asked for or returned. The page fills the boxes, marks them "from the
-  photo — check them" and shows the note, what was left out and the
-  confidence. Only the app's own errors reach the page with their status; a
+  are asked for or returned by this reader. The page opens the "Check the
+  report" sheet and fills nothing until the shift lead confirms. (The Gemini
+  reader behind `TIPOUT_AI_PROVIDER` is described under "Snap the POS
+  report".) Only the app's own errors reach the page with their status; a
   provider error is a 502/503 with a plain sentence.
 - **No model call and no write for a signed-out visitor.** The whole split,
   envelopes, team and rules editing work in the browser (localStorage) with no
@@ -184,9 +186,97 @@ excludes wages and says so. Denominations: $100, $50, $20, $10, $5, $1, 25¢,
 Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the
 same split as the siblings. A snap is ~1.6k input / ~100 output tokens.
 
+## Snap the POS report (redesign, 2026-11-23)
+
+One photo of the end-of-shift / tip / server-checkout report fills in the
+shift. **Two readers, one switch**: `TIPOUT_AI_PROVIDER=gemini` turns on the
+Gemini reader; unset or anything else is Claude, exactly as before
+(`providerNow()`, read per request - a Cloud Run setting, never a deploy).
+**Erik's yes is needed before the switch is set.** `/api/me` says which is on
+(`snap: 'totals' | 'report'`) so the button's line is honest.
+
+- **Claude (the default)**: forced tool `read_tip_report`, three totals, one
+  overall confidence, via the identity meter (`lib/ai.js`, unchanged).
+- **Gemini** (`lib/gemini.js`, model `gemini-3.8-flash`, called only through
+  `global.LAB_AI_GUARD.gemini.generate`): a `responseSchema` with **no
+  free-text field** - the business date, the shift label, the printed totals
+  (card tips, cash tips, food sales) and one row per employee line (name as
+  printed, hours, sales, card tips, cash tips). Every figure is
+  `{value: the printed characters | null, confidence 0..1}`. The prompt
+  forbids adding up, filling gaps and inventing; text on the report is data.
+- **The model is a reader, never a calculator.** `gemini.cleanReading` makes
+  the answer safe (cents from the digits through `R.toCents`, never a float;
+  negatives, parentheses and anything over the cap are null; hours "6.50" or
+  "6:30" to quarter-hours, flagged when rounded; at most 40 rows; a date
+  outside ten-years-back..tomorrow dropped; unknown keys never read).
+  `staffName` turns "LOPEZ, MAYA" / "104 MAYA LOPEZ" into "Maya L." / "Maya"
+  **on the server**, so a surname never reaches the page. Then
+  `public/rules.js` - the same file as the split - decides everything:
+  `reportCheck` (a total under 0.8 confidence is *unclear*; when every line
+  carries a figure and there is no printed total Tipout **adds the lines
+  itself** and asks; a printed total the lines do not add up to is flagged
+  with both numbers; per-person sales are never taken for food sales),
+  `matchStaff` (exact / same first name / cut-off form / ambiguous / none,
+  nobody matched twice; **the team's names are never sent to the model**) and
+  `partFromLabel`. The split, percentages and rounding are untouched.
+- **Confirm before anything is calculated.** The page opens "Check the
+  report" (`openReview`): each total in a box with why it is or is not
+  flagged, each printed name beside a picker (the matched person, anyone
+  else, "Add … to the team" with a role, "Leave out") and its hours. Every
+  flagged figure or name needs a tap on "Looks right" or a correction;
+  until then the button reads "Check N flagged items first". Only "Fill in
+  the shift" changes the draft - and the split draws from it as always. The
+  Claude reader's three totals go through the same sheet.
+- **The photo**: shrunk on the phone (1600px JPEG, then smaller and softer
+  until it is under ~1 MB of base64, else refused), checked by magic number
+  on the server before any spend, sent inline once, never stored or logged
+  (the store is dumped before and after in the tests).
+- **Order of checks** (tested): `requireUser, requireBudget, requireDailyCap`
+  -> the 6 MB parser -> the photo's bytes (400) -> `LAB_AI_GUARD.allow`
+  (its 429/503 and its own words, with `code`) -> ONE call ->
+  `LAB_AI_GUARD.record` with `priceUsd`. The guard wraps the Claude path too
+  (not a member's own key). A Gemini call is also charged to the person's
+  identity ledger at its real dollars (as the Haiku input tokens that cost
+  the same; route `snap:gemini-3.8-flash`), so the $2 credit and the daily
+  ceiling still hold. Run without the lab (no guard) only the stand-in can
+  answer Gemini; a provider failure is a plain 502/503.
+- **Claude is the fallback (2026-11-23).** With the switch on, if the Gemini
+  read fails for any reason but a burst refusal (a thrown call, a reading
+  the validator rejects, the Gemini `monthly-cap`, no helper), the
+  three-totals Claude reader answers the same photo unchanged and the answer
+  says `reader: 'totals'` (`geminiElseClaude`; log `[tipout] gemini failed
+  (<code>); used claude`). Bursts go out as they are.
+- **Claude first (`TIPOUT_AI_PROVIDER=claude-first`, 2026-11-23).** The
+  three-totals Claude reader goes first (`reader: 'totals'`, `snap: 'totals'`
+  in `/api/me`); on any failure but a burst Gemini's report reader answers
+  (`reader: 'report'`; log `[tipout] claude failed (<code>); used gemini`).
+- **Stand-in** (`lib/fakeai.js` `gemini`, `TIPOUT_FAKE_AI=1`): byte triggers
+  `BLANK`, `NOTIPS` (422s), `SUMS` (no totals; lines add up), `MISMATCH`,
+  `INJECT`, `UPSTREAMnnn`; anything else is The Copper Fox's Friday with a
+  smudged cash total, "MARC" for Marco and a stranger, so the sample team
+  shows every kind of row. `TIPOUT_FAKE_SCENE` picks one for a browser run.
+
+## Design (redesign, 2026-11-23)
+
+The HOA Desk look; the rules are at the top of `public/app.css`. Pure white
+(true black in dark), hairline-divided lists instead of boxes (the receipt
+and the envelopes are the only cards), 12px cards / 10px inputs / pill
+buttons, system type in five sizes, **one accent: the lab card's burgundy
+`#6b1530`** (rose `#f4a7ba` in dark); green, amber, red and grey are status
+only and always carry words. Phones get a floating pill of three line icons
+(label on the current one); from 900px the same buttons are a top nav with
+an underline - **the shared `desktop.css` link stays and its rail is
+overridden at the end of `app.css`**. The landing is a centred hero with the
+live sample receipt under it and no nav. No emoji in the interface, no
+inline script, **no `style=` attribute in the HTML or written by script**
+(bar widths go through the CSSOM in `sizes()`; a test holds this). Motion
+only inside `prefers-reduced-motion: no-preference`. Taps from home (the
+split): snap the report 1, tick someone 1, set hours 1, save & share 1,
+Team & rules 1, History 1, copy as text 1; a staff receipt preview 1 (sample).
+
 ## The first run
 
-The landing shows a live receipt from the sample and two buttons. **"Try a
+The landing is a centred hero, two buttons and a live receipt from the sample. **"Try a
 sample bar shift"** opens The Copper Fox's invented Friday dinner already
 split — nine people, $1,284.60 card + $317.00 cash on $4,920 of food, kitchen
 3% of sales and busser 8% of tips off the top, the rest by points, and a
@@ -211,7 +301,7 @@ database is `challenge`. The fake model refuses any call that does not force a
 tool. Photo byte triggers: `BLANK` unreadable (422), `NOTIPS` no tip totals
 (422), `INJECT` messy values and an instruction in the note, `UPSTREAMnnn`
 fails the way the SDK's APIError does; anything else reads $1,284.60 / $317.00
-/ $4,920.00.
+/ $4,920.00. The Gemini stand-in has its own triggers (above).
 
 ## Data (Firestore: `tipout_*` in the lab database `challenge`)
 

@@ -80,4 +80,39 @@ function create() {
   return fake;
 }
 
-module.exports = { create };
+/**
+ * The stand-in for Gemini (WHICHBOX_AI_PROVIDER=gemini): given the request
+ * the guard's helper would send, the JSON the schema asks for - the same
+ * made-up kitchen box, with a confidence for each thing. It keeps every
+ * request (`gemini.calls`) and takes `gemini.mode` for one call, as the
+ * Claude stand-in does: blank, inject, unsure, upstreamNNN.
+ */
+async function gemini(body) {
+  gemini.calls.push(body);
+  await new Promise((r) => setTimeout(r, Number(process.env.WHICHBOX_FAKE_DELAY_MS || 0)));
+  const mode = gemini.mode;
+  gemini.mode = '';
+  const up = /^upstream(\d{3})$/.exec(mode);
+  if (up) throw Object.assign(new Error(`Gemini answered ${up[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(up[1]) });
+  if (mode === 'blank') return { items: [], room: 'unsure', room_confidence: 'low', flags: [], confidence: 'low', note: '' };
+  if (mode === 'inject') {
+    const raw = inject().content[0].input;
+    return Object.assign({}, raw, { items: raw.items.map((v, i) => (typeof v === 'string' ? { name: v, confidence: i % 2 ? 'certain' : 'high', url: 'https://evil.example' } : v)) });
+  }
+  if (mode === 'unsure') return { items: [{ name: 'Cables', confidence: 'high' }, { name: 'Chargers', confidence: 'medium' }, { name: 'Batteries', confidence: 'low' }], room: 'unsure', room_confidence: 'low', flags: [], confidence: 'medium', note: '' };
+  return {
+    items: [
+      { name: 'Kettle', confidence: 'high' }, { name: 'Mugs', confidence: 'high' }, { name: 'Tea towels', confidence: 'high' },
+      { name: 'Teapot', confidence: 'medium' }, { name: 'Cereal bowls', confidence: 'high' }, { name: 'Wooden spoons', confidence: 'medium' },
+      { name: 'Mug', confidence: 'high' }, { name: 'Toaster', confidence: 'low' },
+    ],
+    room: 'kitchen', room_confidence: 'high',
+    flags: [{ flag: 'fragile', confidence: 'medium' }],
+    confidence: 'high',
+    note: 'Something wrapped in newspaper at the bottom could not be made out.',
+  };
+}
+gemini.calls = [];
+gemini.mode = '';
+
+module.exports = { create, gemini };

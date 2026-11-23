@@ -428,7 +428,7 @@ test('the receipt reader\u2019s answer: no run of digits that could be a card nu
  * The page's own promises
  * ================================================================== */
 
-test('every text colour holds 4.5:1 on its surface in both themes; the hero, the mock and the lab card too; 44px targets; nothing scrolls sideways', () => {
+test('every text colour holds 4.5:1 on its surface in both themes; the recap image and the lab card too; 44px targets; a white page; nothing scrolls sideways', () => {
   const css = read('public/app.css');
   const block = (re) => { const m = re.exec(css); assert.ok(m, String(re)); const out = {}; for (const [, k, v] of m[1].matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) out[k] = v; return out; };
   const light = block(/^:root \{([\s\S]*?)\n\}/m);
@@ -440,12 +440,11 @@ test('every text colour holds 4.5:1 on its surface in both themes; the hero, the
     for (const bg of ['bg', 'card', 'card2', 'bar-bg', 'face']) for (const fg of ['text', 'muted', 'link']) ok(fg, bg);
     ok('accent-ink', 'accent'); for (const fg of ['text', 'link', 'muted']) ok(fg, 'accent-soft');
     for (const k of ['red', 'amber', 'ok', 'wait', 'grey']) { ok(k, `${k}-bg`); ok('text', `${k}-bg`); ok('muted', `${k}-bg`); for (const bg of ['card', 'face', 'bg', 'card2']) ok(k, bg); }
-    for (const fg of ['hero-ink', 'hero-soft']) for (const bg of ['hero-1', 'hero-2']) ok(fg, bg);
     ok('red-bg', 'red'); ok('ok-bg', 'ok');
     ok('accent', 'card'); ok('accent', 'track', 3);
   }
-  // Colours written as literals: the hero's buttons, the mock cards, the recap image.
-  for (const [fg, bg] of [['#1e3a9a', '#ffffff'], ['#ffffff', '#1e40af'], ['#ffffff', '#9d174d'], ['#e6eaff', '#1e40af'], ['#e6eaff', '#9d174d'], ['#141824', '#ffffff'], ['#4d5468', '#ffffff'], ['#7c4a03', '#ffffff'], ['#1e429f', '#e3ebfd'], ['#166534', '#dcfce7'], ['#ffffff', '#1e429f'], ['#ffffff', '#166534']]) {
+  // Colours written as literals: the recap image (drawn on a canvas).
+  for (const [fg, bg] of [['#ffffff', '#1e40af'], ['#ffffff', '#9d174d'], ['#e6eaff', '#1e40af'], ['#e6eaff', '#9d174d'], ['#141824', '#ffffff'], ['#4d5468', '#ffffff']]) {
     assert.ok(ratio(fg, bg) >= 4.5, `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
   }
   const lab = require('../../../lab').get('takeback');
@@ -453,9 +452,12 @@ test('every text colour holds 4.5:1 on its surface in both themes; the hero, the
   for (const sel of ['.btn', '.btn.small', '.link-btn', '.seg button, .chip', '.input, select.input, textarea.input', '.check', '.tick', 'details.more > summary']) {
     assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*(min-height|height): (4[4-9]|[5-9]\\d)px').test(css), `${sel}: 44px`);
   }
-  assert.ok(/\.tabbar button \{[^}]*min-height: 60px/.test(css) && /\.pc-open \{[^}]*min-height: 64px/.test(css) && /\.irow \.rm \{ width: 44px; height: 44px/.test(css));
+  assert.ok(/\.tabbar button \{[^}]*min-height: 46px/.test(css) && /\.pc-open \{[^}]*min-height: 64px/.test(css) && /\.irow \.rm \{ width: 44px; height: 44px/.test(css) && /\.sheet \.close \{[^}]*width: 44px; height: 44px/.test(css));
+  // The look: a pure white page (true black in the dark), one accent from the lab card, system type, nothing fetched.
+  assert.deepStrictEqual([light.bg, light.card, dark.bg, light.accent], ['#ffffff', '#ffffff', '#000000', lab.color]);
+  assert.ok(!/gradient\(|@import|url\(|@font-face/.test(css), 'no gradient, no fetched font or image in the stylesheet');
+  assert.ok(/prefers-reduced-motion: no-preference/.test(css) && !/(animation|transition):/.test(css.split('@media (prefers-reduced-motion: no-preference)')[0]), 'motion only when the person allows it');
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
-  assert.ok(/prefers-reduced-motion: reduce[\s\S]*animation: none !important; transition: none !important/.test(css));
 });
 
 test('the page: relative links, no inline script or handlers, the banner, storage wrapped, photos shrunk on the device, every typed or received string escaped', () => {
@@ -467,6 +469,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/(src|href)="\//.test(html), 'relative asset links only');
   const js = read('public/app.js');
   assert.ok(!/\son[a-z]+=\\?["']/.test(js), 'no handler written into markup');
+  assert.ok(!/style=/.test(html) && !/style=|\.style\.|setAttribute\('style'/.test(js), 'no style attribute in the page or written by script');
   assert.ok(!/\.on(click|submit|change|input|load|error|keydown|message)\s*=/.test(js), 'handlers by addEventListener');
   assert.ok(/localStorage\.getItem[^\n]*\} catch/.test(js) && /localStorage\.setItem[^\n]*\} catch/.test(js) && /localStorage\.removeItem[^\n]*\} catch/.test(js), 'every storage access is wrapped');
   assert.strictEqual((js.match(/localStorage\./g) || []).length, 3, 'and there are no others');
@@ -736,6 +739,351 @@ test('the gates: unconfirmed free account 403, out of credit 402, the day\u2019s
     await settle();
     assert.strictEqual(await modelCalls(), calls);
   } finally { await identityStore.remove('control', `free-spend-takeback-${day}`); }
+});
+
+/* ================================================================== *
+ * Snap the receipt or order email on Gemini (TAKEBACK_AI_PROVIDER=gemini)
+ * ================================================================== */
+
+const gemini = require('../lib/gemini');
+const fakeGemini = require('../lib/fakeai').gemini;
+
+function fakeGuard(opts = {}) {
+  const log = { order: [], allow: [], record: [], requests: [] };
+  return {
+    log,
+    allow: async ({ provider, req, app: a }) => { log.order.push('allow'); log.allow.push({ provider, app: a, uid: req.user && req.user.id }); return (opts.deny && (!opts.denyOnly || opts.denyOnly === provider)) ? opts.deny : { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
+    priceUsd: ({ provider, inputTokens, outputTokens }) => (provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6),
+    gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 1200, outputTokens: 300 } }; } },
+  };
+}
+async function withGemini(guard, fn) {
+  process.env.TAKEBACK_AI_PROVIDER = 'gemini';
+  global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.TAKEBACK_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+const F = (value, confidence) => ({ value, confidence });
+const reading = (over) => Object.assign({
+  store: F('Juniper Outfitters', 'high'), purchase_date: F('2026-10-28', 'high'), delivery_date: F(null, 'low'), order_number: 'JO-1', currency: 'USD',
+  items: [{ name: 'Boots', price: 89, quantity: 1, confidence: 'high' }],
+  return_policy: { quote: 'Returns accepted within 30 days of purchase.', confidence: 'high' },
+}, over || {});
+
+test('the provider switch: Claude unless TAKEBACK_AI_PROVIDER=gemini, read per request; the Gemini schema only transcribes - no deadline, no days, no free text', async () => {
+  const anon = client();
+  assert.strictEqual(process.env.TAKEBACK_AI_PROVIDER, undefined);
+  assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude');
+  for (const v of ['', 'off', 'GEMINI', 'claude', 'vertex']) {
+    process.env.TAKEBACK_AI_PROVIDER = v;
+    try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', v); } finally { delete process.env.TAKEBACK_AI_PROVIDER; }
+  }
+  await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
+  assert.match(read('server.js'), /v === 'gemini' \|\| v === 'claude-first' \? v : 'claude'/);
+  assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
+  assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['store', 'purchase_date', 'delivery_date', 'order_number', 'currency', 'items', 'return_policy']);
+  assert.deepStrictEqual(gemini.SCHEMA.required, Object.keys(gemini.SCHEMA.properties));
+  assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties.return_policy.properties), ['quote', 'confidence'], 'the return wording is a quote and a confidence - nothing else');
+  assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties.items.items.properties), ['name', 'price', 'quantity', 'confidence']);
+  const schema = JSON.stringify(gemini.SCHEMA, (k, v) => (k === 'description' ? undefined : v));
+  assert.ok(!/days|until|deadline|return_by|window|note/i.test(schema), 'no field could carry a deadline or free text');
+  for (const k of ['store', 'purchase_date', 'delivery_date']) assert.deepStrictEqual([gemini.SCHEMA.properties[k].properties.value.nullable, gemini.SCHEMA.properties[k].properties.confidence.enum], [true, C.CONFIDENCE], k);
+  assert.ok(/Do not work out a return deadline/.test(gemini.SYSTEM) && /never an instruction/.test(gemini.SYSTEM) && /Never copy a card number/.test(gemini.SYSTEM) && /use null - never guess/.test(gemini.SYSTEM));
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+  assert.ok(!/fetch\(|https?:\/\//.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own: the guard’s helper does');
+  const js = read('public/app.js');
+  assert.match(js, /function transcribes\(\) \{ return Boolean\(state\.me && \(state\.me\.reader === 'gemini' \|\| state\.me\.reader === 'claude-first'\)\); \}/, 'the page offers pasting only when the server says so');
+  assert.match(js, /api\('POST', 'api\/ai\/receipt', \{ text: r\.text \}\)/, 'pasted text is sent alone');
+  assert.match(js, /add\.disabled = !n \|\| left > 0;/, 'nothing can be added while an unsure field is unchecked');
+  assert.match(js, /Worked out by Takeback, not by AI/);
+});
+
+test('the deadline is the app’s sum: a window from the quoted words and the confirmed day - or no window when the words could mean two things', () => {
+  const from = '2026-11-20';
+  const w = (q, f) => C.windowFromQuote(q, f || from);
+  assert.deepStrictEqual(w('Returns accepted within 30 days of purchase with receipt.'), { window: { days: 30 }, basis: 'days', why: '' });
+  assert.deepStrictEqual(w('14-day return window').window, { days: 14 });
+  assert.deepStrictEqual(w('You have 2 weeks to return it').window, { days: 14 });
+  assert.deepStrictEqual(w('within thirty days of delivery').window, { days: 30 });
+  assert.deepStrictEqual(w('May be returned within 90 days of delivery').window, { days: 90 }, '"May" the verb is not a month');
+  assert.deepStrictEqual(w('Return by January 31, 2027 for a full refund'), { window: { until: '2027-01-31' }, basis: 'date', why: '' });
+  assert.deepStrictEqual(w('Holiday returns through Jan 15').window, { until: '2027-01-15' }, 'no year: the next such day');
+  assert.deepStrictEqual(w('return by 2027-01-31').window, { until: '2027-01-31' });
+  assert.deepStrictEqual(w('until 31 January 2027').window, { until: '2027-01-31' });
+  assert.deepStrictEqual(w('by 1/31/27').window, { until: '2027-01-31' }, 'only one way to read it');
+  assert.deepStrictEqual(w('Purchased Nov 20, 2026. Returns within 30 days').window, { days: 30 }, 'the day it was bought is not a deadline');
+  for (const [q, why] of [['30 days for most items, 15 days for electronics', 'several'], ['within 10 business days', 'business-days'], ['returns until 03/04/2027', 'unclear-date'], ['returns within 3 months', 'months'], ['free returns', 'no-number'], ['return by Dec 1 2029', 'date-out-of-range'], ['within 900 days', 'days-out-of-range'], ['by Dec 1 or by Dec 15', 'several'], ['', 'none']]) {
+    assert.deepStrictEqual(w(q), { window: null, basis: '', why }, q);
+  }
+  assert.deepStrictEqual(w('within 30 days', 'not a day').window, null);
+  // The same words, a different confirmed day: the sum is redone, never remembered.
+  assert.strictEqual(C.returnBy({ bought: '2026-11-20', window: w('within 30 days').window }), '2026-12-20');
+  assert.strictEqual(C.returnBy({ bought: '2026-11-24', window: w('within 30 days', '2026-11-24').window }), '2026-12-24');
+  assert.deepStrictEqual(w('Returns through Jan 15', '2027-02-01').window, { until: '2028-01-15' });
+});
+
+test('a transcription is checked: confidences kept, unreadable is flagged low, a quote must be in the pasted text, nothing the model says about a deadline is read', () => {
+  const o = { today: TODAY, source: '' };
+  const ok = C.cleanReading(reading(), o);
+  assert.deepStrictEqual([ok.store, ok.bought, ok.window, ok.basis, ok.confidence, ok.reader], ['Juniper Outfitters', '2026-10-28', { days: 30 }, 'days', 'high', 'transcribe']);
+  assert.deepStrictEqual(ok.checks, { store: 'high', bought: 'high', delivered: '', window: 'high' });
+  assert.deepStrictEqual(ok.items, [{ item: 'Boots', price: 8900, confidence: 'high' }]);
+  // A deadline the model volunteers is never read: the window is the quote's.
+  const pushy = C.cleanReading(reading({ return_policy: { quote: 'Returns within 30 days.', confidence: 'high', days: 365, until: '2027-10-01' }, return_by: '2027-10-01', deadline_days: 365, window: { days: 365 } }), o);
+  assert.deepStrictEqual(pushy.window, { days: 30 });
+  assert.ok(!('return_by' in pushy) && !('deadline_days' in pushy));
+  // Unreadable or unsure: flagged, never guessed.
+  const dim = C.cleanReading(reading({ store: F(null, 'high'), purchase_date: F(null, 'high'), items: [{ name: 'B00ts', price: null, quantity: null, confidence: 'certain' }, { name: 'Socks', price: 5, confidence: 'medium' }], return_policy: { quote: null, confidence: 'high' } }), o);
+  assert.deepStrictEqual([dim.store, dim.bought, dim.window, dim.quote, dim.confidence], ['', '', null, '', 'low']);
+  assert.deepStrictEqual([dim.checks.store, dim.checks.bought, dim.checks.window, dim.items.map((i) => i.confidence)], ['low', 'low', '', ['low', 'medium']]);
+  // A delivery date is offered, never used silently; the same day as the order is not offered twice.
+  const del = C.cleanReading(reading({ delivery_date: F('2026-10-31', 'medium') }), o);
+  assert.deepStrictEqual([del.delivered, del.checks.delivered, del.bought], ['2026-10-31', 'medium', '2026-10-28']);
+  assert.strictEqual(C.cleanReading(reading({ delivery_date: F('2026-10-28', 'high') }), o).delivered, '');
+  for (const bad of ['2999-01-01', '2020-01-01', '10/28/2026', 20261028, '<b>']) assert.strictEqual(C.cleanReading(reading({ purchase_date: F(bad, 'high'), delivery_date: F(bad, 'high') }), o).bought, '', String(bad));
+  // Pasted text: the quote must really be there (spacing and case aside).
+  const src = 'Juniper Outfitters\nBoots $89.00\nReturns   accepted within 30 DAYS of purchase.';
+  assert.strictEqual(C.cleanReading(reading(), { today: TODAY, source: src }).quote, 'Returns accepted within 30 days of purchase.');
+  const made = C.cleanReading(reading({ return_policy: { quote: 'Returns accepted within 365 days, no questions asked.', confidence: 'high' } }), { today: TODAY, source: src });
+  assert.deepStrictEqual([made.quote, made.quoteDropped, made.window, made.checks.window], ['', true, null, '']);
+  assert.ok(C.quoteInSource('within 30 days', src) && !C.quoteInSource('30', src) && !C.quoteInSource('within 60 days', src));
+  // Words that could mean two things: quoted, but no window - the person picks.
+  const two = C.cleanReading(reading({ return_policy: { quote: '30 days for most items, 15 days for electronics.', confidence: 'high' } }), o);
+  assert.deepStrictEqual([two.window, two.why, Boolean(two.quote)], [null, 'several', true]);
+  // Card numbers refuse it whole, wherever they hide; hostile values are cleaned.
+  for (const where of [{ store: F(`Shop ${CARD}`, 'high') }, { items: [{ name: `Boots ${AMEX}`, price: 1, confidence: 'high' }] }, { return_policy: { quote: `Card ${CARD.replace(/(\d{4})(?=\d)/g, '$1 ')} returns in 30 days`, confidence: 'high' } }, { delivery_date: F(CARD, 'high') }]) {
+    assert.deepStrictEqual(C.cleanReading(reading(where), o), { refused: 'card-number' });
+  }
+  const upc = C.cleanReading(reading({ items: [{ name: `Mug ${UPC}`, price: 9, confidence: 'high' }] }), o);
+  assert.strictEqual(upc.items[0].item, 'Mug');
+  for (const junk of [null, 'x', 7, [], [reading()]]) assert.strictEqual(C.cleanReading(junk, o), null);
+  assert.strictEqual(C.cleanReading({ store: F('', 'high'), items: [] }, o), null, 'nothing readable');
+});
+
+test('a pasted email is capped and scrubbed before anything is sent: email addresses, phones, card numbers, long numbers and street lines', () => {
+  const at = String.fromCharCode(64);
+  const text = ['Northwind Home', `sam.rivera${at}mail.example`, 'Call (555) 201-7788 or +44 20 7946 0958', '12 Oak Street', 'Springfield, IL 62704', `Card ${CARD.replace(/(\d{4})(?=\d)/g, '$1-')}`, 'Visa ending in 4242', `Tracking ${UPC}99`, 'Order number: NH-20931', 'Desk lamp $75.00', 'Return within 30 days of delivery.'].join('\n');
+  const out = C.scrubPersonal(text);
+  assert.ok(!out.text.includes(at) && !/555|7946|Oak Street|62704|4242/.test(out.text) && !/\d{12,}/.test(out.text) && !C.hasCardLike(out.text), out.text);
+  assert.ok(out.removed >= 8, String(out.removed));
+  for (const keep of ['Northwind Home', 'Order number: NH-20931', 'Desk lamp $75.00', 'Return within 30 days of delivery.']) assert.ok(out.text.includes(keep), keep);
+  assert.deepStrictEqual(C.scrubPersonal('Boots $89.00\nReturns within 30 days'), { text: 'Boots $89.00\nReturns within 30 days', removed: 0 });
+  // The request: one image, or one text, and nothing else; the text trimmed and capped.
+  assert.deepStrictEqual(C.readingRequest({ text: '  Juniper Outfitters\r\n\r\n\r\n\r\nBoots   $89.00 ​ ' }), { text: 'Juniper Outfitters\n\nBoots $89.00' });
+  const img = receiptBody().image;
+  assert.deepStrictEqual(C.readingRequest({ image: img }), { image: img });
+  for (const bad of [null, [], {}, { text: 'short' }, { text: 'x'.repeat(C.LIMITS.aiTextChars + 1) }, { text: 42 }, { text: 'An order email of some length', image: img }, { text: 'An order email of some length', list: [] }, { email: 'An order email of some length' }]) assert.strictEqual(C.readingRequest(bad), null, JSON.stringify(bad).slice(0, 60));
+  assert.strictEqual(C.LIMITS.aiTextChars, 6000);
+  assert.strictEqual(ai.briefAny({ text: text }).stripped, out.removed);
+  assert.throws(() => ai.briefAny({ text: 'x'.repeat(7000) }), (e) => e.status === 400 && /too much text/.test(e.message));
+  assert.throws(() => ai.briefAny({ text: 'An order email of some length', store: 'x' }), (e) => e.status === 400);
+  const js = read('public/app.js');
+  assert.match(js, /maxlength="' \+ C\.LIMITS\.aiTextChars \+ '"/, 'the page caps the paste too');
+  assert.match(js, /after Takeback takes out email addresses, phone numbers, card numbers, long numbers and street lines/);
+});
+
+test('Snap the receipt on Gemini over HTTP: the gates before the parser, then the guard, one schema call, the image inline once without its location, charged and recorded, nothing stored', async () => {
+  const gia = await register('gia.gemini');
+  const uid = uidOf(mail('gia.gemini'));
+  const anon = client();
+  let g = fakeGuard();
+  await withGemini(g, async () => {
+    assert.strictEqual((await anon('POST', '/api/ai/receipt', receiptBody())).status, 401);
+    assert.strictEqual((await anon('POST', '/api/ai/receipt', BIG)).status, 401, 'signed out: 401 before the parser');
+    assert.strictEqual((await gia('POST', '/api/ai/receipt', BIG)).status, 413, 'signed in: the parser’s own limit');
+    for (const bad of [{}, { text: 'short' }, { text: 'x'.repeat(7000) }, { image: receiptBody().image, text: 'An order email of some length' }, { image: { type: 'image/jpeg', data: png(200, 200).toString('base64') } }]) assert.strictEqual((await gia('POST', '/api/ai/receipt', bad)).status, 400);
+  });
+  assert.deepStrictEqual(g.log.order, [], 'a bad or signed-out request never reaches the guard or the model');
+  const claudeCalls = fakeClient.calls.length;
+  const r = await withGemini(g, () => gia('POST', '/api/ai/receipt', receiptBody()));
+  assert.strictEqual(r.status, 200, r.text);
+  await settle();
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record']);
+  assert.deepStrictEqual(g.log.allow[0], { provider: 'gemini', app: 'takeback', uid });
+  assert.strictEqual(fakeClient.calls.length, claudeCalls, 'Claude is not called');
+  const rq = g.log.requests[0];
+  assert.strictEqual(rq.model, 'gemini-3.8-flash');
+  assert.strictEqual(rq.responseSchema, gemini.SCHEMA, 'JSON out against the transcription schema');
+  assert.strictEqual(rq.systemInstruction, gemini.SYSTEM);
+  const parts = rq.contents[0].parts;
+  assert.deepStrictEqual([rq.contents.length, parts.length, Object.keys(parts[0])[0], parts[1].text], [1, 2, 'inlineData', `Today is ${realToday()}. Transcribe the receipt or order confirmation in this image.`]);
+  const sent = Buffer.from(parts[0].inlineData.data, 'base64');
+  assert.ok(!sent.includes(Buffer.from('GPSLatitude')) && !sent.includes(Buffer.from('Acacia')), 'no location or comment in the model’s copy');
+  const usd = gemini.priceUsd({ inputTokens: 1200, outputTokens: 300, at: new Date('2026-11-23T00:00:00Z') });
+  assert.deepStrictEqual(g.log.record, [{ provider: 'gemini', app: 'takeback', usd }]);
+  const row = (await identityStore.list('usage')).find((x) => x.route === 'receipt:gemini-3.8-flash');
+  assert.ok(row && Math.abs(row.costUsd - usd) < 2e-6 && row.uid === uid, 'the person’s ledger is charged the Gemini price');
+  const pr = r.data.proposal;
+  assert.deepStrictEqual([pr.reader, pr.store, pr.window, pr.basis, pr.checks.bought, pr.items.map((i) => i.confidence), pr.confidence, r.data.stripped], ['transcribe', 'Juniper Outfitters', { days: 30 }, 'days', 'medium', ['high', 'high', 'low'], 'low', 0]);
+  assert.ok(!store._dump().includes('Suede ankle boots') && !store._dump().includes('Juniper'), 'nothing stored');
+
+  // A pasted order email: scrubbed first, the quote checked against it, the delivery day offered.
+  const at = String.fromCharCode(64);
+  const d = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const email = ['Northwind Home', `Thanks Sam - sam${at}mail.example - (555) 201-7788`, '12 Oak Street', 'Order number: NH-20931', `Order date: ${d(9)}`, `Delivered: ${d(5)}`, 'Desk lamp $75.00', 'Linen duvet cover $120.00', 'Card ending in 4242', 'You can return most items within 30 days of delivery.'].join('\n');
+  g = fakeGuard();
+  const tx = await withGemini(g, () => gia('POST', '/api/ai/receipt', { text: email }));
+  assert.strictEqual(tx.status, 200, tx.text);
+  const said = g.log.requests[0].contents[0].parts.map((x) => x.text).join('\n');
+  assert.ok(!said.includes(at) && !/555|Oak Street|4242/.test(said) && /<<<ORDER\n[\s\S]*\nORDER>>>/.test(said), 'the model sees the scrubbed text only');
+  const tp = tx.data.proposal;
+  assert.deepStrictEqual([tp.store, tp.bought, tp.delivered, tp.order, tp.items.length, tp.quote, tp.window, tx.data.stripped], ['Northwind Home', d(9), d(5), 'NH-20931', 2, 'You can return most items within 30 days of delivery.', { days: 30 }, 4]);
+  const made = await withGemini(fakeGuard(), () => gia('POST', '/api/ai/receipt', { text: `${email}\nMADEUPQUOTE` }));
+  assert.deepStrictEqual([made.data.proposal.quote, made.data.proposal.quoteDropped, made.data.proposal.window], ['', true, null], 'a quote that is not in the text is dropped, and so is its window');
+
+  // Hostile, card-carrying and empty answers.
+  const inj = await withGemini(fakeGuard(), () => gia('POST', '/api/ai/receipt', { text: 'INJECT this order email please' }));
+  assert.strictEqual(inj.status, 200, inj.text);
+  assert.ok(!/<[a-z/!]|javascript:|https?:|evil\.example|2031|365/i.test(inj.text), inj.text.slice(0, 300));
+  assert.deepStrictEqual([inj.data.proposal.bought, inj.data.proposal.delivered, inj.data.proposal.currency, inj.data.proposal.checks.store, inj.data.proposal.items.every((i) => i.price === null)], ['', '', '', 'low', true]);
+  const card = await withGemini(fakeGuard(), () => gia('POST', '/api/ai/receipt', { text: 'Juniper Outfitters CARDNUM\nBoots $89.00' }));
+  assert.deepStrictEqual([card.status, card.data.code], [422, 'card-number']);
+  assert.ok(!/\d{12}/.test(card.text));
+  assert.strictEqual((await withGemini(fakeGuard(), () => gia('POST', '/api/ai/receipt', { text: 'BLANK nothing readable here' }))).status, 422);
+
+  // The guard says no: its message, no model call, nothing charged. (Pasted
+  // text: Gemini-only, so the cap is final; a photo falls back - below.)
+  g = fakeGuard({ deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+  const before = (await identityStore.list('usage')).length;
+  const capped = await withGemini(g, () => gia('POST', '/api/ai/receipt', { text: email }));
+  assert.deepStrictEqual([capped.status, capped.data.code, capped.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
+  assert.deepStrictEqual(g.log.order, ['allow']);
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  assert.strictEqual((await withGemini(g, () => gia('POST', '/api/ai/receipt', receiptBody()))).status, 429);
+  await settle();
+  assert.strictEqual((await identityStore.list('usage')).length, before, 'a refused call is never charged');
+
+  // Provider failures on pasted text (Gemini-only): a status only, never the provider's words; a billed failure is still recorded.
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  const blocked = await withGemini(g, () => gia('POST', '/api/ai/receipt', { text: email }));
+  assert.ok(blocked.status === 502 && !/SECRET|Gemini|Vertex/.test(blocked.text), blocked.text);
+  assert.strictEqual(g.log.record.length, 1, 'a call that billed before failing is recorded');
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini answered 429.'), { name: 'VertexError', code: 'http', status: 429 }); } });
+  assert.deepStrictEqual([(await withGemini(g, () => gia('POST', '/api/ai/receipt', { text: email }))).status, g.log.record.length], [503, 0]);
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini took too long.'), { name: 'VertexError', code: 'timeout' }); } });
+  assert.strictEqual((await withGemini(g, () => gia('POST', '/api/ai/receipt', { text: email }))).status, 503);
+
+  // No guard at all (the app on its own): the stand-in still answers; the fake is refused on Cloud Run with the rest.
+  const alone = await withGemini(undefined, () => gia('POST', '/api/ai/receipt', receiptBody()));
+  assert.deepStrictEqual([alone.status, alone.data.proposal.reader], [200, 'transcribe']);
+  assert.strictEqual(typeof fakeGemini, 'function');
+
+  // And with the switch off, the same route is Claude's, through the guard when the lab has one.
+  g = fakeGuard();
+  global.LAB_AI_GUARD = g;
+  try {
+    const cl = await gia('POST', '/api/ai/receipt', receiptBody());
+    assert.strictEqual(cl.status, 200, cl.text);
+    assert.strictEqual((await gia('POST', '/api/ai/receipt', { text: email })).status, 400, 'Claude reads one image, as it always has');
+  } finally { delete global.LAB_AI_GUARD; }
+  assert.deepStrictEqual([g.log.order, g.log.allow[0].provider, g.log.record[0].provider, g.log.record[0].usd > 0], [['allow', 'record'], 'claude', 'claude', true]);
+  assert.strictEqual(fakeClient.calls.length, claudeCalls + 1);
+});
+
+test('Snap a photo on Gemini falls back to the Claude reader: a thrown call, an unusable answer, the Gemini cap - never a burst refusal, never pasted text', async () => {
+  const fb = await register('fay.fallback');
+  const logs = [];
+  const orig = console.log;
+  const quiet = async (fn) => { console.log = (...a) => logs.push(a.join(' ')); try { return await fn(); } finally { console.log = orig; } };
+  const viaClaude = async (g, label) => {
+    const before = fakeClient.calls.length;
+    const r = await quiet(() => withGemini(g, () => fb('POST', '/api/ai/receipt', receiptBody())));
+    await settle();
+    assert.strictEqual(r.status, 200, `${label}: ${r.text}`);
+    assert.strictEqual(r.data.reader, 'claude', label);
+    assert.notStrictEqual(r.data.proposal.reader, 'transcribe', `${label}: the Claude reader's proposal`);
+    assert.strictEqual(fakeClient.calls.length, before + 1, `${label}: one Claude call`);
+    return r;
+  };
+  // Gemini throws (billed): recorded as Gemini, then Claude answers and is recorded as Claude.
+  let g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer.'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  await viaClaude(g, 'thrown');
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record', 'allow', 'record']);
+  assert.deepStrictEqual([g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)], [['gemini', 'claude'], ['gemini', 'claude']]);
+  assert.ok(logs.includes('[takeback] gemini failed (blocked); used claude'), logs.join('|'));
+  // Unusable output (nothing readable) -> Claude.
+  g = fakeGuard({ generate: async () => ({ json: { store: null, items: [] }, usage: { inputTokens: 10, outputTokens: 5 } }) });
+  await viaClaude(g, 'unusable');
+  assert.ok(logs.includes('[takeback] gemini failed (unusable); used claude'));
+  // The Gemini month is capped -> Claude (its own allow passes).
+  g = fakeGuard({ denyOnly: 'gemini', deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+  await viaClaude(g, 'cap');
+  assert.deepStrictEqual(g.log.order, ['allow', 'allow', 'record']);
+  // A burst refusal is final: the guard's 429, no Claude call.
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  let before = fakeClient.calls.length;
+  const burst = await withGemini(g, () => fb('POST', '/api/ai/receipt', receiptBody()));
+  assert.deepStrictEqual([burst.status, burst.data.code, g.log.order, fakeClient.calls.length], [429, 'burst-minute', ['allow'], before]);
+  // Pasted text has no Claude reader: Gemini failing is its friendly error.
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('x'), { name: 'VertexError', code: 'timeout' }); } });
+  const text = 'Northwind Home\nOrder date: 2026-11-01\nDesk lamp $75.00\nReturns within 30 days of purchase.';
+  before = fakeClient.calls.length;
+  const t = await withGemini(g, () => fb('POST', '/api/ai/receipt', { text }));
+  assert.deepStrictEqual([t.status, fakeClient.calls.length], [503, before]);
+  assert.ok(!/Gemini|Vertex/.test(t.text));
+  // Switch off: Claude as always, no reader field added.
+  const off = await fb('POST', '/api/ai/receipt', receiptBody());
+  assert.deepStrictEqual([off.status, 'reader' in off.data], [200, false]);
+});
+
+async function withMode(mode, guard, fn) {
+  process.env.TAKEBACK_AI_PROVIDER = mode;
+  global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.TAKEBACK_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: a photo is Claude\u2019s, and Gemini answers when Claude throws, is unusable or capped - never on a burst; pasted email is on and Gemini-only', async () => {
+  const cf = await register('cleo.claudefirst');
+  const logs = [];
+  const orig = console.log;
+  const quiet = async (fn) => { console.log = (...a) => logs.push(a.join(' ')); try { return await fn(); } finally { console.log = orig; } };
+  assert.strictEqual((await withMode('claude-first', undefined, () => client()('GET', '/api/me'))).data.reader, 'claude-first');
+  // Claude answers: one Claude call, no Gemini call.
+  let g = fakeGuard();
+  let before = fakeClient.calls.length;
+  let r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', receiptBody()));
+  assert.deepStrictEqual([r.status, r.data.reader, fakeClient.calls.length, g.log.requests.length, g.log.allow.map((a) => a.provider)], [200, 'claude', before + 1, 0, ['claude']]);
+  const viaGemini = async (setup, label) => {
+    const gg = fakeGuard(setup.guard);
+    if (setup.mode) fakeClient.mode = setup.mode;
+    const res = await quiet(() => withMode('claude-first', gg, () => cf('POST', '/api/ai/receipt', receiptBody())));
+    fakeClient.mode = '';
+    await settle();
+    assert.strictEqual(res.status, 200, `${label}: ${res.text}`);
+    assert.deepStrictEqual([res.data.reader, res.data.proposal.reader, gg.log.requests.length], ['gemini', 'transcribe', 1], label);
+    return gg;
+  };
+  // Claude throws (a provider error) -> Gemini, both recorded.
+  g = await viaGemini({ mode: 'upstream500' }, 'thrown');
+  assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+  assert.ok(g.log.record.some((x) => x.provider === 'gemini'));
+  assert.ok(logs.includes('[takeback] claude failed (500); used gemini'), logs.join('|'));
+  // Claude's answer is unusable -> Gemini; the billed Claude call is still recorded.
+  g = await viaGemini({ mode: 'blank' }, 'unusable');
+  assert.deepStrictEqual(g.log.record.map((x) => x.provider), ['claude', 'gemini']);
+  // The Claude month is capped -> Gemini, with no Claude call.
+  before = fakeClient.calls.length;
+  g = await viaGemini({ guard: { denyOnly: 'claude', deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } }, 'cap');
+  assert.strictEqual(fakeClient.calls.length, before);
+  assert.ok(logs.includes('[takeback] claude failed (monthly-cap); used gemini'));
+  // A burst refusal is final: the guard's 429, no Gemini call.
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  before = fakeClient.calls.length;
+  r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', receiptBody()));
+  assert.deepStrictEqual([r.status, r.data.code, g.log.order, fakeClient.calls.length], [429, 'burst-minute', ['allow'], before]);
+  // Pasted email is on and goes to Gemini alone; failing there is its friendly error, never Claude.
+  const text = 'Northwind Home\nOrder date: 2026-11-01\nDesk lamp $75.00\nReturns within 30 days of purchase.';
+  g = fakeGuard();
+  before = fakeClient.calls.length;
+  r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', { text }));
+  assert.deepStrictEqual([r.status, r.data.reader, g.log.allow.map((a) => a.provider), fakeClient.calls.length], [200, 'gemini', ['gemini'], before]);
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('x'), { name: 'VertexError', code: 'timeout' }); } });
+  r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', { text }));
+  assert.deepStrictEqual([r.status, fakeClient.calls.length], [503, before]);
+  assert.ok(!/Gemini|Vertex|Claude/.test(r.text));
+  // Unset: pasted text is still a 400 with no call.
+  assert.strictEqual((await cf('POST', '/api/ai/receipt', { text })).status, 400);
 });
 
 /* ---------------- run ---------------- */

@@ -103,8 +103,16 @@ function text(b) {
   return out.join('\n');
 }
 
-/** The one place a model is called. */
-async function ask(client, model, b) {
+/** The plate photo, rebuilt and checked by its bytes the same way. Exactly
+ *  {image}: anything else - a place, a name, a note - is a 400. */
+function briefPlate(body) {
+  const req = Core.plateRequest(body);
+  if (!req) throw httpError(400, 'Send one photo of the plate and nothing else. Try again from the page.');
+  return { image: brief({ image: req.image }).image };
+}
+
+/** The one place Claude is called. */
+async function ask(client, model, b, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -116,6 +124,7 @@ async function ask(client, model, b) {
       { type: 'text', text: text(b) },
     ] }],
   }, { timeout: 60000, maxRetries: 1 });
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens || 0), outputTokens: Number(res.usage.output_tokens || 0) });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That menu ran long. Try a photo of just one page or section - or add dishes by hand.');
   const block = (res && Array.isArray(res.content) ? res.content : []).find((x) => x && x.type === 'tool_use' && x.name === TOOL.name);
   if (!block || !block.input || typeof block.input !== 'object') throw httpError(502, 'The answer did not come back in the expected shape. Try again.');
@@ -123,10 +132,15 @@ async function ask(client, model, b) {
 }
 
 /** The answer, checked. Nothing readable is a 422 with a way forward. */
-function answer(raw, b) {
-  const menu = Core.cleanMenu(raw, b);
+function answer(raw, b, menuIn) {
+  const menu = menuIn === undefined ? Core.cleanMenu(raw, b) : menuIn;
   if (!menu) throw httpError(422, 'No dishes could be read from that photo. Try a sharper, closer photo of the menu - or add what you had by hand.');
   return { menu };
 }
+/** The plate answer, checked. Nothing usable is a 422 with a way forward. */
+function plateAnswer(plate) {
+  if (!plate) throw httpError(422, 'That photo didn’t read as a plate of food. Try a closer photo - or type the dish yourself.');
+  return { plate };
+}
 
-module.exports = { httpError, brief, ask, answer, text, TOOL, SYSTEM };
+module.exports = { httpError, brief, briefPlate, ask, answer, plateAnswer, text, TOOL, SYSTEM };

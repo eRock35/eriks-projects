@@ -217,11 +217,30 @@ app.delete('/api/settings', identity.requireUser, route('Could not remove them.'
  * and nothing logged carries a word of it.
  * ------------------------------------------------------------------ */
 
+// The lab's shared AI guard (the monthly cap per provider and the burst
+// limits), when the host has loaded one: asked after the gates and the body
+// check and before the model call, told what the call cost after. Without
+// it (local runs, the app on its own) the identity gates stand alone.
+const PROVIDER = 'claude';
 app.post('/api/ai/letter', ...spend, aiJson, route('The letter helper isn’t available right now. The template letter is free and works offline.', async (req, res) => {
   const brief = ai.brief(req.body);
-  const raw = await ai.ask(await clientFor(req), modelFor(req), brief);
-  res.set('Cache-Control', 'no-store');
-  res.json(ai.answer(raw, brief));
+  const guard = global.LAB_AI_GUARD;
+  if (guard) {
+    const g = await guard.allow({ provider: PROVIDER, req, app: 'muster' });
+    if (!g || !g.ok) return res.status((g && g.status) || 429).json({ error: ((g && g.message) || 'The AI is resting for now.') + ' The template letter is free.', code: (g && g.code) || 'ai-guard' });
+  }
+  const model = modelFor(req);
+  let used = null;
+  try {
+    const raw = await ai.ask(await clientFor(req), model, brief, (u) => { used = u; });
+    res.set('Cache-Control', 'no-store');
+    res.json(ai.answer(raw, brief));
+  } finally {
+    // A call that came back is paid for whether or not its draft passed the checks.
+    if (guard && used) {
+      try { await guard.record({ provider: PROVIDER, app: 'muster', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+    }
+  }
 }));
 
 /* ------------------------------------------------------------------ *

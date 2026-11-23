@@ -206,7 +206,7 @@ function sharpenContext(meeting, invite) {
   };
 }
 
-async function sharpen(client, model, ctx) {
+async function sharpen(client, model, ctx, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 1500,
@@ -215,6 +215,7 @@ async function sharpen(client, model, ctx) {
     tool_choice: { type: 'tool', name: 'sharpen_agenda' },
     messages: [{ role: 'user', content: sharpenPrompt(ctx) }],
   });
+  if (onUsage) onUsage(res && res.usage);
   return pick(res, 'sharpen_agenda');
 }
 
@@ -299,9 +300,9 @@ const RECAP_TOOL = {
       actions: {
         type: 'array',
         items: itemProps({
-          owner: { type: 'string', description: 'Who took it on - one of the ATTENDEE LABELS exactly, and only if the source shows they took it on. Empty otherwise.' },
+          owner: { type: 'string', description: 'Who took it on, only if the source shows they took it on: one of the ATTENDEE LABELS exactly, or - when no labels were typed - the name exactly as the source writes it (the speaker before the colon in "Jordan: I\'ll send it", or the name in "Sam will..."). Empty otherwise.' },
           due: { type: 'string', description: 'The due date as YYYY-MM-DD, only if the source states one. Empty otherwise.' },
-          dueText: { type: 'string', description: 'The exact words in the source that state the deadline ("by Friday"). Empty if none.' },
+          dueText: { type: 'string', description: 'The exact words in the source that state the deadline ("by Friday"), copied from the quote. Fill it whenever the source states one, even if you cannot work out the date. Empty if none.' },
         }),
       },
       parking: { type: 'array', items: itemProps({}) },
@@ -316,7 +317,7 @@ const RECAP_TOOL = {
 const RECAP_SYSTEM = [
   'You write the recap of a meeting that the facilitator will paste into Slack or email. Everyone in the meeting will read it, so it must say only what actually happened.',
   'THE ONE HARD RULE: every decision, action and parking-lot item comes from a source you cite. Either it is one of the numbered LOGGED items (source log, ref its number), or it is in the NOTES or on the whiteboard, and you copy the exact words it came from into quote. Never add anything that is not in a source. An item you cannot quote does not go in.',
-  'Owners: only one of the ATTENDEE LABELS, and only when the source shows that person took it on - they said "I\'ll do it", or the notes say "Sam will...". Otherwise leave owner empty; the page will show it as unowned. Never guess an owner from who spoke most or whose job it sounds like.',
+  'Owners: only when the source shows that person took it on - they said "I\'ll do it", or the notes say "Sam will...". Use one of the ATTENDEE LABELS; if none were typed, the name exactly as the notes write it. A line "Jordan: I\'ll send the deck by Friday" is Jordan taking it on, due Friday: owner Jordan, dueText "by Friday", and quote the whole line, speaker included. Otherwise leave owner empty; the page will show it as unowned. Never guess an owner from who spoke most or whose job it sounds like.',
   'Due dates: only when the source states one, with the exact words in dueText. Convert it to YYYY-MM-DD from the meeting date. Never invent a deadline.',
   'Keep each item short and plain. No markdown, no HTML, no emoji.',
   DATA_RULE,
@@ -327,7 +328,7 @@ function recapPrompt(ctx) {
   return [
     `MEETING: ${ctx.title}`,
     `MEETING DATE: ${ctx.day || 'unknown'}`,
-    `ATTENDEE LABELS: ${ctx.labels.length ? ctx.labels.join(', ') : '(none typed - leave every owner empty)'}`,
+    `ATTENDEE LABELS: ${ctx.labels.length ? ctx.labels.join(', ') : '(none typed - an owner is the name exactly as the notes write it and only when they took it on)'}`,
     'LOGGED:', ...(logged.length ? logged : ['(nothing logged)']),
     'NOTES:', '"""', ctx.notes || '(none)', '"""',
     ctx.hasPhoto ? 'A WHITEBOARD PHOTO IS ATTACHED. Transcribe it into boardText, then cite it as source board.' : 'NO PHOTO.',
@@ -335,11 +336,13 @@ function recapPrompt(ctx) {
 }
 
 /** What the recap writer may see: the log, the labels, the notes. */
-function recapContext(meeting, logs, notes, hasPhoto) {
+function recapContext(meeting, logs, notes, hasPhoto, today) {
   const list = logs.slice().sort((a, b) => (a.at || 0) - (b.at || 0) || String(a.createdAt).localeCompare(String(b.createdAt)));
   return {
     title: meeting.title,
-    day: meeting.day || null,
+    // A meeting recapped before it was started has no day of its own; the
+    // browser's today, so "by Friday" still means a date (as the minutes do).
+    day: meeting.day || R.isoDay(today) || null,
     labels: meeting.labels || [],
     logs: list.map((l) => ({ kind: l.kind, text: l.text, owner: l.owner || '', due: l.due || null })),
     notes: R.cleanText(notes, R.LIMITS.notes),
@@ -347,7 +350,7 @@ function recapContext(meeting, logs, notes, hasPhoto) {
   };
 }
 
-async function recap(client, model, ctx, image) {
+async function recap(client, model, ctx, image, onUsage) {
   const text = recapPrompt(ctx);
   const content = image
     ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text }]
@@ -360,6 +363,7 @@ async function recap(client, model, ctx, image) {
     tool_choice: { type: 'tool', name: 'write_recap' },
     messages: [{ role: 'user', content }],
   });
+  if (onUsage) onUsage(res && res.usage);
   return pick(res, 'write_recap');
 }
 
@@ -381,15 +385,38 @@ function committed(re, q) {
   return false;
 }
 
-/** The speaker of the pasted line that holds `quote` ("Dana: I'll send it"). */
-function speakerOf(quote, paste) {
+// "Dana: ...", "- Dana: ...", "2. Dana: ...", "[10:02] Dana: ...". A bullet
+// in front of the speaker used to hide them, so a bulleted "- Jordan: I'll
+// send it" came back "[owner?]".
+const SPEAKER_LINE = /^\s*(?:[-*\u2022\u00B7\u2023\u2013\u2014>]+\s*)?(?:\[?[\d:.)\s]+\]?\s*)?([A-Za-z\u00C0-\u024F][^:\n]{0,39}):\s*(.*)$/;
+
+/** The pasted line that holds `quote`: its speaker and what they said. */
+function lineOf(quote, paste) {
   const q = R.norm(quote);
   for (const line of String(paste).split('\n')) {
     if (!R.norm(line).includes(q)) continue;
-    const m = line.match(/^\s*(?:\[?[\d:.\s]+\]?\s*)?([A-Za-zÀ-ɏ][^:\n]{0,39}):/);
-    if (m) return R.norm(m[1]);
+    const m = line.match(SPEAKER_LINE);
+    if (m) return { who: R.norm(m[1]), said: R.norm(m[2]) };
   }
-  return '';
+  return null;
+}
+
+/** The speaker of the pasted line that holds `quote` ("Dana: I'll send it"). */
+function speakerOf(quote, paste) {
+  const l = lineOf(quote, paste);
+  return l ? l.who : '';
+}
+
+/** The clause of the speaker's words that holds the quote, from its start
+ *  through the quote: "I'll send the deck by Friday" for a quote of "send
+ *  the deck by Friday", but only "Sam should send it" from "I'll look,
+ *  and Sam should send it". */
+function clauseOf(q, said) {
+  const at = said.indexOf(q);
+  if (at < 0) return q;
+  const before = said.slice(0, at);
+  const cut = Math.max(...[/.*[.;!?,:]/, /.*\b(?:and|but|or|so)\b/].map((re) => { const m = before.match(re); return m ? m[0].length : 0; }));
+  return before.slice(cut) + q;
 }
 
 /** Did the person with this label actually take it on, in these words? */
@@ -397,9 +424,21 @@ function tookItOn(label, quote, paste) {
   if (!label) return false;
   const lab = R.norm(label);
   const q = R.norm(quote);
-  const who = speakerOf(quote, paste);
-  if (who && (who === lab || who.split(' ')[0] === lab || who.startsWith(`${lab} `)) && committed(FIRST_PERSON, q)) return true;
+  const line = lineOf(quote, paste);
+  const who = line ? line.who : '';
+  if (who && (who === lab || who.split(' ')[0] === lab || who.startsWith(`${lab} `))
+    && (committed(FIRST_PERSON, q) || committed(FIRST_PERSON, clauseOf(q, line.said)))) return true;
   return committed(ASSIGN(lab), q);
+}
+
+// Not a person: a voice, a pronoun, a team.
+const NOT_A_NAME = /^(speaker|person|voice|unknown|someone|somebody|anyone|everyone|everybody|nobody|team|all|we|i|me|you|he|she|they|them|us|tbd|n\/a|none|null)\b/;
+
+/** With no labels typed: the name as the notes write it, when it is a name. */
+function nameAsWritten(v) {
+  const name = R.clean(v, R.LIMITS.label);
+  const n = R.norm(name);
+  return n.length >= 2 && !NOT_A_NAME.test(n) && !/[\d@:]/.test(n) ? name : '';
 }
 
 /**
@@ -453,19 +492,29 @@ function validateRecap(raw, ctx) {
     if (!x) return null;
     if (x.log) return { text: x.text, owner: x.log.owner || '', due: x.log.due || null, source: 'log', quote: '' };
     // From the notes: the owner and the date must be earned.
+    // An attendee label when some were typed; with none, the name as the
+    // notes write it (the minutes do the same). Either way the notes' own
+    // words must hand it to them.
     let owner = '';
-    const label = R.matchLabel(ctx.labels, it.owner);
+    const typed = ctx.labels.length > 0;
+    const label = typed ? R.matchLabel(ctx.labels, it.owner) : nameAsWritten(it.owner);
     if (label && tookItOn(label, x.quote, x.paste)) owner = label;
-    else if (R.clean(it.owner, 40)) removed.push({ what: R.clean(it.owner, 40), where: 'owner', why: label ? 'nobody heard them take it on' : 'not one of the attendees you typed' });
+    else if (R.clean(it.owner, 40)) removed.push({ what: R.clean(it.owner, 40), where: 'owner', why: label || !typed ? 'nobody heard them take it on' : 'not one of the attendees you typed' });
+    // A date only from words in the quote. Our arithmetic from those words
+    // first (the model's own date was the only path before, and a missing
+    // one dropped "by Friday"); the model's date only when the words are
+    // ones the arithmetic does not read ("by the 15th").
     let due = null;
     const iso = R.isoDay(it.due);
     const dueText = R.clean(it.dueText, 60);
-    if (iso) {
-      const inQuote = dueText && R.norm(dueText).length >= 3 && R.norm(x.quote).includes(R.norm(dueText));
-      const near = !ctx.day || (R.daysBetween(ctx.day, iso) >= 0 && R.daysBetween(ctx.day, iso) <= 366);
-      if (inQuote && near) due = iso;
-      else removed.push({ what: iso, where: 'due date', why: 'the notes don’t say when' });
+    const inQuote = dueText && R.norm(dueText).length >= 3 && R.norm(x.quote).includes(R.norm(dueText));
+    const near = (d) => !ctx.day || (R.daysBetween(ctx.day, d) >= 0 && R.daysBetween(ctx.day, d) <= 366);
+    if (inQuote) {
+      const ours = ctx.day ? require('./gemini').dueFromWords(dueText, ctx.day) : null;
+      if (ours) due = ours;
+      else if (iso && near(iso)) due = iso;
     }
+    if (!due && (iso || dueText)) removed.push({ what: iso || dueText, where: 'due date', why: inQuote ? 'those words are not a day' : 'the notes don’t say when' });
     return { text: x.text, owner: owner || '[owner?]', due, source: x.source, quote: x.quote };
   }).filter(Boolean);
 
@@ -485,5 +534,5 @@ function validateRecap(raw, ctx) {
 module.exports = {
   sharpen, validateSharpen, sharpenPrompt, sharpenContext, sharpenTool, SHARPEN_SYSTEM,
   recap, validateRecap, recapPrompt, recapContext, RECAP_TOOL, RECAP_SYSTEM,
-  sourceOf, guardFacts, tookItOn, speakerOf,
+  sourceOf, guardFacts, guarded, tookItOn, speakerOf,
 };

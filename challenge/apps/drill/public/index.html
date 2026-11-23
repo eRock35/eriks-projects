@@ -6,8 +6,8 @@
   <title>Drill — rehearse the bad day before it happens</title>
   <meta name="description" content="Tabletop incident drills for small businesses: ransomware, a leaked customer list, a fake CEO payment request, an AI agent gone wrong, the website down on launch day. Play solo or run it as a room on everyone's phone, and get an after-action report with the gaps, the fixes and who owns them. Free, no account needed.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#0e1117" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Drill">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -42,6 +42,15 @@
       <button class="btn small ghost" id="acct" type="button">Sign in</button>
     </nav>
   </header>
+
+  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Sections">
+    <div class="tabbar-inner">
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11 12 4.5 19.5 11v8a.5.5 0 0 1-.5.5h-4.5v-5h-5v5H5a.5.5 0 0 1-.5-.5z"/></svg><span>Home</span></button>
+      <button type="button" data-act="tab" data-tab="scenarios"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><path d="M8 9.5h8M8 13h8M8 16.5h5"/></svg><span>Drills</span></button>
+      <button type="button" data-act="tab" data-tab="live"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-6l-4 3.5v-3.5H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/><path d="M12 9.2v3M12 14.2v.1"/></svg><span>Live</span></button>
+      <button type="button" data-act="tab" data-tab="reports"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19.5V11M10 19.5V5M15 19.5v-6M20 19.5V8.5"/></svg><span>Reports</span></button>
+    </div>
+  </nav>
 
   <main class="wrap" id="main" tabindex="-1"></main>
 

@@ -46,16 +46,25 @@ usage-billing companies**, and the engineers who get pulled into month-end.
   formula-safe with customer names maskable; and a one-page Markdown close
   memo for the month.
 - **Signed in (free)**: settings follow the account - never a customer.
-- **Metered AI**: "Suggest rules for my products" - product descriptions
-  and their shapes only.
+- **Metered AI**, two ways into the same thing:
+  **"Describe a product. Get its rule."** (home and `#suggest`, no file
+  needed) - type product or contract lines ("Annual SaaS subscription with
+  onboarding fee", "3-year support plan prepaid") and get, for each promise
+  in each line, the recognition pattern (ratable over N months, point in
+  time, milestone, as used, not revenue, unsure), what starts and ends it,
+  one plain reason and the principle behind it, as **editable suggestions**
+  with a month-by-month preview - saved to the rules table only when the
+  person ticks and saves; and **"Suggest rules for my products"** (the
+  Rules step) - the loaded file's product descriptions and their shapes.
 
 Built 2026-11-11 as a **business** drop: Pencil (2026-11-10) was everyday,
 so today was the other kind. **Staging only**: no custom domain until Erik
 decides it is worth one. **"Waterfall applies the rules you choose - your
 accountant decides the policy"** - said on the page, in the memo, in every
-AI answer's framing. The only general statement it makes is that
-subscription revenue is commonly recognised over the service period; it
-cites no standard or paragraph (tested).
+AI answer's framing. Its general statements are usual practice said as usual practice -
+subscription revenue is commonly recognised over the service period, and
+the eight fixed principle sentences in `PRINCIPLE_TEXT` - and it cites no
+standard or paragraph (tested).
 
 **Where it lives:** a trial app in the Challenge Lab -
 `challenge/apps/waterfall`, served at
@@ -204,6 +213,43 @@ tie-out only in the tab. `app.js` touches no storage itself (tested).
   whole (400): unknown fields anywhere, any string with an @ or 9+ digits in
   a row, markup, more than 500 rules, a bad rule, a header that looks like
   a value. No secret: 503.
+- **`POST /api/ai/describe`** ("Describe a product"): the same three gates
+  **then** the 48 KB parser, then `describeRequest` rebuilds `{lines:
+  [text]}` - 1 to 12 lines of 3 to 160 plain characters, each once - and
+  refuses anything else (an unknown field, an @, nine digits in a row, an
+  amount, a date, an id-shaped token, markup, invisible characters) with a
+  400 and no model call. One forced tool (`propose_recognition`) through
+  the same call site (`ai.ask`). **The model only picks from fixed lists**
+  (`PATTERNS`, `STARTS`, `ENDS`, `PRINCIPLES`) and writes a short name, an
+  optional term in months (1-60) and one sentence. `cleanDescribe` keeps
+  only the lines sent (by number, each once), up to three promises a line,
+  and then adds what the model is never trusted with: **the principle's
+  wording (`PRINCIPLE_TEXT`), the Waterfall rule the pattern maps to
+  (`patternRule`: ratable -> the service period, or N months from the
+  invoice for setup-style fees; point in time and milestone -> the invoice
+  date, with the note that Waterfall has no milestone rule; usage -> the
+  period; not revenue -> exclude; unsure -> choose by hand) and its
+  note** - a model answer that sends those fields is overwritten (tested).
+  The page (`suggestHtml`): a textarea, example chips, "Exactly what will
+  be sent" redrawn from the same object as the person types
+  (`describeLines` takes amounts, dates, ids and addresses out), then one
+  card per promise with a tick, an editable product name (the rules-table
+  key; the loaded file's products are offered), the rule select and N, and
+  **a preview**: an invoice of an amount typed there (never sent), split by
+  month with `previewRule` - the schedule's own `recognise` / `splitDays`,
+  so it adds up exactly. **Nothing is saved until "Save N rules"**, which
+  goes through `setRule` like a hand-chosen rule (the example's rules are
+  never kept). It cites no standard or paragraph; principles are said as
+  usual practice ("commonly", "usually"), tested.
+- **The lab's AI guard**: both routes run through `metered()` in
+  `server.js` - after the gates and the request check, `global.LAB_AI_GUARD
+  .allow({provider: 'claude', req, app: 'waterfall'})` when the host has
+  loaded one (a no is its status, code and friendly message, no model
+  call), then the call, then `record({provider, app, usd: priceUsd(...)})`
+  with the provider's token counts whenever a call came back. Without a
+  guard the app runs on its own gates. One provider (the lab's existing
+  Anthropic path, models via `identity.planFor`); there is no provider
+  switch.
 - **`POST /api/ai/rules`**: `requireUser, requireBudget, requireDailyCap`
   **then** the 48 KB parser (401 / 402 / 403 / 503 before it, never 413),
   then `rulesRequest` rebuilds `{products: [{d, period, types, len}]}` and
@@ -232,11 +278,14 @@ npm test        # the rules, the demo, exports, settings, the AI, hostile input,
 `WATERFALL_COLLECTION_PREFIX` (`waterfall_` from the host) prefixes every
 collection. `npm test` runs with `REQUIRE_VERIFIED_FOR_FREE_AI=0`. The fake
 model refuses a call that does not force a tool, keeps every request,
-suggests rules from the products it was sent, and takes `fakeClient.mode`
+answers both tools from what it was sent (rules from the products; promises,
+patterns and terms from the typed lines), and takes `fakeClient.mode`
 (`blank`, `bad`, `inject`, `maxtokens`, `upstream401`, `upstream529`) for
 one call.
 
-`test/run.js` (32 tests): reading; the column guess (the demo exactly, a
+`test/run.js` (36 tests; the four added on 2026-11-23 are the describe
+request, the describe answer and preview, describe over HTTP with its
+gates, and the AI guard): reading; the column guess (the demo exactly, a
 Stripe-shaped API export in cents with Unix seconds, an awkward generic
 export); dates (zones to UTC, Unix seconds and milliseconds, ambiguous
 day/month with both readings); the period-end evidence both ways; the day
@@ -268,11 +317,64 @@ The shared files (`lib/identity.js`, `identity-store.js`, `byok.js`,
 `verify-banner.js`) are synced copies - edit them in `eriks-projects/shared/`
 (and `eriks-projects/lib/` for `identity-store.js`).
 
+## Design (2026-11-23, the lab's house style)
+
+The rules, also at the top of `public/app.css`. Copy the rules, not
+another app's code.
+
+- **A pure white page** (`--bg`, `--card`, `--sheet` all `#ffffff`; true
+  black in the quiet dark theme, sheets `#1c1c1e`). **No tinted, gradient
+  or textured surface, no heavy boxes** (tested: no gradient in the CSS but
+  the legend's hatch swatch). Space and type make the hierarchy: `.card` is
+  an unboxed section, sections sit 40 px apart (64 px on the home page).
+- **Hairlines, not fills**: 1 px `--line` (`#e5e5ea`); **12 px** corners on
+  the few real cards (the example's guide, a suggestion, the mock), **10
+  px** on inputs, tiles, tables and code, **pills** for buttons, chips and
+  the segmented control. **Lists over boxes**: rules, columns, buckets,
+  customers, exports, checks and the three steps are hairline-divided rows.
+  Gray fill only for notes and controls.
+- **No shadow** except `--shadow-float` on the three floating things: the
+  phone nav, sheets and the toast (tested).
+- **Navigation**: phones - a slim floating translucent pill bar (1.5 px
+  line icons, the label only on the active item - hidden under 380 px - and
+  a small accent bar under it, safe-area aware, 48 px targets); desktop
+  (900 px+) - the same six steps as a top nav row under the header (sticky,
+  so the shared confirm-your-email banner never covers it) with a quiet
+  accent underline. The shared `desktop.css` rail is undone from
+  `app.css` (`html body.dk ...`), never by editing the synced copy.
+- **Type**: the system font stack only; five sizes (`--t1` 2.5rem hero ...
+  `--t5` .75rem) plus the 4rem desktop hero; tight-tracked headings, muted
+  secondary text, `tabular-nums` on every table, tile, bridge value, money
+  input, chart label and preview. Spacing on a 4/8 scale.
+- **One accent**: the lab card's cyan `#036a7f` (dark `#6fd3e6`) - the
+  primary action, links, the active nav item. The card's plum survives
+  only as the chart's "billed" / bridge "up" data marks. Status colours
+  for status only.
+- **Home**: a centred hero (one headline, one line, two pill buttons), the
+  product mock as a hairline card under it, then "Describe a product. Get
+  its rule.", the three steps and what stays on the device.
+- **Easy**: 48 px primary buttons, 44 px minimum everywhere; from home -
+  the demo 1 tap, load an export 1 tap, describe a product 1 tap (an
+  example chip) + 1 (Suggest rules), settings 1, sign in 1; with a file
+  loaded every step is 1 tap from any other.
+- **Dense tables scroll inside their own box** (`.tablewrap`, `.tri`,
+  `.chart`, `.out`, the preview) so the page never scrolls sideways.
+- **No `style=""` anywhere** (tested): utility classes at the end of
+  `app.css`; the bridge's bars are inline SVG `<rect>`s. (`sheet()` still
+  sets a max-height through the CSSOM.)
+- **Motion** (press states, the sheet rising, results fading in, the
+  spinner, the "Start here" pulse) only inside `prefers-reduced-motion:
+  no-preference` (tested); every page is complete at rest.
+- Measured in headless Chrome at 320, 390, 768, 900, 1440 and 1600 px,
+  light and dark, through the home page, the describe flow, the demo and
+  every step, the sheets and settings - the numbers are in the commit
+  message that last touched `app.css`.
+
 ## Routes
 
 Public: `GET /api/health`, `/api/meta`, `/api/me`, the page, the worker, the
 service worker. Signed in, free: `GET|PUT|DELETE /api/settings`. Metered:
-`POST /api/ai/rules`. The shared account at `/api/auth`. No route takes an
+`POST /api/ai/describe`, `POST /api/ai/rules`. The shared account at `/api/auth`. No route takes an
 export, a line, a schedule or a figure (tested).
 
 ## Ideas not built yet

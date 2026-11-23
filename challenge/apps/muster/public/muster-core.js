@@ -51,6 +51,8 @@
     contactChars: 160,
     letterChars: 4000,
     subjectChars: 120,
+    pointChars: 180,
+    pointCount: 4,
     groupRows: 200,                 // rows listed per row-check group (all are counted)
     previewLines: 14,
     splitMin: 50,
@@ -1724,6 +1726,9 @@
   var NUM = /\$?\d[\d,]*(?:\.\d+)?%?/g;
   function normNum(t) { return str(t).replace(/[.,]+$/, ''); }
   var LAW_OK = 'Servicemembers Civil Relief Act';
+  var LINK_RE = /https?:|www\.|@|\b[a-z0-9-]+\.(com|org|net|gov|mil|us|io|co|info|biz)\b/i;
+  var LAW_RE = /U\.?\s?S\.?\s?C\b|§|C\.?F\.?R\b|\bRegulation\s+[A-Z]\b|\bTruth in Lending\b|\bTILA\b|\bMilitary Lending\b|\bstatute\b|\bsection\s+\d/i;
+  function otherLaws(text) { return (text.match(/(?:[A-Z][A-Za-z]+\s+){1,6}Act\b/g) || []).filter(function (a) { return a.trim() !== LAW_OK && !/^(?:the\s+)?Servicemembers Civil Relief Act$/i.test(a.trim()); }); }
   /** The model's letter, checked. Returns {letter, subject} or {error, code}. */
   function cleanAiLetter(raw, req) {
     var fail = function (msg, code) { return { error: msg, code: code }; };
@@ -1733,20 +1738,45 @@
     if (letter.length < 120) return fail('The draft came back empty or too short.', 'short');
     if (letter.length > LIMITS.letterChars || subject.length > LIMITS.subjectChars) return fail('The draft ran too long.', 'long');
     var both = subject + '\n' + letter;
-    if (/https?:|www\.|@|\b[a-z0-9-]+\.(com|org|net|gov|mil|us|io|co|info|biz)\b/i.test(both)) return fail('The draft named a web address or an email - Muster refuses those. Use the template, or try again.', 'link');
+    if (LINK_RE.test(both)) return fail('The draft named a web address or an email - Muster refuses those. Use the template, or try again.', 'link');
     var ph = both.match(/\{\{\s*[^}]{0,40}\}\}/g) || [];
     var badPh = ph.filter(function (p) { return PEOPLE_PLACEHOLDERS.indexOf(p.replace(/[{}\s]/g, '')) < 0; });
     if (badPh.length || /[{}]/.test(both.replace(/\{\{\s*[a-z_]{1,30}\s*\}\}/g, ''))) return fail('The draft used a placeholder Muster does not fill.', 'placeholder');
     var missing = PEOPLE_PLACEHOLDERS.filter(function (p) { return letter.indexOf('{{' + p + '}}') < 0; });
     if (missing.length) return fail('The draft left out ' + missing.map(function (m) { return '{{' + m + '}}'; }).join(', ') + '.', 'placeholder');
-    var acts = both.match(/(?:[A-Z][A-Za-z]+\s+){1,6}Act\b/g) || [];
-    var otherLaw = acts.filter(function (a) { return a.trim() !== LAW_OK && !/^(?:the\s+)?Servicemembers Civil Relief Act$/i.test(a.trim()); });
-    if (otherLaw.length || /U\.?\s?S\.?\s?C\b|§|C\.?F\.?R\b|\bRegulation\s+[A-Z]\b|\bTruth in Lending\b|\bTILA\b|\bMilitary Lending\b|\bstatute\b|\bsection\s+\d/i.test(both)) return fail('The draft named a law other than the Servicemembers Civil Relief Act.', 'law');
+    if (otherLaws(both).length || LAW_RE.test(both)) return fail('The draft named a law other than the Servicemembers Civil Relief Act.', 'law');
     var allowed = allowedNumbers(req);
     var nums = (both.match(NUM) || []).map(normNum).filter(function (t) { return !allowed[t]; });
     if (nums.length) return fail('The draft used a number that was not in the facts sent (' + nums.slice(0, 3).join(', ') + ') - Muster refuses it rather than guess. Try again, or use the template.', 'number');
     return { letter: letter, subject: subject };
   }
+  /** The model's "in short" lines for the reviewer: each held to the letter's own rules (no link, no placeholder,
+   *  no other law, no number that was not sent). A line that breaks one is dropped, never repaired; at most four. */
+  function cleanAiPoints(raw, req) {
+    if (!Array.isArray(raw)) return [];
+    var allowed = allowedNumbers(req), out = [];
+    raw.slice(0, 8).forEach(function (x) {
+      if (typeof x !== 'string' || out.length >= LIMITS.pointCount) return;
+      var t = line(noMarkup(x), LIMITS.pointChars + 1).replace(/^[-*\u2022\s]+/, '');
+      if (t.length < 12 || t.length > LIMITS.pointChars) return;
+      if (LINK_RE.test(t) || /[{}]/.test(t) || otherLaws(t).length || LAW_RE.test(t)) return;
+      if ((t.match(NUM) || []).map(normNum).some(function (n) { return !allowed[n]; })) return;
+      if (out.indexOf(t) < 0) out.push(t);
+    });
+    return out;
+  }
+  /** The facts one draft was given, labelled, built from the checked request - never from the model. */
+  var FACT_LABELS = { serviceStart: 'Military service began', serviceEnd: 'Service is scheduled to end', released: 'Left active duty', capStart: 'The 6% cap starts', capEnd: 'The 6% cap ends', askBy: 'Last day to send notice and orders', callUp: 'Future call-up starts' };
+  function letterFactList(req) {
+    var out = [{ label: 'Decision', value: LETTER_CODES[req.code] }, { label: 'Loan type', value: TYPE_NOUN[req.loanType] || 'loan' }, { label: 'New rate', value: '6%' }];
+    DATE_KEYS.forEach(function (k) { if (req.dates[k]) out.push({ label: FACT_LABELS[k], value: letterDay(req.dates[k]) }); });
+    if (req.amounts) {
+      if (req.amounts.owedCents !== undefined) out.push({ label: 'Est. interest above 6% so far', value: money(req.amounts.owedCents) });
+      if (req.amounts.monthlyCents !== undefined) out.push({ label: 'Est. monthly payment drop', value: money(req.amounts.monthlyCents) });
+    }
+    return out;
+  }
+  var DRAFT_NOTE = 'Draft - have your compliance team review it before it goes to a borrower.';
 
   /* ================================================================== *
    * Settings: layouts and preferences only - never a borrower
@@ -2056,7 +2086,7 @@
     workFrom: workFrom, stepsLeft: stepsLeft, worklist: worklist, recheckList: recheckList, medianToRate: medianToRate,
     canonical: canonical, hashInput: hashInput, hex: hex, nextEvent: nextEvent, verifyAudit: verifyAudit, describeEvent: describeEvent,
     csvCell: csvCell, toCsv: toCsv, examCsv: examCsv, summaryMarkdown: summaryMarkdown, auditJson: auditJson,
-    letterFacts: letterFacts, fillLetter: fillLetter, letterPayload: letterPayload, letterRequest: letterRequest, allowedNumbers: allowedNumbers, cleanAiLetter: cleanAiLetter,
+    letterFacts: letterFacts, fillLetter: fillLetter, letterPayload: letterPayload, letterRequest: letterRequest, allowedNumbers: allowedNumbers, cleanAiLetter: cleanAiLetter, cleanAiPoints: cleanAiPoints, letterFactList: letterFactList, DRAFT_NOTE: DRAFT_NOTE,
     defaults: defaults, cleanSettings: cleanSettings, mergeSettings: mergeSettings,
     peopleOf: peopleOf, initials: initials, safeName: safeName, scrubDigits: scrubDigits, scrubText: scrubText, safeBatch: safeBatch, safeResults: safeResults, safeEvent: safeEvent, maskLine: maskLine,
     createEngine: createEngine,

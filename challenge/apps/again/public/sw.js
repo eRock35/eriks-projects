@@ -15,10 +15,10 @@
  */
 var CACHE = 'again-shell-v1';
 var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'again-core.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
-var OFFLINE_LIST = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Again - offline</title></head>' +
-  '<body style="margin:0;font:17px/1.5 system-ui,sans-serif;background:#faf7f3;color:#1d1915;display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center">' +
-  '<div style="max-width:420px"><div style="font-size:48px">🍽️</div><h1 style="font-size:1.4rem">This list needs the internet</h1>' +
-  '<p style="color:#5a5047">A friend’s list is opened from its link each time, so it can’t open offline. Reconnect and reload the page.</p></div></body></html>';
+var OFFLINE_LIST = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Again - offline</title>' +
+  '<style>body{margin:0;font:17px/1.5 system-ui,sans-serif;background:#ffffff;color:#1d1d1f;display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center}div{max-width:420px}h1{font-size:1.5rem;letter-spacing:-.02em}p{color:#636366}@media (prefers-color-scheme:dark){body{background:#000000;color:#f5f5f7}p{color:#a1a1a6}}</style></head>' +
+  '<body><div><h1>This list needs the internet</h1>' +
+  '<p>A friend’s list is opened from its link each time, so it can’t open offline. Reconnect and reload the page.</p></div></body></html>';
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));

@@ -6,8 +6,8 @@
   <title>Leash — know what your AI agent can do, before it does it</title>
   <meta name="description" content="Tick what your AI agent can do (or paste its prompt): Leash gives a blast-radius score and its worst day in dollars, the fixes that drop the score, a bad-day drill, and a one-page charter with a kill switch.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#0d1418" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f3f6f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Leash">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -36,6 +36,12 @@
   <a class="skip" href="#main">Skip to your agent</a>
   <header class="top">
     <a class="brand" href="./"><span class="mark" aria-hidden="true">🦮</span>Leash</a>
+    <nav class="topnav" id="topnav" aria-label="Sections">
+      <button type="button" data-nav="score"><span>Score</span></button>
+      <button type="button" data-nav="profile"><span>Agent</span></button>
+      <button type="button" data-nav="drill"><span>Drill</span></button>
+      <button type="button" data-nav="charter"><span>Charter</span></button>
+    </nav>
     <nav class="top-links" aria-label="Account">
       <button class="btn small ghost" id="agentsBtn" type="button">Agents</button>
       <button class="btn small ghost" id="acct" type="button">Sign in</button>
@@ -46,13 +52,11 @@
     <section class="intro" id="intro" aria-label="About this agent"></section>
 
     <div class="layout">
-      <div class="side">
+      <div class="side" id="paneScore">
         <!-- The hero: how bad is its worst day? -->
-        <section class="card hero" id="radius" aria-labelledby="radiusH">
-          <div class="sec-head">
-            <h2 id="radiusH" class="eyebrow">Blast radius</h2>
-            <span class="free">Free</span>
-          </div>
+        <section class="sec radius" id="radius" aria-labelledby="radiusH">
+          <h2 id="radiusH" class="eyebrow">Blast radius</h2>
+          <p class="example-of" id="exampleOf" hidden></p>
           <div class="ring-row">
             <div class="ring" id="ring" role="img"></div>
             <ul class="legend" id="legend" aria-hidden="true"></ul>
@@ -65,28 +69,17 @@
         </section>
 
         <!-- The fixes, each re-scored. -->
-        <section class="card fixes" id="fixes" aria-labelledby="fixesH">
-          <div class="sec-head">
-            <h2 id="fixesH">Fixes that move the needle</h2>
-            <span class="free">Free</span>
-          </div>
+        <section class="sec fixes" id="fixes" aria-labelledby="fixesH">
+          <h2 id="fixesH">Fixes that move the needle</h2>
           <div id="fixList" aria-live="polite"></div>
         </section>
       </div>
 
       <div class="rest">
-        <nav class="jump" aria-label="Sections">
-          <a href="#profile">Agent</a>
-          <a href="#drill">Drill</a>
-          <a href="#charter">Charter</a>
-          <a href="#radius" class="jump-score" id="jumpScore">0 Low</a>
-        </nav>
-
         <!-- The profile: what it is and what it can do. -->
-        <section class="card profile" id="profile" aria-labelledby="profileH">
-          <div class="sec-head">
-            <h2 id="profileH">The agent</h2>
-          </div>
+        <section class="sec profile" id="profile" aria-labelledby="profileH">
+          <button class="scorebar" id="jumpScore" type="button"></button>
+          <h2 id="profileH" class="page-h">The agent</h2>
           <div class="grid2">
             <label class="field"><span>Name</span><input class="input" id="pName" maxlength="80" autocomplete="off" placeholder="Our support agent"></label>
             <label class="field"><span>What it does, in a line</span><input class="input" id="pDoes" maxlength="160" autocomplete="off" placeholder="Answers order questions by chat and email"></label>
@@ -103,38 +96,33 @@
 
           <div class="tabs" role="tablist" aria-label="Two ways in">
             <button type="button" role="tab" id="tabPick" aria-controls="panelPick" aria-selected="true">Pick what it can do <span class="tag">Free</span></button>
-            <button type="button" role="tab" id="tabPaste" aria-controls="panelPaste" aria-selected="false">Paste its prompt or tools <span class="tag ai">AI</span></button>
+            <button type="button" role="tab" id="tabPaste" aria-controls="panelPaste" aria-selected="false">Paste its prompt <span class="tag ai">AI</span></button>
           </div>
           <div id="panelPick" role="tabpanel" aria-labelledby="tabPick">
             <p class="small muted panel-lead">Switch on what it can do, then say whether it acts alone, its limits, whether it's logged well enough to replay, and whether it can be undone.</p>
             <div id="checklist"></div>
           </div>
           <div id="panelPaste" role="tabpanel" aria-labelledby="tabPaste" hidden>
-            <p class="small muted panel-lead">Paste its system prompt, its tool or function definitions (JSON or text) or a runbook. AI maps it onto the checklist and shows you the words it found each thing in - nothing changes until you apply it. What you paste is read once and never stored.</p>
+            <p class="small muted panel-lead">Paste its system prompt and its tools (names, descriptions, schemas) or a runbook. AI reads it, maps the blast radius onto the checklist with the words it found each thing in, and suggests tests to run on your agent. Nothing changes until you apply it. What you paste is read once and never stored.</p>
             <label class="lbl" for="pasteBox">The agent's prompt, tools or runbook</label>
             <textarea id="pasteBox" rows="9" maxlength="40000" spellcheck="false" placeholder="You are our support assistant. Tools: issue_refund(order_id, amount) - refund up to $200 without asking..."></textarea>
-            <div class="row spread"><span class="small muted" id="pasteCount">0 / 40,000</span><button class="chip" id="pasteSample" type="button">Paste the example prompt</button></div>
+            <div class="row spread"><span class="small muted num" id="pasteCount">0 / 40,000</span><button class="chip" id="pasteSample" type="button">Paste the example prompt</button></div>
             <div class="row"><button class="btn" id="readBtn" type="button">Read it with AI</button><span class="small muted">A cent or two of credit.</span></div>
             <div id="readOut" aria-live="polite"></div>
           </div>
         </section>
 
         <!-- The drill. -->
-        <section class="card drill" id="drill" aria-labelledby="drillH">
-          <div class="sec-head">
-            <h2 id="drillH">Bad-day drill</h2>
-            <span class="free">Free</span>
-          </div>
+        <section class="sec drill" id="drill" aria-labelledby="drillH">
+          <h2 id="drillH" class="page-h">Bad-day drill</h2>
           <div id="drillBody"></div>
+          <div id="probeBox"></div>
         </section>
 
         <!-- The charter. -->
-        <section class="card charter" id="charter" aria-labelledby="charterH">
-          <div class="sec-head">
-            <h2 id="charterH">The charter</h2>
-            <span class="free">Free</span>
-          </div>
-          <p class="small muted">One page for the team: what it may do alone, what needs a human, its limits, who pulls the plug and how, what is logged, and the first hour if something goes wrong.</p>
+        <section class="sec charter" id="charter" aria-labelledby="charterH">
+          <h2 id="charterH" class="page-h">The charter</h2>
+          <p class="muted lede">One page for the team: what it may do alone, what needs a human, its limits, who pulls the plug and how, what is logged, and the first hour if something goes wrong.</p>
           <div class="grid2">
             <label class="field"><span>Kill switch: who pulls it</span><input class="input" id="cOwner" maxlength="80" autocomplete="off" placeholder="Priya, support lead"></label>
             <label class="field"><span>How fast</span><input class="input" id="cSpeed" maxlength="80" autocomplete="off" placeholder="Within 5 minutes"></label>
@@ -144,20 +132,29 @@
             <label class="field"><span>Logs are kept for</span><input class="input" id="cRetention" maxlength="80" autocomplete="off" placeholder="90 days"></label>
             <label class="field"><span>Review it</span><select class="input" id="cReview"></select></label>
           </div>
-          <div class="charter-doc" id="charterDoc"></div>
-          <div class="row">
-            <button class="btn small" id="copyMd" type="button">Copy as Markdown</button>
-            <button class="btn small ghost" id="dlMd" type="button">Download .md</button>
-            <button class="btn small ghost" id="printBtn" type="button">Print</button>
+          <div class="row charter-acts">
+            <button class="btn" id="copyMd" type="button">Copy as Markdown</button>
+            <button class="btn ghost" id="dlMd" type="button">Download .md</button>
+            <button class="btn ghost" id="printBtn" type="button">Print</button>
           </div>
+          <div class="charter-doc" id="charterDoc"></div>
         </section>
       </div>
     </div>
 
-    <footer class="foot small muted">
+    <footer class="foot">
       <p>Leash is a <a href="../">Challenge Lab</a> app. <a href="https://strongtechnicalconsulting.com/privacy">Privacy</a> · one account works across every app on this site.</p>
     </footer>
   </main>
+
+  <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <div class="tabbar-inner">
+      <button type="button" data-nav="score"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 7.5 7.5"/><path d="M12 12l3-3"/></svg><span>Score</span></button>
+      <button type="button" data-nav="profile"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h9M17.5 7h2M4.5 12h3M11.5 12h8M4.5 17h9M17.5 17h2"/><circle cx="15.5" cy="7" r="2"/><circle cx="9.5" cy="12" r="2"/><circle cx="15.5" cy="17" r="2"/></svg><span>Agent</span></button>
+      <button type="button" data-nav="drill"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="6.5"/><path d="M12 13.5V10M10 4.5h4M12 4.5V7M17.5 8l1-1"/></svg><span>Drill</span></button>
+      <button type="button" data-nav="charter"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5h7l3.5 3.5v11a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5z"/><path d="M14 4.5V8h3.5M9.5 12h5M9.5 15.5h5"/></svg><span>Charter</span></button>
+    </div>
+  </nav>
 
   <div class="print-only" id="printArea" aria-hidden="true"></div>
   <div class="sheet-back" id="sheetBack" hidden></div>

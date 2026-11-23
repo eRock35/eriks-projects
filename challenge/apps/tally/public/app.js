@@ -48,11 +48,11 @@
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, ms || 2800);
   }
-  function ping(emoji, msg) {
+  function ping(msg) {
     $$('.ping').forEach(function (p) { p.remove(); });
     var t = document.createElement('div');
     t.className = 'ping'; t.setAttribute('role', 'status');
-    t.innerHTML = '<span class="e" aria-hidden="true">' + esc(emoji) + '</span><span>' + esc(msg) + '</span>';
+    t.innerHTML = '<span class="e" aria-hidden="true">' + ICON.check + '</span><span>' + esc(msg) + '</span>';
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, 3600);
   }
@@ -71,7 +71,7 @@
     if (reducedMotion()) return;
     var box = document.createElement('div');
     box.className = 'confetti'; box.setAttribute('aria-hidden', 'true');
-    var colors = ['#3fbf7f', '#f5f3ec', '#d9a21b', '#16693f', '#3fa7d6'];
+    var colors = ['#1f9a5e', '#0e4526', '#d9a21b', '#72290c', '#8fd9b0'];
     for (var i = 0; i < 90; i++) {
       var p = document.createElement('i');
       p.style.left = Math.random() * 100 + '%';
@@ -92,9 +92,27 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
 
+  // One set of thin line icons (1.5px), drawn in the text's own colour.
+  function svg(d) { return '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; }
   var ICON = {
-    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
+    back: svg('<path d="m15 18-6-6 6-6"/>'),
+    lock: svg('<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    bank: svg('<path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>'),
+    search: svg('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+    check: svg('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16 9.5"/>'),
+    alert: svg('<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.1"/>'),
+    info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.1"/>'),
+    camera: svg('<path d="M4 8.5h3l1.5-2.5h7L17 8.5h3a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>'),
+    doc: svg('<path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'),
+    pencil: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
+    trend: svg('<path d="M3 17 9 11l4 4 8-8"/><path d="M15 7h6v6"/>'),
+    book: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M8 15l2 2 4-4"/>'),
+    keys: svg('<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.1M11 10h.1M15 10h.1M7 14h10"/>'),
+    cup: svg('<path d="M5 8h12v5a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M5 21h12"/>'),
+    flame: svg('<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.5 1 2.3 2 2.5-.5-2.5 0-5.5 1-8z"/>'),
+    star: svg('<path d="m12 4 2.3 5 5.4.6-4 3.700 1.100 5.400L12 16l-4.800 2.700 1.100-5.400-4-3.700 5.400-.6z"/>'),
   };
+
 
   function statusPill(status) {
     var s = R.STATUS[status];
@@ -137,7 +155,7 @@
     if (!fresh.length) return false;
     confetti();
     var st = R.streak(after.rows);
-    ping('✅', 'Books balanced · ' + (fresh.length === 1 ? R.dayShort(fresh[0].date) : R.plural(fresh.length, 'day')) + (st.current > 1 ? ' · ' + st.current + ' days in a row' : ''));
+    ping('Books balanced · ' + (fresh.length === 1 ? R.dayShort(fresh[0].date) : R.plural(fresh.length, 'day')) + (st.current > 1 ? ' · ' + st.current + ' days in a row' : ''));
     return true;
   }
   function href(mode, path) { return (mode === 'sample' ? '#/sample' : '#') + (path ? '/' + path : '/'); }
@@ -150,7 +168,7 @@
     var el = $('#topRight');
     var me = state.me;
     if (!me || !me.signedIn) {
-      el.innerHTML = '<a class="btn small ghost hide-xs" href="#/sample">See a sample</a><button class="btn small" id="signInTop">Sign in</button>';
+      el.innerHTML = '<button class="btn small ghost" id="signInTop">Sign in</button>';
       $('#signInTop').onclick = function () { openAccount(null, 'login'); };
       return;
     }
@@ -223,17 +241,17 @@
         '<p class="muted">' + esc(reason || (mode === 'register'
           ? 'Closing days, importing deposits, the matching, the month and the export are free forever. You also get $2 of AI credit for snapping end-of-day reports — about a cent a photo. One account works across every app on this site.'
           : 'Same account as the other apps on this site.')) + '</p>' +
-        '<form id="authForm" style="margin-top:14px">' +
+        '<form id="authForm">' +
         '<label class="field"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button>' +
         '</form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="center small muted" style="margin-top:10px">' +
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="center small muted">' +
         (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap">Sign in</button>' : 'New here? <button class="link-btn" id="swap">Create an account</button>') +
         '</p>' +
-        '<div class="nobank"><span class="e" aria-hidden="true">🔒</span><span>Tally never asks for a bank login. Deposits come from a file you download yourself.</span></div>';
+        '<div class="nobank"><span class="e" aria-hidden="true">' + ICON.lock + '</span><span>Tally never asks for a bank login. Deposits come from a file you download yourself.</span></div>';
       labelSheet();
       $('#swap', root).onclick = function () { mode = mode === 'register' ? 'login' : 'register'; draw(root); var em = $('[name=email]', root); if (em) em.focus(); };
       $('#authForm', root).onsubmit = function (e) {
@@ -270,12 +288,12 @@
     var remaining = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet(
       '<h2>Your account</h2>' +
-      '<p class="muted small">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'Member model (Sonnet)' : 'Free model (Haiku)') + '</p>' +
-      '<div class="card" style="margin:14px 0"><div class="row spread"><b>AI credit</b><span class="num">' + remaining + '</span></div>' +
-      '<p class="small muted" style="margin-top:8px">Snapping an end-of-day report costs about a cent. Typing the numbers, importing deposits, matching, the month and the export are free.</p>' +
-      '<div id="billing" style="margin-top:12px"></div></div>' +
+      '<p class="muted small">' + esc(me.email) + ' · ' + (me.reader === 'report' ? 'Report reader' : me.tier === 'paid' ? 'Member model (Sonnet)' : 'Free model (Haiku)') + '</p>' +
+      '<div class="card"><div class="row spread"><b>AI credit</b><span class="num">' + remaining + '</span></div>' +
+      '<p class="small muted">Snapping an end-of-day report costs about a cent. Typing the numbers, importing deposits, matching, the month and the export are free.</p>' +
+      '<div id="billing"></div></div>' +
       (pkOk() ? '<button class="btn ghost block" id="pkEnrol">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" style="margin-top:10px">Sign out</button>',
+      '<button class="btn ghost block" id="signOut">Sign out</button>',
       function (root) {
         $('#signOut', root).onclick = function () {
           api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; state.books = null; drawTop(); location.hash = '#/'; route(); });
@@ -298,7 +316,7 @@
       if (!b.available) { el.innerHTML = ''; return; }
       if (!b.member) {
         el.innerHTML = '<button class="btn small" id="joinM">Become a member · $' + esc(b.monthlyUsd) + '/mo</button>' +
-          '<p class="small muted" style="margin-top:8px">Membership covers every app on this site, runs the better model, and lets you add credit.</p>';
+          '<p class="small muted">Membership covers every app on this site, runs the better model, and lets you add credit.</p>';
         $('#joinM', el).onclick = function () { checkout('api/auth/billing/membership', {}); };
         return;
       }
@@ -316,7 +334,7 @@
   }
   function openCreditSheet(data) {
     sheet('<h2>Out of AI credit</h2><p class="muted">' + esc((data && data.detail) || 'Your AI credit is spent.') + '</p>' +
-      '<p class="muted small" style="margin-top:8px">Everything else keeps working: type the four numbers instead of snapping them, import deposits, and the matching, the month and the export cost nothing.</p><div id="billing" style="margin-top:12px"></div>',
+      '<p class="muted small">Everything else keeps working: type the four numbers instead of snapping them, import deposits, and the matching, the month and the export cost nothing.</p><div id="billing"></div>',
       function (root) { drawBilling($('#billing', root)); });
   }
 
@@ -336,7 +354,7 @@
     closeSheet();
     var h = location.hash.replace(/^#\/?/, '');
     var parts = h.split('/').map(function (p) { try { return decodeURIComponent(p); } catch (e) { return ''; } });
-    $$('#tabbar button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tabFor(parts)); });
+    $$('#tabbar button').forEach(function (b) { var on = b.dataset.tab === tabFor(parts); b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     window.scrollTo(0, 0);
     if (parts[0] === 'sample') return renderPage('sample', parts.slice(1));
     if (!signedIn()) {
@@ -449,16 +467,16 @@
         (next <= newest ? '<a href="' + href(mode, 'm/' + next) + '" aria-label="Next month">›</a>' : '<span aria-hidden="true">›</span>') + '</div></div>';
 
       if (mode === 'real' && !b.deposits.length) {
-        h += '<div class="banner"><span class="e" aria-hidden="true">🏦</span><div><b>Step 2 of 3: add your deposits</b>Paste or upload the CSV from your bank’s website and Tally will match each day. No bank login, ever.<div style="margin-top:10px"><a class="btn small" href="#/deposits">Add deposits</a></div></div></div>';
+        h += '<div class="banner"><span class="e" aria-hidden="true">' + ICON.bank + '</span><div><b>Step 2 of 3: add your deposits</b>Paste or upload the CSV from your bank’s website and Tally will match each day. No bank login, ever.<div><a class="btn small" href="#/deposits">Add deposits</a></div></div></div>';
       }
 
       // What needs a look, said first.
       var bad = mv.counts.short + mv.counts.missing;
       if (bad) {
-        h += '<div class="banner bad" style="margin-bottom:12px"><span class="e" aria-hidden="true">🔎</span><div><b>' + esc(R.money(t.unaccounted)) + ' unaccounted for</b>' +
+        h += '<div class="banner bad"><span class="e" aria-hidden="true">' + ICON.search + '</span><div><b>' + esc(R.money(t.unaccounted)) + ' unaccounted for</b>' +
           esc([mv.counts.missing ? R.plural(mv.counts.missing, 'missing deposit') : '', mv.counts.short ? R.plural(mv.counts.short, 'short deposit') : ''].filter(Boolean).join(' and ')) + ' this month. <a href="#flags">See why ↓</a></div></div>';
       } else if (mv.counts.matched && !mv.counts.pending) {
-        h += '<div class="banner" style="margin-bottom:12px"><span class="e" aria-hidden="true">✅</span><div><b>Every card sale this month got paid.</b>' + esc(R.plural(mv.counts.matched, 'day')) + ' matched to the bank.</div></div>';
+        h += '<div class="banner"><span class="e" aria-hidden="true">' + ICON.check + '</span><div><b>Every card sale this month got paid.</b>' + esc(R.plural(mv.counts.matched, 'day')) + ' matched to the bank.</div></div>';
       }
 
       h += '<div class="dk-split dk-split-aside"><div>';
@@ -470,11 +488,11 @@
         '<div class="tile' + (mv.creep ? ' bad' : '') + '"><div class="k">Effective fee</div><b>' + esc(t.feeRate == null ? '—' : R.pct(t.feeRate)) + '</b><span>' + (planRate ? 'plan ≈ ' + esc(R.pct(planRate)) : 'once deposits match') + '</span></div>' +
         '<div class="tile ' + (t.unaccounted ? 'bad' : 'good') + '"><div class="k">Unaccounted for</div><b>' + esc(R.money(t.unaccounted)) + '</b><span>' + (t.unaccounted ? 'short + missing' : 'all accounted for') + '</span></div>' +
         '</div>';
-      h += '<div class="card streak"><span class="fire" aria-hidden="true">' + (mv.streak.current >= 3 ? '🔥' : '📒') + '</span><div><b>' + esc(R.plural(mv.streak.current, 'day')) + ' in a row reconciled</b><div class="small muted">Best run: ' + esc(R.plural(mv.streak.best, 'day')) + '. Pending days don’t break it.</div></div></div>';
+      h += '<div class="card streak"><span class="fire" aria-hidden="true">' + (mv.streak.current >= 3 ? ICON.flame : ICON.book) + '</span><div><b>' + esc(R.plural(mv.streak.current, 'day')) + ' in a row reconciled</b><div class="small muted">Best run: ' + esc(R.plural(mv.streak.best, 'day')) + '. Pending days don’t break it.</div></div></div>';
       if (mv.creep) {
         var c = mv.creep;
-        h += '<div class="banner warn"><span class="e" aria-hidden="true">📈</span><div class="grow"><b>Fee creep: ' + esc(R.pct(c.fromRate)) + ' → ' + esc(R.pct(c.toRate)) + '</b>Since ' + esc(R.dayShort(c.since)) + ' · about <b style="display:inline">' + esc(R.money0(c.monthlyCents)) + ' a month</b> at your volume.' + sparkHTML(result) +
-          '<div class="small" style="margin-top:6px">Every deposit still “matches” — the extra hides inside the allowance, which is how creep goes unnoticed. Ask ' + esc(procLabel === 'Your processor' ? 'your processor' : procLabel) + ' whether your rate changed.</div></div></div>';
+        h += '<div class="banner warn"><span class="e" aria-hidden="true">' + ICON.trend + '</span><div class="grow"><b>Fee creep: ' + esc(R.pct(c.fromRate)) + ' → ' + esc(R.pct(c.toRate)) + '</b>Since ' + esc(R.dayShort(c.since)) + ' · about <b class="inl">' + esc(R.money0(c.monthlyCents)) + ' a month</b> at your volume.' + sparkHTML(result) +
+          '<div class="small">Every deposit still “matches” — the extra hides inside the allowance, which is how creep goes unnoticed. Ask ' + esc(procLabel === 'Your processor' ? 'your processor' : procLabel) + ' whether your rate changed.</div></div></div>';
       }
       h += '</div></div>';
 
@@ -486,7 +504,7 @@
             '<div class="amt">' + esc(R.money(amount)) + '<small>' + (r.status === 'short' ? 'short' : 'expected, not arrived') + '</small></div>' +
             '<p>' + esc(R.explain(result, r)) + '</p><div class="btn-row">' +
             (r.status === 'missing' && mode === 'sample' && state.demo && state.demo.lateDeposit && r.date === '2026-09-22' && !hasDeposit(b, state.demo.lateDeposit)
-              ? '<button class="btn small" data-late>✨ It turned up Friday — add it</button>' : '') +
+              ? '<button class="btn small" data-late>It turned up Friday — add it</button>' : '') +
             (r.status === 'missing' ? '<button class="btn small ghost" data-adddep="' + r.date + '">Add the deposit</button>' : '') +
             '<button class="btn small ghost" data-open="' + r.date + '">Open the day</button></div></li>';
         });
@@ -496,20 +514,20 @@
       if (result.unplaced.length) {
         h += '<div class="section-title"><h2>Deposits we couldn’t place</h2><span class="count">' + result.unplaced.length + '</span></div><div class="list">' +
           result.unplaced.slice(0, 20).map(function (d) {
-            return '<div class="drow unplaced"><div style="min-width:0"><div class="t">' + esc(d.description) + '</div><div class="m">' + esc(R.dayShort(d.date)) + ' · no closed day in its window matches this amount — did you close ' + esc(R.dayShort(R.addDays(d.date, -1))) + '?</div></div><div class="n"><b>' + esc(R.money(d.amountCents)) + '</b></div></div>';
+            return '<div class="drow unplaced"><div class="minw"><div class="t">' + esc(d.description) + '</div><div class="m">' + esc(R.dayShort(d.date)) + ' · no closed day in its window matches this amount — did you close ' + esc(R.dayShort(R.addDays(d.date, -1))) + '?</div></div><div class="n"><b>' + esc(R.money(d.amountCents)) + '</b></div></div>';
           }).join('') + '</div>';
       }
 
       var rows = result.rows.filter(function (r) { return R.monthOf(r.date) === m; }).reverse();
       if (rows.length) {
-        h += '<details class="more" style="margin-top:14px"><summary>Every day in ' + esc(mv.label) + ' (' + rows.length + ')</summary><div class="list">' + rows.map(function (r) {
-          return '<button type="button" class="drow" data-open="' + r.date + '"><div style="min-width:0"><div class="t">' + esc(R.dayShort(r.date)) + '</div><div class="m">' +
+        h += '<details class="more"><summary>Every day in ' + esc(mv.label) + ' (' + rows.length + ')</summary><div class="list">' + rows.map(function (r) {
+          return '<button type="button" class="drow" data-open="' + r.date + '"><div class="minw"><div class="t">' + esc(R.dayShort(r.date)) + '</div><div class="m">' +
             esc(R.money(r.grossCents)) + ' sales · expected ' + esc(R.money(Math.max(0, r.net))) + '</div></div><div class="end">' + statusPill(r.status) + '</div></button>';
         }).join('') + '</div></details>';
       }
 
-      h += '<div class="btn-row" style="margin-top:16px"><button class="btn ghost" id="exportBtn">⬇ Export ' + esc(mv.label) + ' (CSV)</button><a class="btn" href="' + href(mode, 'close') + '">＋ Close a day</a></div>';
-      h += '<p class="hint" style="margin-top:12px">Fees are estimates from your fee settings. A deposit counts as matched when it’s within ' + esc(R.money(s.tolCents)) + ' or ' + esc(R.bpsText(s.tolBps)) + ' of what we expected, whichever is larger.</p>';
+      h += '<div class="btn-row"><button class="btn ghost" id="exportBtn">Export ' + esc(mv.label) + ' (CSV)</button><a class="btn" href="' + href(mode, 'close') + '">Close a day</a></div>';
+      h += '<p class="hint">Fees are estimates from your fee settings. A deposit counts as matched when it’s within ' + esc(R.money(s.tolCents)) + ' or ' + esc(R.bpsText(s.tolBps)) + ' of what we expected, whichever is larger.</p>';
 
       view.innerHTML = h;
       state.flash = null;
@@ -560,7 +578,7 @@
       var s = b.settings;
       var settled = r.status === 'matched' || r.status === 'short';
       var diff = settled ? r.paid - r.net : null;
-      var html = '<h2>' + esc(R.dayLong(r.date)) + '</h2><div>' + statusPill(r.status) + (r.source === 'snap' ? ' <span class="tag">📸 from a photo</span>' : '') + '</div>' +
+      var html = '<h2>' + esc(R.dayLong(r.date)) + '</h2><div>' + statusPill(r.status) + (r.source === 'snap' ? ' <span class="tag">from a photo</span>' : '') + '</div>' +
         '<p class="explain">' + esc(R.explain(result, r)) + '</p>' +
         '<div class="ledger">' +
         '<div class="l"><span>Card sales</span><b>' + esc(R.money(r.grossCents)) + '</b></div>' +
@@ -572,7 +590,7 @@
           '<div class="l diff' + (r.status === 'matched' ? ' ok' : '') + '"><span>Difference</span><b>' + esc(diff === 0 ? '$0.00' : (diff > 0 ? '+' : '') + R.money(diff)) + '</b></div>'
           : '<div class="l"><span>' + (r.status === 'none' ? 'Nothing due' : 'Due by ' + esc(R.dayShort(r.due))) + '</span><b>' + (r.status === 'none' ? '—' : 'Nothing yet') + '</b></div>') +
         '</div>' +
-        '<div class="btn-row" style="margin-top:14px">' +
+        '<div class="btn-row">' +
         (r.status === 'missing' ? '<button class="btn" id="dAdd">Add the deposit</button>' : '') +
         '<a class="btn ghost" href="' + href(mode, 'close/' + r.date) + '">Edit this day</a>' +
         '<button class="btn danger" id="dDel">Delete</button></div>';
@@ -596,7 +614,7 @@
     var today = mode === 'sample' ? state.sample.today : localDay();
     var date = row && row.due <= today ? row.due : today;
     sheet('<h2>Add a deposit</h2><p class="muted small">What your bank shows. ' + (row ? 'We filled in what ' + esc(R.dayShort(row.date)) + ' should have brought — change it to the real amount.' : '') + '</p>' +
-      '<form id="depF" style="margin-top:12px">' + depositFields(date, row ? R.plain(row.net) : '', '') +
+      '<form id="depF">' + depositFields(date, row ? R.plain(row.net) : '', '') +
       '<div id="depErr"></div><button class="btn block">Add deposit</button></form>',
       function (root) {
         $('#depF', root).onsubmit = function (e) {
@@ -648,7 +666,7 @@
     var hasDeps = b.deposits.length > 0;
     var p = R.preset(b.settings.processor);
     var h = '<div class="page-head"><div><h1>Welcome' + (me.name ? ', ' + esc(me.name) : '') + '</h1><div class="sub">Three steps, and you’ll know every card sale got paid.</div></div></div>' +
-      '<div class="card firstrun"><h2>Who runs your card terminal?</h2><p class="small muted" style="margin:4px 0 12px">We’ll use their typical rate to estimate fees — an estimate you can change any time in Settings.</p>' +
+      '<div class="card firstrun"><h2>Who runs your card terminal?</h2><p class="small muted">We’ll use their typical rate to estimate fees — an estimate you can change any time in Settings.</p>' +
       procGrid(b.settings.configured ? b.settings.processor : null) +
       '<div id="procNote" class="hint">' + (b.settings.configured ? esc(p.label) + ': ' + esc(R.feeText(b.settings)) + ', ' + esc(R.windowText(b.settings.windowDays)) + '. ' + esc(p.note) + '.' : '') + '</div>' +
       '<ol class="todo">' +
@@ -656,8 +674,8 @@
       '<li class="' + (hasDeps ? 'done' : '') + '"><span class="n">2</span><div><h3>Add your deposits</h3><p>' + (hasDeps ? esc(R.plural(b.deposits.length, 'deposit')) + ' in. ' : '') + 'Download the CSV from your bank’s website and drop it in. We pick out Square, Stripe, Clover, Toast and the rest.</p>' + (hasDeps ? '' : '<a class="btn small ghost" href="#/deposits">Add deposits</a>') + '</div></li>' +
       '<li class="later"><span class="n">3</span><div><h3>See what’s missing</h3><p>Every day comes back ✓ matched, ! short, … pending or × missing — with the reason in plain words.</p></div></li>' +
       '</ol></div>' +
-      '<a class="banner" href="#/sample" style="margin-top:12px;text-decoration:none;color:inherit"><span class="e" aria-hidden="true">☕</span><div><b>Want to see it working first?</b>Open a sample café’s September: a short deposit, a missing batch and fee creep, all caught. Nothing is saved. <span style="color:var(--accent);font-weight:700">Open the sample →</span></div></a>' +
-      '<div class="nobank"><span class="e" aria-hidden="true">🔒</span><span>No bank connection and no bank login, ever. Deposits come from a file you download yourself, and the file isn’t kept.</span></div>';
+      '<a class="banner" href="#/sample"><span class="e" aria-hidden="true">' + ICON.cup + '</span><div><b>Want to see it working first?</b>Open a sample café’s September: a short deposit, a missing batch and fee creep, all caught. Nothing is saved. <span class="go">Open the sample →</span></div></a>' +
+      '<div class="nobank"><span class="e" aria-hidden="true">' + ICON.lock + '</span><span>No bank connection and no bank login, ever. Deposits come from a file you download yourself, and the file isn’t kept.</span></div>';
     view.innerHTML = h;
     $$('[data-proc]', view).forEach(function (btn) {
       btn.onclick = function () {
@@ -679,6 +697,11 @@
     booksFor(mode).then(function (b) {
       var today = b.today;
       var existing = null;
+      var REPORT = state.me && state.me.reader === 'report';
+      var FORM_KEYS = ['date', 'gross', 'refunds', 'tips', 'tx'];
+      var SNAP_LABEL = REPORT ? (mode === 'sample' ? 'See a snapped report' : 'Snap a report') : 'Snap the report';
+      var reading = null;
+      var confirmed = {};
       var pick = date && date <= R.addDays(today, 1) ? date : null;
       if (!pick) {
         // The next day that needs closing: today unless it's done, then the
@@ -691,23 +714,29 @@
       var h = (mode === 'sample' ? sampleBar('close') : '') +
         '<div class="page-head"><div><h1>Close the day</h1><div class="sub">Four numbers from the terminal’s end-of-day report — the Z-report or batch report.</div></div></div>' +
         '<div class="dk-split dk-split-aside"><div>' +
-        '<label class="snap" id="snapBtn"><span class="ic" aria-hidden="true">📸</span><span class="grow"><b>Snap the report</b><span>We read the numbers once and you check them. About 1¢ of AI credit; the photo isn’t kept.</span></span>' +
+        '<label class="snap" id="snapBtn"><span class="ic" aria-hidden="true">' + ICON.camera + '</span><span class="grow"><b>' + SNAP_LABEL + '</b><span>' +
+        (REPORT ? (mode === 'sample' ? 'A made-up batch report, read into the form and checked. No AI runs in the sample.' : 'A Z-report, a batch slip or a payout report. Read once, checked by you; the photo isn’t kept. About 1¢ of AI credit.')
+          : 'We read the numbers once and you check them. About 1¢ of AI credit; the photo isn’t kept.') + '</span></span>' +
         (mode === 'real' ? '<input type="file" accept="image/*" capture="environment" id="snapFile">' : '') + '</label>' +
+        (REPORT && mode === 'real' ? '<details class="more" id="pasteRep"><summary>Or paste the report’s text</summary><textarea class="input" id="repText" rows="5" maxlength="24000" aria-label="The report’s text" placeholder="Card sales 1,284.50&#10;Refunds 45.00&#10;Count 96"></textarea>' +
+          '<div class="sent" id="repSent" hidden><span>What will be sent — card, account and merchant numbers cut to their last 4; emails, phone numbers and named people removed:</span><pre></pre></div>' +
+          '<button type="button" class="btn small" id="repRead" disabled>Read this text</button></details>' +
+          '<p class="hint">Frame just the totals: the merchant number, card numbers and names aren’t needed. A photo’s location data is removed on this phone before it is sent.</p>' : '') +
         '<div id="snapOut"></div>' +
         '<div class="or">or type them</div>' +
         '<form class="card" id="closeF" novalidate>' +
         '<label class="field"><span>Which day?</span><input class="input" type="date" name="date" required max="' + esc(R.addDays(today, 1)) + '" value="' + esc(pick) + '">' +
-        '<span class="quickdates"><button type="button" class="chip" data-q="0">Today</button><button type="button" class="chip" data-q="1">Yesterday</button></span></label>' +
+        '<span class="quickdates"><button type="button" class="chip" data-q="0">Today</button><button type="button" class="chip" data-q="1">Yesterday</button></span></label><div data-slot="date"></div>' +
         '<div id="exists"></div>' +
         '<div class="grid2">' +
-        '<label class="field"><span>Card sales</span><span class="money-in" data-f="gross"><b>$</b><input class="input" name="gross" inputmode="decimal" autocomplete="off" placeholder="1,284.50"></span><small>Before refunds, card only.</small></label>' +
-        '<label class="field"><span>Card transactions</span><span class="money-in" data-f="tx"><b>#</b><input class="input" name="tx" inputmode="numeric" autocomplete="off" placeholder="96"></span><small>The count on the report.</small></label>' +
-        '<label class="field"><span>Refunds</span><span class="money-in" data-f="refunds"><b>$</b><input class="input" name="refunds" inputmode="decimal" autocomplete="off" placeholder="0.00"></span><small>Card refunds and voids.</small></label>' +
-        '<label class="field"><span>Card tips <span class="faint">(optional)</span></span><span class="money-in" data-f="tips"><b>$</b><input class="input" name="tips" inputmode="decimal" autocomplete="off" placeholder="0.00"></span><small>Only if not already in card sales.</small></label>' +
+        '<label class="field"><span>Card sales</span><span class="money-in" data-f="gross"><b>$</b><input class="input" name="gross" inputmode="decimal" autocomplete="off" placeholder="1,284.50"></span><small>Before refunds, card only.</small></label><div data-slot="gross"></div>' +
+        '<label class="field"><span>Card transactions</span><span class="money-in" data-f="tx"><b>#</b><input class="input" name="tx" inputmode="numeric" autocomplete="off" placeholder="96"></span><small>The count on the report.</small></label><div data-slot="tx"></div>' +
+        '<label class="field"><span>Refunds</span><span class="money-in" data-f="refunds"><b>$</b><input class="input" name="refunds" inputmode="decimal" autocomplete="off" placeholder="0.00"></span><small>Card refunds and voids.</small></label><div data-slot="refunds"></div>' +
+        '<label class="field"><span>Card tips <span class="faint">(optional)</span></span><span class="money-in" data-f="tips"><b>$</b><input class="input" name="tips" inputmode="decimal" autocomplete="off" placeholder="0.00"></span><small>Only if not already in card sales.</small></label><div data-slot="tips"></div>' +
         '</div></form>' +
         '</div><div class="dk-sticky"><div class="expect" id="expect" aria-live="polite"></div>' +
-        '<div id="closeErr"></div><button class="btn block lg" id="closeBtn" type="submit" form="closeF" style="margin-top:12px">Close the day</button>' +
-        '<p class="hint" style="margin-top:10px">Fees use your settings: ' + esc(R.feeText(b.settings)) + ' per transaction, paid ' + esc(R.windowText(b.settings.windowDays)) + '. <a href="' + href(mode, 'settings') + '">Change</a></p></div></div>';
+        '<div id="closeErr"></div><button class="btn block lg" id="closeBtn" type="submit" form="closeF">Close the day</button>' +
+        '<p class="hint">Fees use your settings: ' + esc(R.feeText(b.settings)) + ' per transaction, paid ' + esc(R.windowText(b.settings.windowDays)) + '. <a href="' + href(mode, 'settings') + '">Change</a></p></div></div>';
       view.innerHTML = h;
       wireSignup();
       centerSubnav();
@@ -722,8 +751,8 @@
       function onDate(initial) {
         var d = R.isoDay(f.date.value);
         existing = d ? b.days.filter(function (x) { return x.date === d; })[0] || null : null;
-        $('#exists').innerHTML = existing ? '<div class="banner" style="margin-bottom:14px"><span class="e" aria-hidden="true">📝</span><div><b>' + esc(R.dayShort(d)) + ' is already closed.</b>Saving replaces its numbers.</div></div>' : '';
-        if (existing) fill(existing); else if (!initial) fill(null);
+        $('#exists').innerHTML = existing ? '<div class="banner"><span class="e" aria-hidden="true">' + ICON.pencil + '</span><div><b>' + esc(R.dayShort(d)) + ' is already closed.</b>Saving replaces its numbers.</div></div>' : '';
+        if (existing && !reading) fill(existing); else if (!initial && !reading && f.dataset.source !== 'snap') fill(null);
         if (mode === 'sample' && !existing && initial && d === b.today) {
           // A believable Saturday, typed for the visitor, so the preview has
           // something to say the moment the page opens.
@@ -738,8 +767,15 @@
         var tx = Number(String(f.tx.value || '0').replace(/,/g, ''));
         $('#closeBtn').textContent = d ? (existing ? 'Save ' + R.dayShort(d) : 'Close ' + R.dayLong(d)) : 'Close the day';
         var box = $('#expect');
+        var wait = formPending();
+        $('#closeBtn').disabled = wait.length > 0;
+        drawCheck();
+        if (wait.length) {
+          box.innerHTML = '<div class="eyebrow">Should reach your bank</div><div class="big faint">$—</div><p class="small muted">Confirm ' + esc(wait.map(function (k) { return WORDS[k]; }).join(', ')) + ' first — a hard-to-read number is never used until you say it’s right.</p>';
+          return;
+        }
         if (!d || gross === null || refunds === null || tips === null || !Number.isInteger(tx) || !gross) {
-          box.innerHTML = '<div class="eyebrow">Should reach your bank</div><div class="big faint">$—</div><p class="small muted" style="margin-top:6px">Type the day’s card sales and we’ll work out what your processor should deposit, and by when.</p>';
+          box.innerHTML = '<div class="eyebrow">Should reach your bank</div><div class="big faint">$—</div><p class="small muted">Type the day’s card sales and we’ll work out what your processor should deposit, and by when.</p>';
           return;
         }
         var e = R.expected({ grossCents: gross, refundsCents: refunds, tipsCents: tips, txCount: tx }, b.settings);
@@ -750,11 +786,11 @@
           (refunds ? '<div class="l"><span>− Refunds</span><b>' + esc(R.money(refunds)) + '</b></div>' : '') +
           '<div class="l"><span>− Fees ≈ ' + esc(R.feeText(b.settings)) + (tx ? ' × ' + tx : '') + '</span><b>' + esc(R.money(e.fee)) + '</b></div>' +
           '<div class="when">By <b>' + esc(R.dayLong(due)) + '</b> — ' + esc(R.windowText(b.settings.windowDays)) + (hol.length ? ' (' + esc(hol.map(function (x) { return x.name; }).join(', ')) + ' pushes it back)' : '') + '. Weekends and bank holidays roll forward.</div>' +
-          (e.charged && !tx ? '<p class="small warn" style="margin-top:6px">Add the transaction count — the ' + esc(R.money(b.settings.feeFixedCents)) + ' per-transaction fee is most of a small ticket’s cost.</p>' : '');
+          (e.charged && !tx ? '<p class="small warn">Add the transaction count — the ' + esc(R.money(b.settings.feeFixedCents)) + ' per-transaction fee is most of a small ticket’s cost.</p>' : '');
       }
-      f.date.onchange = function () { onDate(false); };
-      ['gross', 'refunds', 'tips', 'tx'].forEach(function (k) { f[k].oninput = function () { f[k].removeAttribute('aria-invalid'); $('[data-f=' + k + ']').classList.remove('filled'); update(); }; });
-      $$('[data-q]').forEach(function (c) { c.onclick = function () { f.date.value = R.addDays(today, -Number(c.dataset.q)); onDate(false); }; });
+      f.date.onchange = function () { if (reading && reading.unclear.indexOf('date') >= 0 && !confirmed.date) settle('date', true); onDate(false); };
+      ['gross', 'refunds', 'tips', 'tx'].forEach(function (k) { f[k].oninput = function () { f[k].removeAttribute('aria-invalid'); $('[data-f=' + k + ']').classList.remove('filled'); if (reading && reading.unclear.indexOf(k) >= 0 && !confirmed[k]) settle(k, true); else update(); }; });
+      $$('[data-q]').forEach(function (c) { c.onclick = function () { f.date.value = R.addDays(today, -Number(c.dataset.q)); f.date.onchange(); }; });
       onDate(true);
 
       f.onsubmit = function (e) {
@@ -768,6 +804,7 @@
           var el = field && f[field];
           if (el) { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', 'closeErrMsg'); el.focus(); }
         }
+        if (formPending().length) return bad('Confirm the flagged numbers first — tap “Yes, it’s right” or type the right one.', formPending()[0]);
         var v = R.validateDay(body, today);
         if (v.error) return bad(v.error, v.field);
         var btn = $('#closeBtn'); btn.disabled = true;
@@ -783,34 +820,166 @@
         }).catch(function (e2) { btn.disabled = false; if (e2.status === 402 || e2.status === 401) return showError(e2); bad(e2.message, e2.field); });
       };
 
+      /* ---- a snapped report ---- */
+
+      function pending() { return reading ? reading.unclear.filter(function (k) { return !confirmed[k]; }) : []; }
+      function formPending() { return pending().filter(function (k) { return FORM_KEYS.indexOf(k) >= 0; }); }
+      function settle(k, keep) {
+        confirmed[k] = keep ? 'yes' : 'no';
+        var slot = $('[data-slot="' + k + '"]');
+        if (slot) slot.innerHTML = '';
+        var box = $('[data-f=' + k + ']');
+        if (box) box.classList.remove('unclear');
+        drawFigures();
+        update();
+      }
+      /** The figures the check may use: what the form says now, and the
+       *  report's other figures - each only once it is clear or confirmed. */
+      function reportNow() {
+        var rp = reading.report;
+        var ok = function (k) { return reading.unclear.indexOf(k) < 0 || confirmed[k] === 'yes'; };
+        var cents = function (k) { return ok(k) && f[k].value.trim() ? R.toCents(f[k].value) : null; };
+        var tx = f.tx.value.trim().replace(/,/g, '');
+        return {
+          date: ok('date') ? R.isoDay(f.date.value) : null,
+          cardCents: cents('gross'), refundsCents: cents('refunds'), tipsCents: cents('tips'),
+          tx: ok('tx') && /^\d+$/.test(tx) ? Number(tx) : null,
+          feesCents: ok('fees') ? rp.feesCents : null,
+          netCents: ok('net') ? rp.netCents : null,
+          cardTypes: ok('types') ? rp.cardTypes : [],
+          unknown: pending(),
+        };
+      }
+      function askHTML(k, words) {
+        return '<div class="ask" role="group" aria-label="Confirm ' + esc(words) + '"><span>' + ICON.alert + 'Hard to read — is ' + esc(words) + ' right?</span>' +
+          '<span class="ask-b"><button type="button" class="chip" data-yes="' + k + '">Yes, it’s right</button>' +
+          (FORM_KEYS.indexOf(k) < 0 ? '<button type="button" class="chip" data-no="' + k + '">Leave it out</button>' : '') + '</span></div>';
+      }
+      function wireAsks(root) {
+        $$('[data-yes]', root).forEach(function (x) { x.onclick = function () { settle(x.dataset.yes, true); }; });
+        $$('[data-no]', root).forEach(function (x) { x.onclick = function () { settle(x.dataset.no, false); }; });
+      }
+      function drawFigures() {
+        var el = $('#repFigs');
+        if (!el || !reading) return;
+        var rp = reading.report;
+        var wait = function (k) { return reading.unclear.indexOf(k) >= 0 && !confirmed[k]; };
+        var out = function (k) { return confirmed[k] === 'no'; };
+        var line = function (k, label, value) {
+          return '<div class="l' + (out(k) ? ' off' : '') + '"><span>' + esc(label) + (out(k) ? ' <i>left out</i>' : '') + '</span><b>' + esc(value) + '</b></div>' + (wait(k) ? askHTML(k, value) : '');
+        };
+        var h = '';
+        if (rp.feesCents !== null) h += line('fees', 'Fees printed', R.money(rp.feesCents));
+        if (rp.netCents !== null) h += line('net', 'Payout printed', R.money(rp.netCents));
+        if (rp.cardTypes.length) {
+          h += rp.cardTypes.map(function (t) { return '<div class="l sub' + (out('types') ? ' off' : '') + '"><span>' + esc(R.CARD_TYPES[t.type] || 'Other cards') + '</span><b>' + esc(R.money(t.cents)) + '</b></div>'; }).join('') +
+            (wait('types') ? askHTML('types', 'the card-type lines') : '');
+        }
+        if (rp.grossAllCents !== null) h += '<div class="l off"><span>All sales, cash included <i>not used</i></span><b>' + esc(R.money(rp.grossAllCents)) + '</b></div>';
+        if (rp.batches.length) h += '<div class="l"><span>Batch</span><b>' + esc(rp.batches.join(', ')) + '</b></div>';
+        if (rp.periodEnd) h += '<div class="l"><span>Covers</span><b>' + esc(R.monthDay(rp.date) + ' – ' + R.monthDay(rp.periodEnd)) + '</b></div>';
+        el.innerHTML = h;
+        el.hidden = !h;
+        wireAsks(el);
+      }
+      function drawCheck() {
+        var el = $('#repCheck');
+        if (!el || !reading) return;
+        var n = pending().length;
+        var lines = R.checkReport(reportNow(), { settings: b.settings, days: b.days, deposits: b.deposits, today: today }).lines;
+        el.innerHTML = lines.map(function (l) {
+          return '<li class="ck ' + esc(l.tone) + '">' + (l.tone === 'ok' ? ICON.check : l.tone === 'warn' ? ICON.alert : ICON.info) + '<div><b>' + esc(l.title) + '</b><p>' + esc(l.text) + '</p></div></li>';
+        }).join('') + (n ? '<li class="ck wait">' + ICON.info + '<div><b>' + esc(R.plural(n, 'figure')) + ' waiting for you</b><p>A hard-to-read figure is left out of every sum until you confirm it.</p></div></li>' : '') +
+          (!lines.length && !n ? '<li class="ck info">' + ICON.info + '<div><b>Not enough to check yet</b><p>Type the card sales and the transaction count and Tally will work it out.</p></div></li>' : '');
+      }
+      var KIND = { z_report: 'Z-report', batch_report: 'Batch report', payout_report: 'Payout report', other: 'Report' };
+      var WORDS = { date: 'the date', gross: 'card sales', refunds: 'refunds', tips: 'tips', tx: 'transactions' };
+      /** A reading in the form: the page's own numbers now, every one the
+       *  reader marked hard to read flagged until the owner settles it. */
+      function showReading(r, made) {
+        var p = r.proposal;
+        var out = $('#snapOut');
+        reading = null; confirmed = {};
+        $$('[data-slot]', f).forEach(function (x) { x.innerHTML = ''; });
+        $$('.money-in', f).forEach(function (x) { x.classList.remove('unclear'); });
+        if (p.date) f.date.value = p.date;
+        onDate(false);
+        FORM_KEYS.slice(1).forEach(function (k) { f[k].value = p[k] || ''; $('[data-f=' + k + ']').classList.toggle('filled', r.filled.indexOf(k) >= 0); });
+        f.dataset.source = made ? 'typed' : 'snap';
+        if (r.reader !== 'report') {
+          update();
+          out.innerHTML = '<div class="banner' + (r.confidence === 'high' && !r.dropped.length ? '' : ' warn') + '"><span class="e" aria-hidden="true">' + ICON.search + '</span><div><b>Read from your photo — check each number against the slip.</b>' +
+            'Filled: ' + esc(r.filled.map(function (k) { return WORDS[k].replace('the ', ''); }).join(', ')) + '.' +
+            (r.dropped.length ? ' We couldn’t trust ' + esc(r.dropped.join(', ')) + ' — type ' + (r.dropped.length > 1 ? 'those' : 'it') + ' in.' : '') +
+            (r.notes ? ' <i>“' + esc(r.notes) + '”</i>' : '') + ' Nothing is saved until you press Close. The photo was not kept.</div></div>';
+          return;
+        }
+        reading = r;
+        r.unclear.forEach(function (k) {
+          if (FORM_KEYS.indexOf(k) < 0) return;
+          var slot = $('[data-slot="' + k + '"]', f);
+          if (slot) slot.innerHTML = askHTML(k, k === 'date' ? R.dayShort(p.date) : p[k]);
+          var box = $('[data-f=' + k + ']');
+          if (box) box.classList.add('unclear');
+        });
+        wireAsks(f);
+        out.innerHTML = '<section class="reading" aria-labelledby="rdH"><div class="rd-head"><h2 id="rdH">Read from your report</h2><span class="tag">' + esc(KIND[r.report.type] || 'Report') + '</span></div>' +
+          '<p class="small muted">' + (made ? 'A made-up reading for the sample — no AI ran. ' : '') + 'The reader only copied what is printed' +
+          (r.filled.length ? ': ' + esc(r.filled.map(function (k) { return WORDS[k].replace('the ', ''); }).join(', ')) + ' went into the form' : '') + '.' +
+          (r.dropped.length ? ' It couldn’t read ' + esc(r.dropped.join(', ')) + ' — type ' + (r.dropped.length > 1 ? 'those' : 'it') + ' in.' : '') + '</p>' +
+          (r.report.cardCents === null ? '<p class="small warn">No card-sales total was printed on its own, so the form is yours to fill.</p>' : '') +
+          '<div class="ledger figs" id="repFigs" hidden></div>' +
+          '<h3 class="ck-h">Tally’s check</h3><ul class="cks" id="repCheck" aria-live="polite"></ul>' +
+          '<p class="hint">Every sum and verdict here is Tally’s own arithmetic, never the reader’s. Nothing is saved until you press Close.' + (made ? '' : ' The photo was not kept.') + '</p></section>';
+        drawFigures();
+        update();
+        var head = $('#rdH');
+        head.setAttribute('tabindex', '-1');
+        head.focus({ preventScroll: true });
+        window.scrollTo(0, Math.max(0, out.getBoundingClientRect().top + window.pageYOffset - 68));
+      }
+      function busy(on) {
+        var t = $('#snapBtn b');
+        if (on) t.innerHTML = '<span class="spinner sm" aria-hidden="true"></span> Reading your report…'; else t.textContent = on === false ? 'Snap another report' : SNAP_LABEL;
+      }
+      function read(body) {
+        var out = $('#snapOut');
+        out.innerHTML = '';
+        busy(true);
+        return api('POST', 'api/days/snap', body).then(function (r) { busy(false); showReading(r, false); loadMe(); })
+          .catch(function (e3) { busy(null); showError(e3, out); });
+      }
+
       var snapBtn = $('#snapBtn');
       if (mode === 'sample') {
-        snapBtn.onclick = function (e) { e.preventDefault(); openAccount('Snapping reads the report with AI — about a cent a photo, from the $2 of credit every free account gets. Typing the numbers is free forever.'); };
+        snapBtn.onclick = function (e) {
+          e.preventDefault();
+          // The sample's own reading, written by hand: no model runs for a
+          // visitor. Shown only where the report reader is switched on.
+          if (REPORT && state.demo.reading) return showReading(clone(state.demo.reading), true);
+          openAccount('Snapping reads the report with AI — about a cent a photo, from the $2 of credit every free account gets. Typing the numbers is free forever.');
+        };
       } else {
         $('#snapFile').onchange = function (e) {
           var file = e.target.files && e.target.files[0];
           e.target.value = '';
           if (!file) return;
-          var out = $('#snapOut');
-          snapBtn.querySelector('b').innerHTML = '<span class="spinner" aria-hidden="true" style="width:16px;height:16px;border-width:2px"></span> Reading your report…';
-          shrink(file).then(function (img) { return api('POST', 'api/days/snap', { image: img }); }).then(function (r) {
-            snapBtn.querySelector('b').textContent = 'Snap another report';
-            var p = r.proposal;
-            if (p.date) f.date.value = p.date;
-            onDate(false);
-            ['gross', 'refunds', 'tips', 'tx'].forEach(function (k) { f[k].value = p[k] || ''; $('[data-f=' + k + ']').classList.toggle('filled', r.filled.indexOf(k) >= 0); });
-            f.dataset.source = 'snap';
-            update();
-            out.innerHTML = '<div class="banner' + (r.confidence === 'high' && !r.dropped.length ? '' : ' warn') + '" style="margin-top:12px"><span class="e" aria-hidden="true">🔍</span><div><b>Read from your photo — check each number against the slip.</b>' +
-              'Filled: ' + esc(r.filled.map(function (k) { return { date: 'date', gross: 'card sales', refunds: 'refunds', tips: 'tips', tx: 'transactions' }[k]; }).join(', ')) + '.' +
-              (r.dropped.length ? ' We couldn’t trust ' + esc(r.dropped.join(', ')) + ' — type ' + (r.dropped.length > 1 ? 'those' : 'it') + ' in.' : '') +
-              (r.notes ? ' <i>“' + esc(r.notes) + '”</i>' : '') + ' Nothing is saved until you press Close. The photo was not kept.</div></div>';
-            loadMe();
-          }).catch(function (e3) {
-            snapBtn.querySelector('b').textContent = 'Snap the report';
-            showError(e3, out);
-          });
+          busy(true);
+          shrink(file).then(function (img) { return read({ image: img }); }, function (e2) { busy(null); showError(e2, $('#snapOut')); });
         };
+        var txt = $('#repText');
+        if (txt) {
+          // What will be sent is worked out here, on the phone, and shown
+          // before anything leaves it; the server scrubs it again.
+          var sent = $('#repSent');
+          txt.oninput = function () {
+            var s2 = R.scrubReportText(txt.value);
+            sent.hidden = !s2;
+            $('pre', sent).textContent = s2;
+            $('#repRead').disabled = s2.replace(/[^0-9]/g, '').length < 3;
+          };
+          $('#repRead').onclick = function () { read({ text: R.scrubReportText(txt.value) }); };
+        }
       }
     }).catch(function (e) { showError(e, view); });
   }
@@ -822,14 +991,14 @@
     state.flash = day.date;
     var h = (mode === 'sample' ? sampleBar('close') : '') + '<div class="card done-card">';
     if (balanced || r.status === 'matched') {
-      h += '<div class="e" aria-hidden="true">🎉</div><span class="balanced">✓ Books balanced</span><h2>' + esc(R.dayLong(day.date)) + ' is paid.</h2><p>' + esc(R.explain(result, r)) + '</p>';
+      h += '<div class="e" aria-hidden="true">' + ICON.star + '</div><span class="balanced">✓ Books balanced</span><h2>' + esc(R.dayLong(day.date)) + ' is paid.</h2><p>' + esc(R.explain(result, r)) + '</p>';
     } else if (r.status === 'none') {
-      h += '<div class="e" aria-hidden="true">📒</div><h2>' + esc(R.dayLong(day.date)) + ' is closed.</h2><p>' + esc(R.explain(result, r)) + '</p>';
+      h += '<div class="e" aria-hidden="true">' + ICON.book + '</div><h2>' + esc(R.dayLong(day.date)) + ' is closed.</h2><p>' + esc(R.explain(result, r)) + '</p>';
     } else {
-      h += '<div class="e" aria-hidden="true">📒</div><h2>' + esc(R.dayLong(day.date)) + ' is closed.</h2><p><b>' + esc(R.money(r.net)) + '</b> should reach your bank by <b>' + esc(R.dayLong(r.due)) + '</b>. ' +
+      h += '<div class="e" aria-hidden="true">' + ICON.book + '</div><h2>' + esc(R.dayLong(day.date)) + ' is closed.</h2><p><b>' + esc(R.money(r.net)) + '</b> should reach your bank by <b>' + esc(R.dayLong(r.due)) + '</b>. ' +
         (r.status === 'short' ? esc(R.explain(result, r)) : r.status === 'missing' ? 'That date has passed — add your deposits and Tally will look for it.' : 'Add your deposits when the bank shows them and Tally will match them.') + '</p>';
     }
-    h += '<div class="btn-row" style="max-width:440px;margin:0 auto"><a class="btn" href="' + href(mode, '') + '">See the month</a>' +
+    h += '<div class="btn-row"><a class="btn" href="' + href(mode, '') + '">See the month</a>' +
       (r.status === 'matched' ? '<a class="btn ghost" href="' + href(mode, 'close') + '">Close another day</a>' : '<a class="btn ghost" href="' + href(mode, 'deposits') + '">Add deposits</a>') + '</div></div>';
     view.innerHTML = h;
     wireSignup();
@@ -865,22 +1034,22 @@
       var h = (mode === 'sample' ? sampleBar('deposits') : '') +
         '<div class="page-head"><div><h1>Deposits</h1><div class="sub">What actually reached your bank.</div></div></div>' +
         '<div class="dk-split"><div>' +
-        '<div class="card"><h2>Import from your bank</h2><p class="small muted" style="margin:4px 0 12px">On your bank’s website: Activity → Download → CSV. Drop the file here and tick the card deposits — we pre-tick Square, Stripe, Clover, Toast and the rest.</p>' +
-        '<label class="drop" id="drop"><span class="ic" aria-hidden="true">📄</span><span class="grow"><b>Choose your bank’s CSV</b><span>or drop it here · up to 2 MB</span></span><input type="file" id="csvFile" accept=".csv,text/csv,text/plain"></label>' +
-        '<details class="more" id="pasteBox"><summary>Or paste the text</summary><textarea class="input" id="csvText" rows="5" placeholder="Date,Description,Amount&#10;09/15/2026,SQUARE INC SQ260915,1248.87"></textarea><button class="btn small ghost" id="csvRead" style="margin-top:8px">Read it</button></details>' +
+        '<div class="card"><h2>Import from your bank</h2><p class="small muted">On your bank’s website: Activity → Download → CSV. Drop the file here and tick the card deposits — we pre-tick Square, Stripe, Clover, Toast and the rest.</p>' +
+        '<label class="drop" id="drop"><span class="ic" aria-hidden="true">' + ICON.doc + '</span><span class="grow"><b>Choose your bank’s CSV</b><span>or drop it here · up to 2 MB</span></span><input type="file" id="csvFile" accept=".csv,text/csv,text/plain"></label>' +
+        '<details class="more" id="pasteBox"><summary>Or paste the text</summary><textarea class="input" id="csvText" rows="5" placeholder="Date,Description,Amount&#10;09/15/2026,SQUARE INC SQ260915,1248.87"></textarea><button class="btn small ghost" id="csvRead">Read it</button></details>' +
         '<div id="csvErr"></div><div class="preview" id="preview"></div>' +
-        '<div class="nobank"><span class="e" aria-hidden="true">🔒</span><span>No bank connection, no bank login. The file is read once and not kept; only the lines you tick are saved.</span></div></div>' +
-        '<div class="card"><details class="more"><summary>Type one in instead</summary><form id="oneF" style="margin-top:6px">' + depositFields(b.today, '', '') + '<div id="oneErr"></div><button class="btn block">Add deposit</button></form></details></div>' +
+        '<div class="nobank"><span class="e" aria-hidden="true">' + ICON.lock + '</span><span>No bank connection, no bank login. The file is read once and not kept; only the lines you tick are saved.</span></div></div>' +
+        '<div class="card"><details class="more"><summary>Type one in instead</summary><form id="oneF">' + depositFields(b.today, '', '') + '<div id="oneErr"></div><button class="btn block">Add deposit</button></form></details></div>' +
         '</div><div>';
       var deps = b.deposits.slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
-      h += '<div class="section-title" style="margin-top:4px"><h2>' + (mode === 'sample' ? 'Copper Kettle’s deposits' : 'Your deposits') + '</h2><span class="count">' + deps.length + (mode === 'real' && deps.length > b.limits.deposits * 0.8 ? ' of ' + b.limits.deposits.toLocaleString('en-US') + ' max' : '') + '</span></div>';
+      h += '<div class="section-title"><h2>' + (mode === 'sample' ? 'Copper Kettle’s deposits' : 'Your deposits') + '</h2><span class="count">' + deps.length + (mode === 'real' && deps.length > b.limits.deposits * 0.8 ? ' of ' + b.limits.deposits.toLocaleString('en-US') + ' max' : '') + '</span></div>';
       if (!deps.length) {
-        h += '<div class="empty boxed"><div class="e">🏦</div><h2>No deposits yet</h2><p>Import your bank’s CSV and each day’s card sales get matched to what actually arrived.</p></div>';
+        h += '<div class="empty boxed"><div class="e" aria-hidden="true">' + ICON.bank + '</div><h2>No deposits yet</h2><p>Import your bank’s CSV and each day’s card sales get matched to what actually arrived.</p></div>';
       } else {
         h += '<div class="list">' + deps.slice(0, 200).map(function (d) {
           var g = placed[String(d.id || '') + '|' + d.date + '|' + d.amountCents];
           var p = R.processorOf(d.description, b.settings.keywords);
-          return '<div class="drow' + (g ? '' : ' unplaced') + '"><div style="min-width:0"><div class="t" title="' + esc(d.description) + '">' + esc(R.dayShort(d.date)) + ' · ' + esc(p ? p.label : d.description) + '</div><div class="m">' +
+          return '<div class="drow' + (g ? '' : ' unplaced') + '"><div class="minw"><div class="t" title="' + esc(d.description) + '">' + esc(R.dayShort(d.date)) + ' · ' + esc(p ? p.label : d.description) + '</div><div class="m">' +
             (g ? 'For sales on ' + esc(daysText(g.dates)) + (g.status === 'short' ? ' · came up short' : '') : 'Not matched to a day yet') + '</div></div>' +
             '<div class="end"><div class="n"><b>' + esc(R.money(d.amountCents)) + '</b></div><button class="icon-btn" data-del="' + esc(d.id) + '" aria-label="Delete deposit of ' + esc(R.money(d.amountCents)) + ' on ' + esc(R.dayShort(d.date)) + '">×</button></div></div>';
         }).join('') + '</div>' + (deps.length > 200 ? '<p class="hint">Showing the newest 200.</p>' : '');
@@ -893,7 +1062,7 @@
       function readCsv(text) {
         var err = $('#csvErr'); err.innerHTML = '';
         var pv = $('#preview');
-        pv.innerHTML = '<div class="loading" style="padding:20px 0"><span class="spinner"></span></div>';
+        pv.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
         var work = mode === 'sample'
           ? Promise.resolve().then(function () {
             var r = R.parseBankCsv(text, b.settings.keywords);
@@ -911,19 +1080,19 @@
         var other = r.rows.filter(function (x) { return !x.processor && !x.have; });
         function line(x, i, on) {
           return '<li><label class="' + (x.have ? 'have' : '') + '"><input type="checkbox" data-i="' + i + '"' + (on ? ' checked' : '') + (x.have ? ' disabled' : '') + '>' +
-            '<span style="min-width:0"><span class="t" style="display:block">' + esc(x.description) + '</span><span class="m">' + esc(R.dayShort(x.date)) + (x.processor ? ' · ' + esc(x.processor) : '') + (x.have ? ' · already in Tally' : '') + '</span></span>' +
+            '<span class="minw"><span class="t">' + esc(x.description) + '</span><span class="m">' + esc(R.dayShort(x.date)) + (x.processor ? ' · ' + esc(x.processor) : '') + (x.have ? ' · already in Tally' : '') + '</span></span>' +
             '<span class="n">' + esc(R.money(x.amountCents)) + '</span></label></li>';
         }
         var idx = function (x) { return r.rows.indexOf(x); };
         var sk = r.skipped || {};
-        var h2 = (mode === 'sample' ? '<p class="hint" style="margin:0 0 8px">Read from Copper Kettle’s own (made-up) bank export for September:</p>' : '') + '<p class="sum"><b>' + esc(R.plural(cards.length, 'new card deposit')) + '</b>' +
+        var h2 = (mode === 'sample' ? '<p class="hint">Read from Copper Kettle’s own (made-up) bank export for September:</p>' : '') + '<p class="sum"><b>' + esc(R.plural(cards.length, 'new card deposit')) + '</b>' +
           (have.length ? ' · ' + esc(R.plural(have.length, 'already in Tally', 'already in Tally')) : '') +
           (other.length ? ' · ' + esc(R.plural(other.length, 'other deposit')) + ' left out' : '') +
           (sk.outflows ? ' · ' + esc(R.plural(sk.outflows, 'payment out', 'payments out')) + ' skipped' : '') + '.</p>';
         if (cards.length) h2 += '<ul class="checks">' + cards.map(function (x) { return line(x, idx(x), true); }).join('') + '</ul>';
         if (have.length) h2 += '<details class="more"><summary>Already in Tally (' + have.length + ')</summary><ul class="checks">' + have.map(function (x) { return line(x, idx(x), false); }).join('') + '</ul></details>';
-        if (other.length) h2 += '<details class="more"' + (cards.length ? '' : ' open') + '><summary>Other money in — cash, transfers (' + other.length + ')</summary><p class="hint" style="margin-bottom:8px">Not from a card processor, so unticked. Tick one if it is — or add its word in Settings.</p><ul class="checks">' + other.map(function (x) { return line(x, idx(x), false); }).join('') + '</ul></details>';
-        h2 += '<div id="addErr"></div><button class="btn block" id="addPicked" style="margin-top:12px"></button>';
+        if (other.length) h2 += '<details class="more"' + (cards.length ? '' : ' open') + '><summary>Other money in — cash, transfers (' + other.length + ')</summary><p class="hint">Not from a card processor, so unticked. Tick one if it is — or add its word in Settings.</p><ul class="checks">' + other.map(function (x) { return line(x, idx(x), false); }).join('') + '</ul></details>';
+        h2 += '<div id="addErr"></div><button class="btn block" id="addPicked"></button>';
         var pv = $('#preview');
         pv.innerHTML = h2;
         function count() {
@@ -989,24 +1158,24 @@
       var h = (mode === 'sample' ? sampleBar('settings') : '') +
         '<div class="page-head"><div><h1>' + (mode === 'sample' ? 'Fee settings' : 'Settings') + '</h1><div class="sub">Your fee model, and how Tally spots a card deposit.' + (mode === 'sample' ? ' Changes here only affect this sample — try a 2-day window and watch the month.' : '') + '</div></div></div>' +
         '<form id="setF" novalidate><div class="dk-split"><div>' +
-        (mode === 'real' ? '<div class="card"><label class="field" style="margin:0"><span>Business name</span><input class="input" name="business" maxlength="60" placeholder="Copper Kettle Coffee" value="' + esc(s.business) + '"></label></div>' : '') +
-        '<div class="card"><h2>Your card processor</h2><p class="small muted" style="margin:4px 0 12px">Typical published in-person rates as we understand them — <b>estimates</b>. Your monthly statement is the truth: type its numbers below.</p>' + procGrid(s.processor) + '</div>' +
-        '<div class="card"><h2>Fee model</h2><p class="small muted" style="margin:4px 0 12px">Fee per day = the percentage of card sales and tips, plus the per-transaction fee.</p><div class="grid2">' +
+        (mode === 'real' ? '<div class="card"><label class="field"><span>Business name</span><input class="input" name="business" maxlength="60" placeholder="Copper Kettle Coffee" value="' + esc(s.business) + '"></label></div>' : '') +
+        '<div class="card"><h2>Your card processor</h2><p class="small muted">Typical published in-person rates as we understand them — <b>estimates</b>. Your monthly statement is the truth: type its numbers below.</p>' + procGrid(s.processor) + '</div>' +
+        '<div class="card"><h2>Fee model</h2><p class="small muted">Fee per day = the percentage of card sales and tips, plus the per-transaction fee.</p><div class="grid2">' +
         '<label class="field"><span>Percentage</span><span class="money-in pct"><b>%</b><input class="input" name="feePct" inputmode="decimal" value="' + esc(R.bpsText(s.feeBps).replace('%', '')) + '"></span></label>' +
         '<label class="field"><span>Per transaction</span><span class="money-in"><b>$</b><input class="input" name="feeFixed" inputmode="decimal" value="' + esc(R.plain(s.feeFixedCents)) + '"></span></label></div>' +
-        '<div class="field"><span id="winLbl" style="display:block;font-size:13.5px;font-weight:700;color:var(--muted);margin-bottom:6px">Deposits arrive within</span><div class="seg" role="group" aria-labelledby="winLbl">' +
+        '<div class="field"><span id="winLbl" class="lbl">Deposits arrive within</span><div class="seg" role="group" aria-labelledby="winLbl">' +
         [1, 2, 3].map(function (n) { return '<button type="button" data-win="' + n + '" aria-pressed="' + (s.windowDays === n) + '"' + (s.windowDays === n ? ' class="on"' : '') + '>' + n + ' business day' + (n > 1 ? 's' : '') + '</button>'; }).join('') +
-        '</div><small style="display:block;font-size:13px;color:var(--faint);margin-top:5px">Weekends and US bank holidays roll forward. A deposit up to 5 business days late still matches, marked late.</small></div>' +
+        '</div><small>Weekends and US bank holidays roll forward. A deposit up to 5 business days late still matches, marked late.</small></div>' +
         '</div></div><div>' +
-        '<div class="card"><h2>When is a deposit short?</h2><p class="small muted" style="margin:4px 0 12px">Processors round per transaction, so a deposit a little under the estimate still matches. More than this is flagged short.</p><div class="grid2">' +
+        '<div class="card"><h2>When is a deposit short?</h2><p class="small muted">Processors round per transaction, so a deposit a little under the estimate still matches. More than this is flagged short.</p><div class="grid2">' +
         '<label class="field"><span>Allow up to</span><span class="money-in"><b>$</b><input class="input" name="tol" inputmode="decimal" value="' + esc(R.plain(s.tolCents)) + '"></span></label>' +
         '<label class="field"><span>or, if larger</span><span class="money-in pct"><b>%</b><input class="input" name="tolPct" inputmode="decimal" value="' + esc(R.bpsText(s.tolBps).replace('%', '')) + '"></span></label></div></div>' +
-        '<div class="card"><h2>What counts as a card deposit</h2><p class="small muted" style="margin:4px 0 12px">A bank line is pre-ticked on import when its description contains one of these.</p><div class="kw" id="kw"></div>' +
-        '<div class="row" style="margin-top:10px"><input class="input grow" id="kwNew" maxlength="30" placeholder="e.g. MRCH SVC" aria-label="Add a keyword"><button type="button" class="btn small ghost" id="kwAdd">Add</button></div></div>' +
-        '</div></div><div id="setErr"></div><button class="btn block lg" style="margin-top:14px">' + (mode === 'sample' ? 'Apply to the sample' : 'Save settings') + '</button></form>';
+        '<div class="card"><h2>What counts as a card deposit</h2><p class="small muted">A bank line is pre-ticked on import when its description contains one of these.</p><div class="kw" id="kw"></div>' +
+        '<div class="row"><input class="input grow" id="kwNew" maxlength="30" placeholder="e.g. MRCH SVC" aria-label="Add a keyword"><button type="button" class="btn small ghost" id="kwAdd">Add</button></div></div>' +
+        '</div></div><div id="setErr"></div><button class="btn block lg">' + (mode === 'sample' ? 'Apply to the sample' : 'Save settings') + '</button></form>';
       if (mode === 'real') {
-        h += '<div class="card" style="margin-top:16px"><h2>Your data</h2><div class="nobank" style="margin-top:6px"><span class="e" aria-hidden="true">🔒</span><span>No bank connection and no bank login, ever. Photos of reports are read once and not kept. Your days and deposits are yours: export any month from the Books tab.</span></div>' +
-          '<details class="more" style="margin-top:6px"><summary>Delete everything</summary><p class="small muted">Every closed day, every deposit and these settings. This can’t be undone. Type DELETE to confirm.</p><div class="row" style="margin-top:8px"><input class="input grow" id="delConfirm" aria-label="Type DELETE to confirm" autocomplete="off"><button type="button" class="btn danger" id="delAll">Delete</button></div><div id="delErr"></div></details></div>';
+        h += '<div class="card"><h2>Your data</h2><div class="nobank"><span class="e" aria-hidden="true">' + ICON.lock + '</span><span>No bank connection and no bank login, ever. Photos of reports are read once and not kept. Your days and deposits are yours: export any month from the Books tab.</span></div>' +
+          '<details class="more"><summary>Delete everything</summary><p class="small muted">Every closed day, every deposit and these settings. This can’t be undone. Type DELETE to confirm.</p><div class="row"><input class="input grow" id="delConfirm" aria-label="Type DELETE to confirm" autocomplete="off"><button type="button" class="btn danger" id="delAll">Delete</button></div><div id="delErr"></div></details></div>';
       }
       view.innerHTML = h;
       wireSignup();
@@ -1065,22 +1234,23 @@
       var result = compute(b);
       var mv = R.month(result, '2026-09');
       view.innerHTML =
-        '<section class="hero"><div class="hero-grid"><div>' +
-        '<span class="kicker">🧮 For cafés, shops, salons &amp; restaurants</span>' +
-        '<h1>Close the day in a minute. Know every card sale <em>got paid.</em></h1>' +
-        '<p class="lede">Your terminal says you took $1,284 on Tuesday. A few days later your processor deposits less — fees, refunds, holds. Tally matches the two, day by day, and tells you in plain words when a deposit comes up short or never arrives.</p>' +
-        '<div class="ctas"><a class="btn lg" href="#/sample">▶ See a sample café</a><button class="btn lg ghost" data-signup>Start free</button></div>' +
-        '<div class="trust"><span>✓ No bank login, ever</span><span>✓ Typing is free forever</span><span>✓ Square, Stripe, Clover, Toast…</span></div>' +
-        '</div><a class="peek" href="#/sample" aria-label="Open the sample café’s September"><div class="ph"><b>Copper Kettle Coffee · Sep 2026</b><span>sample</span></div>' +
+        '<section class="hero">' +
+        '<p class="kicker">For cafés, shops, salons &amp; restaurants</p>' +
+        '<h1>Close the day in a minute.</h1>' +
+        '<p class="lede">Know every card sale got paid. Tally matches each day’s card sales to what reached your bank, and says so in plain words.</p>' +
+        '<div class="ctas"><a class="btn lg" href="#/sample">See a sample café</a><button class="btn lg ghost" data-signup>Start free</button></div>' +
+        '<p class="trust">No bank login, ever · Typing is free forever</p>' +
+        '</section>' +
+        '<a class="peek" href="#/sample" aria-label="Open the sample café’s September"><div class="ph"><b>Copper Kettle Coffee · Sep 2026</b><span>Sample</span></div>' +
         calendarHTML(mv, { static: true, noLegend: true }) +
-        '<div class="callout"><span aria-hidden="true">×</span><span><b>' + esc(R.money(mv.totals.unaccounted)) + '</b> unaccounted for — a missing batch and a short deposit.</span></div></a></div></section>' +
-        '<div class="steps">' +
-        '<div class="step"><div class="ic">⌨️</div><h3>1 · Close today</h3><p>Four numbers off the end-of-day report — or snap a photo of it. Tally works out what should reach the bank, and by when.</p></div>' +
-        '<div class="step"><div class="ic">🏦</div><h3>2 · Add deposits</h3><p>Drop in the CSV your bank’s website already gives you. We pick out the Square, Stripe, Clover and Toast payouts.</p></div>' +
-        '<div class="step"><div class="ic">🔎</div><h3>3 · See what’s missing</h3><p>Every day: ✓ matched, ! short, … pending or × missing — with the reason, in plain words.</p></div>' +
-        '</div>' +
-        '<div class="card why"><h2>Why bother?</h2><p style="margin-top:8px">Processors get it wrong more often than you’d think: a batch that never settles, a chargeback held without a word, a rate that creeps up 0.3 points. At $40,000 a month in card sales, 0.3 points is $1,440 a year.</p><p>Most small shops never check, because matching a terminal report to a bank statement by hand is a chore. Tally makes it a minute.</p></div>' +
-        '<div class="nobank"><span class="e" aria-hidden="true">🔒</span><span>No bank connection. Tally never asks for a bank login — deposits come from a file you download yourself.</span></div>';
+        '<div class="callout">' + ICON.alert + '<span><b>' + esc(R.money(mv.totals.unaccounted)) + '</b> unaccounted for — a missing batch and a short deposit.</span></div></a>' +
+        '<section class="steps" aria-label="How it works">' +
+        '<div class="step"><div class="ic" aria-hidden="true">' + ICON.keys + '</div><div><h3>Close today</h3><p>Four numbers off the end-of-day report — or snap a photo of it. Tally works out what should reach the bank, and by when.</p></div></div>' +
+        '<div class="step"><div class="ic" aria-hidden="true">' + ICON.bank + '</div><div><h3>Add deposits</h3><p>Drop in the CSV your bank’s website already gives you. Tally picks out the Square, Stripe, Clover and Toast payouts.</p></div></div>' +
+        '<div class="step"><div class="ic" aria-hidden="true">' + ICON.search + '</div><div><h3>See what’s missing</h3><p>Every day: ✓ matched, ! short, … pending or × missing — with the reason, in plain words.</p></div></div>' +
+        '</section>' +
+        '<section class="why"><h2>Why bother?</h2><p>Processors get it wrong more often than you’d think: a batch that never settles, a chargeback held without a word, a rate that creeps up 0.3 points. At $40,000 a month in card sales, 0.3 points is $1,440 a year.</p><p>Most small shops never check, because matching a terminal report to a bank statement by hand is a chore. Tally makes it a minute.</p></section>' +
+        '<div class="nobank"><span class="e" aria-hidden="true">' + ICON.lock + '</span><span>No bank connection. Tally never asks for a bank login — deposits come from a file you download yourself.</span></div>';
       wireSignup();
     }).catch(function (e) { showError(e, view); });
   }

@@ -166,4 +166,93 @@ function create() {
   };
 }
 
-module.exports = { create };
+/* ------------------------------------------------------------------ *
+ * The stand-in for Gemini (SNAPQUOTE_AI_PROVIDER=gemini): given the body the
+ * guard's Vertex helper would send, an answer in the shape the schema asks
+ * for - line items with a task, a quantity, a unit, materials and a
+ * confidence. Every request is kept in `geminiCalls` with the media replaced
+ * by its length.
+ *
+ * Triggers, in the media's bytes or the typed note:
+ *   BLANK        not a job (relevant: false) - a 422
+ *   EMPTY        a job, but no line items - a 422
+ *   UNSURE       every line low confidence, quantities null
+ *   MONEY        a model that prices anyway: amounts in its words, and
+ *                unitPrice / total fields the schema never asked for
+ *   INJECT       markup in a task
+ *   UPSTREAMnnn  the call fails the way the helper's VertexError does
+ * ------------------------------------------------------------------ */
+
+const READS = {
+  Painting: {
+    title: 'Interior repaint - living room & hallway',
+    items: [
+      { task: 'Patch and sand nail holes, 2 walls', category: 'labor', quantity: 3, unit: 'hr', materials: '', confidence: 'high' },
+      { task: 'Paint walls, 2 coats (approx. 620 sq ft)', category: 'labor', quantity: 14, unit: 'hr', materials: '', confidence: 'medium' },
+      { task: 'Eggshell wall paint', category: 'material', quantity: 5, unit: 'gal', materials: 'premium eggshell', confidence: 'high' },
+      { task: 'Primer for patched areas', category: 'material', quantity: 1, unit: 'gal', materials: '', confidence: 'medium' },
+      { task: 'Seal and repaint ceiling water stain', category: 'labor', quantity: null, unit: 'hr', materials: 'stain-blocking primer', confidence: 'low' },
+    ],
+    questions: ['The size of the ceiling stain was not clear in the photos.', 'Ceiling height was not mentioned.'],
+  },
+  Landscaping: {
+    title: 'Front yard cleanup & fresh mulch',
+    items: [
+      { task: 'Cleanup, edging and pruning', category: 'labor', quantity: 8, unit: 'hr', materials: '', confidence: 'medium' },
+      { task: 'Hardwood mulch, 3 inches deep', category: 'material', quantity: 6, unit: 'yd³', materials: 'double-shred hardwood', confidence: 'high' },
+      { task: 'Mulch install', category: 'labor', quantity: 4, unit: 'hr', materials: '', confidence: 'medium' },
+      { task: 'Green waste haul-away', category: 'other', quantity: 1, unit: 'lot', materials: '', confidence: 'low' },
+    ],
+    questions: ['Bed area was estimated from one photo.'],
+  },
+};
+const READ_GENERIC = {
+  title: 'Repair & install work',
+  items: [
+    { task: 'On-site repair labor', category: 'labor', quantity: 6, unit: 'hr', materials: '', confidence: 'medium' },
+    { task: 'Materials and hardware', category: 'material', quantity: 1, unit: 'lot', materials: '', confidence: 'low' },
+    { task: 'Trip charge and disposal', category: 'other', quantity: 1, unit: 'visit', materials: '', confidence: 'medium' },
+  ],
+  questions: ['What is behind the wall was not visible.'],
+};
+
+const geminiCalls = [];
+async function gemini(body) {
+  const parts = (body && body.contents && body.contents[0] && body.contents[0].parts) || [];
+  const media = parts.filter((p) => p.inlineData);
+  const text = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('\n');
+  const bytes = media.map((p) => Buffer.from(p.inlineData.data, 'base64').toString('latin1')).join('\n');
+  geminiCalls.push({
+    schema: Object.keys((((body || {}).generationConfig || {}).responseSchema || {}).properties || {}),
+    systemInstruction: body && body.systemInstruction,
+    parts: parts.map((p) => (p.inlineData ? { inlineData: { mimeType: p.inlineData.mimeType, data: `<${p.inlineData.data.length} chars>` } } : p)),
+  });
+  await new Promise((r) => setTimeout(r, Number(process.env.SNAPQUOTE_FAKE_DELAY_MS || 0)));
+  const note = (/<<<NOTE\n([\s\S]*)\nNOTE>>>/.exec(text) || [])[1] || '';
+  const source = `${bytes}\n${note}`;
+  const hit = source.match(/UPSTREAM(\d{3})/);
+  if (hit) throw Object.assign(new Error(`Gemini answered ${hit[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(hit[1]) });
+  const trade = ((text.match(/The trade is ([A-Za-z]+)\./) || [])[1] || '').trim();
+  const book = JSON.parse(JSON.stringify(READS[trade] || READ_GENERIC));
+  const audio = media.some((p) => /^audio\//.test(p.inlineData.mimeType));
+  const out = {
+    relevant: true,
+    title: book.title,
+    heard: audio ? 'Walls only in the living room and hall, some nail holes to patch, and one water stain on the ceiling. They want it done before the 15th.' : '',
+    items: book.items,
+    questions: book.questions,
+  };
+  if (/BLANK/.test(source)) return { ...out, relevant: false, items: [], questions: [] };
+  if (/EMPTY/.test(source)) return { ...out, items: [] };
+  if (/UNSURE/.test(source)) out.items = out.items.map((it) => ({ ...it, quantity: null, confidence: 'low' }));
+  if (/INJECT/.test(source)) out.items[0].task = '<script>alert(1)</script>Prep work';
+  if (/MONEY/.test(source)) {
+    out.items[0] = { ...out.items[0], task: `${out.items[0].task} for $1,200`, materials: 'about 45 dollars of filler', unitPrice: 999, price: 5000, total: 5000 };
+    out.title = `${out.title} - $4,800 all in`;
+    out.total = 4800; out.tax = 384; out.margin = 2000; out.subtotal = 4416;
+    out.questions = ['Budget was said to be $5,000.'];
+  }
+  return out;
+}
+
+module.exports = { create, gemini, geminiCalls };

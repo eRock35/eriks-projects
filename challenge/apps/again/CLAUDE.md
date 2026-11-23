@@ -5,13 +5,15 @@ forgets what was good last time ("what did we get here that we loved?",
 "which one was the soggy fries?"), and anyone whose friends keep
 recommending dishes they then forget.
 
-- **First run** (real effort went here): a hero with a mock "You're at
+- **First run** (real effort went here): a centred hero (the headline,
+  one line, two pill buttons) over a sample "You're at
   Orzolino" card ("❤️ Order again: Cacio e pepe ×3, The burrata · 👎 Skip:
   Tiramisu - too sweet · 💬 Friends said try: The carbonara - from Alex"),
   **Try it** (ten made-up places in Riverton and Lakeport, 26 dishes in every
   verdict, five friends' picks - open, tried and place-only - with a ribbon
   that says nothing is saved, "Start my own" and "Leave") and **Add a place
-  I loved**; then how it works in three steps and three feature cards.
+  I loved**; then how it works in three steps and what you get as a
+  hairline list.
   **The demo is unmistakably fictional on purpose** (2026-11-04 review):
   Riverton and Lakeport are invented cities, every neighbourhood ("Old
   Mill", "Canal Row", "Southbank"...) and place ("Orzolino", "Hickory &
@@ -33,12 +35,14 @@ recommending dishes they then forget.
 - **"I'm here"** (the moment the app exists for): search a place - "orzolino",
   "ORZOLÍNO", "the orzolino", "hickory & hush" = "hickory and hush", "hick", "hush",
   "ozrolino" (a swapped pair), "orzolina" (one wrong letter), a neighbourhood, a
-  city or a cuisine - Enter opens the best match. One big card: the place
-  on the gradient with its cuisine emoji, neighbourhood, city, "Last here 3
+  city or a cuisine - Enter opens the best match. One big card (the app's
+  one real card: a hairline and 12 px corners): the place
+  with its cuisine emoji, neighbourhood, city, "Last here 3
   weeks ago, with Sam and Priya · 3 visits"; **Order again** in the biggest
-  type on a tinted band, most-ordered first with "×3"; **Fine**; **Skip**
+  type, most-ordered first with "×3"; **Fine**; **Skip**
   struck through with the reason; **Friends said try** for this place with
-  "Tried it"; then "I'm having…" and "Read the menu". Visits (each day and
+  "Tried it"; then "I'm having…", "Read the menu" ("Snap the menu" on the
+  Gemini reader) and, on the Gemini reader, "Snap my plate". Visits (each day and
   who was there) sit under it on a phone and beside it on a desktop. Tap a
   dish to change its verdict, note, price, name or photo, or delete it.
 - **Want to try**: "The mole at Casa Lunaria - from Priya · last week · Fairhollow,
@@ -68,7 +72,9 @@ recommending dishes they then forget.
   undone on the way back in). An import replaces by id rather than
   doubling.
 - **Signed in (free)**: opt-in sync, and a read-only share link per city.
-- **"Read the menu"** (metered, signed in): below.
+- **"Read the menu"** (metered, signed in): below. With
+  `AGAIN_AI_PROVIDER=gemini` it is **"Snap the menu"** and there is
+  **"Snap my plate"** beside it: also below.
 
 Built 2026-11-04 as an **everyday** drop: Lastday (2026-11-03) was a
 business one, so today was the other kind. **Staging only**: no custom
@@ -146,8 +152,9 @@ the reader, and Live Text for a menu without the model at all.
 - **Photos stay on the phone.** Dish photos are redrawn through a canvas at
   1200 px with a 240 px thumbnail - which drops EXIF, location included -
   and kept in IndexedDB. Sync, links and exports never carry them; the
-  only image that ever leaves is a menu photo the reader sends, shown
-  first, and it is not kept.
+  only images that ever leave are a menu photo the reader sends and, on the
+  Gemini reader, a plate photo the person chooses to send - each shown
+  first, and neither is kept by the server.
 - **Neutral copy**: they and them, never a gendered pronoun (tested over
   every string and this file).
 
@@ -216,6 +223,51 @@ first name, optional, remembered on this device) and 1, 7, 14 or 30 days.
 - Offline, the service worker answers `s/` with a small page saying the
   list needs the internet.
 
+## The design (redesigned 2026-11-23, the HOA Desk look)
+
+Erik asked for every lab app in one look: clean white, Apple-like, lots of
+space, nothing dated. `public/app.css` holds it; its header comment is the
+short version. Keep these when editing:
+
+- **Pure white page** (`--bg #ffffff`; true black in the quiet dark mode).
+  No tint, gradient, texture or shadow, except a barely-there shadow on what
+  floats (the pill bar, a sheet, a toast). The share card is the one place
+  the lab's tomato-to-teal gradient still appears: it is an image drawn on a
+  canvas, not the page.
+- **Lists over boxes.** Places, dishes, picks, visits, stats and settings
+  are hairline-divided rows and plain sections (`.card` is a section with a
+  heading, no box). A real card - 1 px hairline `#e5e5ea`, 12 px corners -
+  only for the "I'm here" card and the first run's sample of it. Inputs and
+  tiles 10 px; buttons and chips are pills.
+- **One accent**: the tomato from `lab.js` (`#b4231a`; `#ff8e80` in dark) on
+  the primary action, links and the current view. Love / fine / skip and
+  ok / warn are status colours, used only for status, and a verdict always
+  carries its emoji and its words as well.
+- **Type**: the system stack, five sizes (`--t-cap` .. `--t-h1`; the hero
+  and the place name scale up from h1), tight-tracked headings, tabular
+  numbers. Spacing on a 4/8 scale, 40-48 px between sections.
+- **Navigation**: on a phone a slim floating translucent pill bar (1.5 px
+  line icons, the label on the current view only, a small accent mark,
+  46 px targets, safe-area aware); from 900 px the same five buttons sit in
+  the top bar with a quiet underline. The nav no longer carries
+  `dk-tabbar`, so the shared `desktop.css` rail is not used; `app.css`
+  undoes its body padding.
+- **No `style=` attribute anywhere** - not in `index.html`, not written by
+  `app.js` (spacing is utility classes; the sheet's room under the
+  confirm-your-email banner is a custom property set through a constructed
+  stylesheet). Tested.
+- **Motion** (press states, the sheet rising, a toast fading) only inside
+  `@media (prefers-reduced-motion: no-preference)`; every view is complete
+  at rest. Tested.
+- **Taps from the app's home** ("Where are you eating?"): open a place's
+  card 1; log a visit 1 (the Log tab; 2 to "I'm having…" from a card); Snap
+  the menu 1; Snap my plate 1; Want to try 1; Browse 1; Settings 1; add a
+  friend's pick 2; a dish's verdict 2 (place, dish).
+- Measured in the browser at 390, 320 and 1440 px, light and dark, over the
+  first run, home, a place, the log, Want to try, Browse, Settings, the
+  plate sheet and the menu sheet: the lowest text contrast and the widths
+  are in the redesign's report; nothing scrolls sideways.
+
 ## The model call (metered, signed in only)
 
 **`POST /api/ai/menu`**: `requireUser, requireBudget, requireDailyCap`
@@ -253,6 +305,84 @@ Signed out it says it needs a free account; 401 opens sign-in; 402 the
 credit sheet; 403 `verify-email` its sentence and "Send the link again";
 sheets size themselves below the shared confirm-your-email banner.
 
+### On Gemini: "Snap the menu or your plate" (2026-11-23, off until switched on)
+
+Erik's per-app AI plan gives Again to Gemini: *"Snap the menu or your plate
+so it remembers what you loved."* It is built and **off by default**:
+`AGAIN_AI_PROVIDER=gemini` on the service turns it on (read per request;
+anything else, unset included, is Claude exactly as above, and there is no
+plate route). `/api/me` says which (`reader: 'claude' | 'gemini'`) and the
+page shows the plate button only on the Gemini reader. Turning it on is
+Erik's call, and needs Vertex AI enabled for `challenge-run@` (see the lab's
+"Lab AI guard").
+
+**`AGAIN_AI_PROVIDER=claude-first` (2026-11-23):** the menu reads on Claude first, exactly as unset; any
+Claude failure but a burst refusal (SDK error, unusable answer, Claude's `monthly-cap`, no key) hands the
+same request to the Gemini menu reader (`menuClaudeFirst`, log `[again] claude failed (<code>); used
+gemini`, `reader` on the answer). "Snap my plate" is on in this mode (Gemini only, its own errors).
+
+- **Every model call goes through the lab's guard** (`global.LAB_AI_GUARD`,
+  absent when the app runs on its own): gates -> parser -> the request
+  checked (a 400 costs nothing and never reaches the guard) -> `allow`
+  (its "no" is sent in its own words, no call) -> the call -> `record` with
+  `priceUsd`. The Claude path does the same (not for a member's own key).
+  One Gemini call site (`askGemini`), through `guard.gemini.generate`;
+  `lib/gemini.js` only builds requests and cleans answers - it has no
+  network code.
+- **The menu** (`POST /api/ai/menu`, the same request and the same answer
+  shape): `MENU_SCHEMA` asks for the dishes **as written** - each name as
+  printed, a price **only when one is printed** (nullable; never guessed),
+  the menu's own words under a dish if it prints any, and a confidence per
+  row - plus the currency, the picks (only when asked) and a note. It goes
+  through the same `cleanMenu`, which keeps each row's `sure` (unknown is
+  "low"); the page marks a row that is not "high" **"Check this"**. The
+  system prompt and the page both say it never adds an ingredient, an
+  allergen, a diet label or nutrition the menu does not print.
+- **The plate** (`POST /api/ai/plate`, Gemini only; 404 with the switch
+  off, after the same gates): exactly `{image: {type, data}}`
+  (`plateRequest`: a place, a name, a note or a history is a 400), the
+  photo checked by its bytes, capped at 1 MB and 1600 px and stripped of
+  metadata like the menu's. `PLATE_SCHEMA`: `isFood`, one short
+  `description` of what can be seen, and `guess: {name | null, confidence}`.
+  `cleanPlate` keeps `{desc, guess, sure, guessed: true}` and nothing else;
+  **a description or a name that reads as an allergen, diet, ingredient-
+  safety or nutrition claim is dropped whole, never trimmed** (`PLATE_CLAIMS`:
+  vegan, gluten, "contains", calories, "safe"...); not food, or nothing
+  left, is a 422.
+- **The person picks and edits before anything is saved.** The plate sheet
+  shows what is sent first (the one photo, shrunk on the phone with its
+  location removed; never a place, a companion, a date, a price or a note),
+  then "Is this right?": the name in an editable field under **"Best guess
+  · medium confidence"**, "Looks like: ..." with "Use that as my note", a
+  note, "Keep this photo with the dish (on this phone only)", and the three
+  verdict buttons. A tap adds the dish to the visit being logged (with the
+  1200 px on-device copy of the photo if the box is ticked) and opens the
+  log; nothing is saved until the person saves the visit. The sheet says a
+  photo cannot show what is in a dish and never to rely on it for allergies.
+- **Data promises unchanged.** The server stores no photo and no answer
+  (tested against the store). A dish photo is kept only where it always
+  was: in IndexedDB on the phone, and only if the person keeps the box
+  ticked. The menu photo is still not kept anywhere.
+- **Cost.** `gemini-3.8-flash`, priced by the guard ($0.75 / $3.75 per 1M
+  through 2026-12-31, $1.50 / $7.50 after). The lab's $25-a-month Gemini cap
+  and burst limits apply, and the person's own ledger (credit, the free
+  tier's daily ceiling) is charged the call's real dollars, written as the
+  Haiku input tokens that cost the same with the route naming what ran
+  (`menu:gemini-3.8-flash`, `plate:gemini-3.8-flash`). A call that failed
+  after it billed is still recorded.
+- **Local**: `AGAIN_FAKE_AI=1` answers both through `lib/fakeai.js`
+  `gemini` (the same made-up trattoria, two rows unsure; a made-up bowl of
+  pasta), with `gemini.mode` for one call: `blank`, `inject`, `claims`,
+  `notfood`, `upstreamNNN`. `AGAIN_AI_PROVIDER=gemini npm run dev` shows it.
+- **Fallback (2026-11-23)** (`menuGeminiFirst`): the menu reader, on any
+  Gemini failure but a burst refusal (Vertex error, a menu the core rejects,
+  Gemini's `monthly-cap`, no helper), runs the Claude reader unchanged and
+  answers `reader: 'claude'` (else `'gemini'`; switch off: no `reader`); one
+  log line `[again] gemini failed (<code>); used claude`. Bursts are sent as
+  is. "Snap my plate" has no Claude path and keeps its own errors.
+  The menu schema's `dishes` has no `maxItems` (Vertex answered 400 to 80;
+  the limit is in its description and `Core.cleanMenu` clamps).
+
 ## Local run and tests
 
 ```
@@ -270,7 +400,7 @@ force a tool, keeps every request (`fakeClient.calls`), answers picks only
 when the request carried the person's dishes, and takes `fakeClient.mode`
 for one call: `blank`, `inject`, `badpicks`, `maxtokens`, `upstreamNNN`.
 
-`test/run.js` (31 tests): text, money and first names; folding and the
+`test/run.js` (35 tests; the last four hold the Gemini readers - the switch's default, the schemas, the plate's door and its dropped claims, the routes with a stand-in guard, and the page's promises about the plate): text, money and first names; folding and the
 fuzzy place search (accents, "the", "&", prefixes, typos, a city, a
 cuisine, the order); the dish search; quick-add; logging a visit (a new
 place, the same place again, another day and verdict, the same day twice,
@@ -344,7 +474,8 @@ Public: `GET /api/health`, `/healthz`, `/api/me`, the page, the service
 worker, `GET /s/:code` (the page) and `GET /api/s/:code` (a friend's view;
 other methods 405). Signed in, free: `GET|PUT|DELETE /api/list`,
 `POST|GET /api/shares`, `DELETE /api/shares/:id`. Metered: `POST
-/api/ai/menu`. The shared account at `/api/auth`.
+/api/ai/menu`, and `POST /api/ai/plate` (404 unless
+`AGAIN_AI_PROVIDER=gemini`). The shared account at `/api/auth`.
 
 ## Ideas not built yet
 

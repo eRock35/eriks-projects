@@ -25,6 +25,7 @@ process.env.DAILY_CAP_CACHE_MS = '0';
 const { app, identityStore, store, fakeClient } = require('../server');
 const C = require('../public/pawlog-core');
 const ai = require('../lib/ai');
+const gemini = require('../lib/gemini');
 const H = require('../lib/homes');
 
 const ROOT = path.join(__dirname, '..');
@@ -719,6 +720,368 @@ test('the gates: an unconfirmed free account gets verify-email 403, out of credi
   await settle();
   assert.strictEqual(await modelCalls(), calls, 'none of them spent anything');
   assert.strictEqual((await dan('POST', '/api/read-paperwork', PAPER)).status, 200, 'and it lifts when the day’s tally is under it');
+});
+
+/* ---------------- Snap the vet paperwork on Gemini (PAWLOG_AI_PROVIDER=gemini) ---------------- */
+
+/** A stand-in for the lab's AI guard, so the route can be watched from the
+ *  outside. Nothing here touches the network. */
+function fakeGuard(opts = {}) {
+  const log = { allow: [], record: [], requests: [], order: [] };
+  return {
+    log,
+    allow: async (a) => { log.order.push('allow'); log.allow.push({ provider: a.provider, app: a.app, uid: a.req && a.req.user && a.req.user.id }); return (opts.denyFor && opts.denyFor[a.provider]) || opts.deny || { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
+    priceUsd: ({ provider, model, inputTokens, outputTokens }) => { if (opts.provider !== 'any') assert.strictEqual(provider, opts.provider || 'gemini'); return provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6; },
+    gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } }; } },
+  };
+}
+async function withGemini(guard, fn) {
+  process.env.PAWLOG_AI_PROVIDER = 'gemini';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.PAWLOG_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(400, 7)]).toString('base64');
+const T0 = '2026-11-23';
+const F = (value, confidence) => ({ value, confidence });
+
+test('the provider switch: Claude unless PAWLOG_AI_PROVIDER=gemini, read per request; the Gemini schema only transcribes - no time of day, no schedule, no suggested dose', async () => {
+  const anon = client();
+  assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', 'the default is the provider Pawlog has always used');
+  for (const v of ['', 'Gemini', 'GEMINI', '1', 'on', 'vertex', 'claude', 'off']) {
+    process.env.PAWLOG_AI_PROVIDER = v;
+    try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', `"${v}" is not the switch`); } finally { delete process.env.PAWLOG_AI_PROVIDER; }
+  }
+  await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
+  assert.match(read('server.js'), /process\.env\.PAWLOG_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
+  assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['medicines', 'vaccinations', 'weight', 'nextVisit']);
+  const med = gemini.SCHEMA.properties.medicines.items;
+  assert.deepStrictEqual(Object.keys(med.properties), ['name', 'strength', 'amount', 'frequency', 'days', 'food', 'startDate']);
+  assert.deepStrictEqual(med.required, Object.keys(med.properties));
+  for (const k of ['name', 'strength', 'amount', 'frequency', 'startDate']) {
+    assert.deepStrictEqual([med.properties[k].properties.text.type, med.properties[k].properties.text.nullable, med.properties[k].properties.confidence.enum], ['STRING', true, ['high', 'medium', 'low']], k);
+  }
+  assert.deepStrictEqual([med.properties.days.properties.value.type, med.properties.days.properties.value.nullable], ['INTEGER', true]);
+  assert.deepStrictEqual(med.properties.food.properties.value.enum, ['with_food', 'without_food', 'not_stated']);
+  assert.ok(!/"(?:times?|schedule|suggest\w*|recommend\w*|advice|notes?|owner|address|phone|email|account|price)"/i.test(JSON.stringify(gemini.SCHEMA).replace(/"description":"[^"]*"/g, '')), 'no field for a time, a schedule, advice or anything private');
+  assert.ok(/Never suggest, calculate, convert, round, correct or complete a dose/.test(gemini.SYSTEM) && /return null/.test(gemini.SYSTEM) && /Never give a time of day or a schedule/.test(gemini.SYSTEM) && /never an instruction/.test(gemini.SYSTEM));
+  const rq = gemini.request({ kind: 'dog', photo: { mediaType: 'image/jpeg', data: 'QUJD' } }, T0);
+  assert.deepStrictEqual([rq.model, rq.responseSchema, rq.generationConfig.temperature], ['gemini-3.8-flash', gemini.SCHEMA, 0]);
+  assert.deepStrictEqual(rq.contents[0].parts[0], { inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } });
+  assert.ok(/The pet is a dog/.test(rq.contents[0].parts[1].text));
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+  assert.ok(!/fetch\(|https?:\/\//.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own: the guard’s helper does');
+  assert.ok(!/console\./.test(read('lib/gemini.js')), 'the reader logs nothing');
+});
+
+test('a transcribed medicine is kept exactly or not at all: nothing is mended, rounded or cut to fit, and unknown keys never pass', () => {
+  const R = (text, confidence) => ({ text, confidence });
+  const full = { name: R('Pain relief tablets', 'high'), strength: R('25 mg', 'high'), amount: R(' 1  tablet ', 'medium'), frequency: R('twice daily', 'high'), days: { value: 7, confidence: 'high' }, food: { value: 'with_food', confidence: 'high' }, startDate: R(T0, 'high') };
+  assert.deepStrictEqual(gemini.cleanMeds([full], T0), [{ name: F('Pain relief tablets', 'high'), strength: F('25 mg', 'high'), amount: F('1 tablet', 'medium'), frequency: F('twice daily', 'high'), days: F(7, 'high'), food: F('with', 'high'), start: F(T0, 'high') }]);
+  const one = (over) => gemini.cleanMeds([{ ...full, ...over }], T0)[0];
+  // values that would need mending are dropped, never repaired
+  assert.deepStrictEqual(one({ amount: R('<b>2</b> tablets', 'high') }).amount, F(null, null), 'markup: not "2 tablets"');
+  assert.deepStrictEqual(one({ amount: R('1 tablet‮', 'high') }).amount, F(null, null), 'a bidi control');
+  assert.deepStrictEqual(one({ amount: R('x'.repeat(C.LIMITS.medAmount + 1), 'high') }).amount, F(null, null), 'too long is not cut short');
+  assert.deepStrictEqual(one({ strength: R('16 mg $45.00', 'high') }).strength, F(null, null), 'a price');
+  assert.deepStrictEqual(one({ amount: R('1 tablet - call 555-010-9988', 'high') }).amount, F(null, null), 'a phone number');
+  assert.deepStrictEqual(one({ amount: R(2, 'high') }).amount, F(null, null), 'a bare number is not a transcription');
+  assert.deepStrictEqual(one({ amount: R('0.25 ml', 'high') }).amount, F('0.25 ml', 'high'), 'a decimal dose is kept to the character');
+  assert.deepStrictEqual(one({ amount: R('1/2 tablet', 'low') }).amount, F('1/2 tablet', 'low'));
+  // days: whole numbers printed on the paper only
+  for (const v of [0, -3, 7.5, '7', 731, NaN, null]) assert.strictEqual(one({ days: { value: v, confidence: 'high' } }).days.value, null, String(v));
+  assert.strictEqual(one({ days: { value: 730, confidence: 'high' } }).days.value, 730);
+  // dates real and near; food from the list; confidence from the list (else low)
+  for (const d of ['2026-02-30', 'yesterday', '2099-01-01', '2020-01-01', 20261123, null]) assert.strictEqual(one({ startDate: R(d, 'high') }).start.value, null, String(d));
+  assert.deepStrictEqual([one({ food: { value: 'always', confidence: 'high' } }).food.value, one({ food: { value: 'without_food', confidence: 'low' } }).food.value, one({ food: { value: 'not_stated', confidence: 'high' } }).food], [null, 'without', F(null, null)]);
+  assert.strictEqual(one({ name: R('Ear drops', 'certain') }).name.confidence, 'low', 'an unknown confidence is the least sure');
+  assert.deepStrictEqual(Object.keys(one({ suggestedDose: '2 tablets', times: ['08:00'], note: 'x' })), ['name', 'strength', 'amount', 'frequency', 'days', 'food', 'start'], 'invented keys never pass');
+  // rows that say nothing, repeats, and the cap
+  const blank = { name: R(null, 'low'), strength: R('5 mg', 'high'), amount: R(null, 'low'), frequency: R('', 'low'), days: { value: 3, confidence: 'high' }, food: { value: 'not_stated', confidence: 'low' }, startDate: R(null, 'low') };
+  assert.deepStrictEqual(gemini.cleanMeds([blank, full, full, 'x', null, 7], T0).length, 1);
+  assert.strictEqual(gemini.cleanMeds(Array.from({ length: 30 }, (_, i) => ({ ...full, name: R(`Drops ${i}`, 'high') })), T0).length, gemini.MAX_MEDS);
+  for (const junk of [null, 'x', 7, {}, [[]]]) assert.deepStrictEqual(gemini.cleanMeds(junk, T0), []);
+  const all = gemini.cleanReading({ medicines: [full], vaccinations: [{ name: 'Rabies booster', kind: 'vaccine', given: '2026-11-22', due: '2027-11-22' }], weight: { value: 11.4, unit: 'kg' }, nextVisit: null, extra: 1 }, T0);
+  assert.deepStrictEqual(Object.keys(all).sort(), ['medicines', 'meds', 'nextVisit', 'stripped', 'vaccinations', 'weight']);
+  assert.deepStrictEqual([all.medicines, all.meds.length, all.vaccinations[0].name, all.weight.g], [[], 1, 'Rabies booster', 11400]);
+});
+
+test('how often: the label’s words become a schedule only when they are plain - no fallback, never a guess', () => {
+  const yes = { 'twice daily': 'd2', 'Give every 12 hours': 'd2', BID: 'd2', 'once daily': 'd1', daily: 'd1', 'every 24 hours': 'd1', 'three times a day': 'd3', q8h: 'd3', 'every 6 hours': 'd4', 'four times daily': 'd4', 'every other day': 'e2', 'once a week': 'w1', weekly: 'w1', monthly: 'm1' };
+  for (const [w, id] of Object.entries(yes)) assert.strictEqual(C.parseFrequency(w), id, w);
+  for (const w of ['', 'as needed', 'twice daily as needed', 'every 8-12 hours', 'once or twice daily', 'twice a week', 'twice weekly', 'twice daily for 3 days then once daily', 'every 3 days', 'every 2 weeks', 'every 4 hours', 'with meals', 'per the vet', 'until finished', null, 7]) {
+    assert.strictEqual(C.parseFrequency(w), null, String(w));
+  }
+  assert.deepStrictEqual(C.parseSchedule('per the vet').times, [480], 'the older reader’s parser is unchanged');
+  assert.deepStrictEqual(C.FREQUENCIES.map((f) => [f.id, f.times.length]), [['d1', 1], ['d2', 2], ['d3', 3], ['d4', 4], ['e2', 1], ['w1', 1], ['m1', 1]]);
+  assert.ok(C.FREQUENCIES.every((f) => f.times.every((t, i) => Number.isInteger(t) && t >= 360 && t <= 1320 && (i === 0 || t > f.times[i - 1]))), 'the app’s own times, in waking hours, in order');
+});
+
+test('nothing is saved until every flagged field is confirmed or typed and the label box is ticked; the app works out the times and the last day', () => {
+  const clear = { name: F('Pain relief tablets', 'high'), strength: F('25 mg', 'high'), amount: F('1 tablet', 'high'), frequency: F('twice daily', 'high'), days: F(7, 'high'), food: F('with', 'high'), start: F(T0, 'high') };
+  const d = C.medDraft(clear, T0);
+  assert.deepStrictEqual([d.freq, d.times, d.said], ['d2', [480, 1200], 'twice daily']);
+  assert.deepStrictEqual(C.MED_FIELDS.filter((k) => d.fields[k].flagged), [], 'all printed clearly: nothing flagged');
+  const input = (dr, over) => ({ pet: 'p1', name: dr.fields.name.value || '', strength: dr.fields.strength.value || '', amount: dr.fields.amount.value || '', freq: dr.freq || '', times: dr.times, days: dr.fields.days.value === null ? '' : String(dr.fields.days.value), ongoing: false, food: dr.fields.food.value, start: dr.fields.start.value, flagged: C.MED_FIELDS.filter((k) => dr.fields[k].flagged), confirmed: {}, checked: false, ...over });
+  assert.throws(() => C.medFromDraft(input(d), T0), (e) => e.status === 400 && e.field === 'checked', 'even a clear one needs the label box');
+  assert.deepStrictEqual(C.medFromDraft(input(d, { checked: true }), T0), { pet: 'p1', name: 'Pain relief tablets', dose: '1 tablet · 25 mg · with food', times: [480, 1200], repeat: { every: 'day', n: 1, anchor: T0 }, start: T0, until: '2026-11-29' });
+  assert.strictEqual(C.courseEnd(T0, 7), '2026-11-29', 'seven days counts the first');
+  assert.strictEqual(C.courseEnd('2028-02-27', 3), '2028-02-29', 'across a leap day');
+  assert.deepStrictEqual([C.courseEnd(T0, 0), C.courseEnd(T0, 7.5), C.courseEnd(T0, 731), C.courseEnd('x', 3)], [null, null, null, null]);
+  // unsure, missing and unparsed fields are all flagged
+  const murky = { name: F('Ear drops', 'high'), strength: F(null, null), amount: F('4 drops in the left ear', 'medium'), frequency: F('every 8-12 hours', 'high'), days: F(null, null), food: F(null, null), start: F(null, null) };
+  const m = C.medDraft(murky, T0);
+  assert.deepStrictEqual(C.MED_FIELDS.filter((k) => m.fields[k].flagged), ['strength', 'amount', 'frequency', 'days', 'food', 'start']);
+  assert.deepStrictEqual([m.freq, m.times, m.fields.start.value, m.fields.start.assumed, m.fields.food.value, m.fields.days.value, m.fields.strength.value], [null, [], T0, true, 'none', null, null], 'no schedule guessed, no days, no strength invented; only the start is offered (today), and flagged');
+  assert.throws(() => C.medFromDraft(input(m, { checked: true }), T0), (e) => e.field === 'frequency', 'how often must be chosen');
+  const chosen = { freq: 'd2', times: [480, 1200], checked: true };
+  assert.throws(() => C.medFromDraft(input(m, chosen), T0), (e) => e.field === 'days', 'days typed, or "no end date" ticked');
+  assert.throws(() => C.medFromDraft(input(m, { ...chosen, ongoing: true }), T0), (e) => e.field === 'strength' && e.open.join() === 'strength,amount,frequency,days,food,start', 'every flagged field is still open');
+  const partly = { strength: true, amount: true, frequency: true, days: true, food: true };
+  assert.throws(() => C.medFromDraft(input(m, { ...chosen, ongoing: true, confirmed: partly }), T0), (e) => e.field === 'start' && /starts/.test(e.message));
+  assert.throws(() => C.medFromDraft(input(m, { ...chosen, ongoing: true, confirmed: { ...partly, start: true }, checked: false }), T0), (e) => e.field === 'checked');
+  assert.deepStrictEqual(C.medFromDraft(input(m, { ...chosen, ongoing: true, confirmed: { ...partly, start: true } }), T0), { pet: 'p1', name: 'Ear drops', dose: '4 drops in the left ear', times: [480, 1200], repeat: { every: 'day', n: 1, anchor: T0 }, start: T0, until: null });
+  // typed values are kept to the character or refused - never trimmed to fit
+  const ok = { checked: true };
+  assert.strictEqual(C.medFromDraft(input(d, { ...ok, amount: '0.25 ml' }), T0).dose, '0.25 ml · 25 mg · with food');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, amount: 'x'.repeat(C.LIMITS.medAmount + 1) }), T0), (e) => e.field === 'amount');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, amount: '' }), T0), (e) => e.field === 'amount');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, name: '   ' }), T0), (e) => e.field === 'name');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, strength: '<b>25 mg</b>' }), T0), /plain characters/);
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, times: [480] }), T0), (e) => e.field === 'frequency', 'twice a day needs two times');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, times: [480, 480] }), T0), (e) => e.field === 'frequency', 'two different times');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, days: '7.5' }), T0), (e) => e.field === 'days');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, days: '0' }), T0), (e) => e.field === 'days');
+  assert.throws(() => C.medFromDraft(input(d, { ...ok, start: '2027-06-01' }), T0), (e) => e.field === 'start');
+  const longest = C.doseLine('a'.repeat(C.LIMITS.medAmount), 'b'.repeat(C.LIMITS.medStrength), 'without');
+  assert.ok(longest.length <= C.LIMITS.dose, 'the longest dose line fits whole');
+  // what is saved is an ordinary medicine: cleanMed keeps the dose line to the character
+  const doc = home(at(T0, 9), NY);
+  const made = C.medFromDraft(input(d, { ...ok, pet: doc.pets[0].id, amount: 'a'.repeat(C.LIMITS.medAmount), strength: 'b'.repeat(C.LIMITS.medStrength), food: 'without' }), T0);
+  const { med } = C.act(doc, { role: 'owner' }, 'med', { med: made }, at(T0, 9), ids);
+  assert.strictEqual(med.dose, longest);
+  assert.deepStrictEqual(C.dueOnDay(doc, T0).filter((r) => r.kind === 'dose').map((r) => r.key), [`${med.id}@480`, `${med.id}@1200`], 'the doses are on Today');
+  assert.match(C.scheduleWords('d2', [480, 1200], T0, '2026-11-29', T0), /^Twice a day at 8:00\s?am and 8:00\s?pm, .* \(7 days\)$/i);
+  // the page: the safety line, the confirm gate, and no way round it
+  const js = read('public/app.js');
+  assert.ok(/Check every detail against the label, and ask your vet if you’re unsure\./.test(js));
+  assert.ok(/never suggests or changes a dose/.test(js));
+  const apply = js.slice(js.indexOf('function applyPaper'), js.indexOf('/* ---------------- sharing'));
+  assert.ok(/C\.medFromDraft\(rxRead\(card, dr, a\.pet\), t\)/.test(apply) && /if \(bad\) return;/.test(apply) && apply.indexOf('if (bad) return;') < apply.indexOf('doAct('), 'every medicine passes the gate before anything is saved');
+  assert.ok(/a\.photo = null;/.test(js) && /PHOTO_MAX/.test(js) && /toDataURL\('image\/jpeg'/.test(js), 'the photo is shrunk and capped on the phone, and let go once read');
+  assert.ok(!/style="/.test(js) && !/\.style\./.test(js) && !/style="/.test(read('public/index.html')), 'no style attributes, in markup or written by script');
+});
+
+test('Snap the vet paperwork on Gemini: the gates, then the guard, one schema call, the photo inline once, charged and recorded, nothing stored', async () => {
+  const me = await register('gem.reader@example.com');
+  const uid = uidOf('gem.reader@example.com');
+  const dump = store._dump();
+  const NOWDAY = new Date().toISOString().slice(0, 10);
+  // signed out and bad requests never reach the guard or the model
+  let g = fakeGuard();
+  await withGemini(g, async () => {
+    assert.strictEqual((await client()('POST', '/api/read-paperwork', PAPER)).status, 401);
+    assert.strictEqual((await client()('POST', '/api/read-paperwork', { x: 'x'.repeat(12 * 1024 * 1024) })).status, 401, 'the gate answers before the parser');
+    assert.strictEqual((await me('POST', '/api/read-paperwork', {})).status, 400);
+    assert.strictEqual((await me('POST', '/api/read-paperwork', { photo: { type: 'image/jpeg', data: Buffer.from('%PDF-1.4').toString('base64') } })).status, 400);
+    assert.strictEqual((await me('POST', '/api/read-paperwork', { photo: { type: 'image/jpeg', data: Buffer.alloc(5 * 1024 * 1024, 0xff).toString('base64') } })).status, 400, 'a photo over the cap is refused before any call');
+  });
+  assert.deepStrictEqual(g.log.order, [], 'no allow, no call, no record');
+  // a photo
+  const calls = await modelCalls();
+  const before = (await identityStore.get('users', uid)).spentUsd || 0;
+  g = fakeGuard();
+  const ph = await withGemini(g, () => me('POST', '/api/read-paperwork', { kind: 'dog', photo: { type: 'image/jpeg', data: JPEG }, today: NOWDAY, name: 'Biscuit Doe' }));
+  assert.strictEqual(ph.status, 200, ph.text);
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record'], 'allow, the call, record');
+  assert.deepStrictEqual(g.log.allow[0], { provider: 'gemini', app: 'pawlog', uid });
+  const rq = g.log.requests[0];
+  assert.deepStrictEqual([rq.model, rq.responseSchema], ['gemini-3.8-flash', gemini.SCHEMA]);
+  assert.strictEqual(JSON.stringify(rq.contents).split(JPEG).length - 1, 1, 'the photo goes inline, once');
+  assert.ok(!/Biscuit|example\.com/.test(JSON.stringify(rq.contents).replace(JPEG, '')) && /The pet is a dog/.test(JSON.stringify(rq.contents)), 'the pet’s kind and nothing else about the household');
+  const p = ph.data.proposal;
+  assert.deepStrictEqual(Object.keys(p).sort(), ['medicines', 'meds', 'nextVisit', 'stripped', 'vaccinations', 'weight']);
+  assert.deepStrictEqual(p.meds[0], { name: F('Pain relief tablets', 'high'), strength: F('25 mg', 'high'), amount: F('1 tablet', 'high'), frequency: F('twice daily', 'high'), days: F(7, 'high'), food: F('with', 'high'), start: F(NOWDAY, 'high') });
+  assert.deepStrictEqual(p.meds[1], { name: F('Ear drops', 'high'), strength: F(null, null), amount: F('4 drops in the left ear', 'medium'), frequency: F('every 12 hours', 'high'), days: F(null, null), food: F(null, null), start: F(null, null) });
+  assert.ok(!/"(?:times?|schedule|until)"/.test(JSON.stringify(p.meds)), 'no time and no schedule comes from the model');
+  assert.deepStrictEqual([p.medicines, p.vaccinations.map((v) => v.name), p.weight.g, p.nextVisit.what], [[], ['Rabies booster'], 11400, 'Recheck ears']);
+  const usd = gemini.priceUsd({ inputTokens: 1400, outputTokens: 300, at: new Date('2026-11-23T00:00:00Z') });
+  assert.deepStrictEqual(g.log.record, [{ provider: 'gemini', app: 'pawlog', usd }]);
+  await settle();
+  assert.strictEqual(await modelCalls(), calls + 1, 'one usage row');
+  const row = (await identityStore.list('usage')).find((r) => r.route === 'read:gemini-3.8-flash');
+  assert.ok(row, 'the ledger says what really ran');
+  const spent = ((await identityStore.get('users', uid)).spentUsd || 0) - before;
+  assert.ok(spent >= usd && spent < usd + 1e-5, `the person is charged the call's real dollars: ${spent} vs ${usd}`);
+  // pasted text: private shapes are out before the model sees it
+  g = fakeGuard();
+  const tx = await withGemini(g, () => me('POST', '/api/read-paperwork', PAPER));
+  assert.strictEqual(tx.status, 200, tx.text);
+  assert.ok(!/Elm Street|62704|99887766|555-010/.test(JSON.stringify(g.log.requests[0].contents)) && tx.data.proposal.stripped === true);
+  // hostile output
+  g = fakeGuard();
+  const inj = await withGemini(g, () => me('POST', '/api/read-paperwork', { kind: 'dog', text: 'INJECT the discharge sheet', today: NOWDAY }));
+  assert.strictEqual(inj.status, 200, inj.text);
+  assert.ok(!/<[a-z/!]/i.test(inj.text) && !/‮/.test(inj.text), 'no markup or bidi');
+  assert.ok(!/Acct|99887766|555|SW1A|Main Road|Jane|\$45|evil|owner|suggestedDose|Invoice|4455667788|"times"/i.test(inj.text), `nothing private, priced or invented: ${inj.text}`);
+  const im = inj.data.proposal.meds;
+  assert.ok(im.length <= gemini.MAX_MEDS);
+  assert.deepStrictEqual([im[0].name, im[0].strength, im[0].amount, im[0].frequency, im[0].days, im[0].food, im[0].start], [F(null, null), F(null, null), F(null, null), F('twice daily', 'low'), F(null, null), F(null, null), F(null, null)], 'a hostile row is emptied, not mended');
+  assert.deepStrictEqual([im[1].name.value, im[1].strength.value, im[1].amount.value, im[1].days.value, im[1].start.value], ['Calm chews', null, null, null, null]);
+  assert.strictEqual(inj.data.proposal.weight, null);
+  // nothing, a provider error, a busy provider (each falls back to Claude, whose stand-in fails the same way), a blocked answer that still billed
+  g = fakeGuard({ provider: 'any' });
+  await withGemini(g, async () => {
+    assert.strictEqual((await me('POST', '/api/read-paperwork', { kind: 'dog', text: 'BLANK paper' })).status, 422);
+    const up = await me('POST', '/api/read-paperwork', { kind: 'dog', text: 'UPSTREAM401 paper' });
+    assert.ok(up.status === 502 && up.data.error && !/stand-in|Gemini answered/.test(up.text), 'a provider error is not passed on');
+    const busy = await me('POST', '/api/read-paperwork', { kind: 'dog', text: 'UPSTREAM429 paper' });
+    assert.deepStrictEqual([busy.status, /AI is busy/.test(busy.data.error)], [503, true]);
+  });
+  g = fakeGuard({ provider: 'any', generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  const blocked = await withGemini(g, () => me('POST', '/api/read-paperwork', { kind: 'dog', photo: { type: 'image/jpeg', data: JPEG } }));
+  assert.ok(blocked.status === 200 && blocked.data.reader === 'claude' && !/SECRET/.test(blocked.text), 'Claude answers instead');
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record', 'allow', 'record'], 'a call that failed after it was billed is still recorded, then Claude');
+  // the guard says no: its words, no call
+  const deny = fakeGuard({ deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+  const before2 = await modelCalls();
+  const no = await withGemini(deny, () => me('POST', '/api/read-paperwork', { kind: 'dog', photo: { type: 'image/jpeg', data: JPEG } }));
+  assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
+  assert.deepStrictEqual(deny.log.order, ['allow', 'allow'], 'Gemini capped, then Claude (the fallback) capped too: no call');
+  // with no guard (the app on its own) the stand-in still answers; nothing is ever stored
+  const alone = await withGemini(undefined, () => me('POST', '/api/read-paperwork', { kind: 'cat', photo: { type: 'image/jpeg', data: JPEG } }));
+  assert.deepStrictEqual([alone.status, alone.data.proposal.meds.length], [200, 2]);
+  await settle();
+  assert.ok(await modelCalls() > before2);
+  assert.strictEqual(store._dump(), dump, 'reading stores nothing - no photo, no text, no proposal');
+  const src = read('server.js');
+  const mid = src.slice(src.indexOf('async function guardAllow'), src.indexOf("app.post('/api/read-paperwork'"));
+  assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')"], 'and the route logs fixed words only');
+});
+
+test('Gemini fails, Claude answers: a thrown error, unusable output, a Gemini monthly cap; a burst refusal is sent as it is; one log line, no user data', async () => {
+  const me = await register('gem.fallback@example.com');
+  const warn = console.warn;
+  const lines = [];
+  console.warn = (...a) => lines.push(a.join(' '));
+  try {
+    let g = fakeGuard({ provider: 'any', generate: async () => { throw Object.assign(new Error('Gemini answered 500. PROVIDER-TEXT'), { name: 'VertexError', code: 'http', status: 500 }); } });
+    let r = await withGemini(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.medicines[0].schedule, r.data.proposal.meds], [200, 'claude', 'twice daily', undefined], r.text);
+    assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'allow', 'record']);
+    assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['gemini', 'claude']);
+    assert.ok(!/PROVIDER-TEXT/.test(r.text));
+    g = fakeGuard({ provider: 'any', generate: async () => ({ json: { medicines: 'lots', vaccinations: 7 }, usage: { inputTokens: 10, outputTokens: 5 } }) });
+    r = await withGemini(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader], [200, 'claude']);
+    assert.deepStrictEqual(g.log.record.map((x) => x.provider), ['gemini', 'claude'], 'the Gemini call that billed is recorded once, then Claude');
+    g = fakeGuard({ provider: 'any', denyFor: { gemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+    r = await withGemini(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'claude', ['allow', 'allow', 'record']]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = fakeGuard({ provider: 'any', denyFor: { gemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+      const calls = await modelCalls();
+      r = await withGemini(g, () => me('POST', '/api/read-paperwork', PAPER));
+      assert.deepStrictEqual([r.status, r.data.code, r.data.error, g.log.order], [429, code, 'Lots of people are using AI right now - try again in a minute.', ['allow']]);
+      await settle();
+      assert.strictEqual(await modelCalls(), calls, 'no Claude call');
+    }
+    r = await withGemini(fakeGuard(), () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader], [200, 'gemini']);
+  } finally { console.warn = warn; }
+  assert.deepStrictEqual(lines, ['[pawlog] gemini failed (http); used claude', '[pawlog] gemini failed (unusable); used claude', '[pawlog] gemini failed (monthly-cap); used claude']);
+  const g = fakeGuard({ provider: 'claude' });
+  global.LAB_AI_GUARD = g;
+  try {
+    const r = await me('POST', '/api/read-paperwork', PAPER);
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'claude', ['allow', 'record']], 'switch off: unchanged');
+  } finally { delete global.LAB_AI_GUARD; }
+});
+
+/* ---------------- claude-first (PAWLOG_AI_PROVIDER=claude-first) ---------------- */
+
+async function withClaudeFirst(guard, fn) {
+  process.env.PAWLOG_AI_PROVIDER = 'claude-first';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.PAWLOG_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: Claude reads; it throws, reads nothing or is capped -> Gemini answers; a burst refusal is sent with no Gemini call; one log line', async () => {
+  const me = await register('cf.reader@example.com');
+  await withClaudeFirst(undefined, async () => assert.strictEqual((await client()('GET', '/api/me')).data.reader, 'claude-first'));
+  // Gemini's stand-in answer (the made-up discharge sheet), whatever the text said
+  const OK = async (r) => ({ json: await r.fake({ contents: [{ parts: [{ text: 'Today is 2026-11-23' }] }] }), usage: { inputTokens: 100, outputTokens: 10 } });
+  const UP = { ...PAPER, text: 'UPSTREAM500 ' + PAPER.text };
+  const BLANK = { ...PAPER, text: 'BLANK paper' };
+  const warn = console.warn;
+  const lines = [];
+  console.warn = (...a) => lines.push(a.join(' '));
+  try {
+    let g = fakeGuard({ provider: 'any' });
+    let r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'claude', ['allow', 'record']], 'Claude answers: no Gemini call');
+    g = fakeGuard({ provider: 'any', generate: OK });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', UP));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.meds.length > 0], [200, 'gemini', true], r.text);
+    assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+    assert.ok(!/stand-in/.test(r.text));
+    g = fakeGuard({ provider: 'any', generate: OK });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', BLANK));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.record.map((x) => x.provider)], [200, 'gemini', ['claude', 'gemini']], 'the Claude call that billed is recorded, then Gemini');
+    g = fakeGuard({ provider: 'any' });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', BLANK));
+    assert.strictEqual(r.status, 422, 'both read nothing');
+    g = fakeGuard({ provider: 'any', generate: OK, denyFor: { claude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'gemini', ['allow', 'allow', 'generate', 'record']]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = fakeGuard({ provider: 'any', denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+      r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', PAPER));
+      assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']], 'no Gemini call');
+    }
+    g = fakeGuard({ provider: 'any' });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', UP));
+    assert.ok(r.status >= 500 && !/stand-in|PROVIDER/.test(r.text), 'both fail: the friendly error');
+  } finally { console.warn = warn; }
+  assert.deepStrictEqual(lines, ['[pawlog] claude failed (http); used gemini', '[pawlog] claude failed (unusable); used gemini', '[pawlog] claude failed (unusable); used gemini', '[pawlog] claude failed (monthly-cap); used gemini', '[pawlog] claude failed (http); used gemini']);
+});
+
+test('claude-first: the Gemini backup gets 60 s and low thinking, not the guard\'s 30 s default', async () => {
+  const me = await register('cf.timeout@example.com');
+  const seen = [];
+  const g = fakeGuard({ provider: 'any', generate: async (r) => { seen.push({ timeoutMs: r.timeoutMs, thinking: r.generationConfig && r.generationConfig.thinkingConfig, temperature: r.generationConfig && r.generationConfig.temperature }); return { json: await r.fake({ contents: [{ parts: [{ text: 'Today is 2026-11-23' }] }] }), usage: { inputTokens: 100, outputTokens: 10 } }; } });
+  const warn = console.warn;
+  console.warn = () => {};
+  let r;
+  try { r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', { ...PAPER, text: 'UPSTREAM500 ' + PAPER.text })); } finally { console.warn = warn; }
+  assert.deepStrictEqual([r.status, r.data.reader], [200, 'gemini'], r.text);
+  assert.deepStrictEqual(seen, [{ timeoutMs: 60000, thinking: { thinkingLevel: 'LOW' }, temperature: 0 }]);
+  const photo = gemini.request({ kind: 'cat', photo: { mediaType: 'image/jpeg', data: 'QUJD' } }, T0);
+  assert.deepStrictEqual([photo.timeoutMs, gemini.TIMEOUT_MS, photo.generationConfig.thinkingConfig], [60000, 60000, { thinkingLevel: 'LOW' }], 'a photo read too');
+});
+
+test('on Claude the lab guard is asked first and told the cost after; a refusal makes no call; the gates still come before it', async () => {
+  const me = await register('guarded.claude@example.com');
+  const g = fakeGuard({ provider: 'claude' });
+  global.LAB_AI_GUARD = g;
+  try {
+    assert.strictEqual((await client()('POST', '/api/read-paperwork', PAPER)).status, 401);
+    assert.strictEqual((await me('POST', '/api/read-paperwork', {})).status, 400);
+    assert.deepStrictEqual(g.log.order, []);
+    const r = await me('POST', '/api/read-paperwork', PAPER);
+    assert.deepStrictEqual([r.status, r.data.proposal.medicines[0].schedule, r.data.proposal.meds], [200, 'twice daily', undefined]);
+    assert.deepStrictEqual(g.log.order, ['allow', 'record'], 'no Gemini call on the default provider');
+    assert.deepStrictEqual(g.log.record, [{ provider: 'claude', app: 'pawlog', usd: (900 + 5 * 260) / 1e6 }]);
+    const deny = fakeGuard({ provider: 'claude', deny: { ok: false, status: 429, code: 'burst-day', message: 'That is a lot of AI for one day - try again tomorrow.' } });
+    global.LAB_AI_GUARD = deny;
+    const calls = await modelCalls();
+    const no = await me('POST', '/api/read-paperwork', PAPER);
+    assert.deepStrictEqual([no.status, no.data.code], [429, 'burst-day']);
+    await settle();
+    assert.strictEqual(await modelCalls(), calls);
+  } finally { delete global.LAB_AI_GUARD; }
 });
 
 /* ---------------- run ---------------- */

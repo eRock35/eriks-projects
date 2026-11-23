@@ -60,7 +60,7 @@ const SUBS_SYSTEM = [
  * @param photos  [{mediaType, data}]
  * @param today   ISO day, so a renewal shown without a year can be read
  */
-async function readSubscriptions(client, model, photos, today) {
+async function readSubscriptions(client, model, photos, today, onUsage) {
   const content = [
     ...photos.map((p) => ({ type: 'image', source: { type: 'base64', media_type: p.mediaType, data: p.data } })),
     { type: 'text', text: `${photos.length === 1 ? 'This is a screenshot' : `These are ${photos.length} screenshots`} of subscriptions. Today is ${today}. Record every recurring subscription shown.` },
@@ -73,6 +73,8 @@ async function readSubscriptions(client, model, photos, today) {
     tool_choice: { type: 'tool', name: 'record_subscriptions' },
     messages: [{ role: 'user', content }],
   }, { timeout: 120000, maxRetries: 1 });
+  // What the call used, for the lab's cost guard (no content, only counts).
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens) || 0, outputTokens: Number(res.usage.output_tokens) || 0 });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That list ran longer than one reading can hold. Try one screenshot at a time.');
   return pick(res, 'record_subscriptions');
 }

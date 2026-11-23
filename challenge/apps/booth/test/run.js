@@ -590,6 +590,400 @@ test('out of credit: 402 before any model call, while capture, templates, the bo
   await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 0 });
 });
 
+/* ================================================================== *
+ * Scan a card with a voice memo on Gemini (BOOTH_AI_PROVIDER=gemini)
+ * ================================================================== */
+
+const fs = require('fs');
+const gemini = require('../lib/gemini');
+const audioLib = require('../lib/audio');
+const fakeGemini = require('../lib/fakeai').gemini;
+const { geminiCalls } = require('../server');
+const src = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+
+const WEBM = (s = '') => Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from(s), Buffer.alloc(400, 5)]).toString('base64');
+function wav(seconds) {
+  const rate = 1000; const n = Math.round(seconds * rate);
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0, 'latin1'); h.writeUInt32LE(36 + n, 4); h.write('WAVE', 8, 'latin1'); h.write('fmt ', 12, 'latin1'); h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate, 28); h.writeUInt16LE(1, 32); h.writeUInt16LE(8, 34);
+  h.write('data', 36, 'latin1'); h.writeUInt32LE(n, 40);
+  return Buffer.concat([h, Buffer.alloc(n, 1)]).toString('base64');
+}
+
+function fakeGuard(opts = {}) {
+  const log = { order: [], allow: [], record: [], requests: [] };
+  return {
+    log,
+    allow: async ({ provider, req, app: a }) => { log.order.push('allow'); log.allow.push({ provider, app: a, uid: req.user && req.user.id }); return (provider === 'gemini' && opts.denyGemini) || opts.deny || { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
+    priceUsd: ({ provider, inputTokens, outputTokens }) => (provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6),
+    gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 1500, outputTokens: 300 } }; } },
+  };
+}
+async function withGemini(guard, fn) {
+  process.env.BOOTH_AI_PROVIDER = 'gemini';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.BOOTH_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+const scanBody = (o = {}) => ({ image: { type: 'image/jpeg', data: o.photo || JPEG }, ...(o.memo === null ? {} : { memo: { type: 'audio/webm', data: o.memo || WEBM() } }) });
+const scanPath = () => `/api/events/${EV.id}/scan`;
+
+test('the provider switch: Claude unless BOOTH_AI_PROVIDER=gemini, read per request; the scan is off until then', async () => {
+  const anon = client();
+  assert.strictEqual(process.env.BOOTH_AI_PROVIDER, undefined);
+  assert.deepStrictEqual([(await anon('GET', '/api/me')).data.ai, (await anon('GET', '/api/me')).data.scan], ['claude', false]);
+  for (const v of ['', 'off', 'GEMINI', 'claude', 'vertex']) {
+    process.env.BOOTH_AI_PROVIDER = v;
+    try { assert.strictEqual((await theo('GET', '/api/me')).data.ai, 'claude', v); } finally { delete process.env.BOOTH_AI_PROVIDER; }
+  }
+  await withGemini(null, async () => {
+    const me = (await theo('GET', '/api/me')).data;
+    assert.deepStrictEqual([me.ai, me.scan, me.limits.memoSeconds], ['gemini', true, 12]);
+  });
+  assert.match(src('server.js'), /process\.env\.BOOTH_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+
+  // Off: the scan route answers 404 "not switched on" - after the gates, before the big parser, with no model call.
+  const calls = await modelCalls();
+  const g = fakeGuard();
+  global.LAB_AI_GUARD = g;
+  try {
+    const off = await theo('POST', scanPath(), scanBody());
+    assert.deepStrictEqual([off.status, off.data.code], [404, 'ai-off']);
+    assert.strictEqual((await theo('POST', scanPath(), { image: { type: 'image/jpeg', data: 'A'.repeat(5 * 1024 * 1024) } })).status, 404, 'not parsed while off');
+    assert.strictEqual((await client()('POST', scanPath(), scanBody())).status, 401, 'signed out is told to sign in, not that it is off');
+  } finally { delete global.LAB_AI_GUARD; }
+  await settle();
+  assert.deepStrictEqual([await modelCalls(), g.log.order], [calls, []]);
+});
+
+test('the Gemini schema only transcribes: five fields with a confidence each, null when unreadable; the memo and draft exist only with a memo', () => {
+  assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
+  const plain = gemini.scanSchema();
+  assert.deepStrictEqual(Object.keys(plain.properties), ['readable', 'kind', 'name', 'company', 'title', 'email', 'phone']);
+  assert.deepStrictEqual(plain.required, Object.keys(plain.properties));
+  for (const k of gemini.FIELDS) {
+    assert.deepStrictEqual([Object.keys(plain.properties[k].properties), plain.properties[k].properties.value.nullable, plain.properties[k].properties.confidence.enum], [['value', 'confidence'], true, ['high', 'medium', 'low']], k);
+    assert.match(plain.properties[k].properties.value.description, /exactly as printed\. null if it is not shown or not fully legible - never guess/);
+  }
+  assert.ok(!/address|website|linkedin|score|notes/i.test(JSON.stringify(plain, (k, v) => (k === 'description' ? undefined : v))), 'no field for anything else on the card');
+  const full = gemini.scanSchema({ memo: true, chips: ['Wholesale', 'Samples'] });
+  assert.deepStrictEqual(Object.keys(full.properties).slice(7), ['memo', 'draft']);
+  assert.deepStrictEqual(Object.keys(full.properties.memo.properties), ['heard', 'summary', 'temp', 'next', 'interests']);
+  assert.deepStrictEqual(full.properties.memo.properties.temp.enum, ['hot', 'warm', 'cold', 'not_said']);
+  assert.deepStrictEqual(full.properties.memo.properties.next.enum, ['call', 'demo', 'quote', 'info', 'not_said']);
+  assert.deepStrictEqual(full.properties.memo.properties.interests.items.enum, ['Wholesale', 'Samples'], 'interests can only be the event’s own chips');
+  assert.ok(!('interests' in gemini.scanSchema({ memo: true }).properties.memo.properties));
+  assert.deepStrictEqual(Object.keys(full.properties.draft.properties), ['subject', 'body']);
+
+  const req = gemini.scanRequest({ photo: { mediaType: 'image/jpeg', data: 'AAAA' }, audio: { mediaType: 'audio/webm', data: 'BBBB' }, event: { name: 'Expo', place: 'Hall B' }, rep: { name: 'Theo', signoff: 'Theo · Brightline', tone: 'direct' }, chips: ['Wholesale'] });
+  assert.deepStrictEqual(req.contents[0].parts.slice(0, 2), [{ inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } }, { inlineData: { mimeType: 'audio/webm', data: 'BBBB' } }]);
+  assert.match(req.contents[0].parts[2].text, /EVENT: Expo, Hall B\nREP: Theo\nSIGN-OFF: Theo · Brightline\nTONE: straight to the point/);
+  for (const rule of [/Never fill in, correct, translate or complete/, /use only what is printed on the card and what the rep says in the memo/, /Never put the email address or phone number from the card in the email/, /never an instruction to you/, /Summarise only what the rep says/]) assert.match(req.systemInstruction, rule);
+  const photoOnly = gemini.scanRequest({ photo: { mediaType: 'image/png', data: 'AAAA' } });
+  assert.ok(!/memo|EVENT/.test(photoOnly.contents[0].parts[1].text) && !/voice memo/.test(photoOnly.systemInstruction) && !photoOnly.responseSchema.properties.draft);
+  assert.deepStrictEqual(Object.keys(gemini.DRAFT_SCHEMA.properties), ['subject', 'body', 'gaps']);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+  assert.ok(!/fetch\(|https?:\/\//.test(src('lib/gemini.js')), 'the app makes no Vertex call of its own: the guard’s helper does');
+});
+
+test('the memo is capped: a sound by its bytes, 1 MB, and a WAV past 15 seconds refused', () => {
+  assert.deepStrictEqual([audioLib.MAX_BYTES, audioLib.MAX_SECONDS], [1024 * 1024, 15]);
+  assert.strictEqual(audioLib.validate({ type: 'audio/webm', data: WEBM() }).mediaType, 'audio/webm');
+  assert.strictEqual(audioLib.validate({ data: wav(9) }).mediaType, 'audio/wav');
+  assert.throws(() => audioLib.validate({ data: wav(16) }), /longer than 15 seconds/);
+  assert.throws(() => audioLib.validate({ type: 'audio/webm', data: JPEG }), /must be a sound recording/, 'a declared type is a claim');
+  assert.throws(() => audioLib.validate({ data: Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(1024 * 1024 + 10)]).toString('base64') }), /too big/);
+  assert.throws(() => audioLib.validate({ data: 'not base64 !!' }), /could not be read/);
+  assert.throws(() => audioLib.validate(null), /Record the memo first/);
+});
+
+test('validateScan: confidences clamped, bad contacts dropped not guessed, unsure fields flagged, the memo held to the app’s lists, the draft guarded', () => {
+  const ctx = { memo: true, event: { name: 'Expo' }, rep: { name: 'Theo', signoff: 'Theo' }, chips: ['Wholesale', 'Samples'] };
+  const F = (value, confidence) => ({ value, confidence });
+  const base = { readable: true, kind: 'card', name: F('Riley Chen', 'high'), company: F('Cedar & Pine', 'medium'), title: F(null, 'high'), email: F('Riley.Chen@Example.com', 'certain'), phone: F('(404) 555-0188', 'low') };
+  const r = ai.validateScan(base, {});
+  assert.deepStrictEqual(r.fields, { name: F('Riley Chen', 'high'), company: F('Cedar & Pine', 'medium'), title: F(null, null), email: F('riley.chen@example.com', 'low'), phone: F('(404) 555-0188', 'low') });
+  assert.deepStrictEqual([r.check, r.dropped, r.memo, r.draft], [['company', 'email', 'phone'], [], null, null], 'anything not "high" - or a confidence the app does not know - must be checked');
+  assert.strictEqual(ai.validateScan({ ...base, readable: false }), null);
+  assert.strictEqual(ai.validateScan({ readable: true, kind: 'card', title: F('Owner', 'high') }), null, 'a title alone is not a lead');
+  for (const junk of [null, 'x', [], 7]) assert.strictEqual(ai.validateScan(junk), null);
+  const bad = ai.validateScan({ ...base, email: F('riley(at)example', 'high'), phone: F('12', 'high'), name: F({ a: 1 }, 'high'), kind: 'passport' });
+  assert.deepStrictEqual([bad.kind, bad.fields.email, bad.fields.phone, bad.fields.name, bad.dropped], ['card', F(null, null), F(null, null), F(null, null), ['email', 'phone']]);
+  const withMemo = ai.validateScan({ ...base, memo: { heard: true, summary: `  <b>Wants</b> pricing for 3 stores. ${'x'.repeat(400)}`, temp: 'boiling', next: 'call', interests: ['samples', 'Free money', 4, 'Samples'] }, draft: { subject: 'Hello from Expo', body: 'Hi Riley,\n\nGood to meet you at Expo. You asked about pricing for 3 stores. I have attached a brochure.\n\nWould a call work on Tuesday at 3pm? Reach me on riley.chen@example.com.\n\nTheo' } }, ctx);
+  assert.deepStrictEqual([withMemo.memo.heard, withMemo.memo.temp, withMemo.memo.next, withMemo.memo.chips, withMemo.memo.summary.length, /[<>]/.test(withMemo.memo.summary)], [true, null, 'call', ['Samples'], ai.MEMO_MAX, false]);
+  assert.ok(withMemo.draft && !/attached|brochure|Tuesday|3pm|@example\.com/.test(withMemo.draft.body), 'the draft may use the card’s name and the memo, nothing else - not even the card’s email');
+  assert.match(withMemo.draft.body, /pricing for 3 stores/);
+  assert.ok(withMemo.draft.removed.some((x) => x.what === 'attached') && withMemo.draft.gaps.includes('email'));
+  const silent = ai.validateScan({ ...base, memo: { heard: false, summary: 'something', temp: 'hot', next: 'call', interests: ['Samples'] }, draft: { subject: 'x', body: 'y'.repeat(80) } }, ctx);
+  assert.deepStrictEqual([silent.memo, silent.draft], [{ heard: false, summary: '', temp: null, next: null, chips: [] }, null], 'no memo heard, no draft');
+  assert.strictEqual(ai.validateScan({ ...base, memo: { heard: true, summary: 'x' }, draft: { subject: 'x', body: 'y' } }, {}).draft, null, 'without a memo sent there is never a draft');
+  // The sample's scan is hand-written and passes the same validator untouched.
+  const d = demo(Date.now()).scan;
+  assert.deepStrictEqual([d.check, d.fields.phone.value, d.memo.temp, d.memo.chips, d.draft.removed, d.draft.gaps], [['email'], null, 'hot', ['Wholesale'], [], ['your direct number']]);
+  assert.ok(/example\.com$/.test(d.fields.email.value));
+});
+
+test('scan a card on Gemini: gates, then the bytes, then guard allow -> one call -> record; a proposal with flags, a memo summary and a guarded draft - nothing stored, nothing sent', async () => {
+  const calls = await modelCalls();
+  const dump = store._dump();
+  const g = fakeGuard();
+  const seen = geminiCalls.length;
+  const r = await withGemini(g, () => theo('POST', scanPath(), scanBody()));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  await settle();
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record']);
+  assert.deepStrictEqual([g.log.allow[0].provider, g.log.allow[0].app, g.log.allow[0].uid], ['gemini', 'booth', uidOf('theo@example.com')]);
+  assert.deepStrictEqual([g.log.record[0].provider, g.log.record[0].app, g.log.record[0].usd], ['gemini', 'booth', gemini.priceUsd({ inputTokens: 1500, outputTokens: 300, at: new Date('2026-11-23T00:00:00Z') })]);
+  const q = g.log.requests[0];
+  assert.deepStrictEqual([q.model, q.generationConfig.temperature, q.contents[0].parts.length, q.contents[0].parts[0].inlineData.mimeType, q.contents[0].parts[1].inlineData.mimeType], ['gemini-3.8-flash', 0, 3, 'image/jpeg', 'audio/webm']);
+  assert.deepStrictEqual(q.responseSchema.properties.memo.properties.interests.items.enum, ['Wholesale', 'Samples', 'Pricing']);
+  assert.match(q.contents[0].parts[2].text, /EVENT: Southeast Food & Bev Expo, Hall B\nREP: Theo/);
+  assert.ok(!/dana|@example\.com|555/i.test(q.contents[0].parts[2].text + q.systemInstruction), 'no lead, no teammate and no contact rides along');
+  assert.strictEqual(geminiCalls.length, seen + 1);
+  assert.ok(!JSON.stringify(geminiCalls[seen]).includes(JPEG.slice(0, 40)), 'the stand-in keeps lengths, not media');
+
+  assert.deepStrictEqual([r.data.kind, r.data.fields.name, r.data.fields.email, r.data.fields.phone, r.data.check, r.data.dropped, r.data.sent],
+    ['card', { value: 'Riley Chen', confidence: 'high' }, { value: 'riley.chen@example.com', confidence: 'medium' }, { value: '(404) 555-0188', confidence: 'high' }, ['email'], [], { photo: true, memo: true }]);
+  assert.deepStrictEqual(r.data.memo, { heard: true, summary: 'Wants pricing on the 5 lb bags for 3 stores. Asked for a call next week.', temp: 'hot', next: 'call', chips: ['Wholesale'] });
+  assert.match(r.data.draft.body, /^Hi Riley,\n\nIt was great to talk at our booth at Southeast Food & Bev Expo/);
+  assert.deepStrictEqual([r.data.draft.gaps, r.data.draft.removed], [['your direct number'], []]);
+  assert.ok(!/riley\.chen@|555-0188/i.test(JSON.stringify(r.data.draft)), 'the draft never carries the email or phone');
+  assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+  assert.strictEqual(await modelCalls(), calls + 1, 'one metered call, charged to the person');
+  const row = (await identityStore.list('usage')).find((u) => /^scan:gemini-3\.8-flash$/.test(u.route));
+  assert.ok(row && row.uid === uidOf('theo@example.com'), 'the ledger row says what really ran');
+  assert.strictEqual(store._dump(), dump, 'a scan saves nothing: no lead, no draft, no media');
+
+  // The photo alone: no memo, no draft, and the model is not asked for one.
+  const g2 = fakeGuard();
+  const p = await withGemini(g2, () => theo('POST', scanPath(), scanBody({ memo: null })));
+  assert.deepStrictEqual([p.status, p.data.memo, p.data.draft, p.data.sent, 'draft' in g2.log.requests[0].responseSchema.properties, g2.log.requests[0].contents[0].parts.length], [200, null, null, { photo: true, memo: false }, false, 2]);
+  const badge = await withGemini(fakeGuard(), () => theo('POST', scanPath(), scanBody({ photo: withText('BADGE'), memo: null })));
+  assert.deepStrictEqual([badge.data.kind, badge.data.fields.email.value, badge.data.check], ['badge', null, []]);
+});
+
+test('scan: refused before anything is spent - bad bytes, too big, too long, signed out, a stranger, an empty wallet, the guard saying no', async () => {
+  const calls = await modelCalls();
+  const g = fakeGuard();
+  const go = (body, who = theo) => withGemini(g, () => who('POST', scanPath(), body));
+  for (const [body, why] of [
+    [{}, 'no photo'],
+    [{ image: { type: 'image/jpeg', data: Buffer.from('%PDF-1.7 not an image').toString('base64') } }, 'not an image'],
+    [{ image: { type: 'image/jpeg', data: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(2 * 1024 * 1024 + 10)]).toString('base64') } }, 'a photo over 2 MB'],
+    [{ ...scanBody(), memo: { type: 'audio/webm', data: JPEG } }, 'a memo that is not a sound'],
+    [{ ...scanBody(), memo: { data: wav(16) } }, 'a 16-second memo'],
+    [{ ...scanBody(), memo: { data: Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(1024 * 1024 + 10)]).toString('base64') } }, 'a memo over 1 MB'],
+  ]) assert.strictEqual((await go(body)).status, 400, why);
+  assert.strictEqual((await go(scanBody(), client())).status, 401);
+  const stranger = await register('scan-stranger@example.com');
+  assert.strictEqual((await go(scanBody(), stranger)).status, 404);
+  assert.strictEqual((await go({ image: { type: 'image/jpeg', data: 'A'.repeat(5 * 1024 * 1024) } }, stranger)).status, 404, 'a stranger’s upload is never parsed');
+  await identityStore.merge('users', uidOf('theo@example.com'), { spentUsd: 100 });
+  try { assert.strictEqual((await go(scanBody())).status, 402); } finally { await identityStore.merge('users', uidOf('theo@example.com'), { spentUsd: 0 }); }
+  assert.deepStrictEqual(g.log.order, [], 'none of those reached the guard, let alone the model');
+
+  const no = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  const denied = await withGemini(no, () => theo('POST', scanPath(), scanBody()));
+  assert.deepStrictEqual([denied.status, denied.data.code, denied.data.error, no.log.order], [429, 'burst-minute', 'Lots of people are using AI right now - try again in a minute.', ['allow']]);
+  // Both months capped: the draft falls back from Gemini to Claude, whose own cap says no too (2026-11-23).
+  const cap = fakeGuard({ deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+  const quietLog = console.log; console.log = () => {};
+  try { assert.deepStrictEqual([(await withGemini(cap, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`))).status, cap.log.order, cap.log.allow.map((a) => a.provider)], [503, ['allow', 'allow'], ['gemini', 'claude']]); } finally { console.log = quietLog; }
+  await settle();
+  assert.strictEqual(await modelCalls(), calls, 'nobody was charged');
+});
+
+test('scan: hostile or useless model output is cleaned, clamped or refused - and a provider failure is a plain sentence', async () => {
+  const dump = store._dump();
+  const scan = (o, guard = fakeGuard()) => withGemini(guard, () => theo('POST', scanPath(), scanBody(o)));
+  const inj = await scan({ memo: WEBM('INJECT') });
+  assert.strictEqual(inj.status, 200, JSON.stringify(inj.data));
+  assert.deepStrictEqual([inj.data.memo.summary, inj.data.memo.temp, inj.data.memo.next, inj.data.memo.chips], ['Wants pricing on the 5 lb bags for 3 stores.', null, null, ['Wholesale']]);
+  const all = JSON.stringify([inj.data.draft.subject, inj.data.draft.body]);
+  assert.ok(!/[<>]/.test(all) && !all.includes('**'), 'no markup, no markdown');
+  assert.ok(inj.data.draft.removed.some((x) => x.what === 'attached') && inj.data.draft.removed.some((x) => x.what === '% off'), 'the page is told what was taken out');
+  for (const gone of ['attached', 'price list', '20%', 'Tuesday', '3pm', 'evil.example', 'riley.chen@', '555-0188']) assert.ok(!all.toLowerCase().includes(gone.toLowerCase()), `${gone} is gone`);
+  assert.match(inj.data.draft.body, /pricing on the 5 lb bags for 3 stores/, 'what the rep did say stays');
+  assert.strictEqual(inj.data.draft.subject, 'Good to meet you at Southeast Food & Bev Expo', 'a subject with an invented discount falls back to the template’s');
+  assert.ok(!('advice' in inj.data) && !('score' in inj.data), 'only the known keys leave');
+  const messy = await scan({ photo: withText('MESSY'), memo: null });
+  assert.deepStrictEqual([messy.data.fields.name, messy.data.fields.company.value, messy.data.fields.email.value, messy.data.fields.phone.value, messy.data.dropped, messy.data.check], [{ value: 'Sam Ortiz', confidence: 'medium' }, 'Ortiz Deli', null, null, ['email', 'phone'], ['name']]);
+  assert.strictEqual((await scan({ photo: withText('UNSURE'), memo: null })).data.fields.phone.value, null, 'unreadable is null, never a guess');
+  const blank = await scan({ photo: withText('BLANK wall') });
+  assert.deepStrictEqual([blank.status, /type it in/.test(blank.data.error)], [422, true]);
+  const silent = await scan({ memo: WEBM('SILENT') });
+  assert.deepStrictEqual([silent.status, silent.data.memo.heard, silent.data.draft, silent.data.fields.name.value], [200, false, null, 'Riley Chen']);
+  for (const junk of [null, 'I am not JSON', [], { readable: true }]) {
+    const j = await scan({}, fakeGuard({ generate: async () => ({ json: junk, usage: { inputTokens: 10, outputTokens: 1 } }) }));
+    assert.strictEqual(j.status, 422, JSON.stringify(junk));
+  }
+
+  const quiet = console.error; console.error = () => {};
+  try {
+    let g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini answered 500. SECRET provider words'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }); } });
+    const a = await scan({}, g);
+    assert.deepStrictEqual([a.status, a.data.error, g.log.record.length], [502, 'Could not read that right now. Try again, or type it in.', 1], 'a call that billed before failing is recorded');
+    assert.ok(!JSON.stringify(a.data).includes('SECRET'));
+    g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini answered 429.'), { name: 'VertexError', code: 'http', status: 429 }); } });
+    assert.deepStrictEqual([(await scan({}, g)).status, g.log.record.length], [503, 0]);
+    g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini took too long.'), { name: 'VertexError', code: 'timeout' }); } });
+    assert.strictEqual((await scan({}, g)).status, 503);
+    assert.strictEqual((await scan({ photo: withText('UPSTREAM503') })).status, 503);
+  } finally { console.error = quiet; }
+  assert.strictEqual(store._dump(), dump);
+});
+
+test('with the switch on, the plain snap and the drafted follow-up are Gemini’s too; with it off they are Claude’s, through the guard when the lab has one', async () => {
+  let g = fakeGuard();
+  const read = await withGemini(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } }));
+  assert.deepStrictEqual([read.status, read.data.kind, read.data.name, read.data.email, read.data.phone, read.data.dropped, read.data.check, g.log.order], [200, 'card', 'Riley Chen', 'riley.chen@example.com', '(404) 555-0188', [], ['email'], ['allow', 'generate', 'record']]);
+  g = fakeGuard();
+  const d = await withGemini(g, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`));
+  assert.strictEqual(d.status, 200, JSON.stringify(d.data));
+  assert.match(d.data.body, /^Hi Dana,/);
+  assert.deepStrictEqual([g.log.order, Object.keys(g.log.requests[0].responseSchema.properties)], [['allow', 'generate', 'record'], ['subject', 'body', 'gaps']]);
+  assert.ok(!/dana@example\.com|555/.test(g.log.requests[0].contents[0].parts[0].text), 'the draft prompt still has no email or phone');
+  const ivy = await withGemini(fakeGuard(), () => theo('POST', `/api/events/${EV.id}/leads/${EV.ivy}/draft`));
+  for (const gone of ['attached', '20%', 'Tuesday', 'evil.example']) assert.ok(!JSON.stringify([ivy.data.subject, ivy.data.body]).includes(gone), `${gone} is guarded on Gemini as on Claude`);
+
+  // No guard at all (the app on its own): the stand-in still answers.
+  const alone = await withGemini(null, () => theo('POST', scanPath(), scanBody()));
+  assert.deepStrictEqual([alone.status, alone.data.check], [200, ['email']]);
+  assert.strictEqual(typeof fakeGemini, 'function');
+
+  // Off: Claude, as ever - asked of the guard first, recorded after.
+  g = fakeGuard();
+  global.LAB_AI_GUARD = g;
+  try {
+    const c1 = await priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } });
+    const c2 = await theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`);
+    assert.deepStrictEqual([c1.status, 'check' in c1.data, c2.status], [200, false, 200]);
+  } finally { delete global.LAB_AI_GUARD; }
+  assert.deepStrictEqual([g.log.order, g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider), g.log.record.every((x) => x.usd > 0 && x.app === 'booth')], [['allow', 'record', 'allow', 'record'], ['claude', 'claude'], ['claude', 'claude'], true]);
+});
+
+test('Gemini fails, Claude answers: a thrown call, unusable output or the Gemini cap falls back for the read and the draft; a burst does not; the scan stays Gemini-only', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const read = (g) => withGemini(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } }));
+  const draft = (g) => withGemini(g, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`));
+  const thrown = () => fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  try {
+    // A thrown call (that billed first): recorded, then Claude answers with its own allow and record.
+    let g = thrown();
+    const r1 = await read(g);
+    assert.deepStrictEqual([r1.status, r1.data.name, 'check' in r1.data, g.log.order, g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)],
+      [200, 'Riley Chen', false, ['allow', 'generate', 'record', 'allow', 'record'], ['gemini', 'claude'], ['gemini', 'claude']]);
+    g = thrown();
+    const d1 = await draft(g);
+    assert.deepStrictEqual([d1.status, /^Hi Dana,/.test(d1.data.body), g.log.allow.map((a) => a.provider)], [200, true, ['gemini', 'claude']]);
+    assert.ok(!JSON.stringify([r1.data, d1.data]).includes('SECRET'));
+    // Output the validator rejects.
+    g = fakeGuard({ generate: async () => ({ json: { readable: false }, usage: { inputTokens: 10, outputTokens: 1 } }) });
+    const r2 = await read(g);
+    assert.deepStrictEqual([r2.status, r2.data.name, g.log.allow.map((a) => a.provider)], [200, 'Riley Chen', ['gemini', 'claude']]);
+    g = fakeGuard({ generate: async () => ({ json: { subject: '', body: '' }, usage: { inputTokens: 10, outputTokens: 1 } }) });
+    const d2 = await draft(g);
+    assert.deepStrictEqual([d2.status, /^Hi Dana,/.test(d2.data.body), g.log.allow.map((a) => a.provider)], [200, true, ['gemini', 'claude']]);
+    // The month's Gemini cap: Claude answers, Gemini never called.
+    g = fakeGuard({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+    const r3 = await read(g);
+    assert.deepStrictEqual([r3.status, r3.data.name, g.log.order], [200, 'Riley Chen', ['allow', 'allow', 'record']]);
+    // A burst refusal goes out as it is: no Claude call.
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = fakeGuard({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } });
+      const b = await draft(g);
+      assert.deepStrictEqual([b.status, b.data.code, g.log.order], [429, code, ['allow']]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'nobody charged for a burst');
+    // The scan has no Claude path: a failure is its own friendly error.
+    g = thrown();
+    const s = await withGemini(g, () => theo('POST', scanPath(), scanBody()));
+    assert.deepStrictEqual([s.status, s.data.error, g.log.allow.map((a) => a.provider)], [502, 'Could not read that right now. Try again, or type it in.', ['gemini']]);
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[booth] gemini failed (http); used claude', '[booth] gemini failed (http); used claude', '[booth] gemini failed (unusable); used claude', '[booth] gemini failed (unusable); used claude', '[booth] gemini failed (monthly-cap); used claude']);
+});
+
+test('claude-first: Claude reads and drafts, Gemini answers when Claude throws, is unusable or capped; a burst does not fall back; the scan is on', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const cf = async (g, fn) => { process.env.BOOTH_AI_PROVIDER = 'claude-first'; if (g) global.LAB_AI_GUARD = g; try { return await fn(); } finally { delete process.env.BOOTH_AI_PROVIDER; delete global.LAB_AI_GUARD; } };
+  // A guard that can refuse Claude alone; Gemini reads a clean copy of what it was sent.
+  const guardCF = (denyClaude) => {
+    const g = fakeGuard({ generate: async (r) => ({ json: await fakeGemini({ contents: r.contents.map((c) => ({ ...c, parts: c.parts.map((p) => (p.text ? { text: p.text.replace(/UPSTREAM/g, 'UP-STREAM') } : p.inlineData && /^image/.test(p.inlineData.mimeType) ? { inlineData: { ...p.inlineData, data: JPEG } } : p)) })), generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 1500, outputTokens: 300 } }) });
+    const allow = g.allow;
+    g.allow = async (a) => (a.provider === 'claude' && denyClaude ? (g.log.order.push('allow'), g.log.allow.push({ provider: 'claude' }), denyClaude) : allow(a));
+    return g;
+  };
+  const up = await theo('POST', `/api/events/${EV.id}/leads`, { name: 'Up Stream', email: 'up9@example.com', temp: 'warm', note: 'UPSTREAM500' });
+  try {
+    const me = (await cf(null, () => theo('GET', '/api/me'))).data;
+    assert.deepStrictEqual([me.ai, me.scan], ['claude-first', true]);
+    // Claude answers when it can: Gemini never called.
+    let g = guardCF();
+    const r0 = await cf(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } }));
+    assert.deepStrictEqual([r0.status, r0.data.name, 'check' in r0.data, g.log.allow.map((a) => a.provider)], [200, 'Riley Chen', false, ['claude']]);
+    // Claude throws (the draft): Gemini answers 200.
+    g = guardCF();
+    const d1 = await cf(g, () => theo('POST', `/api/events/${EV.id}/leads/${up.data.lead.id}/draft`));
+    assert.deepStrictEqual([d1.status, /^Hi Up,/.test(d1.data.body), g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)], [200, true, ['claude', 'gemini'], ['gemini']]);
+    assert.ok(!JSON.stringify(d1.data).includes('fake_upstream_error'));
+    // Claude unusable (a card it cannot read): Gemini.
+    g = guardCF();
+    const r1 = await cf(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: withText('BLANK wall') } }));
+    assert.deepStrictEqual([r1.status, r1.data.name, r1.data.check, g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)], [200, 'Riley Chen', ['email'], ['claude', 'gemini'], ['claude', 'gemini']], 'the Claude call that billed is still recorded');
+    // Claude's monthly cap: Gemini, for the read and the draft.
+    const cap = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    g = guardCF(cap);
+    const r2 = await cf(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } }));
+    assert.deepStrictEqual([r2.status, r2.data.name, g.log.order], [200, 'Riley Chen', ['allow', 'allow', 'generate', 'record']]);
+    g = guardCF(cap);
+    const d2 = await cf(g, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`));
+    assert.deepStrictEqual([d2.status, /^Hi Dana,/.test(d2.data.body), g.log.allow.map((a) => a.provider)], [200, true, ['claude', 'gemini']]);
+    // A burst refusal goes out as it is: no Gemini call.
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = guardCF({ ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' });
+      const b = await cf(g, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`));
+      assert.deepStrictEqual([b.status, b.data.code, g.log.order], [429, code, ['allow']]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'nobody charged for a burst');
+    // The scan (Gemini only) is on in this mode.
+    g = fakeGuard();
+    const s = await cf(g, () => theo('POST', scanPath(), scanBody()));
+    assert.deepStrictEqual([s.status, s.data.check, g.log.allow.map((a) => a.provider)], [200, ['email'], ['gemini']]);
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.strictEqual((await theo('DELETE', `/api/events/${EV.id}/leads/${up.data.lead.id}`)).status, 200);
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[booth] claude failed (500); used gemini', '[booth] claude failed (unusable); used gemini', '[booth] claude failed (monthly-cap); used gemini', '[booth] claude failed (monthly-cap); used gemini']);
+  assert.match(src('public/app.js'), /me\.ai === 'claude-first' \? 'Claude drafts \(Gemini if Claude is busy\); Gemini scans'/);
+});
+
+test('the page: says what is sent, will not save an unchecked field, never sends, and writes no style attribute', () => {
+  const js = src('public/app.js');
+  const html = src('public/index.html');
+  assert.match(js, /function scanOn\(\) \{ return Boolean\(state\.me && state\.me\.scan\); \}/, 'the scan is offered only when the server says so');
+  assert.match(js, /What is sent: the photo and your memo go to Google’s Gemini to be read once/);
+  assert.match(js, /What is sent: the photo goes to Anthropic’s Claude to be read once/);
+  assert.match(js, /if \(save\) save\.disabled = left\.length > 0;/, 'nothing can be saved while an unsure field is unchecked');
+  assert.match(js, /if \(Object\.keys\(scan\.marks\)\.some\(function \(k\) \{ return scan\.marks\[k\] === 'check'; \}\)\) return syncSave\(\);/);
+  assert.match(js, /scan\.photo = null; scan\.memo = null;/, 'the page lets go of the media once it is read');
+  assert.match(js, /You send it yourself: Booth never sends anything\./);
+  assert.match(js, /var same = \['name', 'company', 'title'\]\.every/, 'a draft is dropped if the rep changed who it is for');
+  assert.ok(!/localStorage\.setItem\([^)]*(memo|photo|image)/i.test(js), 'media is never kept in the browser');
+  for (const [name, text] of [['app.js', js], ['index.html', html]]) {
+    assert.ok(!/style\s*=\s*["']/.test(text) && !/\.style\./.test(text) && !/\bon[a-z]+\s*=\s*"/.test(text.replace(/<meta[^>]*>/g, '')), `${name}: no style= and no inline handler`);
+  }
+  assert.ok(!/<script(?![^>]*\bsrc=)/.test(html), 'no inline script');
+  assert.ok(html.includes('data-mount="api/auth"') && html.includes('verify-banner.js'));
+});
+
 test('leaderboard and going cold: the whole team sees names and counts; clocks come from capture time', async () => {
   // Back-date two leads: one hot and past 48 hours, one hot with 5 hours left.
   const leads = await store.list(`events/${EV.id}/leads`);

@@ -48,6 +48,10 @@ are free forever. Reading a card or badge, and drafting a follow-up in the
 rep's voice, are about a cent each on Haiku. The membership buys the better
 model.
 
+**(2026-11-23)** With `BOOTH_AI_PROVIDER=gemini` the reading and drafting
+move to Gemini and a card plus a ten-second voice memo become a lead and a
+draft - see "Scan a card with a voice memo" below.
+
 **How it becomes an iOS app.** Capture is the camera and the share sheet
 (scan a card straight from the camera roll); the going-cold list is a
 notification ("Dana goes cold in 3 hours"); the leaderboard is a widget on
@@ -182,6 +186,131 @@ Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the
 same split as the siblings. A draft is ~700 input / ~300 output tokens; a card
 read adds ~1.5k input for the image.
 
+## Scan a card with a voice memo - Gemini (2026-11-23, behind a switch)
+
+Erik's per-app AI plan gave Booth to Gemini: "Badge or card plus a 10-second
+voice memo become a lead and a follow-up draft" - cards and audio. Built on
+the redesign branch; **nothing changes live until `BOOTH_AI_PROVIDER=gemini`
+is set on the service** (Erik's yes, per app). Unset - or anything else - is
+Claude exactly as before (`providerNow()` in `server.js`, read per request).
+
+- **What it does.** On Capture: take the photo of one card or badge, record
+  an optional memo of up to 12 seconds in your own words ("wants pricing on
+  the 5 lb bags for 3 stores, call next week"), tap Read. One call comes back
+  as a **proposal**: the five contact fields, what the memo said (it becomes
+  the note, editable), the temperature / next step / interests **only if the
+  rep said them**, and a follow-up draft. The rep checks it, saves it with the
+  ordinary capture route, and the draft waits on the lead. **The rep sends it
+  themselves** - Booth never sends anything.
+- **The reader transcribes only.** `lib/gemini.js` `scanSchema`: `name`,
+  `company`, `title`, `email`, `phone`, each `{ value, confidence }` with
+  `value` nullable ("exactly as printed; null if not shown or not fully
+  legible - never guess") and confidence `high | medium | low`. No field for
+  an address, a website or anything else on the card. With a memo:
+  `memo { heard, summary, temp, next, interests }` (temp and next are enums
+  with `not_said`; interests is an enum of **this event's chips**) and
+  `draft { subject, body }`. Without a memo the schema has neither and the
+  model is not asked for a draft.
+- **Then the app decides** (`ai.validateScan`): markup stripped, lengths
+  bounded; an email that is not an email or a phone that is not 7-15 digits is
+  **dropped and said so, never guessed**; a confidence the app does not know
+  is `low`; every field with a value that is not `high` goes in `check`. The
+  memo summary is cleaned to 280 characters; temp/next/interests outside the
+  app's lists are discarded. The draft goes through the **same invented-fact
+  guard as every draft** (`validateDraft`) against a source of only the card's
+  first name, company and title, the show, the rep, and the memo summary - so
+  a price, day, time, link, attachment, discount or "as we agreed" the rep
+  never said is removed, and the card's own email or phone copied into the
+  body becomes `[add: ...]`. No memo heard -> no draft.
+- **Unclear fields are confirmed before the lead is saved.** The page flags
+  each `check` field ("Not sure. Check it against the card.") and **Save is
+  disabled** until the rep taps Looks right or corrects it (`syncSave` in
+  `app.js`, tested). A field that could not be read says so. If the rep
+  changes the name, company or title, the scan's draft is dropped rather than
+  attached (`draftFor`) - it was written for someone else.
+- **The media is read once and kept nowhere** - the existing card-photo
+  promise, now for the memo too. Photo: shrunk on the phone to a 1600 px
+  JPEG, checked by magic number, **2 MB** on this route. Memo: the page stops
+  recording at 12 s; `lib/audio.js` checks the real type from the bytes,
+  **1 MB**, and refuses a WAV past 15 s - all before anything is spent. Both
+  go inline in one request and are dropped with it; the page lets go of them
+  once read; nothing is in the store, a bucket, a log or `localStorage`. The
+  stand-in keeps lengths, not media. **The page says what is sent** ("the
+  photo and your memo go to Google's Gemini to be read once... Booth never
+  stores either"); on Claude it says the photo goes to Anthropic's Claude.
+- **What the model is sent besides the media:** the show's name and place and
+  the rep's name, sign-off and tone (for the draft). No lead, no teammate, no
+  contact from the store. The plain draft route's prompt is unchanged - still
+  no email or phone.
+- **Order of every model call:** `requireUser, requireBudget,
+  requireDailyCap` -> membership 404 -> (scan: "is it switched on" 404
+  `ai-off`) -> the 6 MB parser -> the bytes checked ->
+  `LAB_AI_GUARD.allow({provider, req, app:'booth'})` -> ONE call ->
+  `LAB_AI_GUARD.record` with `priceUsd` -> the validator. A guard "no" is
+  shown as its own friendly message (429 / 503) and typing a lead in still
+  works. Gemini calls go through `LAB_AI_GUARD.gemini.generate` (the app has
+  no Vertex client of its own) and are charged to the person's identity
+  ledger at their real dollars as the Haiku tokens that cost the same, route
+  `scan:gemini-3.8-flash` / `read:...` / `draft:...` (`chargeGemini`). A call
+  that billed before failing is still recorded. Provider errors never reach
+  the page: 502, or 503 when overloaded or timed out.
+- **With the switch on** the plain snap (`/read`, answers the old shape plus
+  `fields` and `check`) and the drafted follow-up (`/draft`, same prompt, a
+  `responseSchema` instead of a forced tool) are Gemini's too. **With it off**
+  both are Claude's as ever, now asked of the guard first and recorded after
+  (not for a member's own key), and `/scan` is a 404.
+- **Claude is the fallback (2026-11-23).** With the switch on, if Gemini's
+  `/read` or `/draft` fails for any reason but a burst refusal (a thrown call,
+  output the validator rejects, the Gemini `monthly-cap`, no helper), the old
+  Claude path answers the same request unchanged (`geminiElseClaude`; log
+  `[booth] gemini failed (<code>); used claude`). Bursts go out as they are.
+  `/scan` has no Claude path: its failure is its own friendly error.
+- **Claude first (`BOOTH_AI_PROVIDER=claude-first`, 2026-11-23).** `/read` and
+  `/draft` run Claude first and fall back to Gemini on any failure but a burst
+  (`claudeElseGemini` via `byProvider`; log `[booth] claude failed (<code>);
+  used gemini`); `/scan` (card + memo) is on, Gemini only, as in `gemini` mode.
+- `GET /api/me` adds `ai` (`claude | gemini | claude-first`), `scan` (boolean) and
+  `limits.memoSeconds`, signed in or not; the page offers the scan only when
+  `scan` is true.
+- **The sample** shows a hand-written scan ("See a sample scan", when the
+  switch is on): `lib/demo.js` `SCAN`, put through `validateScan` so it shows
+  a flagged email, an unreadable phone and a draft the guard leaves untouched.
+  No model call for a signed-out visitor, as ever.
+- **Stand-in** (`lib/fakeai.js` `gemini`, `BOOTH_FAKE_AI=1`, refused on Cloud
+  Run): triggers in the photo's or memo's bytes - `BLANK`, `BADGE`, `MESSY`,
+  `UNSURE`, `SILENT`, `INJECT`, `UPSTREAMnnn`; otherwise Riley Chen's card
+  with the email at medium confidence, and with a memo a summary, "hot", a
+  call and a draft. Try it: `BOOTH_AI_PROVIDER=gemini npm run dev`.
+- **Erik's steps to switch it on:** Vertex AI enabled and `aiplatform.user`
+  for `challenge-run@` (the lab guard's note), then `BOOTH_AI_PROVIDER=gemini`
+  on the `challenge` service. Real recordings from iPhone Safari arrive as
+  `audio/mp4`, Chrome's as `audio/webm`; both are sent as they are - worth one
+  real test on a phone before relying on it.
+
+## The look (2026-11-23 redesign)
+
+The lab's house style (HOA Desk's rules, not its code); `public/app.css`
+opens with them. Pure white page (true black in the dark), hairline-divided
+lists instead of stacked boxes (a 12 px hairline card only for the scan
+panel and the podium), pill buttons and chips, 10 px inputs, system type in
+five sizes, tabular figures. **One accent: the navy of the lab card
+(`#1e3a8a`; `#a9bcff` in the dark).** The card's tent red is not used for
+actions because red here means "went cold"; red / amber / blue / green are
+status only (hot / warm / cold / done) and always sit beside words. Coloured
+dots and line icons (`ico()` in `app.js`) replace every emoji on the page
+(`rules.js` still carries them for the CSV-free templates' data and tests;
+the page does not draw them). Phones: a slim floating translucent pill bar,
+1.5 px line icons, the label on the current one. Desktop: the same five
+buttons as a top nav with a quiet underline (the shared `desktop.css` rail is
+overridden at the end of `app.css`, never edited). The signed-out home is a
+centred hero. **No `style=` attribute anywhere**, in the markup or written by
+script (tested): bars, the clock ring, the stacked bar and the per-day
+columns are SVG with width attributes; spacing is classes. Motion (press
+states, sheet and view fades, the small confetti) only inside
+`prefers-reduced-motion: no-preference`. Taps from an event's home (Leads):
+capture 1 (Capture), scan a card 2 (Capture, Take the photo), open a lead 1,
+leaderboard 1, scorecard 1, mark a follow-up sent 2 (the lead, Mark as sent).
+
 ## Local run and tests
 
 ```
@@ -220,7 +349,8 @@ Limits (`lib/events.js` LIMITS, plus `rules.js`): 25 people a team, 20 events
 run per person, 40 events per person, 1,000 leads an event, a show of at most
 14 days, 12 interest chips of 24 characters, name/company/title 80, email 120,
 phone 30, note 400, deal value up to $10M, booth cost up to $1M. JSON bodies
-128 KB except the snap route (6 MB, after the gates; image 4 MB decoded).
+128 KB except the snap and scan routes (6 MB, after the gates; image 4 MB
+decoded on `/read`, 2 MB on `/scan`; memo 1 MB and 15 s).
 
 Deleting an event deletes its leads, members, code and share link.
 
@@ -239,7 +369,9 @@ DELETE owner), `PUT /api/events/:id/me`, `POST /api/events/:id/code` (owner),
 `GET /api/events/:id/leaderboard`, `GET /api/events/:id/scorecard`,
 `GET /api/events/:id/export.csv` (owner), `POST|DELETE /api/events/:id/share`
 (owner). Metered: `POST /api/events/:id/leads/:lid/draft`,
-`POST /api/events/:id/read` (card or badge photo).
+`POST /api/events/:id/read` (card or badge photo),
+`POST /api/events/:id/scan` (photo + optional voice memo; Gemini only, 404
+`ai-off` otherwise).
 
 ## Ideas not built yet
 

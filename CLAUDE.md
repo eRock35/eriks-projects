@@ -296,6 +296,60 @@ in the page).
   early. The "N apps live" count in the Challenge banner stays. Remove the
   attribute to bring them all back.
 
+## The landing page's design (2026-11-22)
+
+Erik asked for the book club app and some of the new lab apps on the landing
+page, and for the page to be redesigned well. `test/home.js` holds the rules.
+
+- **Files.** `site/index.html` carries the markup and its own `<style>` (one
+  request, and the bucket's rollback copy still looks right); every script is
+  in `site/home.js`, loaded with `defer`. **No inline script, no inline event
+  handlers, no `style=` attributes** on the page - keep it that way, so a
+  strict CSP stays possible. System fonts only; nothing is fetched from
+  another origin except the lab's `/api/lab` and the six preview frames.
+- **Tokens.** Colour, radius and type are custom properties at the top of the
+  stylesheet, once for light and once under `prefers-color-scheme: dark`.
+  Every text colour clears 4.5:1 on the surfaces it sits on in both themes
+  (measured in the browser: 4.76 at worst in light, 5.89 in dark); check a
+  new pair before using it. Targets are 44 px or more.
+- **"More futuristic, but professional"** (Erik, the same day, on seeing the
+  first pass). So: the top bar, the hero and the Challenge band are **dark
+  panels in both themes** (the `--d-*` tokens) with fine grid lines and two
+  soft glows; a luminous cyan-to-violet pair (`--lum-1`, `--lum-2`) is used
+  for rules, brackets, the hero button and glows, never for small text on a
+  light surface; labels and figures' captions are in the system mono face;
+  corners are tighter. Precise and technical, not neon: keep it restrained.
+- **Motion.** One orchestrated moment when the page opens (the hero's lines
+  rise in turn, the readout's rule draws, brackets close on the portrait):
+  CSS only, once, under two seconds, and at rest everything is visible.
+  Nothing is ever hidden waiting for a scroll. After that nothing moves by
+  itself: the hero's glow drifts toward the pointer and cards light where
+  they are touched (`home.js`, mouse or trackpad only, one style write a
+  frame), and the "apps live" light pings three times when the lab answers.
+  **Every animation rule sits inside `prefers-reduced-motion:
+  no-preference`**, the `reduce` block switches off every transition and
+  animation, and the script checks the preference on each move - so under
+  reduced motion the page is simply still. That is why there is no "Pause
+  motion" switch (the aurora, the marquee, the count-up and
+  reveal-on-scroll that needed one are gone); do not add anything that
+  moves by itself for more than five seconds without bringing one back.
+- **Chapter** (`challenge/apps/chapter`) is the featured build. The copy says
+  what it does today - the progress board, spoiler-safe notes, the vote for
+  the next book, meetups, My library - and must not run ahead of the app.
+  The picture is a screenshot of its own made-up club (`/chapter/#try`, the
+  board), `site/assets/chapter-board-light.webp` and `-dark.webp` (390 px
+  wide at 2x). Retake both when the board changes, **under new file names**:
+  images under `/assets` cache for a week.
+- **"New in the Lab"** is four `[data-lab]` cards (Reset and Stars for work,
+  Trek and Snug for everyday), written with the lab's own name, emoji,
+  colours and tagline. `home.js` refreshes them from the lab's live answer
+  and **hides a card whose app is retired, gone or not up**, so the page
+  never links a dead app. To change the four, change the cards and their
+  `.t-<slug>` colours; only link apps that are live.
+- The proof row, `data-counts="off"`, `data-contact` and the newsletter
+  form's traps are unchanged. With `data-counts` removed, the standings,
+  "Live now" and "Most used this week" come back, styled for this design.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

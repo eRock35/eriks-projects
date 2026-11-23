@@ -9,8 +9,9 @@
 // hours. A leaderboard makes it a game on the day; the show scorecard says
 // what the booth was worth afterwards. See CLAUDE.md.
 //
-// A model is used for two things only: reading a card or badge photo, and
-// drafting a follow-up in the rep's voice. Everything else - the clocks, the
+// A model is used for two things only: reading a card or badge photo (with
+// BOOTH_AI_PROVIDER=gemini, together with a short voice memo), and drafting
+// a follow-up in the rep's voice. Everything else - the clocks, the
 // leaderboard, the scorecard, the templates, the CSV - is public/rules.js and
 // lib/events.js, and free.
 
@@ -24,6 +25,8 @@ const B = require('./public/rules');
 const E = require('./lib/events');
 const ai = require('./lib/ai');
 const photo = require('./lib/photo');
+const audio = require('./lib/audio');
+const gemini = require('./lib/gemini');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
 const memberKey = require('./lib/memberkey');
@@ -35,6 +38,23 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('BOOTH_FAKE_AI=1 is for lo
 // Free tier on Haiku, members on Sonnet - the split every sibling uses,
 // decided in one place by identity.planFor. Both read photos.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model Booth uses. BOOTH_AI_PROVIDER=gemini moves the card read and
+// the drafted follow-up to Gemini on Vertex AI (through the lab's AI guard)
+// and switches on "Scan a card" with a voice memo, which only Gemini can
+// hear. Anything else - unset included - is Claude, exactly as before, so
+// merging this changes nothing live. Read per request: flipping it is a
+// Cloud Run setting, not a deploy.
+// BOOTH_AI_PROVIDER=claude-first (2026-11-23): Claude reads and drafts first,
+// Gemini answers when Claude fails; the scan (Gemini only) is on as well.
+const providerNow = () => (process.env.BOOTH_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.BOOTH_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+const geminiOn = () => providerNow() !== 'claude';
+// A scan's photo is held tighter than the plain snap's 4 MB: the page sends
+// a 1600 px JPEG, a few hundred KB.
+const SCAN_PHOTO_BYTES = 2 * 1024 * 1024;
+// The page stops a voice memo itself at this many seconds (the server's cap
+// is the size, and 15 s for a WAV: lib/audio.js).
+const MEMO_SECONDS = 12;
 
 const app = express();
 app.set('trust proxy', 1);
@@ -59,7 +79,7 @@ app.use((req, res, next) => {
 // the big limit, and it mounts its own parser AFTER the sign-in, budget and
 // membership checks, so a stranger's 6 MB is never read. Everything else
 // stays small.
-const SNAP_ROUTE = /^\/api\/events\/[^/]+\/read$/;
+const SNAP_ROUTE = /^\/api\/events\/[^/]+\/(read|scan)$/;
 const bigJson = express.json({ limit: '6mb' });
 const smallJson = express.json({ limit: '128kb' });
 app.use((req, res, next) => (SNAP_ROUTE.test(req.path) ? next() : smallJson(req, res, next)));
@@ -119,7 +139,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
-  if (mine) for (const k of ['field', 'duplicate', 'retryAfterMin']) if (err[k] !== undefined) body[k] = err[k];
+  if (mine) for (const k of ['field', 'duplicate', 'retryAfterMin', 'code']) if (err[k] !== undefined) body[k] = err[k];
   res.status(status).json(body);
 };
 
@@ -240,9 +260,12 @@ async function myEvents(uid) {
 app.get('/api/me', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    if (!req.user) return res.json({ signedIn: false });
+    // `ai` says which model reads; `scan` whether the voice-memo scan is on.
+    const ai_ = { ai: providerNow(), scan: geminiOn(), limits: { memoSeconds: MEMO_SECONDS } };
+    if (!req.user) return res.json({ signedIn: false, ...ai_ });
     res.json({
       signedIn: true,
+      ...ai_,
       email: req.user.email,
       name: E.nameFromEmail(req.user.email),
       budget: identityLib.budgetFor(req.user),
@@ -588,6 +611,124 @@ app.get('/api/events/:id/leads/:lid/template', user, async (req, res) => {
  * Metered: draft a follow-up, read a card
  * ------------------------------------------------------------------ */
 
+/* The lab's AI guard (the month's cap per provider and the burst limits),
+ * when the host has one: asked before a call, told the cost after. */
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'booth' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Typing a lead in and the free templates still work.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'booth', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** One Gemini call through the guard's Vertex helper: allowed first, and
+ *  whatever it used - even when it failed after billing - recorded with the
+ *  guard and charged to the person. With no guard (the app on its own) only
+ *  the local stand-in can answer; a real call needs the lab. The provider's
+ *  own words never reach the page: a status only. */
+async function askGemini(req, request, route) {
+  await guardAllow('gemini', req);
+  const guard = global.LAB_AI_GUARD;
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 1400, outputTokens: 260 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, gemini: 'no-helper' });
+  let usage = null;
+  try {
+    const out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+    return out && out.json;
+  } catch (err) {
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), gemini: (err && err.code) || 'error' });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage, route);
+    }
+  }
+}
+
+/** Gemini first, for a feature Claude also has. If the Gemini step fails for
+ *  any reason but a burst refusal - a thrown call, output the validator
+ *  rejects (`gemini()` resolves falsy), the month's Gemini cap, no helper -
+ *  Claude's own path answers the same request, unchanged (its own guard,
+ *  gates and meter). A burst is per person across both providers: its
+ *  refusal goes out as it is. One log line, no user data. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function geminiElseClaude(gemini_, claude) {
+  let code;
+  try {
+    const out = await gemini_();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.gemini || err.code)) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[booth] gemini failed (${code}); used claude`);
+  return claude();
+}
+
+/** Claude first (BOOTH_AI_PROVIDER=claude-first): the same two paths in the
+ *  other order. Claude's own path runs unchanged; if it fails for any reason
+ *  but a burst refusal - a thrown SDK error, output the validator rejects,
+ *  the month's Claude cap, no key - Gemini's own path answers the same
+ *  request. A burst goes out as it is. One log line, no user data. */
+async function claudeElseGemini(claude, gemini_) {
+  let code;
+  try {
+    const out = await claude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.code || err.status)) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[booth] claude failed (${code}); used gemini`);
+  return gemini_();
+}
+/** The feature's two paths, in the order the switch says. */
+function byProvider(claude, gemini_) {
+  const p = providerNow();
+  if (p === 'gemini') return geminiElseClaude(gemini_, claude);
+  if (p === 'claude-first') return claudeElseGemini(claude, gemini_);
+  return claude();
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage, route) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `${route}:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
+/** Claude, as it has always been: one forced tool, and the identity meter
+ *  charges the person. The lab's guard is asked first and told after. */
+async function askClaude(req, call) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return await call(client, model, (u) => { used = u; });
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
 /**
  * A follow-up in the rep's voice. The model sees the show, the rep's name,
  * sign-off and tone, and the lead's first name, company, role, temperature,
@@ -601,9 +742,8 @@ app.post('/api/events/:id/leads/:lid/draft', ...spend, async (req, res) => {
     const l = await loadLead(ev, req);
     const src = ai.draftSource(ev, ev.me, l);
     const fallback = B.template(l, ev, ev.me).subject;
-    const client = await clientFor(req);
-    const raw = await ai.draft(client, modelFor(req), src);
-    const d = ai.validateDraft(raw, src, fallback);
+    const viaClaude = async () => ai.validateDraft(await askClaude(req, (client, model, onUsage) => ai.draft(client, model, src, onUsage)), src, fallback);
+    const d = await byProvider(viaClaude, async () => ai.validateDraft(await askGemini(req, gemini.draftRequest(src), 'draft'), src, fallback));
     if (!d) throw httpError(422, 'The draft came back empty. Try again - or use the free template.');
     res.json({ ...d, mailto: B.mailto(l.email, d.subject, d.body) });
   } catch (err) { fail(res, err, 'Could not draft that. Try again, or use the free template.'); }
@@ -617,12 +757,53 @@ app.post('/api/events/:id/leads/:lid/draft', ...spend, async (req, res) => {
 app.post('/api/events/:id/read', ...spend, memberOnly, bigJson, async (req, res) => {
   try {
     const image = photo.validate((req.body || {}).image);
-    const client = await clientFor(req);
-    const raw = await ai.readContact(client, modelFor(req), image);
-    const c = ai.validateContact(raw);
+    const viaClaude = async () => ai.validateContact(await askClaude(req, (client, model, onUsage) => ai.readContact(client, model, image, onUsage)));
+    const c = await byProvider(viaClaude, async () => {
+      const s = ai.validateScan(await askGemini(req, gemini.scanRequest({ photo: image }), 'read'));
+      return s && { kind: s.kind, name: s.fields.name.value || '', title: s.fields.title.value || '', company: s.fields.company.value || '', email: s.fields.email.value || '', phone: s.fields.phone.value || '', dropped: s.dropped, fields: s.fields, check: s.check };
+    });
     if (!c) throw httpError(422, 'We couldn’t read a name, company, email or phone on that. Try a closer, flatter shot - or type it in.');
+    res.set('Cache-Control', 'no-store');
     res.json(c);
   } catch (err) { fail(res, err, 'Could not read that photo. Try again, or type it in.'); }
+});
+
+/**
+ * Scan a card (Gemini only): the photo of one card or badge and, when the
+ * rep recorded one, a voice memo of a few seconds become a PROPOSED lead and
+ * a follow-up draft.
+ *
+ * Gates, the membership 404, "is it switched on", then the 6 MB parser; the
+ * photo (2 MB) and the memo (1 MB, 15 s) checked by their bytes before
+ * anything is spent; the guard; ONE call that transcribes what is printed,
+ * each field with a confidence, and summarises what the rep said; then
+ * validateScan: bad emails and phones dropped, anything not "high" flagged
+ * for the rep to confirm, and the draft put through the invented-fact guard
+ * against the card and the memo summary alone.
+ *
+ * Nothing is saved here and nothing is ever sent: the rep confirms the
+ * flagged fields on the page, taps Save (the ordinary capture route), and
+ * sends the follow-up from their own mail app. The photo and the memo are
+ * read once and dropped with the request - never stored, never logged.
+ */
+function scanOn(_req, res, next) {
+  if (geminiOn()) return next();
+  fail(res, httpError(404, 'Scanning with a voice memo isn’t switched on yet. Snap the card on its own, or type it in.', { code: 'ai-off' }));
+}
+app.post('/api/events/:id/scan', ...spend, memberOnly, scanOn, bigJson, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const ev = req.event;
+    const image = photo.validate(b.image);
+    if (Buffer.byteLength(image.data, 'base64') > SCAN_PHOTO_BYTES) throw httpError(400, 'That photo is too large (2 MB max). The app shrinks photos before sending - try again from the page.');
+    const memo = b.memo ? audio.validate(b.memo) : null;
+    const chips = ev.chips || [];
+    const json = await askGemini(req, gemini.scanRequest({ photo: image, audio: memo, event: ev, rep: ev.me, chips }), 'scan');
+    const out = ai.validateScan(json, { memo: Boolean(memo), event: ev, rep: ev.me, chips });
+    if (!out) throw httpError(422, 'We couldn’t read a name, company, email or phone on that. Try a closer, flatter shot - or type it in.');
+    res.set('Cache-Control', 'no-store');
+    res.json({ ...out, sent: { photo: true, memo: Boolean(memo) } });
+  } catch (err) { fail(res, err, 'Could not read that right now. Try again, or type it in.'); }
 });
 
 /* ------------------------------------------------------------------ *
@@ -769,4 +950,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`booth listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, geminiCalls: FAKE_AI ? require('./lib/fakeai').geminiCalls : null };

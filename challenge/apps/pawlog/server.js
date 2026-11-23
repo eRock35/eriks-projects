@@ -23,6 +23,7 @@ const Core = require('./public/pawlog-core');
 const H = require('./lib/homes');
 const ai = require('./lib/ai');
 const photo = require('./lib/photo');
+const gemini = require('./lib/gemini');
 const identityLib = require('./lib/identity');
 
 const PORT = process.env.PORT || 8080;
@@ -32,6 +33,15 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('PAWLOG_FAKE_AI=1 is for l
 // Free tier on Haiku, members on Sonnet - decided in one place by
 // identity.planFor, like every sibling.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads the paperwork. PAWLOG_AI_PROVIDER=gemini moves it to
+// Gemini on Vertex AI (through the lab's AI guard), where a medicine is
+// transcribed field by field and confirmed by the person before it is
+// saved; anything else - unset included - is the provider Pawlog has always
+// used, so shipping this code changes nothing until the setting is made.
+// PAWLOG_AI_PROVIDER=claude-first keeps Claude first and asks Gemini only
+// when Claude fails. Read per request, never cached.
+const providerNow = () => (process.env.PAWLOG_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.PAWLOG_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -104,7 +114,7 @@ const spend = [identity.requireUser, identity.requireBudget, identity.requireDai
  * ------------------------------------------------------------------ */
 
 const httpError = H.httpError;
-const EXTRA = ['code', 'by', 'at', 'when', 'mine', 'key', 'dose'];
+const EXTRA = ['code', 'by', 'at', 'when', 'mine', 'key', 'dose', 'field', 'open'];
 function failure(err, fallback) {
   const mine = Boolean(err && err.expose && err.status);
   if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
@@ -264,8 +274,8 @@ app.get('/api/meta', (_req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false });
-  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
+  if (!req.user) return res.json({ signedIn: false, reader: providerNow() });
+  res.json({ signedIn: true, reader: providerNow(), email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
 });
 
 /* ------------------------------------------------------------------ *
@@ -472,19 +482,146 @@ app.delete('/api/mine', identity.requireUser, route('Could not clear it.', async
  * Metered: "Read the vet paperwork"
  * ------------------------------------------------------------------ */
 
+/** The lab's AI guard (monthly cap per provider, burst limits), when the
+ *  host has one. Its "no" is sent in its own friendly words and no model is
+ *  called. */
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'pawlog' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Adding records by hand still works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'pawlog', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: the identity meter charges the person. */
+async function readWithClaude(req, b, today) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return ai.cleanProposal(await ai.read(client, model, b, today, (u) => { used = u; }), today);
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function readWithGemini(req, b, today) {
+  try { await guardAllow('gemini', req); } catch (err) {
+    // Gemini's month is spent: Claude can still answer. A burst refusal is
+    // per person across both providers, so it is sent as it is.
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(b, today);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), {
+      status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502),
+      fallback: err && typeof err.code === 'string' && /^[a-z-]{1,20}$/.test(err.code) ? err.code : 'error',
+    });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  return gemini.cleanReading(out && out.json, today);
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `read:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
 /** Gates, then the 9 MB parser, then the request checked (a 400 costs
- *  nothing), then one forced tool. The answer is a proposal, validated and
- *  stripped; nothing here writes to the store, and nothing logged carries a
- *  word of the paper. Not streamed: one page reads in seconds. */
+ *  nothing), then the lab's AI guard, then ONE call: a forced tool on
+ *  Claude, or a transcription against a responseSchema on Gemini. The
+ *  answer is a proposal, validated and stripped; nothing here writes to the
+ *  store, and nothing logged carries a word of the paper. On Gemini each
+ *  medicine comes back field by field with how sure the reader was
+ *  (`meds`), for the person to check against the label - the page saves
+ *  nothing until they have. Not streamed: one page reads in seconds. */
+/** Why a Claude read failed, as a fixed code for the log - or null for a
+ *  burst refusal, which is per person across both providers and is sent as
+ *  it is. Never the provider's own words. */
+function claudeFailure(err) {
+  if (!err) return 'error';
+  if (err.code === 'burst-minute' || err.code === 'burst-day') return null;
+  if (err.claudeFailed) return err.claudeFailed;
+  if (err.code === 'monthly-cap') return 'monthly-cap';
+  return Number.isInteger(err.status) ? 'http' : 'error';
+}
+
 app.post('/api/read-paperwork', ...spend, paperJson, route('The paperwork can’t be read right now. Try again in a minute - or add it by hand.', async (req, res) => {
   const b = ai.brief(req.body, photo);
   const today = Core.isDay(req.body && req.body.today) && Math.abs(Core.daysBetween(new Date().toISOString().slice(0, 10), req.body.today)) <= 1 ? req.body.today : new Date().toISOString().slice(0, 10);
-  const proposal = ai.cleanProposal(await ai.read(await clientFor(req), modelFor(req), b, today), today);
-  if (!proposal.vaccinations.length && !proposal.medicines.length && !proposal.weight && !proposal.nextVisit) {
-    throw httpError(422, 'Nothing about vaccinations, medicines, weight or a next visit could be read. Try a clearer photo, or paste the text.');
+  const empty = (p) => !p.vaccinations.length && !p.medicines.length && !(p.meds || []).length && !p.weight && !p.nextVisit;
+  // Gemini first when the switch is on; if it fails for any reason but a
+  // burst refusal, Claude reads the same request exactly as it always has.
+  let proposal = null;
+  let reader = 'claude';
+  if (providerNow() === 'gemini') {
+    try {
+      proposal = await readWithGemini(req, b, today);
+      if (empty(proposal)) throw Object.assign(new Error('unusable'), { fallback: 'unusable' });
+      reader = 'gemini';
+    } catch (err) {
+      if (!err || !err.fallback) throw err;
+      console.warn(`[pawlog] gemini failed (${err.fallback}); used claude`);
+      proposal = null;
+    }
+  }
+  const NOTHING = 'Nothing about vaccinations, medicines, weight or a next visit could be read. Try a clearer photo, or paste the text.';
+  if (!proposal && providerNow() === 'claude-first') {
+    // Claude first; if it fails for any reason but a burst refusal, Gemini
+    // reads the same request down its own path (allow, call, record, charge).
+    try {
+      proposal = await readWithClaude(req, b, today);
+      if (empty(proposal)) throw Object.assign(new Error('unusable'), { claudeFailed: 'unusable' });
+    } catch (err) {
+      const why = claudeFailure(err);
+      if (!why) throw err;
+      console.warn(`[pawlog] claude failed (${why}); used gemini`);
+      proposal = await readWithGemini(req, b, today);
+      if (empty(proposal)) throw httpError(422, NOTHING);
+      reader = 'gemini';
+    }
+  }
+  if (!proposal) {
+    proposal = await readWithClaude(req, b, today);
+    if (empty(proposal)) throw httpError(422, 'Nothing about vaccinations, medicines, weight or a next visit could be read. Try a clearer photo, or paste the text.');
   }
   res.set('Cache-Control', 'no-store');
-  res.json({ proposal: { ...proposal, stripped: proposal.stripped || b.stripped } });
+  res.json({ proposal: { ...proposal, stripped: proposal.stripped || b.stripped }, reader });
 }));
 
 /* ------------------------------------------------------------------ *

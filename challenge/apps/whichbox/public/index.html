@@ -6,8 +6,8 @@
   <title>Whichbox — which box is the kettle in? Label it, scan it, find it</title>
   <meta name="description" content="Number every box, list what is in it, print labels with a QR code and a colour for its room, and find anything in seconds - on moving day, or when the holiday decorations come down. Free, no sign-up, and it all stays on your phone.">
   <meta name="referrer" content="no-referrer">
-  <meta name="theme-color" content="#15130f" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Whichbox">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -33,31 +33,31 @@
   <meta name="twitter:image:alt" content="Whichbox, drop #57 in the Challenge Lab: Which box is the kettle in? Label it, scan it, find it.">
   <!-- /lab:og -->
 </head>
-<body class="dk">
+<body>
   <a class="skip-link" href="#main" id="skip">Skip to the page</a>
   <header class="top">
-    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8.2L12 4l8.5 4.2v8.6L12 21l-8.5-4.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3.5 8.2L12 12.4l8.5-4.2M12 12.4V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7.6 6.2l8.6 4.2" stroke="currentColor" stroke-width="2"/></svg></span><span class="word">Whichbox</span></a>
-    <nav class="top-links" aria-label="Account">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.75 8.2L12 4l8.25 4.2v8.6L12 21l-8.25-4.2z"/><path d="M3.75 8.2L12 12.4l8.25-4.2M12 12.4V21M7.7 6.2l8.4 4.2"/></svg></span><span class="word">Whichbox</span></a>
+    <!-- One nav, two shapes: a floating pill on a phone, part of this bar on a desktop (app.css). -->
+    <nav class="tabbar" id="tabbar" aria-label="Views" hidden>
+      <div class="tabbar-inner">
+        <button type="button" data-act="tab" data-tab="boxes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.75 8.2L12 4l8.25 4.2v8.6L12 21l-8.25-4.2z"/><path d="M3.75 8.2L12 12.4l8.25-4.2M12 12.4V21"/></svg><span>Boxes</span></button>
+        <button type="button" data-act="tab" data-tab="find"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.25"/><path d="M15.25 15.25L20 20"/></svg><span>Find</span></button>
+        <button type="button" data-act="tab" data-tab="day" id="tabDay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.75 6.75h10.5v9.5H2.75zM13.25 10h3.9l3.1 3.1v3.15h-7z"/><circle cx="7" cy="17.25" r="1.75"/><circle cx="16.75" cy="17.25" r="1.75"/></svg><span id="tabDayName">Moving day</span><b class="tab-badge" id="dayBadge" hidden></b></button>
+        <button type="button" data-act="tab" data-tab="labels"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.75h8.2l7.3 7.3-7.45 7.45L4 12.2z"/><circle cx="8.25" cy="9" r="1.25"/></svg><span>Labels</span></button>
+        <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="18.5" cy="12" r="1.25"/></svg><span>More</span></button>
+      </div>
+    </nav>
+    <div class="top-links">
       <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
       <button class="movepill" id="movePill" type="button" data-act="moves" hidden><span id="movePillName"></span></button>
       <button class="btn small ghost" id="acct" type="button">Sign in</button>
-    </nav>
-  </header>
-
-  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
-    <div class="tabbar-inner">
-      <button type="button" data-act="tab" data-tab="boxes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.2L12 4l8.5 4.2v8.6L12 21l-8.5-4.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3.5 8.2L12 12.4l8.5-4.2M12 12.4V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Boxes</span></button>
-      <button type="button" data-act="tab" data-tab="find"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Find</span></button>
-      <button type="button" data-act="tab" data-tab="day" id="tabDay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 7h11v9h-11zM13.5 10h4l3 3v3h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2" fill="currentColor"/><circle cx="17" cy="17.5" r="2" fill="currentColor"/></svg><span id="tabDayName">Moving day</span><b class="tab-badge" id="dayBadge" hidden></b></button>
-      <button type="button" data-act="tab" data-tab="labels"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h9l7 7-9 9-7-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8.5" cy="8.5" r="1.8" fill="currentColor"/></svg><span>Labels</span></button>
-      <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg><span>More</span></button>
     </div>
-  </nav>
+  </header>
 
   <main class="wrap" id="main" tabindex="-1"></main>
 
   <div class="sheet-back" id="sheetBack" hidden></div>
-  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
   <div class="vh" id="live" aria-live="polite"></div>
   <div class="print" id="print" aria-hidden="true"></div>
 

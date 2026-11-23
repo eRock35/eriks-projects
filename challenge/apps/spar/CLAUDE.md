@@ -67,7 +67,7 @@ roughly 2¢ on Haiku, so the $2 free allowance is about 20+ rounds.
 
 ```
 npm run dev     # memory store + fake model on :8090, no Google, no key
-npm test        # 24 end-to-end tests over HTTP, mounted under /spar
+npm test        # end-to-end tests over HTTP, mounted under /spar
 ```
 
 `SPAR_MEMORY=1` and `SPAR_FAKE_AI=1` both **throw on Cloud Run** (`K_SERVICE`
@@ -135,6 +135,104 @@ graduation or deleted.)
   the lab shares one origin, so injected script in one would run as all of
   them. The pages have no inline `<script>` or `on*=` handler; keep it that
   way (`challenge/test/lab.js` checks every `index.html`).
+
+## Redesign and the coach's moments (2026-11-23)
+
+Erik's all-apps redesign: the HOA Desk look, and Spar's row in his AI plan -
+**Claude: "A live counterpart who pushes back in character, then a coach's
+scorecard."** Spar already was that, so nothing was added beside it: the
+existing counterpart, whisper, scorecard and builder were tightened, and
+the page redrawn. No new route, no new collection, no second client, no
+second provider (there is no `SPAR_AI_PROVIDER`; Claude through the lab's
+Anthropic client and `identity.planFor`, as before; federation not wired).
+
+### The AI feature, as it now stands
+
+- **Conduct** (`coach.CONDUCT`, in every persona prompt, authored or built):
+  firm and realistic, never abusive; push back on the proposal, never the
+  person; nothing demeaning or discriminatory even if the scenario or the
+  player invites it; an abusive player gets a calm exit (`lost`), not a
+  fight; the counterpart is a made-up person and brings in no real named
+  people unless the player or scenario already did. The builder's prompt
+  says the same about the person it invents (an invented name and, unless
+  the player typed one, an invented company). These are prompt rules - the
+  only kind possible for tone - so do not weaken them.
+- **Turns are capped by the server**, as before (`maxTurns` from the
+  difficulty; the last line closes the round). `say` now also refuses a
+  round that claims to be live with no lines left, before any model call.
+- **The scorecard quotes only what the player said.** The forced
+  `scorecard` tool gained `moments`: 3-4 observations, each `{quote, skill,
+  verdict: worked|missed, note}`, where `skill` is one of Spar's own five
+  (`scenarios.SKILLS`, the rubric). `coach.verifyQuote()` checks every
+  quote - the moments', `bestLine.quote`, `missedMoment.quote` - against
+  the player's lines (case, spacing and quote marks evened out; under 12
+  characters only a whole line counts; never stitched across two lines) and
+  answers with **the player's own text cut from the transcript**, so the
+  page never shows the model's words inside quotation marks. A moment with
+  an unverified quote, an unknown skill or no note is dropped (at most 4,
+  no repeats); an unverified best line or missed moment is blanked and the
+  page draws neither block. The numbers are still the app's: overall
+  clamped 0-100 and bounded by the outcome, skills 0-10, the grade from
+  `gradeFor`.
+- **Old scorecards have no `moments`**; the page simply shows no "In your
+  words" section for them. The demo's hand-written card has four.
+- **A share carries the moments only with the transcript.** They quote most
+  of the player's half of the conversation, so without the tick box the
+  share's scorecard has `moments: []` (the best line and missed moment
+  were already in shares and still are).
+- **Lab AI guard** on all four model calls (`metered()` in `server.js`):
+  `global.LAB_AI_GUARD?.allow({provider: 'claude', req, app: 'spar'})` ->
+  the call -> `record` with `priceUsd` in a `finally` (cache tokens
+  included). It is asked **inside the handler**, after `spend` and after
+  the cheap refusals (an empty line, a finished round, a card already
+  scored, a description too short), so a request that never reaches a
+  model does not use one of the person's five calls a minute. A no is the
+  guard's own message plus what still works ("Your round is saved...")
+  with its status and `code`; nothing is saved, so the round is exactly as
+  it was. No guard (tests, `npm run dev`): the identity gates stand alone.
+  Worth knowing: the guard's default bursts (5 a minute, 30 a day per
+  account) are about two and a half rounds a day - Erik's numbers to move
+  (`LAB_AI_BURST_*` on the service), not this app's.
+- **The stand-in** (`SPAR_FAKE_AI`) reads the PLAYER lines out of the
+  transcript and quotes them, adds one invented quote and one made-up skill
+  (both must be dropped), and with `FAKEQUOTE` in the transcript quotes
+  only words nobody said. The tests use all three.
+
+### The look
+
+White page, hairlines, one accent, system type; `public/app.css` opens with
+the rules. Things to keep:
+
+- **Accent**: the lab card's `#ff5a36` is the brand dot; where it carries
+  text or a white label it is deepened to `#c9370f` (5.2:1 on white), and
+  `#ff7a5c` in the dark theme. Status colours are only for status - the
+  mood, won/lost, worked/missed - and always sit beside a word.
+- **The theme follows the device** now (it used to be dark unless the
+  device asked for light).
+- **Navigation**: phones get a floating pill (Practise, Build, Progress,
+  Teams; label on the active one); from 900px the same four sit in the
+  header with an underline. Both step aside during a round. `desktop.css`
+  is still linked (a synced copy) but the body no longer has `class="dk"`,
+  so its left rail is not used.
+- **No style attribute**, in the page or written by script (the suite
+  checks). Data-driven sizes are classes: `.p0`-`.p20` bars (5% steps, the
+  `bar()` helper), `.pos0`-`.pos10` for the mood knob, SVG attributes for
+  the ring and charts. The message box grows with `field-sizing` (rows as
+  the fallback).
+- **Mood is words first**: the emoji faces went; the counterpart is their
+  initials in a ring that takes the mood's tone, with the word under the
+  track. Scenario and badge emoji stay - they are data.
+- **Lists over boxes**: scenarios, history, badges, teams and drills are
+  hairline rows. The daily challenge is the one card (it groups a board)
+  and comes first on a phone, beside the list on desktop.
+- The confetti is gone (motion is soft and only under
+  `prefers-reduced-motion: no-preference`; every page is complete at rest).
+  A stray copy of the "Lab" link that the Progress tab added on every
+  visit is fixed.
+- Taps from home: start a library round 2 (opponent, Start); the daily 2;
+  build your own 2 to the form (the "Describe your own" row or the Build
+  tab, then the box); progress, teams 1; resume a round 2 (Progress, the
+  round); in a round the whisper and "End and score" are 1.
 
 ## Commit and PR conventions
 

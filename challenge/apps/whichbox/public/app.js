@@ -154,7 +154,33 @@
   function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'boxes'; }
   function signedIn() { return Boolean(state.me && state.me.signedIn); }
   function pkOk() { return Boolean(window.Passkey && Passkey.supported() && !/\.run\.app$/.test(location.hostname)); }
-  function rc(move, roomId) { var r = C.roomOf(move, roomId); return C.colorHex(r ? r.color : 'stone'); }
+  function rc(move, roomId) { var r = C.roomOf(move, roomId); return r && C.COLOR_IDS.indexOf(r.color) >= 0 ? r.color : 'stone'; }
+  // Thin line icons (1.5 px, drawn by .ico): one consistent set.
+  var ICONS = {
+    spark: '<path d="M11 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+    camera: '<path d="M4 8.5A1.5 1.5 0 015.5 7h2l1.2-2h6.6l1.2 2h2A1.5 1.5 0 0120 8.5v9a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 17.5z"/><circle cx="12" cy="13" r="3.25"/>',
+    print: '<path d="M7 9V4.5h10V9"/><path d="M7 17H5.5A1.5 1.5 0 014 15.5v-5A1.5 1.5 0 015.5 9h13a1.5 1.5 0 011.5 1.5v5a1.5 1.5 0 01-1.5 1.5H17"/><path d="M7 14h10v5.5H7z"/>',
+    down: '<path d="M12 4v11M7.5 11L12 15.5 16.5 11M5 19.5h14"/>',
+    up: '<path d="M12 15.5v-11M7.5 9L12 4.5 16.5 9M5 19.5h14"/>',
+    box: '<path d="M3.75 8.2L12 4l8.25 4.2v8.6L12 21l-8.25-4.2z"/><path d="M3.75 8.2L12 12.4l8.25-4.2M12 12.4V21"/>',
+    truck: '<path d="M2.75 6.75h10.5v9.5H2.75zM13.25 10h3.9l3.1 3.1v3.15h-7z"/><circle cx="7" cy="17.25" r="1.75"/><circle cx="16.75" cy="17.25" r="1.75"/>',
+    shelf: '<path d="M4.5 4v16M19.5 4v16M4.5 8.5h15M4.5 15h15"/><path d="M7.5 11.5h4V15h-4zM13 5.5h3.5v3H13z"/>',
+    tag: '<path d="M4 4.75h8.2l7.3 7.3-7.45 7.45L4 12.2z"/><circle cx="8.25" cy="9" r="1.25"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  };
+  function ic(k) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[k] + '</svg>'; }
+  /** The page writes no style attributes. A label's millimetre sizes ride in
+   *  data-sz and are set here through the CSSOM - only these properties,
+   *  only plain lengths. */
+  var SIZE_PROPS = ['width', 'height', 'padding', 'row-gap', 'gap', 'font-size', 'grid-template-columns', 'grid-template-rows'];
+  function applySizes(root) {
+    $$('[data-sz]', root).forEach(function (el) {
+      el.getAttribute('data-sz').split(';').forEach(function (kv) {
+        var i = kv.indexOf(':'), k = kv.slice(0, i), v = kv.slice(i + 1);
+        if (SIZE_PROPS.indexOf(k) >= 0 && /^[0-9a-z.,() ]+$/.test(v)) el.style.setProperty(k, v);
+      });
+    });
+  }
   function roomName(move, roomId) { var r = C.roomOf(move, roomId); return r ? r.name : 'No room'; }
 
   function showError(err, where) {
@@ -165,7 +191,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Whichbox stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Whichbox stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     var b = $('#resend', where);
     b.addEventListener('click', function () {
       b.disabled = true;
@@ -328,6 +354,7 @@
     var lead = '';
     if (m && !first && ['join', 'new', 'newstorage', 'nobox'].indexOf(v) < 0) lead = (state.trying ? ribbon() : '') + offlineBar(m);
     $('#main').innerHTML = lead + html;
+    applySizes($('#main'));
     after(m);
   }
   function after(m) {
@@ -354,34 +381,33 @@
 
   function mockLabel() {
     var qr = QR ? QR.svg(ORIGIN + BASE + '#try', 'A QR code that opens the made-up move') : '';
-    return '<div class="crate" aria-hidden="true"><div class="mocklabel">' +
-      '<div class="mno">14</div><div class="mqr">' + qr + '</div>' +
+    return '<div class="mock" aria-hidden="true"><div class="mocklabel">' +
+      '<div class="mno"><small>Box</small>14</div><div class="mqr">' + qr + '</div>' +
       '<div class="mflag">OPEN FIRST</div>' +
       '<div class="mband">KITCHEN</div>' +
       '<div class="mfoot"><span>Kettle, mugs, tea, chargers +4</span><span>Larkfield → Harbour</span></div>' +
-      '</div><div class="scanbubble">Box 14 · Kitchen<small>✓ Delivered</small></div></div>';
+      '</div><p class="scanline"><span class="pill s-delivered">✓ Delivered</span>Box 14 · Kitchen</p></div>';
   }
   function viewFirst() {
     var dec = /^(11|12|01)$/.test(new Date().toISOString().slice(5, 7));
-    return '<section class="hero" aria-labelledby="heroTitle"><div class="hero-grid"><div>' +
-      '<p class="lab" style="color:var(--hero-soft)">Moving · the loft · the garage</p>' +
+    return '<section class="hero" aria-labelledby="heroTitle">' +
       '<h1 id="heroTitle">Which box is the kettle in?</h1>' +
-      '<p>Number every box, list what’s inside as you pack, and print a label with a QR code and a colour for its room. Then find anything in seconds - on moving day, or when the holiday decorations come down.</p>' +
-      '<div class="cta"><button class="btn big white" type="button" data-act="try">Try it - a made-up move</button>' +
-      '<div class="row"><button class="btn line" type="button" data-act="newmove">Start a move</button><button class="btn line" type="button" data-act="newstorage">Just my storage boxes</button></div></div>' +
-      '<p class="small" style="margin-top:12px">Free, no sign-up. It all stays on this phone.</p></div>' +
-      mockLabel() + '</div></section>' +
-      '<section class="card" style="margin-top:16px" aria-labelledby="howTitle"><h2 id="howTitle">How it works</h2><ol class="how">' +
-      '<li><div><b>Pack and list.</b><br><span class="muted">Each box gets the next number. Pick its room, type what goes in - press Enter after each thing - and tick Fragile, Heavy or Open first. A photo of the open box if you like.</span></div></li>' +
+      '<p class="lede">Number every box, list what’s inside, print a label - and find anything in seconds.</p>' +
+      '<div class="cta"><button class="btn big" type="button" data-act="try">Try a made-up move</button><button class="btn big ghost" type="button" data-act="newmove">Start a move</button></div>' +
+      '<div class="hero-links"><button class="link-btn" type="button" data-act="newstorage">Just my storage boxes</button><button class="link-btn" type="button" data-act="joinnew">Join with a code</button></div>' +
+      '<p class="freeline">Free, no sign-up. It all stays on this phone.</p>' +
+      mockLabel() + '</section>' +
+      '<section class="intro narrow" aria-labelledby="howTitle"><h2 id="howTitle">How it works</h2><ol class="how">' +
+      '<li><div><b>Pack and list.</b><br><span class="muted">Each box gets the next number. Pick its room, type what goes in - press Enter after each thing - and tick Fragile, Heavy or Open first. Or take one photo of the open box and let AI start the list for you to check.</span></div></li>' +
       '<li><div><b>Print the labels.</b><br><span class="muted">Six to a page or two big ones, on Letter or A4: the number huge, the room as a coloured band in words, the flags in bold, and a QR code that opens the box. Plus a sign for each room’s door.</span></div></li>' +
       '<li><div><b>Scan it, find it.</b><br><span class="muted">Search “kettle” and get “Box 14 · Kitchen · Delivered”. Scan a label on the truck and tap Delivered. Moving day counts every room: “Kitchen: 12 of 14 delivered”.</span></div></li>' +
       '</ol></section>' +
-      '<div class="grid three" style="margin-top:14px">' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">🚚</span><h3>Helpers on moving day</h3><p class="muted small">Share the move with a six-letter code - no accounts. Helpers see every box and where it goes, and tick it off as it comes off the truck. Photos stay on your phone.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">🎄</span><h3>The loft, the garage, the unit</h3><p class="muted small">Storage boxes with a shelf and a season: “Holiday decorations · Loft left · Box 3”. Mark one taken out, and put it back in January.</p><button class="link-btn" type="button" data-act="tryloft" style="justify-self:start">See a made-up loft →</button></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">🔎</span><h3>Search that forgives</h3><p class="muted small">“mug” finds Mugs, “ketle” finds the kettle, “14” opens Box 14. And when nothing matches, it says which boxes have nothing listed yet.</p></section>' +
+      '<div class="grid three mt48">' +
+      '<section class="feat"><h3>Helpers on moving day</h3><p class="muted small">Share the move with a six-letter code - no accounts. Helpers see every box and where it goes, and tick it off as it comes off the truck. Photos stay on your phone.</p></section>' +
+      '<section class="feat"><h3>The loft, the garage, the unit</h3><p class="muted small">Storage boxes with a shelf and a season: “Holiday decorations · Loft left · Box 3”. Mark one taken out, and put it back in January.</p><button class="link-btn js" type="button" data-act="tryloft">See a made-up loft →</button></section>' +
+      '<section class="feat"><h3>Search that forgives</h3><p class="muted small">“mug” finds Mugs, “ketle” finds the kettle, “14” opens Box 14. And when nothing matches, it says which boxes have nothing listed yet.</p></section>' +
       '</div>' +
-      (dec ? '<p class="note small" style="margin-top:14px"><b>Decorations coming down soon?</b> Start a storage list as you bring the boxes out of the loft - next year, the lights are in Box 1, Loft left.</p>' : '');
+      (dec ? '<p class="note small mt24 narrow"><b>Decorations coming down soon?</b> Start a storage list as you bring the boxes out of the loft - next year, the lights are in Box 1, Loft left.</p>' : '');
   }
 
   /* ---------------- try it ---------------- */
@@ -402,14 +428,14 @@
 
   function viewNew(kind) {
     var storage = kind === 'storage';
-    return '<div class="sec-head"><h1>' + (storage ? 'Storage boxes' : 'Start a move') + '</h1></div>' +
-      '<form class="card fields" id="newForm" autocomplete="off">' +
+    return '<div class="sec-head narrow"><h1>' + (storage ? 'Storage boxes' : 'Start a move') + '</h1></div>' +
+      '<form class="fields narrow" id="newForm" autocomplete="off">' +
       (storage
         ? '<label class="field"><span>What should we call it?</span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" placeholder="The loft and garage"><span class="hint">A storage unit, the basement, Grandma’s attic - one list per place works best.</span></label>'
         : '<div class="fields two"><label class="field"><span>Moving from</span><input class="input" name="from" maxlength="' + C.LIMITS.place + '" placeholder="12 Larkfield Lane"></label><label class="field"><span>Moving to</span><input class="input" name="to" maxlength="' + C.LIMITS.place + '" placeholder="4 Harbour Row"></label></div>' +
           '<label class="field"><span>A short name for the labels <span class="hint">(optional)</span></span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" placeholder="Our move"><span class="hint">Printed small at the foot of every label. Leave it empty and it’s made from the streets: “Larkfield → Harbour”.</span></label>') +
-      '<div class="field"><span>Rooms to start with</span><div class="chips">' + C.DEFAULT_ROOMS[storage ? 'storage' : 'move'].map(function (r) { return '<span class="rband" style="--rc:' + C.colorHex(r[1]) + '">' + esc(r[0]) + '</span>'; }).join('') + '</div><span class="hint">Rename, recolour and add rooms any time under More.</span></div>' +
-      '<p class="small muted" style="margin:0">It all stays on this phone. Share it with helpers later if you want to.</p>' +
+      '<div class="field"><span>Rooms to start with</span><div class="chips">' + C.DEFAULT_ROOMS[storage ? 'storage' : 'move'].map(function (r) { return '<span class="rband" data-rc="' + esc(r[1]) + '">' + esc(r[0]) + '</span>'; }).join('') + '</div><span class="hint">Rename, recolour and add rooms any time under More.</span></div>' +
+      '<p class="small muted m0">It all stays on this phone. Share it with helpers later if you want to.</p>' +
       '<div class="row"><button class="btn big" type="submit">' + (storage ? 'Start the list' : 'Start the move') + '</button><button class="btn ghost" type="button" data-act="home">Cancel</button></div></form>';
   }
   function bindNew() {
@@ -434,26 +460,26 @@
     return b.flags.filter(function (f) { return withValuables || f !== 'valuables'; }).map(function (f) { return '<span class="pill f-pill f-' + esc(f) + '">' + esc(C.flagLabel(f)) + '</span>'; }).join('');
   }
   function tileHtml(m, b) {
-    return '<button class="tile" type="button" data-act="open" data-id="' + esc(b.id) + '" style="--rc:' + esc(rc(m, b.room)) + '" aria-label="' + esc(C.boxLine(m, b) + '. ' + C.itemsLine(b.items, 6)) + '">' +
+    return '<button class="tile" type="button" data-act="open" data-id="' + esc(b.id) + '" data-rc="' + esc(rc(m, b.room)) + '" aria-label="' + esc(C.boxLine(m, b) + '. ' + C.itemsLine(b.items, 6)) + '">' +
       '<span class="tband">' + esc(roomName(m, b.room)) + '</span><span class="tno">' + b.no + '</span>' +
       '<span class="tits">' + (m.kind === 'storage' && b.location ? '<b>' + esc(b.location) + '</b> · ' : '') + esc(C.itemsLine(b.items, 3)) + '</span>' +
-      '<span class="tfoot">' + statusPill(b) + flagPills(b, true) + (b.photo ? '<span class="pill f-pill">📷</span>' : '') + '</span></button>';
+      '<span class="tfoot">' + statusPill(b) + flagPills(b, true) + (b.photo ? '<span class="pill f-pill">Photo</span>' : '') + '</span></button>';
   }
   function viewBoxes(m) {
     var counts = {};
     m.boxes.forEach(function (b) { counts[b.room] = (counts[b.room] || 0) + 1; });
     if (state.room !== 'all' && !C.roomOf(m, state.room)) state.room = 'all';
     var shown = m.boxes.filter(function (b) { return state.room === 'all' || b.room === state.room; });
-    var out = '<div class="sec-head"><div><h1>' + esc(m.name) + '</h1><p class="muted" style="margin:2px 0 0">' + esc(C.summaryLine(m)) + (m.to ? ' · to ' + esc(m.to) : '') + '</p></div>' +
-      (canEdit(m) ? '<button class="btn" type="button" data-act="add">+ Add a box</button>' : '') + '</div>';
+    var out = '<div class="sec-head"><div><h1>' + esc(m.name) + '</h1><p class="sub">' + esc(C.summaryLine(m)) + (m.to ? ' · to ' + esc(m.to) : '') + '</p></div>' +
+      (canEdit(m) ? '<button class="btn" type="button" data-act="add">Add a box</button>' : '') + '</div>';
     if (isHelper(m)) out += '<p class="note small">You’re helping' + (sharerName(m) ? ' ' + esc(sharerName(m)) : '') + '. Open a box - or scan its label - to mark it Loaded or Delivered.</p>';
     if (!m.boxes.length) {
-      return out + '<section class="card empty"><div class="ic" aria-hidden="true">📦</div><p><b>No boxes yet.</b></p><p class="muted small">' + (m.kind === 'storage' ? 'Add each box as it goes up into the loft - what’s in it, and where it sits.' : 'Start with the kitchen - it’s always the most boxes. Each one takes about ten seconds.') + '</p>' +
-        (canEdit(m) ? '<div class="row" style="justify-content:center"><button class="btn big" type="button" data-act="add">Add box 1</button><button class="btn ghost" type="button" data-act="tab" data-tab="more">Import a CSV</button></div>' : '') + '</section>';
+      return out + '<section class="card empty"><div class="ic" aria-hidden="true">' + ic('box') + '</div><p><b>No boxes yet.</b></p><p class="muted small">' + (m.kind === 'storage' ? 'Add each box as it goes up into the loft - what’s in it, and where it sits.' : 'Start with the kitchen - it’s always the most boxes. Each one takes about ten seconds.') + '</p>' +
+        (canEdit(m) ? '<div class="row jc"><button class="btn big" type="button" data-act="add">Add box 1</button><button class="btn ghost" type="button" data-act="tab" data-tab="more">Import a CSV</button></div>' : '') + '</section>';
     }
-    out += '<form class="quickfind" id="quickFind" role="search" style="margin-bottom:10px"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><input class="input" type="search" id="qf" placeholder="Find something - “kettle”, “14”…" aria-label="Find something in the boxes" enterkeyhint="search"></form>';
-    out += '<div class="chips scroll" role="group" aria-label="Show the boxes for" style="margin-bottom:12px"><button class="chip" type="button" data-act="room" data-room="all" aria-pressed="' + (state.room === 'all') + '">All<span class="ct">' + m.boxes.length + '</span></button>' +
-      m.rooms.filter(function (r) { return counts[r.id]; }).map(function (r) { return '<button class="chip" type="button" data-act="room" data-room="' + esc(r.id) + '" aria-pressed="' + (state.room === r.id) + '" style="--rc:' + esc(C.colorHex(r.color)) + '"><span class="dot"></span>' + esc(r.name) + '<span class="ct">' + counts[r.id] + '</span></button>'; }).join('') + '</div>';
+    out += '<form class="quickfind mb12" id="quickFind" role="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.25"/><path d="M15.25 15.25L20 20"/></svg><input class="input" type="search" id="qf" placeholder="Find something - “kettle”, “14”…" aria-label="Find something in the boxes" enterkeyhint="search"></form>';
+    out += '<div class="chips scroll mb12" role="group" aria-label="Show the boxes for"><button class="chip" type="button" data-act="room" data-room="all" aria-pressed="' + (state.room === 'all') + '">All<span class="ct">' + m.boxes.length + '</span></button>' +
+      m.rooms.filter(function (r) { return counts[r.id]; }).map(function (r) { return '<button class="chip" type="button" data-act="room" data-room="' + esc(r.id) + '" aria-pressed="' + (state.room === r.id) + '" data-rc="' + esc(r.color) + '"><span class="dot"></span>' + esc(r.name) + '<span class="ct">' + counts[r.id] + '</span></button>'; }).join('') + '</div>';
     out += '<div class="tiles">' + shown.map(function (b) { return tileHtml(m, b); }).join('') + '</div>';
     return out;
   }
@@ -467,32 +493,32 @@
 
   function viewBox(m) {
     var b = C.boxOf(m, state.arg);
-    if (!b) return '<section class="card empty"><div class="ic" aria-hidden="true">🤷</div><p><b>That box isn’t in this move any more.</b></p><button class="btn" type="button" data-act="tab" data-tab="boxes">See all the boxes</button></section>';
+    if (!b) return '<section class="card empty"><div class="ic" aria-hidden="true">' + ic('box') + '</div><p><b>That box isn’t in this move any more.</b></p><button class="btn" type="button" data-act="tab" data-tab="boxes">See all the boxes</button></section>';
     var hits = state.found && state.found.id === b.id ? state.found.hits : [];
     var list = m.kind === 'storage' ? C.STATUS.storage : C.STATUS.move;
     var next = C.nextStatus(m.kind, b.status);
     var idx = m.boxes.indexOf(b), prev = m.boxes[idx - 1], nxt = m.boxes[idx + 1];
-    var out = '<article class="card boxhead" style="--rc:' + esc(rc(m, b.room)) + '"><div class="bband">' + esc(roomName(m, b.room)) + '</div>' +
-      '<div class="bno" aria-label="Box ' + b.no + '">' + b.no + '</div><div class="bmeta">' + statusPill(b) + '<div class="row" style="gap:4px">' + flagPills(b, true) + '</div>' +
+    var out = '<article class="boxhead" data-rc="' + esc(rc(m, b.room)) + '"><div class="bband">' + esc(roomName(m, b.room)) + '</div>' +
+      '<div class="bno" aria-label="Box ' + b.no + '">' + b.no + '</div><div class="bmeta">' + statusPill(b) + '<div class="row gap4">' + flagPills(b, true) + '</div>' +
       (b.statusAt ? '<span class="tiny muted">' + esc(C.statusLabel(b.status)) + (b.by ? ' by ' + esc(b.by) : '') + ' · ' + esc(timeOf(b.statusAt)) + '</span>' : '') + '</div></article>';
-    out += '<div class="grid split" style="margin-top:12px"><div class="stack">';
+    out += '<div class="grid split"><div class="stack">';
     // The one tap a scanned label is for.
     out += '<section class="card stack" aria-labelledby="stT"><h2 id="stT">' + (m.kind === 'storage' ? 'Where is it now?' : 'Where is it now?') + '</h2>' +
-      (next ? '<button class="btn big block go" type="button" data-act="status" data-id="' + esc(b.id) + '" data-s="' + esc(next) + '">' + esc(C.STATUS_ACT[next]) + ' ✓</button>' : '<p class="note small" style="margin:0">✓ Unpacked - this one’s done.</p>') +
+      (next ? '<button class="btn big block go" type="button" data-act="status" data-id="' + esc(b.id) + '" data-s="' + esc(next) + '">' + esc(C.STATUS_ACT[next]) + ' ✓</button>' : '<p class="note small m0">✓ Unpacked - this one’s done.</p>') +
       '<div class="statusbar' + (list.length === 2 ? ' two' : '') + '" role="group" aria-label="Status">' + list.map(function (s) { return '<button type="button" data-act="status" data-id="' + esc(b.id) + '" data-s="' + esc(s) + '" aria-pressed="' + (b.status === s) + '">' + esc(C.statusLabel(s)) + '</button>'; }).join('') + '</div>' +
-      (shared(m) ? '<p class="tiny muted" style="margin:0">Everyone helping sees this change.</p>' : '') + '</section>';
+      (shared(m) ? '<p class="tiny muted m0">Everyone helping sees this change.</p>' : '') + '</section>';
     out += '<section class="card" aria-labelledby="ctT"><div class="sec-head"><h2 id="ctT">What’s in it' + (b.items.length ? ' · ' + b.items.length : '') + '</h2>' + (canEdit(m) ? '<button class="btn small ghost" type="button" data-act="edit" data-id="' + esc(b.id) + '">Edit</button>' : '') + '</div>' +
       (b.items.length ? '<ul class="contents">' + b.items.map(function (t) { var hit = hits.indexOf(t) >= 0; return '<li' + (hit ? ' class="hit"' : '') + '>' + esc(t) + '</li>'; }).join('') + '</ul>' : '<p class="muted">Nothing listed yet.' + (canEdit(m) ? ' Edit it to add what’s inside - or list it from a photo.' : '') + '</p>') +
-      (b.note ? '<p class="note small" style="margin:10px 0 0;white-space:pre-line">' + esc(b.note) + '</p>' : '') +
-      (b.flags.indexOf('valuables') >= 0 ? '<p class="note small" style="margin:10px 0 0">🔒 Valuables: keep this one with you. It isn’t printed on the label.</p>' : '') +
-      (m.kind === 'storage' ? '<p style="margin:10px 0 0"><b>Where:</b> ' + esc(b.location || 'not set yet') + (b.tags.length ? ' · ' + b.tags.map(esc).join(', ') : '') + '</p>' : '') + '</section>';
+      (b.note ? '<p class="note small mt12 pre">' + esc(b.note) + '</p>' : '') +
+      (b.flags.indexOf('valuables') >= 0 ? '<p class="note small mt12">Valuables: keep this one with you. It isn’t printed on the label.</p>' : '') +
+      (m.kind === 'storage' ? '<p class="mt12"><b>Where:</b> ' + esc(b.location || 'not set yet') + (b.tags.length ? ' · ' + b.tags.map(esc).join(', ') : '') + '</p>' : '') + '</section>';
     out += '</div><div class="stack">';
     out += '<div id="boxPhoto"></div>';
     out += '<section class="card stack"><h2>For this box</h2><div class="row">' +
-      '<button class="btn ghost" type="button" data-act="printone" data-id="' + esc(b.id) + '">🖨 Print its label</button>' +
-      (canEdit(m) && !state.trying ? '<button class="btn ai ghost" type="button" data-act="aibox" data-id="' + esc(b.id) + '"> List from a photo</button>' : '') +
+      '<button class="btn ghost" type="button" data-act="printone" data-id="' + esc(b.id) + '">' + ic('print') + 'Print its label</button>' +
+      (canEdit(m) && !state.trying ? '<button class="btn ghost" type="button" data-act="aibox" data-id="' + esc(b.id) + '">' + ic('spark') + 'List from a photo</button>' : '') +
       (canEdit(m) ? '<button class="btn danger" type="button" data-act="delbox" data-id="' + esc(b.id) + '">Delete</button>' : '') + '</div>' +
-      (shared(m) ? '<p class="tiny muted" style="margin:0">Photos stay on the phone that took them.</p>' : '') + '</section>';
+      (shared(m) ? '<p class="tiny muted m0">Photos stay on the phone that took them.</p>' : '') + '</section>';
     out += '<div class="boxnav">' + (prev ? '<button class="btn small ghost" type="button" data-act="open" data-id="' + esc(prev.id) + '">← Box ' + prev.no + '</button>' : '<span></span>') + (nxt ? '<button class="btn small ghost" type="button" data-act="open" data-id="' + esc(nxt.id) + '">Box ' + nxt.no + ' →</button>' : '') + '</div>';
     out += '</div></div>';
     return out;
@@ -502,14 +528,14 @@
     if (!b || !el || !b.photo) return;
     photoGet(b.id).then(function (p) {
       if (!p || state.view !== 'box' || state.arg !== b.id) return;
-      el.innerHTML = '<section class="card stack"><h2>The photo</h2><button class="photo-btn" type="button" data-act="photo" data-id="' + esc(b.id) + '" aria-label="See the photo of box ' + b.no + ' larger"><img alt="" src="' + esc(p.thumb) + '"></button><p class="tiny muted" style="margin:0">' + esc(PHOTO_LINE) + '</p></section>';
+      el.innerHTML = '<section class="card stack"><h2>The photo</h2><button class="photo-btn" type="button" data-act="photo" data-id="' + esc(b.id) + '" aria-label="See the photo of box ' + b.no + ' larger"><img alt="" src="' + esc(p.thumb) + '"></button><p class="tiny muted m0">' + esc(PHOTO_LINE) + '</p></section>';
     });
   }
   function openPhoto(id) {
     photoGet(id).then(function (p) { if (p) sheet('<h2>The photo</h2><img class="photo-full" alt="The open box" src="' + esc(p.full) + '"><p class="tiny muted">' + esc(PHOTO_LINE) + '</p>'); });
   }
   function viewNoBox() {
-    return '<section class="card empty"><div class="ic" aria-hidden="true">🏷️</div><h1 style="font-size:1.4rem">That box isn’t on this phone</h1><p class="muted">Its label was printed from another phone. Ask whoever packed it - or, if the move is shared, ask them for the code and join it.</p><div class="row" style="justify-content:center"><button class="btn" type="button" data-act="joinnew">Join with a code</button><button class="btn ghost" type="button" data-act="home">Home</button></div></section>';
+    return '<section class="card empty"><div class="ic" aria-hidden="true">' + ic('tag') + '</div><h1>That box isn’t on this phone</h1><p class="muted">Its label was printed from another phone. Ask whoever packed it - or, if the move is shared, ask them for the code and join it.</p><div class="row jc"><button class="btn" type="button" data-act="joinnew">Join with a code</button><button class="btn ghost" type="button" data-act="home">Home</button></div></section>';
   }
 
   /* ---------------- adding and editing a box ---------------- */
@@ -530,21 +556,21 @@
       '<button class="btn small ghost" type="button" data-act="' + (f.editing ? 'canceledit' : 'tab') + '" data-tab="boxes">Cancel</button></div>' +
       '<label class="field" id="fNoField"' + (f.noOpen ? '' : ' hidden') + '><span>Box number</span><input class="input no" id="fNo" inputmode="numeric" pattern="[0-9]*" value="' + f.no + '" aria-describedby="fNoHint"><span class="hint" id="fNoHint">Numbers already used are refused - so two boxes never share one.</span></label>' +
       '<section class="card stack"><div class="field"><span>Goes to</span><div class="chips" role="group" aria-label="Room" id="fRooms">' + roomChips(m, f.room) + '</div>' +
-      '<details class="more"><summary>Add a room</summary><div class="addrow" style="margin-top:6px"><input class="input" id="fNewRoom" maxlength="' + C.LIMITS.room + '" placeholder="Nursery, Studio, Shed…" aria-label="New room’s name"><button class="btn ghost" type="button" id="fAddRoom">Add</button></div></details></div></section>' +
+      '<details class="more"><summary>Add a room</summary><div class="addrow mt8"><input class="input" id="fNewRoom" maxlength="' + C.LIMITS.room + '" placeholder="Nursery, Studio, Shed…" aria-label="New room’s name"><button class="btn ghost" type="button" id="fAddRoom">Add</button></div></details></div></section>' +
       '<section class="card stack"><div class="field"><span id="fItemsLabel">What’s in it</span>' +
       '<div class="itemchips" id="fItems" aria-live="polite"></div>' +
       '<div class="addrow"><input class="input" id="fItem" maxlength="' + (C.LIMITS.item * 4) + '" placeholder="Type a thing, press Enter" aria-labelledby="fItemsLabel" enterkeyhint="enter" autocapitalize="sentences"><button class="btn ghost" type="button" id="fItemAdd">Add</button></div>' +
       '<span class="hint">Several at once: “plates, bowls, mugs”.</span>' +
       '<div class="sugg" id="fSugg" aria-label="Suggestions"></div></div></section>' +
       '<section class="card stack"><div class="field"><span>Flags</span><div class="chips" role="group" aria-label="Flags" id="fFlags">' + C.FLAGS.map(function (fl) { return '<button class="chip" type="button" data-flag="' + fl.id + '" aria-pressed="' + (f.flags.indexOf(fl.id) >= 0) + '">' + esc(fl.label) + '</button>'; }).join('') + '</div>' +
-      '<p class="hint" id="fValHint"' + (f.flags.indexOf('valuables') >= 0 ? '' : ' hidden') + '>🔒 Keep valuables with you, not on the truck. This flag is never printed on the label - a label that says “valuables” tells everyone on the pavement which box to take.</p>' +
+      '<p class="hint" id="fValHint"' + (f.flags.indexOf('valuables') >= 0 ? '' : ' hidden') + '>Keep valuables with you, not on the truck. This flag is never printed on the label - a label that says “valuables” tells everyone on the pavement which box to take.</p>' +
       '<p class="hint" id="fOpenHint"' + (f.flags.indexOf('openfirst') >= 0 ? '' : ' hidden') + '>The first night’s box: kettle, mugs, chargers, toilet roll, snacks, medicines, bedding, towels. It is pinned at the top of moving day.</p></div></section>';
     if (storage) {
       var locs = C.locationsUsed(m);
       out += '<section class="card stack"><label class="field"><span>Where it sits</span><input class="input" id="fLoc" maxlength="' + C.LIMITS.location + '" list="fLocs" value="' + esc(f.location) + '" placeholder="Loft left, Garage shelf 2, Bay 4"><datalist id="fLocs">' + locs.map(function (l) { return '<option value="' + esc(l) + '">'; }).join('') + '</datalist></label>' +
         '<div class="field"><span>Season or kind</span><div class="chips" role="group" aria-label="Tags" id="fTags">' + tagChips(m, f.tags) + '</div></div></section>';
     }
-    out += '<section class="card stack"><div class="field"><span>A photo of the open box <span class="hint">(optional)</span></span><div class="row" id="fPhotoRow"></div><p class="tiny muted" style="margin:0">' + esc(PHOTO_LINE) + '</p></div>' +
+    out += '<section class="card stack"><div class="field"><span>A photo of the open box <span class="hint">(optional)</span></span><div class="row" id="fPhotoRow"></div><p class="tiny muted m0">' + esc(PHOTO_LINE) + '</p></div>' +
       '<label class="field"><span>Note <span class="hint">(optional)</span></span><textarea class="input" id="fNote" maxlength="' + C.LIMITS.note + '" placeholder="Lid taped twice. Goes on the top shelf.">' + esc(f.note) + '</textarea></label></section>' +
       '<div id="fErr"></div>' +
       '<div class="save-bar">' + (f.editing ? '<button class="btn" type="submit">Save changes</button><button class="btn ghost" type="button" data-act="canceledit">Cancel</button>' : '<button class="btn" type="submit" id="fSave">Save box ' + f.no + '</button><button class="btn soft" type="button" id="fSaveNext">Save, add ' + (f.no + 1) + '</button>') + '</div>' +
@@ -552,7 +578,7 @@
     return out;
   }
   function roomChips(m, sel) {
-    return m.rooms.map(function (r) { return '<button class="chip" type="button" data-room-pick="' + esc(r.id) + '" aria-pressed="' + (sel === r.id) + '" style="--rc:' + esc(C.colorHex(r.color)) + '"><span class="dot"></span>' + esc(r.name) + '</button>'; }).join('');
+    return m.rooms.map(function (r) { return '<button class="chip" type="button" data-room-pick="' + esc(r.id) + '" aria-pressed="' + (sel === r.id) + '" data-rc="' + esc(r.color) + '"><span class="dot"></span>' + esc(r.name) + '</button>'; }).join('');
   }
   function tagChips(m, sel) {
     var all = C.TAGS.slice();
@@ -584,9 +610,9 @@
       var row = $('#fPhotoRow');
       var show = function (thumb) {
         row.innerHTML = (thumb ? '<img class="thumb" alt="The photo of this box" src="' + esc(thumb) + '">' : '') +
-          '<label class="btn ghost file-btn">' + (thumb ? '📷 Another photo' : '📷 Take or choose a photo') + '<input class="vh" id="fFile" type="file" accept="image/*" capture="environment"></label>' +
+          '<label class="btn ghost file-btn">' + ic('camera') + (thumb ? 'Another photo' : 'Take or choose a photo') + '<input class="vh" id="fFile" type="file" accept="image/*" capture="environment"></label>' +
           (thumb ? '<button class="btn small ghost" type="button" id="fPhotoRm">Remove</button>' : '') +
-          (!state.trying ? '<button class="btn ai soft" type="button" id="fAi"> List what’s in it</button>' : '');
+          (!state.trying ? '<button class="btn soft" type="button" id="fAi">' + ic('spark') + 'List what’s in it</button>' : '');
         $('#fFile', row).addEventListener('change', function (e) {
           var file = e.target.files[0]; if (!file) return;
           prepPhoto(file).then(function (p) { f.photo = p; f.photoChanged = true; drawPhoto(); }).catch(function (err) { showError(err, $('#fErr')); });
@@ -809,8 +835,8 @@
     var used = C.wordsUsed(m).slice(0, 8);
     return '<div class="sec-head"><h1>Find it</h1></div>' +
       '<form role="search" id="findForm"><label class="vh" for="findQ">Find something in the boxes</label><input class="input bigsearch" type="search" id="findQ" value="' + esc(state.q) + '" placeholder="kettle, passports, 14…" enterkeyhint="search" autocomplete="off"></form>' +
-      '<div id="findOut" style="margin-top:12px"></div>' +
-      (used.length ? '<div id="findTry" style="margin-top:14px"><p class="lab">Try</p><div class="chips">' + used.map(function (w) { return '<button class="chip" type="button" data-act="findword" data-w="' + esc(w.text) + '">' + esc(w.text) + '</button>'; }).join('') + '</div></div>' : '');
+      '<div id="findOut" class="mt12"></div>' +
+      (used.length ? '<div id="findTry" class="mt16"><p class="lab">Try</p><div class="chips">' + used.map(function (w) { return '<button class="chip" type="button" data-act="findword" data-w="' + esc(w.text) + '">' + esc(w.text) + '</button>'; }).join('') + '</div></div>' : '');
   }
   function resultHtml(m, r) {
     var b = r.box, others = b.items.filter(function (t) { return !r.hits.some(function (h) { return h.field === 'item' && h.text === t; }); });
@@ -818,7 +844,7 @@
     var why = r.hits.filter(function (h) { return h.field === 'note' || h.field === 'location' || h.field === 'tag'; }).map(function (h) { return esc(h.text); });
     var rest = others.slice(0, 4).map(esc);
     var line = hitItems.concat(rest).join(', ') + (others.length > 4 ? ' +' + (others.length - 4) : '');
-    return '<button class="result" type="button" data-act="openfound" data-id="' + esc(b.id) + '" style="--rc:' + esc(rc(m, b.room)) + '"><span class="rno" aria-hidden="true">' + b.no + '</span><span><span class="rline">' + esc(C.boxLine(m, b)) + (m.kind === 'storage' && b.location ? ' · ' + esc(b.location) : '') + '</span>' +
+    return '<button class="result" type="button" data-act="openfound" data-id="' + esc(b.id) + '" data-rc="' + esc(rc(m, b.room)) + '"><span class="rno" aria-hidden="true">' + b.no + '</span><span><span class="rline">' + esc(C.boxLine(m, b)) + (m.kind === 'storage' && b.location ? ' · ' + esc(b.location) : '') + '</span>' +
       '<span class="rhits">' + (line || 'Nothing listed yet') + (why.length ? ' · ' + why.join(' · ') : '') + '</span></span></button>';
   }
   function drawFound(m) {
@@ -851,38 +877,40 @@
   function rowHtml(m, b, opts) {
     var next = C.nextStatus(m.kind, b.status);
     var act = opts && opts.to ? opts.to : next;
-    return '<div class="brow" style="--rc:' + esc(rc(m, b.room)) + '"><button class="bn" type="button" data-act="open" data-id="' + esc(b.id) + '" aria-label="Open box ' + b.no + '">' + b.no + '</button>' +
+    return '<div class="brow" data-rc="' + esc(rc(m, b.room)) + '"><button class="bn" type="button" data-act="open" data-id="' + esc(b.id) + '" aria-label="Open box ' + b.no + '">' + b.no + '</button>' +
       '<span class="bt"><b>' + esc(roomName(m, b.room)) + '</b><small><span class="st">' + esc(C.statusLabel(b.status)) + (b.by ? ' by ' + esc(b.by) : '') + '</span> · ' + esc(C.itemsLine(b.items, 3)) + '</small></span>' +
       (act && act !== b.status ? '<button class="btn small soft" type="button" data-act="status" data-id="' + esc(b.id) + '" data-s="' + esc(act) + '" aria-label="' + esc(C.STATUS_ACT[act] + ': box ' + b.no) + '">' + esc(ROW_ACT[act] || C.statusLabel(act)) + '</button>' : '<span class="pill s-' + esc(b.status) + '">✓</span>') + '</div>';
   }
   function bar(c) {
     var t = Math.max(1, c.total);
-    var w = function (n) { return (n / t * 100).toFixed(1) + '%'; };
-    return '<div class="stackbar" role="img" aria-label="' + esc(c.arrived + ' of ' + c.total + ' delivered, ' + c.loaded + ' on the truck') + '"><i class="unpacked" style="width:' + w(c.unpacked) + '"></i><i class="delivered" style="width:' + w(c.arrived - c.unpacked) + '"></i><i class="loaded" style="width:' + w(c.loaded) + '"></i></div>';
+    var w = function (n) { return Math.round(n / t * 1000) / 10; };
+    var a = w(c.unpacked), d = w(c.arrived - c.unpacked), l = w(c.loaded);
+    return '<svg class="stackbar" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="' + esc(c.arrived + ' of ' + c.total + ' delivered, ' + c.loaded + ' on the truck') + '">' +
+      '<rect class="unpacked" x="0" y="0" height="8" width="' + a + '"/><rect class="delivered" x="' + a + '" y="0" height="8" width="' + d + '"/><rect class="loaded" x="' + (a + d) + '" y="0" height="8" width="' + l + '"/></svg>';
   }
   function viewDay(m) {
     var d = C.dayCounts(m);
-    if (!d.total) return '<div class="sec-head"><h1>Moving day</h1></div><section class="card empty"><div class="ic" aria-hidden="true">🚚</div><p><b>Add some boxes first.</b></p><p class="muted small">On the day, this page counts every room as the boxes come off the truck.</p>' + (canEdit(m) ? '<button class="btn" type="button" data-act="add">Add a box</button>' : '') + '</section>';
+    if (!d.total) return '<div class="sec-head"><h1>Moving day</h1></div><section class="card empty"><div class="ic" aria-hidden="true">' + ic('truck') + '</div><p><b>Add some boxes first.</b></p><p class="muted small">On the day, this page counts every room as the boxes come off the truck.</p>' + (canEdit(m) ? '<button class="btn" type="button" data-act="add">Add a box</button>' : '') + '</section>';
     var all = { total: d.total, arrived: d.arrived, unpacked: m.boxes.filter(function (b) { return b.status === 'unpacked'; }).length, loaded: d.missing.length };
     var out = '<div class="sec-head"><h1>Moving day</h1>' + (m.to ? '<span class="muted small">to ' + esc(m.to) + '</span>' : '') + '</div>';
     out += '<div class="grid split"><div class="stack">';
-    out += d.done ? '<section class="donecard"><div style="font-size:2rem" aria-hidden="true">🎉</div><h2>Every box is in the new place.</h2><p>' + esc(d.line) + '. Put the kettle on - it’s in ' + esc(kettleBox(m)) + '.</p></section>'
-      : '<section class="card progress"><span class="big">' + d.arrived + ' <span class="muted" style="font-size:1.2rem;font-weight:800">of ' + d.total + '</span></span><span style="font-weight:800">boxes in the new place</span>' + bar(all) +
+    out += d.done ? '<section class="donecard"><div class="ic" aria-hidden="true">' + ic('check') + '</div><h2>Every box is in the new place.</h2><p>' + esc(d.line) + '. Put the kettle on - it’s in ' + esc(kettleBox(m)) + '.</p></section>'
+      : '<section class="card progress"><span class="big">' + d.arrived + ' <span class="of">of ' + d.total + '</span></span><span class="what">boxes in the new place</span>' + bar(all) +
         '<div class="legend"><span class="unpacked">Unpacked ' + all.unpacked + '</span><span class="delivered">Delivered ' + (all.arrived - all.unpacked) + '</span><span class="loaded">On the truck ' + all.loaded + '</span><span>Not loaded ' + d.notLoaded.length + '</span></div></section>';
-    out += '<form class="card jump" id="jump"><label class="vh" for="jumpNo">Box number</label><input class="input" id="jumpNo" inputmode="numeric" pattern="[0-9]*" placeholder="Go to box number…"><button class="btn" type="submit">Open</button></form>';
+    out += '<form class="jump" id="jump"><label class="vh" for="jumpNo">Box number</label><input class="input" id="jumpNo" inputmode="numeric" pattern="[0-9]*" placeholder="Go to box number…"><button class="btn" type="submit">Open</button></form>';
     if (d.openFirst.length) {
-      out += '<section class="card" aria-labelledby="ofT"><h2 id="ofT">📌 Open first</h2><p class="muted small">The first night’s boxes - beds, the kettle, chargers. Find these before anything else.</p>' + d.openFirst.map(function (b) { return rowHtml(m, b); }).join('') + '</section>';
+      out += '<section class="card" aria-labelledby="ofT"><h2 id="ofT">Open first</h2><p class="muted small">The first night’s boxes - beds, the kettle, chargers. Find these before anything else.</p>' + d.openFirst.map(function (b) { return rowHtml(m, b); }).join('') + '</section>';
     }
     if (d.missing.length) {
       out += '<section class="card alertcard" aria-labelledby="msT"><h2 id="msT">Loaded but not delivered · ' + d.missing.length + '</h2><p class="muted small">On the truck - or missing. Once the truck is empty, these are the ones to look for.</p>' + d.missing.map(function (b) { return rowHtml(m, b, { to: 'delivered' }); }).join('') + '</section>';
     }
     out += '</div><div class="stack">';
     out += '<section class="card" aria-labelledby="rmT"><h2 id="rmT">Room by room</h2>' + d.rooms.map(function (c) {
-      return '<div class="rrow' + (c.arrived === c.total ? ' done' : '') + '" style="--rc:' + esc(C.colorHex(c.room.color)) + '"><div class="rh"><span class="row" style="gap:8px"><span class="dot"></span>' + esc(c.line) + '</span></div>' + bar(c) +
+      return '<div class="rrow' + (c.arrived === c.total ? ' done' : '') + '" data-rc="' + esc(c.room.color) + '"><div class="rh"><span class="row gap8"><span class="dot"></span>' + esc(c.line) + '</span></div>' + bar(c) +
         '<details class="more"><summary>' + plural(c.total, 'box', 'boxes') + '</summary>' + c.boxes.map(function (b) { return rowHtml(m, b); }).join('') + '</details></div>';
     }).join('') + '</section>';
     if (d.notLoaded.length) out += '<section class="card" aria-labelledby="nlT"><h2 id="nlT">Not loaded yet · ' + d.notLoaded.length + '</h2>' + d.notLoaded.map(function (b) { return rowHtml(m, b, { to: 'loaded' }); }).join('') + '</section>';
-    out += '<p class="note small">📷 <b>Scanning:</b> point any phone’s camera at a label - it opens that box here, with Delivered one tap away.' + (shared(m) ? ' Helpers who have joined see the same box.' : ' Share the move (More) so helpers can scan too.') + '</p>';
+    out += '<p class="note small"><b>Scanning:</b> point any phone’s camera at a label - it opens that box here, with Delivered one tap away.' + (shared(m) ? ' Helpers who have joined see the same box.' : ' Share the move (More) so helpers can scan too.') + '</p>';
     out += '</div></div>';
     return out;
   }
@@ -903,7 +931,7 @@
     if (!m.boxes.length) return '<div class="sec-head"><h1>What’s where</h1></div><section class="card empty"><p><b>No boxes yet.</b></p><p class="muted small">Give each box a place - “Loft left”, “Garage shelf 2” - and this page groups them.</p>' + (canEdit(m) ? '<button class="btn" type="button" data-act="add">Add a box</button>' : '') + '</section>';
     var tagOk = function (b) { return state.tag === 'all' || b.tags.some(function (t) { return C.norm(t) === C.norm(state.tag); }); };
     var out = '<div class="sec-head"><h1>What’s where</h1><span class="muted small">' + esc(C.summaryLine(m)) + '</span></div>';
-    if (w.tags.length) out += '<div class="chips scroll" role="group" aria-label="Show" style="margin-bottom:12px"><button class="chip" type="button" data-act="tag" data-tag="all" aria-pressed="' + (state.tag === 'all') + '">All</button>' + w.tags.map(function (t) { return '<button class="chip" type="button" data-act="tag" data-tag="' + esc(t.tag) + '" aria-pressed="' + (C.norm(state.tag) === C.norm(t.tag)) + '">' + esc(t.tag) + '<span class="ct">' + t.n + '</span></button>'; }).join('') + '</div>';
+    if (w.tags.length) out += '<div class="chips scroll mb12" role="group" aria-label="Show"><button class="chip" type="button" data-act="tag" data-tag="all" aria-pressed="' + (state.tag === 'all') + '">All</button>' + w.tags.map(function (t) { return '<button class="chip" type="button" data-act="tag" data-tag="' + esc(t.tag) + '" aria-pressed="' + (C.norm(state.tag) === C.norm(t.tag)) + '">' + esc(t.tag) + '<span class="ct">' + t.n + '</span></button>'; }).join('') + '</div>';
     out += '<div class="grid two">';
     if (w.out.filter(tagOk).length) out += '<section class="card alertcard"><h2>Taken out · ' + w.out.filter(tagOk).length + '</h2><p class="muted small">Out of storage right now. Put them back when you’re done.</p>' + w.out.filter(tagOk).map(function (b) { return rowHtml(m, b, { to: 'stored' }); }).join('') + '</section>';
     w.places.forEach(function (p) {
@@ -926,24 +954,24 @@
     return m.boxes;
   }
   function bandSvg(text, hex, w, h, fit, cls) {
-    return '<svg class="' + (cls || 'lband') + '" viewBox="0 0 ' + w + ' ' + h + '" style="width:' + w + 'mm;height:' + h + 'mm" role="img" aria-label="' + esc(text) + '"><rect width="' + w + '" height="' + h + '" rx="' + (h * 0.12).toFixed(1) + '" fill="' + esc(hex) + '"/>' +
+    return '<svg class="' + (cls || 'lband') + '" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + 'mm" height="' + h + 'mm" role="img" aria-label="' + esc(text) + '"><rect width="' + w + '" height="' + h + '" rx="' + (h * 0.12).toFixed(1) + '" fill="' + esc(hex) + '"/>' +
       '<text x="' + (w / 2).toFixed(1) + '" y="' + (h / 2).toFixed(1) + '" dominant-baseline="central" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-weight="900" font-size="' + fit.size + '" letter-spacing="' + (fit.size * 0.05).toFixed(2) + '" fill="#ffffff"' + (fit.squeeze ? ' textLength="' + fit.width + '" lengthAdjust="spacingAndGlyphs"' : '') + '>' + esc(text) + '</text></svg>';
   }
   function labelHtml(m, b, g) {
     var L = C.labelFor(m, b, g, { contents: prefs.contents, url: boxUrlFor(m, b) });
     var qr = QR ? QR.svg(L.url, 'QR code that opens box ' + b.no) : '';
-    return '<div class="lbl" style="width:' + g.w + 'mm;height:' + g.h + 'mm;padding:' + g.pad + 'mm;row-gap:' + g.row + 'mm">' +
-      '<div class="lno" style="font-size:' + L.num + 'mm"><small style="font-size:' + g.small + 'mm">Box</small>' + L.no + '</div>' +
-      '<div class="lqr" style="width:' + g.qr + 'mm;height:' + g.qr + 'mm">' + qr + '</div>' +
+    return '<div class="lbl" data-sz="width:' + g.w + 'mm;height:' + g.h + 'mm;padding:' + g.pad + 'mm;row-gap:' + g.row + 'mm">' +
+      '<div class="lno" data-sz="font-size:' + L.num + 'mm"><small data-sz="font-size:' + g.small + 'mm">Box</small>' + L.no + '</div>' +
+      '<div class="lqr" data-sz="width:' + g.qr + 'mm;height:' + g.qr + 'mm">' + qr + '</div>' +
       bandSvg(L.roomText, L.color, L.bandW, g.band, L.band) +
-      '<div class="lflags" style="font-size:' + g.flag + 'mm">' + L.flags.map(function (f) { return '<b>' + esc(f) + '</b>'; }).join('') + '</div>' +
-      '<div class="litems" style="font-size:' + g.item + 'mm">' + esc(L.items) + '</div>' +
-      '<div class="lfoot" style="font-size:' + g.foot + 'mm"><span>' + esc(L.move) + '</span><span>' + esc(L.room) + ' · Box ' + L.no + '</span></div></div>';
+      '<div class="lflags" data-sz="font-size:' + g.flag + 'mm">' + L.flags.map(function (f) { return '<b>' + esc(f) + '</b>'; }).join('') + '</div>' +
+      '<div class="litems" data-sz="font-size:' + g.item + 'mm">' + esc(L.items) + '</div>' +
+      '<div class="lfoot" data-sz="font-size:' + g.foot + 'mm"><span>' + esc(L.move) + '</span><span>' + esc(L.room) + ' · Box ' + L.no + '</span></div></div>';
   }
   function sheetsHtml(m, boxes, g) {
     var out = '';
     for (var i = 0; i < boxes.length; i += g.per) {
-      out += '<div class="sheetp" style="width:' + g.innerW + 'mm;height:' + g.innerH + 'mm;grid-template-columns:repeat(' + g.cols + ',' + g.w + 'mm);grid-template-rows:repeat(' + g.rows + ',' + g.h + 'mm);gap:' + g.gap + 'mm">' +
+      out += '<div class="sheetp" data-sz="width:' + g.innerW + 'mm;height:' + g.innerH + 'mm;grid-template-columns:repeat(' + g.cols + ',' + g.w + 'mm);grid-template-rows:repeat(' + g.rows + ',' + g.h + 'mm);gap:' + g.gap + 'mm">' +
         boxes.slice(i, i + g.per).map(function (b) { return labelHtml(m, b, g); }).join('') + '</div>';
     }
     return out;
@@ -951,9 +979,9 @@
   function signHtml(m, room) {
     var s = C.signFor(m, room, prefs.paper), g = C.labelGrid(prefs.paper, 2);
     var nameFit = C.bandFit(s.name, s.w, 60);
-    return '<div class="sheetp sign" style="width:' + g.innerW + 'mm;height:' + g.innerH + 'mm">' +
+    return '<div class="sheetp sign" data-sz="width:' + g.innerW + 'mm;height:' + g.innerH + 'mm">' +
       bandSvg(s.text, s.color, s.w, s.bandH, s.band, 'sband') +
-      '<div class="sname" style="font-size:' + Math.min(34, nameFit.size).toFixed(1) + 'mm">' + esc(s.name) + '</div>' +
+      '<div class="sname" data-sz="font-size:' + Math.min(34, nameFit.size).toFixed(1) + 'mm">' + esc(s.name) + '</div>' +
       '<div class="swhat">Boxes with this colour and name go in here.</div>' +
       (s.count ? '<div class="snos">' + (s.count === 1 ? 'Box ' : 'Boxes ') + esc(C.rangeLine(s.nos)) + '</div><div class="stick"><p>Tick each one off as it arrives:</p><div class="sgrid">' + s.nos.slice(0, 60).map(function (n) { return '<span><i></i>' + n + '</span>'; }).join('') + '</div>' + (s.count > 60 ? '<p>… and ' + (s.count - 60) + ' more</p>' : '') + '</div>' : '') +
       '<div class="sfoot">' + esc(s.move) + ' · ' + plural(s.count, 'box', 'boxes') + '</div></div>';
@@ -971,14 +999,14 @@
     out += '<section class="card stack"><div class="field"><span>Paper</span><div class="seg" role="group" aria-label="Paper">' + seg('paper', 'letter', prefs.paper, 'Letter') + seg('paper', 'a4', prefs.paper, 'A4') + '</div></div>' +
       '<div class="field"><span>Labels per page</span><div class="seg" role="group" aria-label="Labels per page">' + seg('per', 6, prefs.per, '6 · for boxes') + seg('per', 2, prefs.per, '2 · big ones') + '</div></div>' +
       '<div class="field"><span>Which boxes</span><div class="seg" role="group" aria-label="Which boxes">' + seg('which', 'all', L.which, 'All ' + m.boxes.length) + seg('which', 'new', L.which, 'New since last print ' + since) + seg('which', 'room', L.which, 'One room') + (L.which === 'one' ? seg('which', 'one', L.which, 'Box ' + ((C.boxOf(m, L.one) || {}).no || '')) : '') + '</div>' +
-      (L.which === 'room' ? '<div class="chips" style="margin-top:6px">' + m.rooms.map(function (r) { return '<button class="chip" type="button" data-act="lroom" data-room="' + esc(r.id) + '" aria-pressed="' + (L.room === r.id) + '" style="--rc:' + esc(C.colorHex(r.color)) + '"><span class="dot"></span>' + esc(r.name) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+      (L.which === 'room' ? '<div class="chips mt8">' + m.rooms.map(function (r) { return '<button class="chip" type="button" data-act="lroom" data-room="' + esc(r.id) + '" aria-pressed="' + (L.room === r.id) + '" data-rc="' + esc(r.color) + '"><span class="dot"></span>' + esc(r.name) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
       '<label class="check"><input type="checkbox" id="lContents"' + (prefs.contents ? ' checked' : '') + '> List the contents on each label</label>' +
-      '<div class="row"><button class="btn big" type="button" data-act="print"' + (boxes.length ? '' : ' disabled') + '>🖨 Print ' + plural(boxes.length, 'label') + '</button><span class="muted small">' + (boxes.length ? plural(pages, 'page') + ' of ' + g.per : 'No boxes to print') + '</span></div>' +
-      '<p class="tiny muted" style="margin:0">Print at 100% (not “fit to page”). Tape a label on two sides of each box - the top gets covered when boxes are stacked.</p></section>';
+      '<div class="row"><button class="btn big" type="button" data-act="print"' + (boxes.length ? '' : ' disabled') + '>' + ic('print') + 'Print ' + plural(boxes.length, 'label') + '</button><span class="muted small">' + (boxes.length ? plural(pages, 'page') + ' of ' + g.per : 'No boxes to print') + '</span></div>' +
+      '<p class="tiny muted m0">Print at 100% (not “fit to page”). Tape a label on two sides of each box - the top gets covered when boxes are stacked.</p></section>';
     out += '</div><div class="stack"><p class="lab">Preview · page 1</p><div class="preview" id="preview"><div class="scaler" id="scaler">' + (boxes.length ? sheetsHtml(m, boxes.slice(0, g.per), g) : '<p class="muted">Pick some boxes to see their labels.</p>') + '</div></div></div></div>';
-    out += '<div class="grid two" style="margin-top:14px"><section class="card stack"><h2>Room signs</h2><p class="muted small" style="margin:0">One page per room, to tape on each door of the new place - so helpers carry a box with a colour and a name straight to its room.</p><div class="row"><button class="btn ghost" type="button" data-act="signs">🖨 Print all ' + plural(m.rooms.length, 'sign') + '</button></div>' +
-      '<div class="chips">' + m.rooms.map(function (r) { return '<button class="chip" type="button" data-act="sign" data-room="' + esc(r.id) + '" style="--rc:' + esc(C.colorHex(r.color)) + '"><span class="dot"></span>' + esc(r.name) + '</button>'; }).join('') + '</div></section>';
-    out += '<p class="note small" style="align-self:start">' + (shared(m) ? 'The QR codes open each box for everyone who has joined this move. Someone who hasn’t is asked for the code - a label never lets a stranger in.' : 'The QR codes open each box on this phone - and, once you share the move (More), on the phone of everyone helping. Anyone else who scans one sees nothing in it.') + '</p></div>';
+    out += '<div class="grid two mt16"><section class="card stack"><h2>Room signs</h2><p class="muted small m0">One page per room, to tape on each door of the new place - so helpers carry a box with a colour and a name straight to its room.</p><div class="row"><button class="btn ghost" type="button" data-act="signs">' + ic('print') + 'Print all ' + plural(m.rooms.length, 'sign') + '</button></div>' +
+      '<div class="chips">' + m.rooms.map(function (r) { return '<button class="chip" type="button" data-act="sign" data-room="' + esc(r.id) + '" data-rc="' + esc(r.color) + '"><span class="dot"></span>' + esc(r.name) + '</button>'; }).join('') + '</div></section>';
+    out += '<p class="note small as">' + (shared(m) ? 'The QR codes open each box for everyone who has joined this move. Someone who hasn’t is asked for the code - a label never lets a stranger in.' : 'The QR codes open each box on this phone - and, once you share the move (More), on the phone of everyone helping. Anyone else who scans one sees nothing in it.') + '</p></div>';
     return out;
   }
   function fitPreview() {
@@ -996,6 +1024,7 @@
     if (!style) { style = document.createElement('style'); style.id = 'pageStyle'; document.head.appendChild(style); }
     style.textContent = '@page { size: ' + C.PAPERS[prefs.paper].css + ' portrait; margin: ' + C.MARGIN + 'mm; }';
     $('#print').innerHTML = html;
+    applySizes($('#print'));
     var t = document.title; document.title = title;
     setTimeout(function () { try { window.print(); } catch (e) { /* the page still holds the labels */ } document.title = t; }, 60);
   }
@@ -1018,20 +1047,20 @@
       ? '<form id="moveForm" class="fields"><label class="field"><span>Name on the labels</span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" value="' + esc(m.name) + '"></label>' +
         (m.kind === 'move' ? '<div class="fields two"><label class="field"><span>From</span><input class="input" name="from" maxlength="' + C.LIMITS.place + '" value="' + esc(m.from) + '"></label><label class="field"><span>To</span><input class="input" name="to" maxlength="' + C.LIMITS.place + '" value="' + esc(m.to) + '"></label></div>' : '') +
         '<div><button class="btn small" type="submit">Save</button></div></form>'
-      : '<p style="margin:0"><b>' + esc(m.name) + '</b>' + (m.to ? '<br><span class="muted">To ' + esc(m.to) + '</span>' : '') + '</p>') + '</section>';
+      : '<p class="m0"><b>' + esc(m.name) + '</b>' + (m.to ? '<br><span class="muted">To ' + esc(m.to) + '</span>' : '') + '</p>') + '</section>';
     out += '<section class="card"><h2>Rooms</h2><p class="muted small">Each room’s colour is the band on its labels and its door sign.' + (edit ? ' Tap a colour to change it.' : '') + '</p>' +
       '<div>' + m.rooms.map(function (r) {
-        return '<div class="roomrow" style="--rc:' + esc(C.colorHex(r.color)) + '">' + (edit ? '<button class="sw" type="button" data-act="recolour" data-room="' + esc(r.id) + '" aria-label="Change the colour of ' + esc(r.name) + '"></button>' : '<span class="sw" aria-hidden="true"></span>') +
+        return '<div class="roomrow" data-rc="' + esc(r.color) + '">' + (edit ? '<button class="sw" type="button" data-act="recolour" data-room="' + esc(r.id) + '" aria-label="Change the colour of ' + esc(r.name) + '"></button>' : '<span class="sw" aria-hidden="true"></span>') +
           '<span><b>' + esc(r.name) + '</b><small>' + plural(counts[r.id] || 0, 'box', 'boxes') + '</small></span>' +
-          (edit ? '<span class="row" style="gap:4px"><button class="btn small ghost" type="button" data-act="renameroom" data-room="' + esc(r.id) + '">Rename</button>' + (counts[r.id] ? '' : '<button class="btn small danger" type="button" data-act="rmroom" data-room="' + esc(r.id) + '" aria-label="Remove ' + esc(r.name) + '">×</button>') + '</span>' : '<span></span>') + '</div>';
+          (edit ? '<span class="row gap4"><button class="btn small ghost" type="button" data-act="renameroom" data-room="' + esc(r.id) + '">Rename</button>' + (counts[r.id] ? '' : '<button class="btn small danger" type="button" data-act="rmroom" data-room="' + esc(r.id) + '" aria-label="Remove ' + esc(r.name) + '">×</button>') + '</span>' : '<span></span>') + '</div>';
       }).join('') + '</div>' +
-      (edit ? '<form class="addrow" id="roomForm" style="margin-top:10px"><input class="input" name="room" maxlength="' + C.LIMITS.room + '" placeholder="Add a room" aria-label="New room"><button class="btn ghost" type="submit">Add</button></form>' : '') + '</section>';
+      (edit ? '<form class="addrow mt12" id="roomForm"><input class="input" name="room" maxlength="' + C.LIMITS.room + '" placeholder="Add a room" aria-label="New room"><button class="btn ghost" type="submit">Add</button></form>' : '') + '</section>';
     out += '</div><div class="stack">';
     out += shareCard(m);
-    out += '<section class="card stack"><h2>Spreadsheet</h2><p class="muted small" style="margin:0">Every box and what’s in it, as a CSV - made on this phone. A CSV from Whichbox can be read back in: its boxes are added to this ' + (m.kind === 'storage' ? 'list' : 'move') + ', skipping numbers already used.</p>' +
-      '<div class="row"><button class="btn ghost" type="button" data-act="csvout"' + (m.boxes.length ? '' : ' disabled') + '>⬇ Download CSV</button>' + (edit && !state.trying ? '<label class="btn ghost file-btn">⬆ Add from a CSV<input class="vh" id="csvIn" type="file" accept=".csv,text/csv"></label>' : '') + '</div></section>';
-    out += '<section class="card"><h2>Your moves and lists</h2>' + movesList() + '<div class="row" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="newmove">+ A move</button><button class="btn small ghost" type="button" data-act="newstorage">+ Storage boxes</button><button class="btn small ghost" type="button" data-act="joinnew">Join with a code</button></div>' +
-      (!state.trying ? '<div style="margin-top:12px"><button class="btn small danger" type="button" data-act="delmove">' + (isHelper(m) ? 'Leave and remove from this phone' : 'Delete ' + esc(m.name) + ' from this phone') + '</button></div>' : '') + '</section>';
+    out += '<section class="card stack"><h2>Spreadsheet</h2><p class="muted small m0">Every box and what’s in it, as a CSV - made on this phone. A CSV from Whichbox can be read back in: its boxes are added to this ' + (m.kind === 'storage' ? 'list' : 'move') + ', skipping numbers already used.</p>' +
+      '<div class="row"><button class="btn ghost" type="button" data-act="csvout"' + (m.boxes.length ? '' : ' disabled') + '>' + ic('down') + 'Download CSV</button>' + (edit && !state.trying ? '<label class="btn ghost file-btn">' + ic('up') + 'Add from a CSV<input class="vh" id="csvIn" type="file" accept=".csv,text/csv"></label>' : '') + '</div></section>';
+    out += '<section class="card"><h2>Your moves and lists</h2>' + movesList() + '<div class="row mt12"><button class="btn small ghost" type="button" data-act="newmove">+ A move</button><button class="btn small ghost" type="button" data-act="newstorage">+ Storage boxes</button><button class="btn small ghost" type="button" data-act="joinnew">Join with a code</button></div>' +
+      (!state.trying ? '<div class="mt12"><button class="btn small danger" type="button" data-act="delmove">' + (isHelper(m) ? 'Leave and remove from this phone' : 'Delete ' + esc(m.name) + ' from this phone') + '</button></div>' : '') + '</section>';
     out += '<p class="small muted">Whichbox keeps everything on this phone - boxes, contents and photos - unless you share a move. Nothing is sent anywhere until you do. ' + (signedIn() ? '' : 'You don’t need an account; a free one only adds listing a box from a photo with AI.') + '</p>';
     return out + '</div></div>';
   }
@@ -1039,28 +1068,28 @@
     var list = state.trying ? [state.demo] : data.moves;
     return list.map(function (x) {
       var on = cur() && cur().id === x.id;
-      return '<button class="mrow" type="button" data-act="switch" data-id="' + esc(x.id) + '"' + (on ? ' aria-current="true"' : '') + '><span class="tile2" aria-hidden="true">' + (x.kind === 'storage' ? '🗄️' : '🚚') + '</span><span><b>' + esc(x.name) + '</b><small>' + esc(C.summaryLine(x)) + (x.shared ? ' · ' + (x.shared.role === 'owner' ? 'shared' : 'helping') : '') + '</small></span><span class="muted" aria-hidden="true">' + (on ? '✓' : '›') + '</span></button>';
+      return '<button class="mrow" type="button" data-act="switch" data-id="' + esc(x.id) + '"' + (on ? ' aria-current="true"' : '') + '><span class="tile2" aria-hidden="true">' + ic(x.kind === 'storage' ? 'shelf' : 'truck') + '</span><span><b>' + esc(x.name) + '</b><small>' + esc(C.summaryLine(x)) + (x.shared ? ' · ' + (x.shared.role === 'owner' ? 'shared' : 'helping') : '') + '</small></span><span class="muted" aria-hidden="true">' + (on ? '✓' : '›') + '</span></button>';
     }).join('');
   }
   function shareCard(m) {
     if (state.trying) {
-      return '<section class="card stack"><h2>Helpers</h2><p class="muted small" style="margin:0">On a real move you share it with a six-letter code - no accounts. In this made-up one, Noor, Ezra and Juno are helping: the boxes say who delivered each.</p><div class="row"><button class="btn" type="button" disabled>Share with helpers</button><span class="tiny muted">For your own move</span></div></section>';
+      return '<section class="card stack"><h2>Helpers</h2><p class="muted small m0">On a real move you share it with a six-letter code - no accounts. In this made-up one, Noor, Ezra and Juno are helping: the boxes say who delivered each.</p><div class="row"><button class="btn" type="button" disabled>Share with helpers</button><span class="tiny muted">For your own move</span></div></section>';
     }
     if (!m.shared) {
-      return '<section class="card stack"><h2>Share with helpers</h2><p class="muted small" style="margin:0">Friends and family on moving day see every box, where it goes and what’s in it, search it all, and tick boxes off as they come off the truck. They join with a code and a first name - no account, no app.</p>' +
-        '<p class="tiny muted" style="margin:0"><b>What is shared:</b> the move’s name and where it’s going, its rooms, and each box’s number, room, contents, flags, note and status - as text. <b>Never photos</b> - they stay on this phone. You can stop sharing any time.</p>' +
+      return '<section class="card stack"><h2>Share with helpers</h2><p class="muted small m0">Friends and family on moving day see every box, where it goes and what’s in it, search it all, and tick boxes off as they come off the truck. They join with a code and a first name - no account, no app.</p>' +
+        '<p class="tiny muted m0"><b>What is shared:</b> the move’s name and where it’s going, its rooms, and each box’s number, room, contents, flags, note and status - as text. <b>Never photos</b> - they stay on this phone. You can stop sharing any time.</p>' +
         '<div><button class="btn" type="button" data-act="share">Share with helpers</button></div></section>';
     }
     if (m.shared.role === 'helper') {
       var me = (m.shared.members || []).find(function (x) { return x.you; });
-      return '<section class="card stack"><h2>Helping</h2><p class="muted small" style="margin:0">' + (sharerName(m) ? esc(sharerName(m)) + ' shared this move. ' : '') + 'You’re helping' + (me ? ' as ' + esc(me.name) : '') + ': open or scan a box to mark it Loaded or Delivered. Photos stay on the phone that took them.</p>' + helpersList(m, false) + '</section>';
+      return '<section class="card stack"><h2>Helping</h2><p class="muted small m0">' + (sharerName(m) ? esc(sharerName(m)) + ' shared this move. ' : '') + 'You’re helping' + (me ? ' as ' + esc(me.name) : '') + ': open or scan a box to mark it Loaded or Delivered. Photos stay on the phone that took them.</p>' + helpersList(m, false) + '</section>';
     }
     var link = C.joinUrl(ORIGIN, BASE, m.shared.code);
     return '<section class="card stack"><h2>Shared with helpers</h2>' +
-      (m.shared.code ? '<p class="muted small" style="margin:0">Helpers join with this code - or by scanning it.</p><div class="code-big">' + esc(C.formatCode(m.shared.code)) + '</div><div class="qrbox">' + (QR ? QR.svg(link, 'QR code to join this move') : '') + '</div>' +
-        '<div class="row" style="justify-content:center"><button class="btn small" type="button" data-act="sharelink">Send the link</button><button class="btn small ghost" type="button" data-act="invite">Show it big</button><button class="btn small ghost" type="button" data-act="newcode">New code</button></div>' : '') +
+      (m.shared.code ? '<p class="muted small m0">Helpers join with this code - or by scanning it.</p><div class="code-big">' + esc(C.formatCode(m.shared.code)) + '</div><div class="qrbox">' + (QR ? QR.svg(link, 'QR code to join this move') : '') + '</div>' +
+        '<div class="row jc"><button class="btn small" type="button" data-act="sharelink">Send the link</button><button class="btn small ghost" type="button" data-act="invite">Show it big</button><button class="btn small ghost" type="button" data-act="newcode">New code</button></div>' : '') +
       helpersList(m, true) +
-      '<p class="tiny muted" style="margin:0">Photos stay on this phone. A shared move nobody opens for 90 days closes by itself; your boxes stay here.</p>' +
+      '<p class="tiny muted m0">Photos stay on this phone. A shared move nobody opens for 90 days closes by itself; your boxes stay here.</p>' +
       '<div><button class="btn small danger" type="button" data-act="unshare">Stop sharing</button></div></section>';
   }
   function helpersList(m, owner) {
@@ -1115,7 +1144,7 @@
   function openShare(m) {
     sheet('<h2>Share with helpers</h2><p class="muted">Helpers see the boxes and where they go, search them, and mark them Loaded or Delivered. Only you can change what’s in a box, delete one or remove a helper.</p>' +
       '<form id="shareForm" class="fields"><label class="field"><span>Your first name</span><input class="input" name="you" maxlength="' + C.LIMITS.helperName + '" value="' + esc(meDefaults.name || '') + '" autocomplete="given-name" required><span class="hint">So helpers see who shared it.</span></label>' +
-      '<p class="note small" style="margin:0"><b>Sent to the server:</b> ' + esc(m.name) + (m.to ? ' (to ' + esc(m.to) + ')' : '') + ', ' + plural(m.rooms.length, 'room') + ' and ' + plural(m.boxes.length, 'box', 'boxes') + ' as text. <b>Not sent:</b> any photo.</p>' +
+      '<p class="note small m0"><b>Sent to the server:</b> ' + esc(m.name) + (m.to ? ' (to ' + esc(m.to) + ')' : '') + ', ' + plural(m.rooms.length, 'room') + ' and ' + plural(m.boxes.length, 'box', 'boxes') + ' as text. <b>Not sent:</b> any photo.</p>' +
       '<div id="shErr"></div><button class="btn block" type="submit">Share it</button></form>', function (root) {
       var f = $('#shareForm', root);
       f.addEventListener('submit', function (e) {
@@ -1150,24 +1179,24 @@
     var link = C.joinUrl(ORIGIN, BASE, m.shared.code);
     sheet('<h2>Invite your helpers</h2><p class="muted">They open the link - or scan this, or type the code in Whichbox - and add a first name. No account, no app.</p>' +
       '<div class="code-big">' + esc(C.formatCode(m.shared.code)) + '</div><div class="qrbox">' + (QR ? QR.svg(link, 'QR code to join this move') : '') + '</div>' +
-      '<div class="row" style="justify-content:center"><button class="btn" type="button" data-act="sharelink">Send the link</button></div>' +
-      '<p class="tiny muted center" style="margin-top:10px">Box labels never carry this code: someone who scans a label without it is asked for it.</p>');
+      '<div class="row jc"><button class="btn" type="button" data-act="sharelink">Send the link</button></div>' +
+      '<p class="tiny muted center mt12">Box labels never carry this code: someone who scans a label without it is asked for it.</p>');
   }
 
   /* ---------------- joining ---------------- */
 
   function viewJoin() {
     var j = state.join || { code: '', info: null };
-    var out = '<div class="sec-head"><h1>Join a move</h1></div>';
-    if (j.sid && !j.info) out += '<p class="note">You scanned a label from a shared move. To open it, join the move: ask whoever shared it for the six-letter code - it’s on their More page.</p>';
+    var out = '<div class="sec-head narrow"><h1>Join a move</h1></div>';
+    if (j.sid && !j.info) out += '<p class="note narrow">You scanned a label from a shared move. To open it, join the move: ask whoever shared it for the six-letter code - it’s on their More page.</p>';
     if (j.info) {
       var i = j.info;
-      out += '<section class="card stack"><p class="lab">' + (i.kind === 'storage' ? 'Storage boxes' : 'A move') + '</p><h2 style="font-size:1.6rem">' + esc(i.name) + '</h2><p class="muted" style="margin:0">' + (i.by ? 'Shared by ' + esc(i.by) + ' · ' : '') + plural(i.boxes, 'box', 'boxes') + ' · ' + plural(i.helpers, 'helper') + '</p>' +
+      out += '<section class="card stack narrow"><p class="lab">' + (i.kind === 'storage' ? 'Storage boxes' : 'A move') + '</p><h2>' + esc(i.name) + '</h2><p class="muted m0">' + (i.by ? 'Shared by ' + esc(i.by) + ' · ' : '') + plural(i.boxes, 'box', 'boxes') + ' · ' + plural(i.helpers, 'helper') + '</p>' +
         (i.full ? '<p class="err">This move has as many helpers as it can take.</p>' :
           '<form id="joinForm" class="fields"><label class="field"><span>Your first name</span><input class="input" name="name" maxlength="' + C.LIMITS.helperName + '" value="' + esc(meDefaults.name || '') + '" autocomplete="given-name" required><span class="hint">Everyone sees who moved which box.</span></label><div id="jErr"></div><button class="btn big block" type="submit">Join and help</button></form>') +
-        '<p class="tiny muted" style="margin:0">No account needed. You’ll see every box and can mark it Loaded or Delivered. Photos stay on the phone that took them.</p></section>';
+        '<p class="tiny muted m0">No account needed. You’ll see every box and can mark it Loaded or Delivered. Photos stay on the phone that took them.</p></section>';
     } else {
-      out += '<form class="card fields" id="codeForm"><label class="field"><span>The code</span><input class="input code" name="code" maxlength="9" value="' + esc(C.formatCode(j.code || '')) + '" placeholder="ABC-234" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label><div id="jErr">' + (j.err ? '<p class="err" role="alert">' + esc(j.err) + '</p>' : '') + '</div><button class="btn big block" type="submit">Look it up</button></form>';
+      out += '<form class="fields narrow" id="codeForm"><label class="field"><span>The code</span><input class="input code" name="code" maxlength="9" value="' + esc(C.formatCode(j.code || '')) + '" placeholder="ABC-234" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label><div id="jErr">' + (j.err ? '<p class="err" role="alert">' + esc(j.err) + '</p>' : '') + '</div><button class="btn big block" type="submit">Look it up</button></form>';
     }
     return out;
   }
@@ -1230,25 +1259,29 @@
     var p = target.form ? Promise.resolve(state.form && state.form.photo) : (C.boxOf(m, target.id) && C.boxOf(m, target.id).photo ? photoGet(target.id) : Promise.resolve(null));
     p.then(function (ph) { state.ai.photo = ph || null; sheet('<div class="body"></div>', drawAi); });
   }
+  /** Who reads the photo: the server says which reader is switched on. */
+  function readerName() { var r = state.me && state.me.reader; return r === 'gemini' ? 'Google’s Gemini' : r === 'claude-first' ? 'Anthropic’s Claude (or Google’s Gemini if Claude is busy)' : 'Anthropic’s Claude'; }
   function drawAi(root) {
-    var b = $('.body', root), a = state.ai, m = cur();
-    var sent = '<div class="sent">' + (a.photo ? '<img alt="" src="' + esc(a.photo.thumb) + '">' : '') + '<b>What is sent:</b> this one photo, shrunk on this phone with its location removed. Nothing else - not your move’s name or address, your rooms, or what’s already listed.<span style="display:block;clear:both"></span></div>';
+    var b = $('.body', root), a = state.ai;
+    var sent = '<p class="sent"><b>What is sent:</b> this one photo, shrunk on this phone with its location removed. Nothing else - not your move’s name or address, your rooms, or what’s already listed. ' + esc(readerName()) + ' reads it, and our server doesn’t keep it.</p>';
+    var what = '<p>Take a photo of an open box and AI lists what it can see - up to 40 things - with the room it probably goes to and whether it looks fragile or heavy. You check the list before anything is added.</p>';
     if (state.trying) {
-      b.innerHTML = '<h2>List what’s in this box</h2><p>Take a photo of an open box and AI lists what it can see - up to 40 things - with the room it probably goes to and whether it looks fragile or heavy. You check the list before anything is added.</p><p class="note">This reads a real photo of your own box. Start your own move to try it.</p><button class="btn" type="button" data-act="tryown">Start my own move</button>';
+      b.innerHTML = '<h2>List what’s in this box</h2>' + what + '<p class="note">This reads a real photo of your own box. Start your own move to try it.</p><button class="btn" type="button" data-act="tryown">Start my own move</button>';
       return;
     }
     if (!signedIn()) {
-      b.innerHTML = '<h2>List what’s in this box</h2><p>Take a photo of an open box and AI lists what it can see - up to 40 things - with the room it probably goes to and whether it looks fragile or heavy. You check the list before anything is added.</p>' + sent +
-        '<p class="note" style="margin-top:12px">This needs a free account - it comes with $2 of AI credit, and one box costs about a cent. Typing the list, labels, search and moving day stay free with no account.</p>' +
-        '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="aiJoin">Create a free account</button><button class="btn ghost" type="button" id="aiIn">Sign in</button></div>';
+      b.innerHTML = '<h2>List what’s in this box</h2>' + what + sent +
+        '<p class="note mt12">This needs a free account - it comes with $2 of AI credit, and one box costs about a cent. Typing the list, labels, search and moving day stay free with no account.</p>' +
+        '<div class="row mt12"><button class="btn" type="button" id="aiJoin">Create a free account</button><button class="btn ghost" type="button" id="aiIn">Sign in</button></div>';
       $('#aiJoin', root).addEventListener('click', function () { openAccount('Create a free account to list boxes from a photo.', function () { openAi(a.target); }); });
       $('#aiIn', root).addEventListener('click', function () { openAccount('Sign in to list boxes from a photo.', function () { openAi(a.target); }, 'login'); });
       return;
     }
     if (a.proposal) return drawProposal(root);
     b.innerHTML = '<h2>List what’s in this box</h2>' +
-      '<div class="field" style="margin:8px 0 12px"><span>A photo of the open box, from above</span><label class="btn ghost file-btn">' + (a.photo ? '📷 Another photo' : '📷 Take or choose a photo') + '<input class="vh" id="aiFile" type="file" accept="image/*" capture="environment"></label></div>' + sent +
-      '<div id="aiOut" style="margin-top:12px"></div><div class="row" style="margin-top:12px"><button class="btn ai" type="button" id="aiGo"' + (a.photo ? '' : ' disabled') + '> List it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
+      (a.photo ? '<div class="shot" id="aiShot"><img alt="The photo that will be sent" src="' + esc(a.photo.thumb) + '"><span class="beam"></span></div>' : '<p class="muted">One photo of the open box, from above, with the light on. AI lists what it can see for you to check.</p>') +
+      '<div class="row jc mb12"><label class="btn ghost file-btn">' + ic('camera') + (a.photo ? 'Another photo' : 'Take or choose a photo') + '<input class="vh" id="aiFile" type="file" accept="image/*" capture="environment"></label></div>' + sent +
+      '<div id="aiOut" class="mt12"></div><div class="row mt12"><button class="btn" type="button" id="aiGo"' + (a.photo ? '' : ' disabled') + '>' + ic('spark') + 'List it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
     var out = $('#aiOut', root), goB = $('#aiGo', root);
     $('#aiFile', root).addEventListener('change', function (e) {
       var file = e.target.files[0]; if (!file) return;
@@ -1260,39 +1293,72 @@
     });
     goB.addEventListener('click', function () {
       if (!a.photo) return;
+      var shot = $('#aiShot', root);
       goB.disabled = true; goB.textContent = 'Looking…';
+      if (shot) shot.classList.add('looking');
       out.innerHTML = '<p class="muted" role="status">Looking in the box…</p>';
       sendable(a.photo.full).then(function (b64) {
         return api('POST', 'api/ai/contents', { image: { type: 'image/jpeg', data: b64 } });
       }).then(function (res) {
         a.proposal = res.proposal; drawAi(root); loadMe();
       }).catch(function (err) {
-        goB.disabled = false; goB.textContent = ' List it';
+        goB.disabled = false; goB.textContent = 'List it';
+        if (shot) shot.classList.remove('looking');
         meteredError(err, out, function () { openAi(a.target); }, 'Sign in to list boxes from a photo.');
       });
     });
   }
+  /** The answer, as a list to check: every line can be unticked, reworded
+   *  or removed, and one the reader missed can be typed in. A reader that
+   *  says how sure it is of each thing (Gemini) has its doubtful ones left
+   *  unticked. Nothing is added until Add. */
+  var SURE = { high: 'Sure', medium: 'Probably', low: 'Not sure' };
   function drawProposal(root) {
     var b = $('.body', root), a = state.ai, p = a.proposal, m = cur();
     var suggested = C.roomForKind(m, p.room);
     var box = a.target.form ? null : C.boxOf(m, a.target.id);
     var have = a.target.form ? (state.form ? state.form.items : []) : (box ? box.items : []);
+    var per = Array.isArray(p.itemConfidence) && p.itemConfidence.length === p.items.length ? p.itemConfidence : null;
     var conf = function (c) { return '<span class="pill ' + (c === 'high' ? 's-delivered' : c === 'medium' ? 's-unpacked' : 's-loaded') + '">' + esc(c) + ' confidence</span>'; };
-    b.innerHTML = '<h2>Check it, then add</h2><p class="small muted">AI-written - check every line. Nothing is added until you tap Add.</p>' +
-      '<p>' + conf(p.confidence) + (p.note ? ' <span class="small muted">' + esc(p.note) + '</span>' : '') + '</p>' +
-      '<div class="prop">' + p.items.map(function (t, i) {
-        var dup = have.some(function (x) { return C.itemKey(x) === C.itemKey(t); });
-        return '<div class="irow"><input type="checkbox" data-pi="' + i + '"' + (dup ? '' : ' checked') + ' aria-label="Add ' + esc(t) + '"><input class="input" data-pn="' + i + '" maxlength="' + C.LIMITS.item + '" value="' + esc(t) + '" aria-label="Thing ' + (i + 1) + '">' + (dup ? '<span class="tiny muted" style="grid-column:2;margin-top:-4px">Already listed - left unticked</span>' : '') + '</div>';
-      }).join('') + '</div>' +
-      '<div class="field" style="margin-top:12px"><span>Room</span>' + (suggested ? '<p class="small" style="margin:0">Looks like <b>' + esc(suggested.name) + '</b> ' + conf(p.roomConfidence) + '</p>' : '<p class="small muted" style="margin:0">' + (p.room === 'unsure' ? 'It couldn’t tell which room.' : 'This move has no room of that kind.') + ' Keep the one you picked.</p>') +
+    var line = function (t, i, c, typed) {
+      var dup = have.some(function (x) { return C.itemKey(x) === C.itemKey(t); });
+      var sure = c ? '<span class="sure c-' + esc(c) + '">' + esc(SURE[c] || SURE.low) + '</span>' : '<span></span>';
+      var why = dup ? 'Already listed - left unticked' : c === 'low' ? 'Left unticked - tick it if it’s really there' : typed ? 'Added by you' : '';
+      return '<div class="irow"><label class="tick"><input type="checkbox" data-pi="' + i + '"' + (dup || c === 'low' ? '' : ' checked') + ' aria-label="Add ' + esc(t) + '"></label>' +
+        '<input class="input" data-pn="' + i + '" maxlength="' + C.LIMITS.item + '" value="' + esc(t) + '" aria-label="Thing ' + (i + 1) + '">' + sure +
+        '<button class="rm" type="button" data-prm="' + i + '" aria-label="Remove ' + esc(t) + '">×</button>' +
+        (why ? '<span class="why">' + why + '</span>' : '') + '</div>';
+    };
+    b.innerHTML = '<h2>Check it, then add</h2><p class="small muted">AI-written - check every line. Untick, reword or remove anything; nothing is added until you tap Add.</p>' +
+      '<p class="tally"><b>' + p.items.length + '</b><span>' + (p.items.length === 1 ? 'thing' : 'things') + ' spotted</span>' + conf(p.confidence) + '</p>' +
+      (p.note ? '<p class="small muted">' + esc(p.note) + '</p>' : '') +
+      '<div class="prop" id="ppList">' + p.items.map(function (t, i) { return line(t, i, per ? per[i] : '', false); }).join('') + '</div>' +
+      '<form class="addrow mt12" id="ppMore"><input class="input" id="ppNew" maxlength="' + C.LIMITS.item + '" placeholder="Add one it missed" aria-label="Add a thing it missed" enterkeyhint="enter"><button class="btn ghost" type="submit">Add</button></form>' +
+      '<div class="field mt16"><span>Room</span>' + (suggested ? '<p class="small m0">Looks like <b>' + esc(suggested.name) + '</b> ' + conf(p.roomConfidence) + '</p>' : '<p class="small muted m0">' + (p.room === 'unsure' ? 'It couldn’t tell which room.' : 'This move has no room of that kind.') + ' Keep the one you picked.</p>') +
       (suggested ? '<label class="check"><input type="checkbox" id="ppRoom"' + (p.roomConfidence !== 'low' ? ' checked' : '') + '> Use ' + esc(suggested.name) + '</label>' : '') + '</div>' +
       (p.flags.length ? '<div class="field"><span>Flags</span>' + p.flags.map(function (f) { return '<label class="check"><input type="checkbox" data-pf="' + esc(f.id) + '"' + (f.confidence !== 'low' ? ' checked' : '') + '> ' + esc(C.flagLabel(f.id)) + ' <span class="tiny muted">(' + esc(f.confidence) + ')</span></label>'; }).join('') + '</div>' : '') +
-      '<div id="ppErr"></div><div class="row" style="margin-top:12px"><button class="btn" type="button" id="ppAdd">Add</button><button class="btn ghost" type="button" id="ppBack">Try another photo</button></div>';
-    var cnt = function () { var n = $$('[data-pi]', root).filter(function (c) { return c.checked; }).length; var btn = $('#ppAdd', root); btn.textContent = n ? 'Add ' + plural(n, 'thing') : 'Add'; btn.disabled = !n; };
-    $$('[data-pi]', root).forEach(function (c) { c.addEventListener('change', cnt); }); cnt();
+      '<div id="ppErr"></div><div class="row mt12"><button class="btn" type="button" id="ppAdd">Add</button><button class="btn ghost" type="button" id="ppBack">Try another photo</button></div>';
+    var list = $('#ppList', root), next = p.items.length;
+    var ticked = function () { return $$('.irow', list).filter(function (r) { return $('[data-pi]', r).checked && $('[data-pn]', r).value.trim(); }); };
+    var cnt = function () { var n = ticked().length; var btn = $('#ppAdd', root); btn.textContent = n ? 'Add ' + plural(n, 'thing') : 'Add'; btn.disabled = !n; };
+    list.addEventListener('change', cnt);
+    list.addEventListener('input', cnt);
+    list.addEventListener('click', function (e) {
+      var rm = e.target.closest('[data-prm]'); if (!rm) return;
+      rm.closest('.irow').remove(); cnt(); say('Removed.');
+    });
+    $('#ppMore', root).addEventListener('submit', function (e) {
+      e.preventDefault();
+      var inp = $('#ppNew', root), t = C.cleanItems([inp.value])[0];
+      if (!t) return;
+      if ($$('.irow', list).length >= C.LIMITS.aiItems) { toast('That’s as many as one photo can add. Type the rest in the box.'); return; }
+      list.insertAdjacentHTML('beforeend', line(t, next++, '', true));
+      inp.value = ''; cnt();
+    });
+    cnt();
     $('#ppBack', root).addEventListener('click', function () { a.proposal = null; drawAi(root); });
     $('#ppAdd', root).addEventListener('click', function () {
-      var items = $$('[data-pi]', root).filter(function (c) { return c.checked; }).map(function (c) { return $('[data-pn="' + c.getAttribute('data-pi') + '"]', root).value; });
+      var items = ticked().map(function (r) { return $('[data-pn]', r).value; });
       var flags = $$('[data-pf]', root).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-pf'); });
       var useRoom = suggested && $('#ppRoom', root) && $('#ppRoom', root).checked;
       if (a.target.form && state.form) {
@@ -1338,13 +1404,13 @@
 
   function openMoves() {
     sheet('<h2>Your moves and lists</h2>' + (data.moves.length || state.trying ? movesList() : '<p class="muted">None yet.</p>') +
-      '<div class="row" style="margin-top:12px"><button class="btn small" type="button" data-act="newmove">+ A move</button><button class="btn small ghost" type="button" data-act="newstorage">+ Storage boxes</button><button class="btn small ghost" type="button" data-act="joinnew">Join with a code</button></div>' +
-      (state.trying ? '' : '<div class="row" style="margin-top:8px"><button class="btn small ghost" type="button" data-act="try">See the made-up move</button><button class="btn small ghost" type="button" data-act="tryloft">See a made-up loft</button></div>'));
+      '<div class="row mt12"><button class="btn small" type="button" data-act="newmove">+ A move</button><button class="btn small ghost" type="button" data-act="newstorage">+ Storage boxes</button><button class="btn small ghost" type="button" data-act="joinnew">Join with a code</button></div>' +
+      (state.trying ? '' : '<div class="row mt8"><button class="btn small ghost" type="button" data-act="try">See the made-up move</button><button class="btn small ghost" type="button" data-act="tryloft">See a made-up loft</button></div>'));
   }
   function openRecolour(m, roomId) {
     var r = C.roomOf(m, roomId); if (!r) return;
     sheet('<h2>' + esc(r.name) + '’s colour</h2><p class="muted small">Every colour keeps white words readable on a label - in colour and in black and white.</p><div class="swatches">' +
-      C.PALETTE.map(function (p) { return '<button type="button" data-act="pickcolour" data-room="' + esc(r.id) + '" data-c="' + p.id + '" style="--rc:' + p.hex + '" aria-pressed="' + (r.color === p.id) + '" aria-label="' + esc(p.name) + '"></button>'; }).join('') + '</div>');
+      C.PALETTE.map(function (p) { return '<button type="button" data-act="pickcolour" data-room="' + esc(r.id) + '" data-c="' + p.id + '" data-rc="' + esc(p.id) + '" aria-pressed="' + (r.color === p.id) + '" aria-label="' + esc(p.name) + '"></button>'; }).join('') + '</div>');
   }
 
   function loadMe() {
@@ -1361,12 +1427,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my12"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my12"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1388,10 +1454,10 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Listing a box from a photo costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
-      '<p class="small muted" style="margin-top:12px">Your boxes are not in your account - they stay on this phone, and in a shared move only if you share one.</p>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt8">Listing a box from a photo costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
+      '<p class="small muted mt12">Your boxes are not in your account - they stay on this phone, and in a shared move only if you share one.</p>' +
+      (pkOk() ? '<button class="btn ghost block mt12" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); draw(); }); });

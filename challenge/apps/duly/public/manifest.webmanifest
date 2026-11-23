@@ -4,7 +4,7 @@
   "description": "Every bill on time - without paying them yourself. Your household's bills, due dates and AutoPay health.",
   "start_url": "./", "scope": "./",
   "display": "standalone",
-  "background_color": "#f6f7f4",
+  "background_color": "#ffffff",
   "theme_color": "#0b6b4f",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }

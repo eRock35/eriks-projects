@@ -38,6 +38,8 @@ const R = require('../public/rules');
 const Q = require('../public/qr');
 const M = require('../lib/meetings');
 const ai = require('../lib/ai');
+const audio = require('../lib/audio');
+const gemini = require('../lib/gemini');
 const { demo, build, SETUP, END_MS, AUDIT, recapAnswer, sharpenAnswer } = require('../lib/demo');
 
 const MIN = R.MIN;
@@ -492,6 +494,45 @@ test('who took it on: the speaker in their own words, or an assignment in the no
   assert.strictEqual(ai.tookItOn('Lee', 'I can’t do Friday', more), false);
   assert.strictEqual(ai.tookItOn('Kim', 'let me draft it', more), true, '“let me” with a verb of doing');
   assert.strictEqual(ai.tookItOn('Avi', 'I’ll never get to that, but I can send the notes', more), true, 'a later commitment in the same words still counts');
+});
+
+test('recap owners and dates from the notes: "Name: I\'ll ... by Friday", "Sam will ...", and nobody (stand-in answers)', () => {
+  // 2026-11-23 is a Monday; the model's own date is left out on purpose -
+  // a missing one used to drop "by Friday" entirely.
+  const notes = '- Jordan: I\'ll send the deck by Friday\n2. Priya: sure, I can draft the FAQ by end of week\nSam will chase legal next Tuesday\nwe should look at pricing\nDana: I\'ll look into it, and Lee should book the room';
+  const raw = {
+    summary: '', decisions: [], parking: [],
+    actions: [
+      { text: 'Send the deck', owner: 'Jordan', due: '', dueText: 'by Friday', source: 'notes', ref: 0, quote: 'send the deck by Friday' },
+      { text: 'Draft the FAQ', owner: 'Priya', due: '2026-12-25', dueText: 'by end of week', source: 'notes', ref: 0, quote: 'I can draft the FAQ by end of week' },
+      { text: 'Chase legal', owner: 'Sam', due: '', dueText: 'next Tuesday', source: 'notes', ref: 0, quote: 'Sam will chase legal next Tuesday' },
+      { text: 'Look at pricing', owner: 'Jordan', due: '2026-12-01', dueText: '', source: 'notes', ref: 0, quote: 'we should look at pricing' },
+      { text: 'Book the room', owner: 'Dana', due: '', dueText: '', source: 'notes', ref: 0, quote: 'Lee should book the room' },
+    ],
+  };
+  const expect = [
+    ['Send the deck', 'Jordan', '2026-11-27'],   // a bulleted speaker; "I'll" just before the quote
+    ['Draft the FAQ', 'Priya', '2026-11-27'],    // end of week is Friday: ours, not the model's Christmas
+    ['Chase legal', 'Sam', '2026-12-01'],        // "Sam will", the following week's Tuesday
+    ['Look at pricing', '[owner?]', null],       // nobody took it on, nobody said when
+    ['Book the room', '[owner?]', null],         // Dana's "I'll" is another clause
+  ];
+  for (const labels of [[], ['Jordan', 'Priya', 'Sam', 'Dana']]) {
+    const rec = ai.validateRecap(JSON.parse(JSON.stringify(raw)), ai.recapContext({ title: 'Sync', labels }, [], notes, false, '2026-11-23'));
+    assert.deepStrictEqual(rec.actions.map((a) => [a.text, a.owner, a.due]), expect, labels.length ? 'typed labels' : 'no labels typed: the name as written');
+    assert.ok(rec.removed.some((r) => r.what === '2026-12-01' && r.where === 'due date'), 'a date with no words for it');
+    assert.match(rec.body, /Send the deck - Jordan, due/);
+  }
+  // Typed labels still bound it; with none, a voice or a pronoun is nobody.
+  const pat = ai.validateRecap({ summary: '', decisions: [], parking: [], actions: [{ text: 'Send the deck', owner: 'Pat', due: '', dueText: '', source: 'notes', ref: 0, quote: 'Pat: I\'ll send the deck' }] },
+    ai.recapContext({ title: 'Sync', labels: ['Jordan'] }, [], 'Pat: I\'ll send the deck', false, '2026-11-23'));
+  assert.strictEqual(pat.actions[0].owner, '[owner?]', 'not one of the typed attendees');
+  const voice = ai.validateRecap({ summary: '', decisions: [], parking: [], actions: [{ text: 'Send the deck', owner: 'Speaker 2', due: '', dueText: '', source: 'notes', ref: 0, quote: 'I\'ll send the deck' }] },
+    ai.recapContext({ title: 'Sync', labels: [] }, [], 'Speaker 2: I\'ll send the deck', false, '2026-11-23'));
+  assert.strictEqual(voice.actions[0].owner, '[owner?]', 'a voice is not a name');
+  // A recap before Start has no meeting day: today's stands in, so the prompt has a date.
+  assert.match(ai.recapPrompt(ai.recapContext({ title: 'Sync', labels: [] }, [], notes, false, '2026-11-23')), /MEETING DATE: 2026-11-23/);
+  assert.match(ai.recapPrompt(ai.recapContext({ title: 'Sync', labels: [] }, [], notes, false)), /none typed - an owner is the name exactly as the notes write it/);
 });
 
 /* ---------------- pure: the sample ---------------- */
@@ -975,6 +1016,13 @@ test('recap: 400s before any spend, the whiteboard read once and kept nowhere, q
   assert.strictEqual(board.status, 200, JSON.stringify(board.data));
   assert.deepStrictEqual(board.data.decisions.map((d) => [d.text, d.source]), [['Kill the paid social test', 'board']]);
   assert.match(board.data.boardText, /LAUNCH/);
+  // No labels typed yet, and not started: the names as written, and "by Friday" from today.
+  const bare = await rec({ notes: 'Jordan: I\'ll send the deck by Friday.\nSam will book the room.\nthe funnel report is broken' });
+  assert.strictEqual(bare.status, 200, JSON.stringify(bare.data));
+  const bb = Object.fromEntries(bare.data.actions.map((a) => [a.text, a]));
+  assert.strictEqual(bb['Send the deck by Friday'].owner, 'Jordan');
+  assert.ok(R.isoDay(bb['Send the deck by Friday'].due) && new Date(`${bb['Send the deck by Friday'].due}T12:00:00Z`).getUTCDay() === 5, 'a Friday');
+  assert.strictEqual(bb['Sam will book the room'].owner, 'Sam');
   await maya('PUT', `/api/meetings/${MT.next}`, { labels: ['Jordan', 'Sam', 'Maya'] });
   const dump2 = store._dump();
   const notes = 'Jordan: I\'ll send the revised brief by Friday.\nSam will book the room.\nthe funnel report is broken\nwe should book the offsite\nNext week same time.\nINJECT';
@@ -999,10 +1047,450 @@ test('recap: 400s before any spend, the whiteboard read once and kept nowhere, q
   try { up = await rec({ notes: 'Sam will book the room. UPSTREAM401' }); } finally { console.error = quiet; }
   assert.deepStrictEqual([up.status, up.data.error], [502, 'Could not write the recap. Try again, or use the free template.'], 'a provider 401 is not "sign in"');
   await settle();
-  assert.strictEqual(await modelCalls(), calls + 4, 'a failed call is not charged');
+  assert.strictEqual(await modelCalls(), calls + 5, 'a failed call is not charged (five recaps were written)');
   assert.strictEqual(store._dump(), dump2, 'a recap saves nothing');
   assert.notStrictEqual(dump, dump2);
   assert.ok(!store._dump().includes(withText('BOARD').slice(0, 40)) && !store._dump().includes('funnel report'), 'no photo and no notes in the store');
+});
+
+/* ---------------- Record or snap (Gemini), the switch and the lab's AI guard ---------------- */
+
+/** A tiny PCM WAV: a real header and `n` bytes of sound, with `text` in them. */
+function wav(text = '', n = 400, byteRate = 16000) {
+  const data = Buffer.concat([Buffer.from(text), Buffer.alloc(n, 1)]);
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0, 'latin1'); h.writeUInt32LE(36 + data.length, 4); h.write('WAVEfmt ', 8, 'latin1');
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(8000, 24); h.writeUInt32LE(byteRate, 28);
+  h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36, 'latin1'); h.writeUInt32LE(data.length, 40);
+  return Buffer.concat([h, data]).toString('base64');
+}
+const usageRows = async () => identityStore.list('usage');
+async function onGemini(fn, guard) {
+  process.env.RECEIPT_AI_PROVIDER = 'gemini';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.RECEIPT_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('a recording on the way in: the real type from its first bytes, 8 MB, a WAV no longer than 30 minutes - and never decoded whole', () => {
+  const ok = audio.validate({ type: 'audio/wav', data: wav() });
+  assert.deepStrictEqual([ok.mediaType, ok.bytes], ['audio/wav', 444]);
+  assert.strictEqual(audio.validate({ data: `data:audio/webm;base64,${Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(40, 2)]).toString('base64')}` }).mediaType, 'audio/webm', 'a data: URL, typed by its bytes');
+  assert.strictEqual(audio.validate({ type: 'audio/mpeg', data: Buffer.concat([Buffer.from('....ftypM4A '), Buffer.alloc(40)]).toString('base64') }).mediaType, 'audio/mp4', 'the declared type is only a claim');
+  const bad = (raw, re) => assert.throws(() => audio.validate(raw), (e) => e.status === 400 && e.expose === true && re.test(e.message));
+  bad(null, /Record the meeting/);
+  bad({ data: '' }, /could not be read/);
+  bad({ data: 'not base64 !!' }, /could not be read/);
+  bad({ type: 'audio/wav', data: JPEG }, /sound file/);
+  bad({ type: 'audio/wav', data: Buffer.from('%PDF-1.7 not a recording at all').toString('base64') }, /sound file/);
+  bad({ type: 'audio/wav', data: wav('', 2000, 1) }, /longer than 30 minutes/);
+  const t0 = Date.now();
+  bad({ data: 'A'.repeat(11 * 1024 * 1024 + 4096) }, /too big/);
+  bad({ data: '<'.repeat(11 * 1024 * 1024 + 4096) }, /too big/);
+  assert.ok(Date.now() - t0 < 500, 'an oversized string is refused by its length');
+  assert.strictEqual(audio.MAX_MINUTES, 30);
+  assert.strictEqual(audio.MAX_BYTES, 8 * 1024 * 1024);
+});
+
+test('a due date is worked out here, from the words said and the meeting’s date - or not at all', () => {
+  const d = (w, day = '2026-09-25') => gemini.dueFromWords(w, day); // a Friday
+  assert.strictEqual(d('by Friday'), '2026-10-02', 'said on a Friday: a week on');
+  assert.strictEqual(d('by Monday'), '2026-09-28');
+  assert.strictEqual(d('Thurs'), '2026-10-01');
+  assert.strictEqual(d('next Tuesday'), '2026-09-29', 'the Tuesday of the following week');
+  assert.strictEqual(d('next Friday', '2026-09-21'), '2026-10-02', 'not this week’s');
+  assert.strictEqual(d('tomorrow'), '2026-09-26');
+  assert.strictEqual(d('today'), '2026-09-25');
+  assert.strictEqual(d('end of the week', '2026-09-22'), '2026-09-25');
+  assert.strictEqual(d('by end of month'), '2026-09-30');
+  assert.strictEqual(d('by October 15'), '2026-10-15');
+  assert.strictEqual(d('the 3rd of March'), '2027-03-03', 'already past this year: next year’s');
+  assert.strictEqual(d('Oct 15th'), '2026-10-15');
+  assert.strictEqual(d('on 2026-10-09'), '2026-10-09');
+  for (const vague of ['soon', 'next week', 'Q4', 'asap', 'in a couple of weeks', '', 'on 2031-01-01', 'the month after', 'Feb 31']) assert.strictEqual(d(vague), null, vague);
+  assert.strictEqual(gemini.dueFromWords('by Friday', null), null, 'no meeting date, no date');
+});
+
+test('an owner survives only when the quoted words hand it to them by name', () => {
+  const o = gemini.ownerAsSaid;
+  assert.strictEqual(o('Sam', 'Sam will book the room'), 'Sam');
+  assert.strictEqual(o('sam', 'SAM’LL book it'), 'sam');
+  assert.strictEqual(o('Jordan', 'Jordan, can you book the room for the retro?'), 'Jordan');
+  assert.strictEqual(o('Sam', 'Sam: legal sign-off by Friday'), 'Sam', 'a whiteboard line');
+  assert.strictEqual(o('Dee', 'assigned to Dee'), 'Dee');
+  assert.strictEqual(o('Sam', 'I’ll send the brief'), '', 'the name is not in the words');
+  assert.strictEqual(o('Sam', 'Sam said the report is broken'), '', 'mentioned, not handed it');
+  assert.strictEqual(o('Sam', 'Sam will not be able to send it'), '');
+  assert.strictEqual(o('Sam', 'Samantha will send it'), '', 'whole names only');
+  assert.strictEqual(o('Speaker 2', 'Speaker 2: I will do it'), '', 'a voice is not a name');
+  assert.strictEqual(o('team', 'team to follow up'), '');
+  assert.strictEqual(o('', 'Sam will book the room'), '');
+});
+
+test('validateMinutes: every item must quote the transcription; owners and dates are never invented', () => {
+  const ctx = gemini.minutesContext({ title: 'Sync', labels: ['Jordan', 'Sam'] }, 'recording', '2026-09-25');
+  const transcript = 'Maya: we launch on October 15.\nSpeaker 2: I\'ll send the brief by Friday.\nMaya: jordan will book the room.\nMaya: Priya, can you review it tomorrow?';
+  const out = gemini.validateMinutes({
+    readable: true, transcript, summary: '<b>**Shipped**</b> and it saves $50,000.',
+    decisions: [{ text: 'Launch on October 15', quote: 'we launch on  OCTOBER 15' }, { text: 'Double the budget', quote: 'we doubled the budget' }, { text: 'Launch on October 15', quote: 'we launch on October 15.' }, { text: 'Launch on November 3', quote: 'we launch on October 15' }],
+    actions: [
+      { text: 'Send the brief', quote: 'I\'ll send the brief by Friday', owner: 'Sam', dueText: 'by Friday' },
+      { text: 'Book the room', quote: 'jordan will book the room', owner: 'Jordan', dueText: 'by Monday', due: '2026-09-28' },
+      { text: 'Review it', quote: 'Priya, can you review it tomorrow?', owner: 'Priya', dueText: 'tomorrow' },
+      { text: 'Send the brief again', quote: 'I\'ll send the brief by Friday', owner: 'Speaker 2', dueText: null },
+      { text: 'Invented', quote: 'x', owner: 'Sam', dueText: null },
+    ],
+    parking: [{ text: '<script>x</script>', quote: 'we launch on October 15' }, null, 'nope'],
+  }, ctx);
+  assert.deepStrictEqual(out.decisions.map((x) => x.text), ['Launch on October 15', 'Launch on [add: date] [add: number]'], 'a quote nobody said is dropped, a repeat too, and a date that is not in the quote is a gap');
+  const by = Object.fromEntries(out.actions.map((a) => [a.text, a]));
+  assert.deepStrictEqual([by['Send the brief'].owner, by['Send the brief'].dueText, by['Send the brief'].due], [null, 'by Friday', '2026-10-02'], 'Sam is not in those words; Friday is ours to work out');
+  assert.deepStrictEqual([by['Book the room'].owner, by['Book the room'].ownerIsAttendee, by['Book the room'].due, by['Book the room'].dueText], ['Jordan', true, null, null], 'the attendee’s own spelling; nobody said Monday, and a date the model sent is never read');
+  assert.deepStrictEqual([by['Review it'].owner, by['Review it'].ownerIsAttendee, by['Review it'].due], ['Priya', false, '2026-09-26'], 'a name as said, even when not typed');
+  assert.strictEqual(by['Send the brief again'].owner, null);
+  assert.ok(!by.Invented);
+  assert.deepStrictEqual(out.parking, []);
+  assert.ok(!/[<>*]|50,000/.test(out.summary), out.summary);
+  for (const w of ['Double the budget', 'Sam', 'by Monday', 'Speaker 2', 'Invented']) assert.ok(out.removed.some((r) => r.what === w), `${w} is listed as taken out`);
+  assert.strictEqual(out.transcript, transcript);
+  for (const a of out.actions) assert.ok(R.norm(out.transcript).includes(R.norm(a.quote)));
+  // Nothing heard, nothing read.
+  assert.strictEqual(gemini.validateMinutes({ readable: false, transcript: 'x'.repeat(50), decisions: [], actions: [], parking: [] }, ctx), null);
+  assert.strictEqual(gemini.validateMinutes({ readable: true, transcript: '[inaudible]', decisions: [{ text: 'A', quote: '[inaudible]' }] }, ctx), null);
+  assert.strictEqual(gemini.validateMinutes('nope', ctx), null);
+  assert.strictEqual(gemini.validateMinutes([], ctx), null);
+  // Hostile shapes do not throw, and a long transcription is cut, in linear time.
+  const t0 = Date.now();
+  const big = gemini.validateMinutes({ readable: true, transcript: `${'<'.repeat(300000)} we said hello there`, summary: 7, decisions: 'x', actions: [{ text: {}, quote: [] }], parking: {} }, ctx);
+  assert.ok(Date.now() - t0 < 1500 && (big === null || big.transcript.length <= gemini.LIMITS.transcript));
+  // The sample's example passes untouched.
+  const { minutesAnswer } = require('../lib/demo');
+  const d = demo(Date.now(), '2026-09-25');
+  assert.deepStrictEqual(d.minutes.removed, []);
+  assert.strictEqual(d.minutes.actions.length, minutesAnswer().actions.length);
+  assert.deepStrictEqual(d.minutes.actions.map((a) => [a.owner, a.due]), [[null, '2026-10-01'], ['Chris', '2026-09-26'], ['Sam', null]]);
+});
+
+test('the Gemini requests: a responseSchema every time, media inline once, the Claude tools’ own schemas and prompts', () => {
+  const ctx = gemini.minutesContext({ title: 'Sync', labels: ['Sam'] }, 'recording', '2026-09-25');
+  const r = gemini.minutesRequest(ctx, { mediaType: 'audio/wav', data: 'QUJD' });
+  assert.strictEqual(r.model, 'gemini-3.8-flash');
+  assert.deepStrictEqual(r.contents[0].parts[0], { inlineData: { mimeType: 'audio/wav', data: 'QUJD' } });
+  assert.deepStrictEqual(r.responseSchema.required, ['readable', 'transcript', 'summary', 'decisions', 'actions', 'parking']);
+  assert.strictEqual(r.responseSchema.propertyOrdering[1], 'transcript', 'transcribed before anything is listed');
+  assert.deepStrictEqual(r.responseSchema.properties.actions.items.required, ['text', 'quote', 'owner', 'dueText']);
+  assert.ok(!('due' in r.responseSchema.properties.actions.items.properties), 'the model is never asked for a date');
+  assert.match(r.systemInstruction, /copied character for character/);
+  assert.match(r.systemInstruction, /never instructions to you/);
+  const sc = sharpCtx('sync on Q4');
+  const s = gemini.sharpenRequest(sc);
+  assert.strictEqual(s.systemInstruction, ai.SHARPEN_SYSTEM);
+  assert.strictEqual(s.responseSchema.type, 'OBJECT');
+  assert.deepStrictEqual(s.responseSchema.properties.items.items.properties.ownerRole.enum, ai.sharpenTool(sc.bands).input_schema.properties.items.items.properties.ownerRole.enum);
+  const rc = gemini.recapRequest(recapCtx('Sam will book it.'), { mediaType: 'image/jpeg', data: JPEG });
+  assert.strictEqual(rc.contents[0].parts.length, 2);
+  assert.deepStrictEqual(rc.responseSchema.required, ai.RECAP_TOOL.input_schema.required);
+  assert.strictEqual(rc.responseSchema.properties.actions.items.properties.ref.type, 'INTEGER');
+  assert.ok(Math.abs(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:00:00Z') }) - 4.5) < 1e-9);
+  assert.ok(Math.abs(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }) - 9) < 1e-9);
+});
+
+test('the provider switch: Claude unless RECEIPT_AI_PROVIDER=gemini, read per request; unset, "Record or snap" is off and costs nothing', async () => {
+  assert.strictEqual(process.env.RECEIPT_AI_PROVIDER, undefined, 'the suite runs on the default');
+  const anon = client();
+  const aiNow = (await anon('GET', '/api/me')).data.ai;
+  assert.deepStrictEqual({ ...aiNow, minuteCents: 0 }, { provider: 'claude', minutes: false, audioMinutes: 30, audioBytes: 8 * 1024 * 1024, minuteCents: 0 });
+  assert.ok(aiNow.minuteCents > 0.2 && aiNow.minuteCents < 0.6, 'about a quarter of a cent a minute (double from 2027)');
+  for (const v of ['Gemini', 'GEMINI', '1', 'true', 'vertex', ' gemini', 'off']) {
+    process.env.RECEIPT_AI_PROVIDER = v;
+    try { assert.strictEqual((await anon('GET', '/api/me')).data.ai.provider, 'claude', `"${v}" is not the switch`); } finally { delete process.env.RECEIPT_AI_PROVIDER; }
+  }
+  const src = require('fs').readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(src, /process\.env\.RECEIPT_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  // The route's order is the safety: sign-in, budget, daily cap, ownership, the switch, and only then the big parser.
+  assert.match(src, /app\.post\('\/api\/meetings\/:id\/minutes', \.\.\.spend, ownerOnly, minutesOn, mediaJson, /);
+  assert.match(src, /const spend = \[identity\.requireUser, identity\.requireBudget, identity\.requireDailyCap\];/);
+  const calls = await modelCalls();
+  const dump = store._dump();
+  assert.strictEqual((await anon('POST', '/api/meetings/abcdef/minutes', { audio: { data: wav() } })).status, 401);
+  const off = await maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { type: 'audio/wav', data: wav() } });
+  assert.deepStrictEqual([off.status, off.data.code], [404, 'ai-off']);
+  assert.strictEqual((await maya('GET', '/api/me')).data.ai.minutes, false);
+  // Claude still answers the recap, and with a guard in the lab it is asked first and told the cost after.
+  const seen = [];
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user)]); return { ok: true }; },
+    record: async (r) => { seen.push(['record', r.provider, r.app, r.usd]); return true; },
+    priceUsd: (p) => { seen.push(['price', p.provider, p.model, p.inputTokens, p.outputTokens]); return 0.0123; },
+    gemini: { generate: async () => { throw new Error('Gemini must not be called on the default'); } },
+  };
+  try {
+    const r = await maya('POST', `/api/meetings/${MT.next}/recap`, { notes: 'Sam will book the room.' });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.deepStrictEqual(seen, [['allow', 'claude', 'receipt', true], ['price', 'claude', 'claude-haiku-4-5', 800, 400], ['record', 'claude', 'receipt', 0.0123]]);
+    global.LAB_AI_GUARD.allow = async () => ({ ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' });
+    await settle();
+    const before = await modelCalls();
+    const no = await maya('POST', `/api/meetings/${MT.next}/recap`, { notes: 'Sam will book the room.' });
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'the guard said no: no model call');
+  } finally { delete global.LAB_AI_GUARD; }
+  await settle();
+  assert.strictEqual(await modelCalls(), calls + 1);
+  assert.strictEqual(store._dump(), dump);
+});
+
+test('Record or snap: 400s before any spend, heard once and kept nowhere, quotes checked against the transcription, owners and dates as said', async () => {
+  await onGemini(async () => {
+    assert.deepStrictEqual((await maya('GET', '/api/me')).data.ai.minutes, true);
+    const min = (b) => maya('POST', `/api/meetings/${MT.next}/minutes`, b);
+    const calls = await modelCalls();
+    const dump = store._dump();
+    for (const [b, why] of [[{}, 'nothing sent'], [{ audio: { data: wav() }, image: { type: 'image/jpeg', data: JPEG } }, 'both at once'],
+      [{ audio: { type: 'audio/wav', data: JPEG } }, 'a photo is not a recording'], [{ audio: { data: 'not base64 !!' } }, 'not base64'],
+      [{ audio: { data: wav('', 2000, 1) } }, 'a WAV over 30 minutes'], [{ image: { type: 'image/jpeg', data: Buffer.from('%PDF-1.7').toString('base64') } }, 'a PDF is not a photo'],
+      [{ audio: 'just a string' }, 'not an object']]) {
+      assert.strictEqual((await min(b)).status, 400, why);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), calls, 'refused before anything was spent');
+    assert.strictEqual((await min({ audio: { type: 'audio/wav', data: wav('BLANK hiss') } })).status, 422, 'nothing could be heard');
+
+    const r = await min({ audio: { type: 'audio/wav', data: wav('', 200 * 1024) } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+    assert.strictEqual(r.data.kind, 'recording');
+    assert.match(r.data.transcript, /^Maya: Okay, we are recording\./);
+    assert.deepStrictEqual(r.data.decisions, [{ text: 'Launch on October 15', quote: 'we launch on October 15' }]);
+    const day = r.data.day;
+    assert.deepStrictEqual(r.data.actions.map((a) => [a.text, a.owner, a.ownerIsAttendee, a.dueText, a.due]), [
+      ['Send the revised brief', null, false, 'by Friday', gemini.dueFromWords('by Friday', day)],
+      ['Book the room for the retro', 'Jordan', true, null, null],
+      ['Review the pricing page', 'Priya', false, 'tomorrow', R.addDays(day, 1)],
+    ], '"I’ll" names nobody; Jordan and Priya are named in the words; the dates are ours');
+    assert.strictEqual(r.data.parking.length, 1);
+    assert.deepStrictEqual(r.data.removed, []);
+    for (const x of [...r.data.decisions, ...r.data.actions, ...r.data.parking]) assert.ok(R.norm(r.data.transcript).includes(R.norm(x.quote)), x.quote);
+
+    const inj = await min({ audio: { type: 'audio/wav', data: wav('INJECT') } });
+    assert.strictEqual(inj.status, 200, JSON.stringify(inj.data));
+    const all = JSON.stringify({ ...inj.data, transcript: '', removed: [] });
+    assert.ok(!/<script|\*\*|50,000|Double the budget|Mallory|Speaker 2|2026-12-01/.test(all), `nothing invented survives: ${all}`);
+    const ib = Object.fromEntries(inj.data.actions.map((a) => [a.text.split(' ').slice(0, 3).join(' '), a]));
+    assert.deepStrictEqual([ib['Wire the budget'].owner, ib['Chase the vendor'].owner, ib['Chase the vendor'].due, ib['Chase the vendor'].dueText], [null, null, null, null]);
+    assert.deepStrictEqual([ib['Fix the launch'].owner, ib['Fix the launch'].due], [null, null], 'Maya is only the speaker; a date the model worked out is not read');
+    assert.ok(inj.data.removed.length >= 5);
+
+    const board = await min({ image: { type: 'image/jpeg', data: withText('BOARD') } });
+    assert.strictEqual(board.status, 200, JSON.stringify(board.data));
+    assert.deepStrictEqual([board.data.kind, board.data.actions[0].owner, board.data.actions[0].ownerIsAttendee, board.data.actions[0].dueText], ['board', 'Sam', true, 'by Friday']);
+    assert.strictEqual((await min({ image: { type: 'image/jpeg', data: withText('BLANK wall') } })).status, 422);
+
+    await settle();
+    const rows = (await usageRows()).slice(-5);
+    assert.strictEqual(await modelCalls(), calls + 5, 'one call each - the unreadable ones too');
+    assert.ok(rows.every((u) => u.route === 'minutes:gemini-3.8-flash' && u.model === 'claude-haiku-4-5'), JSON.stringify(rows.map((u) => u.route)));
+    assert.strictEqual(store._dump(), dump, 'nothing is saved: not the recording, not the transcription, not the items');
+    assert.ok(!store._dump().includes('Okay, we are recording') && !JSON.stringify(await usageRows()).includes('recording.'));
+
+    // What the person keeps goes through the ordinary log route, their edit and all.
+    const a = r.data.actions[1];
+    const saved = await maya('POST', `/api/meetings/${MT.next}/log`, { kind: 'action', text: `${a.text} (Thursday’s)`, owner: a.owner, due: '2026-10-01' });
+    assert.strictEqual(saved.status, 200, JSON.stringify(saved.data));
+    assert.deepStrictEqual([saved.data.item.owner, saved.data.item.due], ['Jordan', '2026-10-01']);
+    assert.strictEqual((await maya('DELETE', `/api/meetings/${MT.next}/log/${saved.data.item.id}`)).status, 200);
+
+    // The sharpener and the recap answer the same on Gemini, through the same validators.
+    const before = await modelCalls();
+    const fresh = await maya('POST', '/api/meetings', { title: 'Q4 planning', people: [{ band: 'manager', count: 2 }, { band: 'ic', count: 3 }], bookedMinutes: 30, agenda: [{ title: 'Talk', minutes: 30 }] });
+    const sh = await maya('POST', `/api/meetings/${fresh.data.meeting.id}/sharpen`, { invite: 'sync on Q4 budget, hiring INJECT' });
+    assert.strictEqual(sh.status, 200, JSON.stringify(sh.data));
+    assert.ok(sh.data.proposal.items.length <= 8 && sh.data.proposal.items.reduce((s, i) => s + i.minutes, 0) <= 30);
+    assert.ok(!/[<>]|evil\.example|Tuesday|30%/.test(JSON.stringify(sh.data.proposal).replace(/"removed":.*$/, '')));
+    await maya('DELETE', `/api/meetings/${fresh.data.meeting.id}`);
+    const rec = await maya('POST', `/api/meetings/${MT.next}/recap`, { notes: 'Jordan: I\'ll send the revised brief by Friday.\nSam will book the room.\nINJECT', image: { type: 'image/jpeg', data: withText('BOARD') } });
+    assert.strictEqual(rec.status, 200, JSON.stringify(rec.data));
+    const rb = Object.fromEntries(rec.data.actions.map((x) => [x.text, x]));
+    assert.strictEqual(rb['Send the revised brief by Friday'].owner, 'Jordan');
+    assert.ok(!rb['Wire the budget'] && rec.data.decisions.some((d) => d.source === 'board'));
+    const quiet = console.error;
+    console.error = () => {};
+    let up;
+    try { up = await maya('POST', `/api/meetings/${MT.next}/recap`, { notes: 'Sam will book the room. UPSTREAM429' }); } finally { console.error = quiet; }
+    assert.deepStrictEqual([up.status, up.data.error], [503, 'Could not write the recap. Try again, or use the free template.'], 'the provider’s words never reach the page');
+    await settle();
+    assert.strictEqual(await modelCalls(), before + 2);
+    assert.deepStrictEqual((await usageRows()).slice(-2).map((u) => u.route), ['sharpen:gemini-3.8-flash', 'recap:gemini-3.8-flash']);
+  });
+});
+
+test('Record or snap behind the gates: signed out 401, out of credit 402, a stranger 404 - each before the 12 MB body is read or a model called', async () => {
+  await onGemini(async () => {
+    const calls = await modelCalls();
+    const heavy = { audio: { type: 'audio/wav', data: wav('', 8.5 * 1024 * 1024) } };
+    assert.strictEqual((await client()('POST', `/api/meetings/${MT.next}/minutes`, heavy)).status, 401);
+    const stranger = await register('mallory@example.com');
+    assert.strictEqual((await stranger('POST', `/api/meetings/${MT.next}/minutes`, heavy)).status, 404, 'ownership before the parser');
+    await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 100 });
+    try {
+      const broke = await maya('POST', `/api/meetings/${MT.next}/minutes`, heavy);
+      assert.strictEqual(broke.status, 402);
+      assert.ok('topUpUrl' in broke.data);
+    } finally { await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 0 }); }
+    // The owner's own oversized recording is a plain 400/413, never a model call.
+    assert.strictEqual((await maya('POST', `/api/meetings/${MT.next}/minutes`, heavy)).status, 400);
+    assert.strictEqual((await maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { data: 'A'.repeat(13 * 1024 * 1024) } })).status, 413);
+    assert.strictEqual((await maya('POST', '/api/meetings', { title: 'x'.repeat(200 * 1024) })).status, 413, 'every other route keeps the small limit');
+    await settle();
+    assert.strictEqual(await modelCalls(), calls);
+  });
+});
+
+test('the lab’s AI guard around Gemini: asked first, told the real cost after, its "no" shown as it is - and a failed call that billed is still recorded', async () => {
+  const seen = [];
+  const sent = [];
+  const guard = {
+    allow: async (a) => { seen.push(['allow', a.provider, a.app, a.req.user.id === uidOf('maya@example.com')]); return { ok: true }; },
+    record: async (r) => { seen.push(['record', r.provider, r.app, r.usd]); return true; },
+    priceUsd: (p) => { assert.strictEqual(p.provider, 'gemini'); assert.strictEqual(p.model, 'gemini-3.8-flash'); return (p.inputTokens * 0.75 + p.outputTokens * 3.75) / 1e6; },
+    gemini: {
+      generate: async (r) => {
+        seen.push(['generate']);
+        sent.push(r);
+        return { json: await r.fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 57600, outputTokens: 9000 } };
+      },
+    },
+  };
+  const body = { audio: { type: 'audio/wav', data: wav() } };
+  await onGemini(async () => {
+    const r = await maya('POST', `/api/meetings/${MT.next}/minutes`, body);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    const usd = (57600 * 0.75 + 9000 * 3.75) / 1e6;
+    assert.deepStrictEqual(seen, [['allow', 'gemini', 'receipt', true], ['generate'], ['record', 'gemini', 'receipt', usd]]);
+    assert.deepStrictEqual([sent[0].model, sent[0].contents[0].parts[0].inlineData.mimeType, typeof sent[0].responseSchema, sent[0].timeoutMs], ['gemini-3.8-flash', 'audio/wav', 'object', 150000]);
+    await settle();
+    const row = (await usageRows()).slice(-1)[0];
+    assert.ok(Math.abs(row.costUsd - usd) < 0.0001, `the person is charged what it cost: ${row.costUsd}`);
+
+    // A burst or the month's cap: its own words and status, and no model call.
+    seen.length = 0;
+    guard.allow = async () => ({ ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' });
+    const calls = await modelCalls();
+    const no = await maya('POST', `/api/meetings/${MT.next}/minutes`, body);
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [429, 'burst-minute', 'Lots of people are using AI right now - try again in a minute.']);
+    assert.deepStrictEqual(seen, []);
+    await settle();
+    assert.strictEqual(await modelCalls(), calls);
+    // A bad recording never reaches the guard at all.
+    guard.allow = async () => { seen.push(['allow']); return { ok: true }; };
+    assert.strictEqual((await maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { data: JPEG } })).status, 400);
+    assert.deepStrictEqual(seen, []);
+
+    // Gemini fails after billing: the page gets our words, the cost is still recorded.
+    guard.gemini.generate = async () => { throw Object.assign(new Error('Gemini gave no answer. {"raw":"provider text"}'), { code: 'blocked', usage: { inputTokens: 1000, outputTokens: 0 } }); };
+    const quiet = console.error;
+    console.error = () => {};
+    let bad;
+    try { bad = await maya('POST', `/api/meetings/${MT.next}/minutes`, body); } finally { console.error = quiet; }
+    assert.deepStrictEqual([bad.status, bad.data.error], [502, 'Could not read that right now. Nothing was saved - try again in a minute, or log the items by hand.']);
+    assert.deepStrictEqual(seen, [['allow'], ['record', 'gemini', 'receipt', 0.00075]]);
+    guard.gemini.generate = async () => { throw Object.assign(new Error('Gemini took too long.'), { code: 'timeout' }); };
+    console.error = () => {};
+    try { bad = await maya('POST', `/api/meetings/${MT.next}/minutes`, body); } finally { console.error = quiet; }
+    assert.strictEqual(bad.status, 503, 'a timeout says try again');
+  }, guard);
+  // No guard and no stand-in is not reachable in the suite (the stand-in is on); the default is untouched.
+  assert.strictEqual(global.LAB_AI_GUARD, undefined);
+});
+
+test('Gemini fails, Claude answers the sharpener and the recap: a thrown call, unusable output, the Gemini cap - not a burst; Record or snap stays Gemini-only', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const mk = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'gemini' && o.denyGemini) || { ok: true }; },
+      record: async (r) => { seen.push(['record', r.provider]); return true; },
+      priceUsd: () => 0.001,
+      gemini: { generate: async (r) => { seen.push(['generate']); if (o.generate) return o.generate(r); return { json: await r.fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 100, outputTokens: 10 } }; } },
+    } };
+  };
+  const thrown = { generate: async () => { throw Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }); } };
+  const sharpen = (o) => { const x = mk(o); return onGemini(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/sharpen`, {}), seen: x.seen }), x.g); };
+  const recap = (o) => { const x = mk(o); return onGemini(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/recap`, { notes: 'Sam will book the room.' }), seen: x.seen }), x.g); };
+  try {
+    let { r, seen } = await sharpen(thrown);
+    assert.deepStrictEqual([r.status, r.data.proposal.items.length >= 2, seen], [200, true, [['allow', 'gemini'], ['generate'], ['record', 'gemini'], ['allow', 'claude'], ['record', 'claude']]], JSON.stringify(r.data));
+    assert.ok(!JSON.stringify(r.data).includes('SECRET'));
+    ({ r, seen } = await recap(thrown));
+    assert.deepStrictEqual([r.status, Array.isArray(r.data.actions), seen.filter((x) => x[0] === 'allow')], [200, true, [['allow', 'gemini'], ['allow', 'claude']]], JSON.stringify(r.data));
+    ({ r, seen } = await sharpen({ generate: async () => ({ json: { items: [] }, usage: { inputTokens: 10, outputTokens: 1 } }) }));
+    assert.deepStrictEqual([r.status, seen.filter((x) => x[0] === 'allow')], [200, [['allow', 'gemini'], ['allow', 'claude']]]);
+    ({ r, seen } = await recap({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, seen], [200, [['allow', 'gemini'], ['allow', 'claude'], ['record', 'claude']]]);
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await sharpen({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'gemini']]]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'a burst: no Claude call');
+    // Record or snap has no Claude path: its own friendly error.
+    const x = mk(thrown);
+    r = await onGemini(() => maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { type: 'audio/wav', data: wav() } }), x.g);
+    assert.deepStrictEqual([r.status, r.data.error, x.seen.filter((y) => y[0] === 'allow')], [502, 'Could not read that right now. Nothing was saved - try again in a minute, or log the items by hand.', [['allow', 'gemini']]]);
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[receipt] gemini failed (http); used claude', '[receipt] gemini failed (http); used claude', '[receipt] gemini failed (unusable); used claude', '[receipt] gemini failed (monthly-cap); used claude']);
+});
+
+test('claude-first: the sharpener and the recap run on Claude, Gemini answers when Claude throws, is unusable or capped - not a burst; Record or snap is on', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const mk = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'claude' && o.denyClaude) || { ok: true }; },
+      record: async (r) => { seen.push(['record', r.provider]); return true; },
+      priceUsd: () => 0.001,
+      // Gemini reads a copy with the stand-in's failure words defused.
+      gemini: { generate: async (r) => { seen.push(['generate']); return { json: await r.fake({ contents: JSON.parse(JSON.stringify(r.contents).replace(/UPSTREAM/g, 'UP-STREAM').replace(/EMPTY/g, 'E-MPTY')), generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 100, outputTokens: 10 } }; } },
+    } };
+  };
+  const cf = async (fn, g) => { process.env.RECEIPT_AI_PROVIDER = 'claude-first'; global.LAB_AI_GUARD = g; try { return await fn(); } finally { delete process.env.RECEIPT_AI_PROVIDER; delete global.LAB_AI_GUARD; } };
+  const sharpen = (o) => { const x = mk(o); return cf(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/sharpen`, {}), seen: x.seen }), x.g); };
+  const recap = (notes, o) => { const x = mk(o); return cf(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/recap`, { notes }), seen: x.seen }), x.g); };
+  try {
+    const me = await cf(() => maya('GET', '/api/me'), mk().g);
+    assert.deepStrictEqual([me.data.ai.provider, me.data.ai.minutes], ['claude-first', true]);
+    // Claude answers when it can.
+    let { r, seen } = await sharpen();
+    assert.deepStrictEqual([r.status, seen], [200, [['allow', 'claude'], ['record', 'claude']]]);
+    // Claude throws: Gemini answers 200.
+    ({ r, seen } = await recap('Sam will book the room. UPSTREAM500'));
+    assert.deepStrictEqual([r.status, Array.isArray(r.data.actions), seen], [200, true, [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], JSON.stringify(r.data));
+    assert.ok(!JSON.stringify(r.data).includes('fake_upstream'));
+    // Claude unusable: Gemini (the Claude call that billed is still recorded).
+    ({ r, seen } = await recap('EMPTY. Sam will book the room.'));
+    assert.deepStrictEqual([r.status, seen], [200, [['allow', 'claude'], ['record', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], JSON.stringify(r.data));
+    // Claude's monthly cap: Gemini.
+    ({ r, seen } = await sharpen({ denyClaude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.proposal.items.length >= 2, seen], [200, true, [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]]);
+    // A burst refusal goes out as it is.
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await sharpen({ denyClaude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'claude']]]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'a burst: no Gemini call, nobody charged');
+    // Record or snap (Gemini only) is on.
+    const x = mk();
+    r = await cf(() => maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { type: 'audio/wav', data: wav() } }), x.g);
+    assert.deepStrictEqual([r.status, x.seen], [200, [['allow', 'gemini'], ['generate'], ['record', 'gemini']]], JSON.stringify(r.data));
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[receipt] claude failed (500); used gemini', '[receipt] claude failed (unusable); used gemini', '[receipt] claude failed (monthly-cap); used gemini']);
 });
 
 test('out of credit: 402 before any model call, while everything else stays free', async () => {

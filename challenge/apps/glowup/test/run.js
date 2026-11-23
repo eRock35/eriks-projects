@@ -520,6 +520,135 @@ test('versions: read one, go back as a new version, and the original is always k
   await ana('DELETE', `/api/listings/${cap.data.id}`);
 });
 
+test('A/B options: every title and the rewrite are scored before and after by the rules, never by the model', async () => {
+  // Pure: the sample cabin through the same function the route uses.
+  const src = L.cleanListing(LOON_V1);
+  const g = L.glowResult(src, ai.validateGlow(LOON_GLOW, src));
+  const before = R.score(src).score;
+  assert.strictEqual(g.before.score, before);
+  assert.strictEqual(g.titles.length, 3);
+  for (const t of g.titles) {
+    assert.strictEqual(t.score, R.score({ ...src, title: t.text, description: g.fields.description, tags: g.fields.tags }).score, 'with the rewrite');
+    assert.strictEqual(t.alone, R.score({ ...src, title: t.text }).score, 'the title swapped onto the saved text');
+    assert.deepStrictEqual([t.delta, t.aloneDelta], [t.score - before, t.alone - before]);
+  }
+  assert.deepStrictEqual(g.rewrite, { title: src.title, score: R.score({ ...src, description: g.fields.description, tags: g.fields.tags }).score, delta: R.score({ ...src, description: g.fields.description, tags: g.fields.tags }).score - before }, 'the rewrite under the seller’s own title');
+  // A score the model sends is ignored: there is nowhere in the tool for one, and extra keys are dropped.
+  const cheat = ai.validateGlow({ ...LOON_GLOW, score: 100, titles: LOON_GLOW.titles.map((t) => ({ ...t, score: 100 })) }, src);
+  assert.deepStrictEqual(L.glowResult(src, cheat).titles.map((t) => t.score), g.titles.map((t) => t.score));
+  assert.ok(!('score' in ai.GLOW_TOOL.input_schema.properties) && !('score' in ai.GLOW_TOOL.input_schema.properties.titles.items.properties));
+  // Over HTTP: the same numbers reach the page.
+  const l = await ana('POST', '/api/listings', LOON_V1);
+  const r = await ana('POST', `/api/listings/${l.data.id}/glowup`);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const cur = L.fieldsOf((await ana('GET', `/api/listings/${l.data.id}`)).data);
+  assert.strictEqual(r.data.titles.length, 3);
+  for (const t of r.data.titles) {
+    assert.strictEqual(t.score, R.score({ ...cur, title: t.text, description: r.data.fields.description, tags: r.data.fields.tags }).score);
+    assert.strictEqual(t.alone, R.score({ ...cur, title: t.text }).score);
+  }
+  assert.strictEqual(r.data.rewrite.title, cur.title);
+  assert.strictEqual(r.data.rewrite.score, R.score({ ...cur, description: r.data.fields.description, tags: r.data.fields.tags }).score);
+  assert.strictEqual((await ana('DELETE', `/api/listings/${l.data.id}`)).status, 200);
+});
+
+test('A/B options: a title with a number or a claim the listing never made is dropped, and the page is told', () => {
+  const src = L.cleanListing({ type: 'stay', platform: 'vrbo', title: 'Pine cabin by the lake', description: 'A pine cabin by the lake with a wood stove. Sleeps 4 in 2 bedrooms. Message us.', tags: ['wood stove'], price: '$150 / night' });
+  const raw = {
+    titles: [
+      { text: 'Pine cabin with wood stove, sleeps 4', angle: 'Honest' },
+      { text: 'Pine cabin, 5-star stay by the lake', angle: 'A rating' },
+      { text: 'Superhost pine cabin by the lake', angle: 'A badge' },
+      { text: 'Pine cabin by the lake from $99', angle: 'A price' },
+      { text: 'Top rated pine cabin, 200 reviews', angle: 'Reviews' },
+      { text: 'Lake cabin with a wood stove', angle: 'Feature first' },
+    ],
+    description: 'Pine cabin by the lake with a wood stove.\n• Sleeps 4 in 2 bedrooms\n• Rave reviews from every guest.\n• Voted best cabin on the lake.\n• Only 10 minutes from town.\n• From $99 a night.\nTap Reserve to check your dates.',
+    tags: ['wood stove', 'best seller', 'lake cabin'], shots: [], gaps: [], summary: 'x',
+  };
+  const out = ai.validateGlow(raw, src);
+  assert.deepStrictEqual(out.titles.map((t) => t.text), ['Pine cabin with wood stove, sleeps 4', 'Lake cabin with a wood stove'], 'only the two honest titles are left');
+  assert.strictEqual(out.removed.filter((x) => x.where === 'title').length, 4);
+  assert.ok(!/review|voted|\$99|\b10\b|best seller/i.test(JSON.stringify([out.titles, out.description, out.tags])), out.description);
+  assert.match(out.description, /\[add: how many minutes\]/);
+  assert.match(out.description, /\[add: price\]/);
+  assert.match(out.description, /Sleeps 4 in 2 bedrooms/, 'the seller’s own numbers stay');
+  // The seller's own claim is theirs to keep.
+  const own = L.cleanListing({ ...src, description: `${src.description} Superhost with 200 reviews.` });
+  assert.ok(ai.validateGlow(raw, own).titles.some((t) => /Superhost/.test(t.text)));
+});
+
+test('the lab AI guard: asked after the gates, recorded in a finally, its no is a friendly sentence and no model call', async () => {
+  const seen = { allow: [], record: [], price: [] };
+  let answer = { ok: true };
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.allow.push({ provider: a.provider, app: a.app, user: Boolean(a.req && a.req.user) }); return answer; },
+    priceUsd: (a) => { seen.price.push(a); return 0.0123; },
+    record: async (a) => { seen.record.push(a); return true; },
+  };
+  const made = [];
+  const add = async (over = {}) => { const r = await ana('POST', '/api/listings', { ...LOON_V1, ...over }); made.push(r.data.id); return r.data.id; };
+  const quiet = console.error;
+  try {
+    const id = await add();
+    // A stranger, somebody else's listing, a bad picture and an empty wallet never reach the guard.
+    assert.strictEqual((await client()('POST', `/api/listings/${id}/glowup`)).status, 401);
+    assert.strictEqual((await (await register('mallory@example.com'))('POST', `/api/listings/${id}/glowup`)).status, 404);
+    assert.strictEqual((await ana('POST', '/api/listings/read', { image: { type: 'application/pdf', data: JPEG } })).status, 400);
+    assert.strictEqual((await ana('POST', `/api/listings/${id}/compare`, { title: 'x', description: 'y' })).status, 400);
+    await identityStore.merge('users', uidOf('ana@example.com'), { spentUsd: 100 });
+    assert.strictEqual((await ana('POST', `/api/listings/${id}/glowup`)).status, 402);
+    await identityStore.merge('users', uidOf('ana@example.com'), { spentUsd: 0 });
+    assert.deepStrictEqual(seen.allow, [], 'the identity gates and the route’s own checks come first');
+    // A glow-up: asked once, recorded once, priced from the call's own tokens on the plan's model.
+    assert.strictEqual((await ana('POST', `/api/listings/${id}/glowup`)).status, 200);
+    assert.deepStrictEqual(seen.allow, [{ provider: 'claude', app: 'glowup', user: true }]);
+    assert.deepStrictEqual(seen.record, [{ provider: 'claude', app: 'glowup', usd: 0.0123 }]);
+    assert.deepStrictEqual(Object.keys(seen.price[0]).sort(), ['inputTokens', 'model', 'outputTokens', 'provider']);
+    assert.deepStrictEqual([seen.price[0].provider, seen.price[0].model, seen.price[0].inputTokens > 0, seen.price[0].outputTokens > 0], ['claude', 'claude-haiku-4-5', true, true], 'Claude, on the model identity.planFor picks - no provider switch');
+    // Compare and the screenshot read go through the same guard.
+    assert.strictEqual((await ana('POST', `/api/listings/${id}/compare`, PINE_HOLLOW)).status, 200);
+    assert.strictEqual((await ana('POST', '/api/listings/read', { image: { type: 'image/jpeg', data: JPEG } })).status, 200);
+    assert.deepStrictEqual([seen.allow.length, seen.record.length], [3, 3]);
+    // A call that came back is paid for even when its answer is refused...
+    assert.strictEqual((await ana('POST', `/api/listings/${await add({ description: 'EMPTY please' })}/glowup`)).status, 422);
+    assert.strictEqual(seen.record.length, 4, 'an empty rewrite was still billed, so it is still recorded');
+    // ...and one that never came back is not.
+    console.error = () => {};
+    assert.strictEqual((await ana('POST', `/api/listings/${await add({ description: `${LOON_V1.description} UPSTREAM529` })}/glowup`)).status, 503);
+    console.error = quiet;
+    assert.deepStrictEqual([seen.allow.length, seen.record.length], [5, 4]);
+    // The guard says no: its sentence, its code, the free path named, and no model call.
+    await settle();
+    const calls = await modelCalls();
+    for (const no of [{ ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' }, { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' }]) {
+      answer = no;
+      const r = await ana('POST', `/api/listings/${id}/glowup`);
+      assert.deepStrictEqual([r.status, r.data.code], [no.status, no.code]);
+      assert.ok(r.data.error.startsWith(no.message) && /free and still work/.test(r.data.error), r.data.error);
+      assert.strictEqual((await ana('POST', `/api/listings/${id}/compare`, PINE_HOLLOW)).status, no.status);
+      assert.strictEqual((await ana('POST', '/api/listings/read', { image: { type: 'image/jpeg', data: JPEG } })).status, no.status);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), calls, 'no model call after a no');
+    assert.strictEqual(seen.record.length, 4);
+    assert.strictEqual((await ana('PUT', `/api/listings/${id}`, { price: '$201 / night' })).status, 200, 'editing and scoring never ask the guard');
+    // A ledger that is down never costs the seller their answer.
+    answer = { ok: true };
+    global.LAB_AI_GUARD.record = async () => { throw new Error('store down'); };
+    console.error = () => {};
+    assert.strictEqual((await ana('POST', `/api/listings/${id}/glowup`)).status, 200);
+  } finally {
+    console.error = quiet;
+    delete global.LAB_AI_GUARD;
+    for (const id of made) await ana('DELETE', `/api/listings/${id}`);
+  }
+  // Out of the lab there is no guard, and the call simply runs behind the identity gates.
+  const solo = await ana('POST', '/api/listings', LOON_V1);
+  assert.strictEqual((await ana('POST', `/api/listings/${solo.data.id}/glowup`)).status, 200);
+  await ana('DELETE', `/api/listings/${solo.data.id}`);
+});
+
 test('out of credit: 402 before any model call, while scoring, editing and sharing still work', async () => {
   await identityStore.merge('users', uidOf('ana@example.com'), { spentUsd: 100 });
   const calls = await modelCalls();

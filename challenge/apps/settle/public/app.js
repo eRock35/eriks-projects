@@ -31,9 +31,10 @@
   var JOIN_CODE = (function () { var m = /\/j\/([A-Za-z0-9-]{4,16})\/?$/.exec(location.pathname); return m ? m[1].toUpperCase().replace(/[^A-Z0-9]/g, '') : null; }());
   var DEMO_ME = 'vyou00000';
   var WORD = { yes: 'Yes', no: 'Nope', love: 'Love' };
+  var SPARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 19.9l-1.9-5.1a2 2 0 0 0-1.2-1.2l-5.1-1.9 5.1-1.9a2 2 0 0 0 1.2-1.2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
   var WHEEL = ['#ddd6fe', '#fbcfe8', '#bbf7d0', '#fde68a', '#bae6fd', '#fecaca', '#e9d5ff', '#c7f9cc'];
   var CONFETTI = ['#7c3aed', '#db2777', '#16a34a', '#f59e0b', '#0ea5e9', '#f43f5e'];
-  var EXAMPLES = ['cheap date ideas in winter', 'family movies for a 7 and 10 year old', 'board games for six adults', 'weekend trips by train from the city'];
+  var EXAMPLES = ['cheap tacos near downtown, open late, 4 of us', 'cosy date night in winter', 'family movies for a 7 and 10 year old', 'board games for six adults'];
 
   function esc(v) {
     return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -147,7 +148,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. The decks and typing your own still work meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. The decks and typing your own still work meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     $('#resend', where).addEventListener('click', function () {
       fetch(e.data.resend || (BASE + 'api/auth/verify/send'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function () { toast('Sent - check your email.'); }, function () { toast('Could not send it. Try again in a minute.'); });
@@ -181,35 +182,55 @@
     else if (state.view === 'new') drawNew();
     else if (state.view === 'join') drawJoin();
     else drawDecision();
+    applyDyn(main);
+    drawNav();
+    // While a card is up, a phone shows the card and its three buttons and
+    // nothing over them: the floating nav steps aside (the brand goes home).
+    document.body.classList.toggle('swiping', Boolean($('#topCard')));
     if (keepId && keepId !== 'main') { var el = document.getElementById(keepId); if (el && el.focus) try { el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  }
+
+  /** Sizes that depend on data (a bar's width, where a confetti piece
+   *  falls) are set here, through the style object, never written into
+   *  markup as a style attribute. */
+  function applyDyn(root) {
+    $$('[data-w]', root).forEach(function (el) { el.style.width = Math.max(0, Math.min(100, Number(el.getAttribute('data-w')) || 0)) + '%'; });
+    $$('.confetti i', root).forEach(function (el) {
+      el.style.left = el.getAttribute('data-x') + '%';
+      el.style.background = el.getAttribute('data-c');
+      el.style.animationDelay = el.getAttribute('data-d') + 's';
+      el.style.width = el.getAttribute('data-s') + 'px';
+    });
+  }
+  /** The current page in the nav: its label shows and it carries the accent. */
+  function drawNav() {
+    var cur = state.view === 'start' ? 'home' : state.view === 'new' ? 'new' : state.view === 'join' ? 'join' : '';
+    $$('#tabs [data-nav]').forEach(function (b) {
+      if (b.getAttribute('data-nav') === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
   }
 
   /* ---------------- start ---------------- */
 
-  function choice(act, cls, icon, title, sub) {
-    return '<button class="choice ' + cls + '" type="button" data-act="' + act + '"><span class="ci" aria-hidden="true">' + icon + '</span><span class="ct"><b>' + title + '</b><span>' + sub + '</span></span><span class="chev" aria-hidden="true">›</span></button>';
-  }
   function drawStart() {
     var recent = (recall(K_RECENT) || []).filter(function (x) { return x && typeof x.id === 'string' && /^[A-Za-z0-9_-]{16}$/.test(x.id); });
-    main.innerHTML = '<div class="dk-split"><section class="hero">' +
-      '<div class="fan" aria-hidden="true"><span>🍕</span><span>🍜</span><span>🌮</span><i class="n">NOPE</i><i class="y">YES</i></div>' +
+    main.innerHTML = '<section class="hero">' +
+      '<p class="eyebrow">Settle</p>' +
       '<h1>Where are we eating? <em>Settle it in a minute.</em></h1>' +
-      '<p class="lede">Everyone swipes, nobody argues. Send one link to the group chat - each person swipes Yes, No or Love on their own phone, no app and no account - and Settle finds the match.</p>' +
-      '<div class="choices">' +
-      choice('demo', 'primary', '✨', 'Try it now', '“Friday dinner?” - swipe 8 options with three friends') +
-      choice('new', '', '🗳️', 'Start a decision', 'A question, some options or a ready-made deck, one link') +
-      choice('joincode', '', '🔑', 'Join with a code', 'Six characters from whoever sent it') +
-      '</div></section><div>' +
-      '<section class="card"><h2>How it works</h2><ol class="steps">' +
-      '<li><span class="sn">1</span><span><b>Ask and pick options.</b> Type them, or grab a deck: cuisines, takeaway, date night, movies, games, rainy days, holidays.</span></li>' +
+      '<p class="lede">One link in the group chat. Everyone swipes Yes, No or Love on their own phone - no app, no account - and Settle finds the match.</p>' +
+      '<div class="hero-acts"><button class="btn big" type="button" data-act="new">Start a decision</button><button class="btn big ghost" type="button" data-act="demo">Try the demo</button></div>' +
+      '<p class="hero-sub"><button class="link-btn" type="button" data-act="joincode">Have a code? Join a decision</button></p>' +
+      '<div class="fan" aria-hidden="true"><span>🍕</span><span>🍜</span><span>🌮</span><i class="n">NOPE</i><i class="y">YES</i></div>' +
+      '</section>' +
+      (recent.length ? '<section class="sec"><h2>Your decisions</h2><ul class="tlist">' + recent.slice(0, 8).map(function (r) {
+        return '<li><a href="' + esc(BASE + 'd/' + r.id) + '"><span class="tn"><b>' + esc(C.clean(r.q, 120) || 'A decision') + '</b><span>' + esc(new Date(r.at || 0).toLocaleDateString([], { month: 'short', day: 'numeric' })) + '</span></span><span class="chev" aria-hidden="true">›</span></a></li>';
+      }).join('') + '</ul></section>' : '') +
+      '<section class="sec"><h2>How it works</h2><ol class="steps">' +
+      '<li><span class="sn">1</span><span><b>Ask and pick options.</b> Type them, grab a deck - cuisines, takeaway, date night, movies, games - or describe what you want and let AI deal the cards.</span></li>' +
       '<li><span class="sn">2</span><span><b>Send the link.</b> Or show the QR code, or read out six letters. Nobody installs anything.</span></li>' +
       '<li><span class="sn">3</span><span><b>Everyone swipes.</b> Yes, No or Love - nobody sees anyone’s votes until the reveal. One veto each for the thing you really can’t face.</span></li>' +
       '<li><span class="sn">4</span><span><b>It’s a match.</b> The first thing everyone said yes to. A tie? The wheel spins - the same on every phone.</span></li>' +
-      '</ol></section>' +
-      (recent.length ? '<section class="card"><h2>Your decisions</h2><ul class="tlist">' + recent.slice(0, 8).map(function (r) {
-        return '<li><a href="' + esc(BASE + 'd/' + r.id) + '"><span aria-hidden="true">🗳️</span><span class="tn"><b>' + esc(C.clean(r.q, 120) || 'A decision') + '</b><span>' + esc(new Date(r.at || 0).toLocaleDateString([], { month: 'short', day: 'numeric' })) + '</span></span><span aria-hidden="true">›</span></a></li>';
-      }).join('') + '</ul></section>' : '') +
-      '</div></div>' + footer();
+      '</ol></section>' + footer();
   }
   function footer() {
     return '<footer class="foot small muted"><p>No account to vote. Names are whatever you type, votes stay hidden until the reveal, and a decision disappears 14 days after anyone last touched it.</p><p>A free account is only needed for “Fill the deck for me”, which uses AI (it comes with $2 of credit).</p></footer>';
@@ -300,7 +321,7 @@
     if (V.gone) { main.innerHTML = V.gone; return; }
     var st = V.status;
     var html = '<div class="narrow">';
-    if (isDemo()) html += '<div class="strip"><p><b>A demo</b> with three made-up friends. Nothing is saved.</p><button class="btn small light" type="button" data-act="new">Start your own</button></div>';
+    if (isDemo()) html += '<div class="strip"><p><b>A demo</b> with three made-up friends. Nothing is saved.</p><button class="btn small ghost" type="button" data-act="new">Start your own</button></div>';
     html += head(V);
     if (st.open) {
       if (V.mode === 'swipe') html += curCard(V) ? swipeDeck(V) : waiting(V);
@@ -327,9 +348,9 @@
     if (st.open && V.mode === 'swipe' && curCard(V)) {
       var L = liveIds(V);
       var done = L.filter(function (id) { return Object.prototype.hasOwnProperty.call(V.mine.ballot, id); }).length;
-      prog = '<div class="progress" role="progressbar" aria-label="Your swipes" aria-valuemin="0" aria-valuemax="' + L.length + '" aria-valuenow="' + done + '"><i style="width:' + Math.round(100 * done / Math.max(1, L.length)) + '%"></i></div>';
+      prog = '<div class="progress" role="progressbar" aria-label="Your swipes" aria-valuemin="0" aria-valuemax="' + L.length + '" aria-valuenow="' + done + '"><i data-w="' + Math.round(100 * done / Math.max(1, L.length)) + '"></i></div>';
     }
-    var inv = st.open && !isDemo() ? '<button class="btn small ghost invite" type="button" data-act="share">📣 ' + (V.host && st.joined < 2 ? 'Send it to the group' : 'Invite') + '</button>' : '';
+    var inv = st.open && !isDemo() ? '<button class="btn small ghost invite" type="button" data-act="share">' + (V.host && st.joined < 2 ? 'Send it to the group' : 'Invite') + '</button>' : '';
     return '<section class="dhead"><p class="eyebrow">' + (V.round > 1 ? 'Round ' + V.round + ' · ' : '') + (V.mode === 'rank' ? (st.open ? 'Rank your top 3' : 'Ranked choice') : 'Swipe') + '</p><h1>' + esc(V.question) + '</h1><p class="dmeta">' + esc(bits.join(' · ')) + '</p>' + people + inv + prog + '</section>';
   }
 
@@ -352,7 +373,7 @@
       (was ? '<p class="was">You said ' + WORD[was] + ' - swipe again to change it</p>' : '') +
       '<span class="stamp yes" aria-hidden="true">YES</span><span class="stamp no" aria-hidden="true">NOPE</span><span class="stamp love" aria-hidden="true">LOVE ♥</span></div></div>' +
       '<div class="swbtns">' +
-      '<button class="swb no" type="button" data-act="sw" data-v="no" aria-pressed="' + (was === 'no') + '" aria-label="No to ' + esc(o.label) + '">✕<small>Nope</small></button>' +
+      '<button class="swb no" type="button" data-act="sw" data-v="no" aria-pressed="' + (was === 'no') + '" aria-label="No to ' + esc(o.label) + '">×<small>Nope</small></button>' +
       '<button class="swb love" type="button" data-act="sw" data-v="love" aria-pressed="' + (was === 'love') + '" aria-label="Love ' + esc(o.label) + '">♥<small>Love</small></button>' +
       '<button class="swb yes" type="button" data-act="sw" data-v="yes" aria-pressed="' + (was === 'yes') + '" aria-label="Yes to ' + esc(o.label) + '">✓<small>Yes</small></button></div>' +
       '<div class="swtools">' +
@@ -375,7 +396,7 @@
     if (V.deadline) when.push('at ' + timeLabel(V.deadline));
     if (V.host) {
       html += '<div class="hostbar">' + (isDemo() ? '' : '<button class="btn ghost" type="button" data-act="share">Invite more</button>') + '<button class="btn" type="button" data-act="close">' + (st.done >= Math.max(2, st.joined) ? 'Everyone’s in - reveal!' : 'Reveal now') + '</button></div>';
-      html += '<p class="small muted" style="margin-top:10px">You’re the host: reveal whenever you like' + (when.length ? ', or it reveals itself ' + when.join(' or ') : '') + '.</p>';
+      html += '<p class="small muted mt12">You’re the host: reveal whenever you like' + (when.length ? ', or it reveals itself ' + when.join(' or ') : '') + '.</p>';
     } else {
       html += '<p class="small muted">The reveal happens ' + (when.length ? when.join(' or ') + ', or when the host taps Reveal' : 'when the host taps Reveal') + '. Leave this open - it updates by itself.</p>';
       html += '<button class="btn ghost block" type="button" data-act="share">Invite someone</button>';
@@ -395,15 +416,15 @@
         if (r.by && (r.by.love.length || r.by.yes.length)) who = '<span class="who">' + (r.by.love.length ? '♥ ' + esc(r.by.love.join(', ')) : '') + (r.by.love.length && r.by.yes.length ? ' · ' : '') + (r.by.yes.length ? '✓ ' + esc(r.by.yes.join(', ')) : '') + '</span>';
         var isWin = !live && r.id === R.winner;
         return '<li class="' + (isWin ? 'win' : '') + (r.match ? ' match' : '') + '"><span class="rp">' + r.place + '</span><span class="re" aria-hidden="true">' + optionEmoji(r) + '</span><span class="rl">' + esc(r.label) + (r.match ? '<span class="tag match">Match</span>' : '') + '</span>' +
-          '<span class="rs">' + r.love + ' ♥ · ' + r.yes + ' ✓ · ' + r.no + ' ✕<span class="vh"> - ' + r.love + ' love, ' + r.yes + ' yes, ' + r.no + ' no</span></span>' +
-          '<span class="bar" aria-hidden="true"><i style="width:' + Math.round(100 * r.score / top) + '%"></i></span>' + who + '</li>';
+          '<span class="rs">' + r.love + ' ♥ · ' + r.yes + ' ✓ · ' + r.no + ' ×<span class="vh"> - ' + r.love + ' love, ' + r.yes + ' yes, ' + r.no + ' no</span></span>' +
+          '<span class="bar" aria-hidden="true"><i data-w="' + Math.round(100 * r.score / top) + '"></i></span>' + who + '</li>';
       }).join('');
     } else {
       var topP = Math.max.apply(null, R.rows.map(function (r) { return r.points; }).concat([1]));
       html += R.rows.map(function (r) {
         var isWin = !live && r.id === R.winner;
         return '<li class="' + (isWin ? 'win' : '') + '"><span class="rp">' + r.place + '</span><span class="re" aria-hidden="true">' + optionEmoji(r) + '</span><span class="rl">' + esc(r.label) + '</span>' +
-          '<span class="rs">' + plural(r.firsts, 'first pick') + ' · ' + r.points + ' pts</span><span class="bar" aria-hidden="true"><i style="width:' + Math.round(100 * r.points / topP) + '%"></i></span></li>';
+          '<span class="rs">' + plural(r.firsts, 'first pick') + ' · ' + r.points + ' pts</span><span class="bar" aria-hidden="true"><i data-w="' + Math.round(100 * r.points / topP) + '"></i></span></li>';
       }).join('');
     }
     html += (R.vetoed || []).map(function (id) {
@@ -430,7 +451,7 @@
     var s = '';
     for (var i = 0; i < 46; i++) {
       var x = (i * 37 + 11) % 100; var dl = ((i * 53) % 90) / 100; var c = CONFETTI[i % CONFETTI.length];
-      s += '<i style="left:' + x + '%;background:' + c + ';animation-delay:' + dl + 's;width:' + (6 + (i % 3) * 3) + 'px"></i>';
+      s += '<i data-x="' + x + '" data-c="' + c + '" data-d="' + dl + '" data-s="' + (6 + (i % 3) * 3) + '"></i>';
     }
     return '<div class="confetti" aria-hidden="true">' + s + '</div>';
   }
@@ -440,7 +461,7 @@
     var h = C.headline(V, R);
     var spin = R.wheel && !isSpun(V);
     var html = '';
-    if (V.next) html += '<div class="nextup"><p><b>Next up:</b> “' + esc(V.next.question) + '”</p><button class="btn light" type="button" data-act="gonext">Swipe now →</button></div>';
+    if (V.next) html += '<div class="nextup"><p><b>Next up:</b> “' + esc(V.next.question) + '”</p><button class="btn" type="button" data-act="gonext">Swipe now →</button></div>';
     html += '<section class="card reveal">';
     if (spin) {
       html += '<p class="eyebrow">' + (R.how === 'match' ? (R.wheel.ids.length === 2 ? 'Two matches' : R.wheel.ids.length + ' matches') + ' - spin for it!' : 'It’s a tie - spin for it!') + '</p><h2>' + esc(C.nameList(R.wheel.ids.map(function (x) { return opt(V, x).label; }))) + '</h2>' +
@@ -457,9 +478,9 @@
         '<p class="muted">' + esc(h.line) + '</p>';
       if (o && first) say((h.match ? 'It’s a match: ' : 'Settled: ') + o.label);
       if (o && o.note) html += '<p class="small muted">' + esc(o.note) + '</p>';
-      html += '<div class="row" style="margin-top:12px"><button class="btn" type="button" data-act="shareresult">Share the result</button><button class="btn ghost" type="button" data-act="copyresult">Copy</button></div>';
-      if (V.host && !isDemo()) html += '<div class="row" style="margin-top:8px"><button class="btn ghost" type="button" data-act="reopen">Re-open with the top 3</button><button class="btn ghost" type="button" data-act="another">Settle another</button></div>';
-      if (isDemo()) html += '<div class="row" style="margin-top:8px"><button class="btn ghost" type="button" data-act="demoagain">Swipe it again</button><button class="btn ghost" type="button" data-act="new">Start your own</button></div>';
+      html += '<div class="row mt12"><button class="btn" type="button" data-act="shareresult">Share the result</button><button class="btn ghost" type="button" data-act="copyresult">Copy</button></div>';
+      if (V.host && !isDemo()) html += '<div class="row mt8"><button class="btn ghost" type="button" data-act="reopen">Re-open with the top 3</button><button class="btn ghost" type="button" data-act="another">Settle another</button></div>';
+      if (isDemo()) html += '<div class="row mt8"><button class="btn ghost" type="button" data-act="demoagain">Swipe it again</button><button class="btn ghost" type="button" data-act="new">Start your own</button></div>';
       else if (!V.host) html += '<button class="link-btn" type="button" data-act="new">Start your own decision</button>';
     }
     html += '</section>';
@@ -495,7 +516,7 @@
         slots += '<li class="slot filled" data-i="' + i + '"><span class="handle" aria-hidden="true">⠿</span><span class="num">' + (i + 1) + '</span><span class="sl">' + (o.emoji ? esc(o.emoji) + ' ' : '') + esc(o.label) + '</span>' +
           '<button class="mini" type="button" data-act="rk-up" data-i="' + i + '" aria-label="Move ' + esc(o.label) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
           '<button class="mini" type="button" data-act="rk-down" data-i="' + i + '" aria-label="Move ' + esc(o.label) + ' down"' + (i === d.length - 1 ? ' disabled' : '') + '>↓</button>' +
-          '<button class="mini" type="button" data-act="rk-rm" data-i="' + i + '" aria-label="Take ' + esc(o.label) + ' out">✕</button></li>';
+          '<button class="mini" type="button" data-act="rk-rm" data-i="' + i + '" aria-label="Take ' + esc(o.label) + ' out">×</button></li>';
       } else slots += '<li class="slot empty"><span class="num">' + (i + 1) + '</span><span class="sl">' + (i === d.length ? 'Tap your ' + ['first', 'second', 'third'][i] + ' choice below' : '') + '</span></li>';
     }
     var vet = V.vetoes;
@@ -676,7 +697,7 @@
       startPolling();
     }).catch(function (err) {
       if (err && err.status === 404) forget(DEC_ID);
-      state.d = { gone: '<section class="card center"><div style="font-size:3rem" aria-hidden="true">🤷</div><h1>Nothing here</h1><p class="muted">' + esc(err && err.status === 404 ? 'This decision doesn’t exist, was deleted, or went quiet for 14 days - or it was joined on a different phone. Ask whoever sent it for the link again.' : (err && err.message) || 'That didn’t load.') + '</p><div class="row"><button class="btn" type="button" data-act="joincode">Join with a code</button><button class="btn ghost" type="button" data-act="new">Start a decision</button></div></section>' };
+      state.d = { gone: '<section class="card center"><div class="big-emoji" aria-hidden="true">🤷</div><h1>Nothing here</h1><p class="muted">' + esc(err && err.status === 404 ? 'This decision doesn’t exist, was deleted, or went quiet for 14 days - or it was joined on a different phone. Ask whoever sent it for the link again.' : (err && err.message) || 'That didn’t load.') + '</p><div class="row"><button class="btn" type="button" data-act="joincode">Join with a code</button><button class="btn ghost" type="button" data-act="new">Start a decision</button></div></section>' };
       draw();
     });
   }
@@ -705,10 +726,10 @@
     var link = joinLink(V);
     var msg = C.inviteText(V, link);
     sheet('<h2>Send it to the group</h2>' +
-      '<div class="sharegrid"><button class="qr" type="button" data-act="qrbig" aria-label="Show the QR code full screen">' + QR.svg(link, 'Join ' + V.question) + '</button><div><p class="small muted" style="margin:0">Code</p><p class="code">' + esc(V.display) + '</p><p class="small muted">Friends open the link, scan or type the code - no app, no account.</p></div></div>' +
-      '<p class="small muted" style="margin:14px 0 6px">The message, ready to send:</p><p class="copybox">' + esc(msg) + '</p>' +
+      '<div class="sharegrid"><button class="qr" type="button" data-act="qrbig" aria-label="Show the QR code full screen">' + QR.svg(link, 'Join ' + V.question) + '</button><div><p class="small muted m0">Code</p><p class="code">' + esc(V.display) + '</p><p class="small muted">Friends open the link, scan or type the code - no app, no account.</p></div></div>' +
+      '<p class="small muted mt16">The message, ready to send:</p><p class="copybox">' + esc(msg) + '</p>' +
       '<button class="btn block big" type="button" data-act="sharemsg">Share to the group chat</button>' +
-      '<div class="row" style="margin-top:8px"><button class="btn ghost" type="button" data-act="copymsg">Copy message</button><button class="btn ghost" type="button" data-act="copylink">Copy link</button></div>' +
+      '<div class="row mt8"><button class="btn ghost" type="button" data-act="copymsg">Copy message</button><button class="btn ghost" type="button" data-act="copylink">Copy link</button></div>' +
       '<button class="btn ghost block" type="button" data-act="closesheet">' + (V.status.open && !meDone(V) ? 'Start swiping →' : 'Done') + '</button>');
   }
   function showQr() {
@@ -716,7 +737,7 @@
     var o = document.createElement('div');
     o.className = 'qrfull';
     o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'Join code');
-    o.innerHTML = '<button class="btn ghost" type="button">Close</button><p style="font-weight:800;font-size:1.3rem;margin:0;max-width:90vw;overflow-wrap:anywhere">' + esc(V.question) + '</p><div class="qrbox">' + QR.svg(joinLink(V), 'Join ' + V.question) + '</div><p class="code">' + esc(V.display) + '</p><p style="margin:0;color:#333333">Scan to swipe - no app needed</p>';
+    o.innerHTML = '<button class="btn ghost" type="button">Close</button><p class="qr-q">' + esc(V.question) + '</p><div class="qrbox">' + QR.svg(joinLink(V), 'Join ' + V.question) + '</div><p class="code">' + esc(V.display) + '</p><p class="qr-hint">Scan to swipe - no app needed</p>';
     function close() { o.remove(); document.removeEventListener('keydown', onKey); }
     function onKey(e) { if (e.key === 'Escape') close(); }
     o.addEventListener('click', function (e) { if (e.target === o || e.target.tagName === 'BUTTON') close(); });
@@ -774,26 +795,26 @@
     var decks = '<div class="decks">' + C.DECKS.map(function (k) {
       return '<button class="deck" type="button" data-act="deck" data-id="' + k.id + '" aria-pressed="' + (d.deck === k.id) + '"><span class="de" aria-hidden="true">' + k.emoji + '</span><span><b>' + esc(k.name) + '</b><span class="n">' + k.items.length + ' ideas</span></span></button>';
     }).join('') + '</div>';
-    var typed = '<label class="field" style="margin-top:4px"><span>One per line <span class="hint">- “🍜 Ramen” works too</span></span><textarea class="input" id="typed" placeholder="Pizza&#10;Thai&#10;That new ramen place">' + esc(d.text) + '</textarea></label><button class="btn ghost small" type="button" data-act="addtyped">Add to the list</button>';
+    var typed = '<label class="field mt4"><span>One per line <span class="hint">- “🍜 Ramen” works too</span></span><textarea class="input" id="typed" placeholder="Pizza&#10;Thai&#10;That new ramen place">' + esc(d.text) + '</textarea></label><button class="btn ghost small" type="button" data-act="addtyped">Add to the list</button>';
     var chips = d.items.length ? '<div class="chips" role="group" aria-label="Options">' + d.items.map(function (x, i) {
       return '<button class="chip" type="button" data-act="chip" data-i="' + i + '" id="chip' + i + '" aria-pressed="' + x.on + '"><span class="ce" aria-hidden="true">' + esc(x.emoji || '•') + '</span><span class="cl">' + esc(x.label) + '</span></button>';
     }).join('') + '</div>' : '';
     var secs = Math.max(5, Math.round(n * 1.4));
     var count = d.items.length ? '<div class="count-line"><span class="small muted"><b>' + n + '</b> of ' + d.items.length + ' ticked · about ' + secs + ' seconds to swipe' + (n > 20 ? ' - fewer is faster' : '') + '</span><span><button class="link-btn small" type="button" data-act="tickall">' + (n === Math.min(d.items.length, C.LIMITS.optionsMax) ? 'Untick all' : 'Tick all') + '</button></span></div>' : '';
-    var fill = '<button class="btn ghost block" type="button" data-act="fill">✨ Fill the deck for me <span class="ai">AI</span></button>';
+    var fill = '<button class="fillrow" type="button" data-act="fill"><span class="fi" aria-hidden="true">' + SPARK + '</span><span class="ft"><b>Fill the deck for me</b><span>Describe it in a line - AI deals the cards</span></span><span class="ai">AI</span></button>';
     var first = d.items.filter(function (x) { return x.on; })[0];
     var preview = '<aside class="card preview" aria-label="Preview"><p class="eyebrow">What your friends get</p>' +
       '<p class="copybox">' + esc(C.inviteText({ question: C.cleanQuestion(d.question) || 'Where are we eating?', mode: d.mode }, location.origin + BASE + 'j/ABCDEF')) + '</p>' +
-      '<div class="deckwrap" style="height:280px;min-height:0;pointer-events:none"><div class="sw-card next" aria-hidden="true"></div><div class="sw-card" aria-hidden="true" style="cursor:default"><span class="cnum">1 / ' + Math.max(n, 1) + '</span><span class="ce">' + (first ? optionEmoji(first) : '🗳️') + '</span><h2>' + esc(first ? first.label : 'Your options') + '</h2></div></div>' +
+      '<div class="deckwrap pv-deck"><div class="sw-card next" aria-hidden="true"></div><div class="sw-card static" aria-hidden="true"><span class="cnum">1 / ' + Math.max(n, 1) + '</span><span class="ce">' + (first ? optionEmoji(first) : '🗳️') + '</span><h2>' + esc(first ? first.label : 'Your options') + '</h2></div></div>' +
       '<p class="small muted center">' + (d.mode === 'rank' ? 'Everyone ranks a top 3; ranked choice settles it.' : 'Everyone swipes. The first thing all of you say yes to wins.') + '</p></aside>';
-    main.innerHTML = '<div class="dk-split"><section class="card"><h1>' + (d.after ? 'Settle another' : 'Start a decision') + '</h1>' +
+    main.innerHTML = '<div class="dk-split"><section class="form"><h1>' + (d.after ? 'Settle another' : 'Start a decision') + '</h1>' +
       (d.after ? '<p class="small muted">Everyone still on the last reveal gets a “Next up” button.</p>' : '') +
       '<form id="newForm" novalidate>' +
       '<label class="field"><span>What are you deciding?</span><input class="input" id="q" maxlength="' + C.LIMITS.question + '" placeholder="Where are we eating?" value="' + esc(d.question) + '" autocomplete="off"></label>' +
       '<div class="field"><span>Choose between</span><div class="seg" role="radiogroup" aria-label="Where the options come from">' +
       '<button type="button" class="segb" role="radio" data-act="src" data-v="deck" aria-checked="' + (d.src === 'deck') + '">Use a deck</button>' +
       '<button type="button" class="segb" role="radio" data-act="src" data-v="type" aria-checked="' + (d.src === 'type') + '">Type my own</button></div>' +
-      '<div style="margin-top:10px">' + (d.src === 'deck' ? decks : typed) + '</div>' + (d.items.length ? '<p class="small muted" style="margin:12px 0 0">Tap to add or drop. About a dozen keeps it quick.</p>' : '') + chips + count + fill + '</div>' +
+      fill + '<div class="mt12">' + (d.src === 'deck' ? decks : typed) + '</div>' + (d.items.length ? '<p class="small muted mt12 mb0">Tap to add or drop. About a dozen keeps it quick.</p>' : '') + chips + count + '</div>' +
       '<div class="field"><span>How to decide</span><div class="seg" role="radiogroup" aria-label="How to decide">' +
       '<button type="button" class="segb" role="radio" data-act="mode" data-v="swipe" aria-checked="' + (d.mode === 'swipe') + '">Swipe<span class="sub">Yes · No · Love</span></button>' +
       '<button type="button" class="segb" role="radio" data-act="mode" data-v="rank" aria-checked="' + (d.mode === 'rank') + '">Rank a top 3<span class="sub">Ranked choice</span></button></div></div>' +
@@ -801,7 +822,7 @@
       '<details class="fold"' + (d.time || d.max ? ' open' : '') + '><summary>More options</summary>' +
       '<div class="two"><label class="field"><span>Decide by <span class="hint">(optional)</span></span><input class="input" id="dtime" type="time" value="' + esc(d.time) + '"></label>' +
       '<label class="field"><span>How many of you? <span class="hint">(optional)</span></span><input class="input" id="dmax" type="number" inputmode="numeric" min="2" max="' + C.LIMITS.voters + '" value="' + esc(d.max) + '" placeholder="4"></label></div>' +
-      '<p class="small muted" style="margin-top:-4px">It reveals itself at that time, or when that many have voted. Otherwise you tap Reveal.</p>' +
+      '<p class="small muted mt0">It reveals itself at that time, or when that many have voted. Otherwise you tap Reveal.</p>' +
       sw('vetoes', d.vetoes, 'Vetoes', 'Everyone gets one veto to knock an option out for all') +
       sw('named', d.named, 'Show who voted what', 'At the reveal. Off: only the totals, nobody’s name') +
       sw('live', d.live, 'Show the tally as people vote', 'Off: it stays hidden until the reveal') +
@@ -840,15 +861,19 @@
 
   /* ---------------- fill the deck for me (the one model call) ---------------- */
 
+  /** The sheet: one line in, a deck of cards out. Each card can be reworded
+   *  or removed before anything is added - the list is the person's, not
+   *  the model's. */
+  var AI_BTN = 'Deal the cards <span class="ai">AI</span> <span class="small">about a cent</span>';
   function openFill() {
-    var a = state.ai || (state.ai = { prompt: '', list: null });
+    var a = state.ai || (state.ai = { prompt: '', list: null, question: '', useQ: true });
     var signed = signedIn();
-    sheet('<h2>✨ Fill the deck for me</h2><p class="muted">Say what you’re choosing and AI suggests 8 to 20 options to swipe on. It suggests <b>ideas</b> - not real places, prices or showtimes; it can’t see what’s open near you.</p>' +
-      '<form id="aiForm"><label class="field"><span>What are you choosing?</span><input class="input" id="aiPrompt" maxlength="' + C.LIMITS.prompt + '" placeholder="cheap date ideas in winter" value="' + esc(a.prompt) + '" autocomplete="off"></label>' +
-      '<div class="chips" aria-label="Examples">' + EXAMPLES.map(function (x) { return '<button class="chip" type="button" data-act="aiex" data-v="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
-      '<div id="aiOut" style="margin-top:12px"></div>' +
-      (signed ? '<button class="btn block big" type="submit" id="aiGo">Suggest ideas <span class="ai">AI</span> <span class="small">about a cent</span></button>'
-        : '<div class="note"><p><b>This one uses AI, so it needs a free account.</b> A free account comes with $2 of AI credit, and a deck of ideas costs about a cent. The built-in decks and typing your own stay free, no account.</p><div class="row"><button class="btn" type="button" data-act="signin-ai">Create a free account</button><button class="btn ghost" type="button" data-act="signin-ai-login">Sign in</button></div></div>') +
+    sheet('<h2>Fill the deck for me</h2><p class="muted">Describe what you’re after in a line. AI deals 8 to 12 cards to swipe on - kinds of places and plans, <b>not real places, prices or showtimes</b>. It can’t see what’s open near you.</p>' +
+      '<form id="aiForm"><label class="field"><span>What are you choosing?</span><input class="input" id="aiPrompt" maxlength="' + C.LIMITS.prompt + '" placeholder="cheap tacos near downtown, open late, 4 of us" value="' + esc(a.prompt) + '" autocomplete="off" enterkeyhint="go"></label>' +
+      '<div class="chips" aria-label="Examples">' + EXAMPLES.map(function (x) { return '<button class="chip plain" type="button" data-act="aiex" data-v="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<div id="aiOut" class="mt12"></div>' +
+      (signed ? '<button class="btn block big" type="submit" id="aiGo">' + AI_BTN + '</button>'
+        : '<div class="note"><p><b>This one uses AI, so it needs a free account.</b> A free account comes with $2 of AI credit, and a deck costs about a cent. The built-in decks and typing your own stay free, no account.</p><div class="row"><button class="btn" type="button" data-act="signin-ai">Create a free account</button><button class="btn ghost" type="button" data-act="signin-ai-login">Sign in</button></div></div>') +
       '</form>', function (root) {
       $('#aiPrompt', root).addEventListener('input', function (e) { a.prompt = e.target.value; });
       $('#aiForm', root).addEventListener('submit', function (e) { e.preventDefault(); if (signedIn()) runFill(root); });
@@ -858,26 +883,48 @@
   function runFill(root) {
     var a = state.ai; var out = $('#aiOut', root); var btn = $('#aiGo', root);
     if (!/\p{L}{2}/u.test(a.prompt || '')) { out.innerHTML = '<p class="err" role="alert">Say what you’re choosing first.</p>'; return; }
-    btn.disabled = true; btn.textContent = 'Thinking…';
-    out.innerHTML = '<p class="busy" style="padding:8px 0">Dealing some ideas…</p>';
+    btn.disabled = true; btn.textContent = 'Dealing…';
+    out.innerHTML = '<div class="dealing" role="status"><span class="dc" aria-hidden="true"></span><span class="dc" aria-hidden="true"></span><span class="dc" aria-hidden="true"></span><p class="muted small m0">Dealing some cards…</p></div>';
     var have = (state.draft ? state.draft.items : []).map(function (x) { return x.label; });
     api('POST', 'api/suggest', { prompt: a.prompt, have: have }).then(function (r) {
-      a.list = r.options.map(function (o) { return { label: o.label, emoji: o.emoji, note: o.note, on: true }; });
+      a.list = r.options.map(function (o) { return { label: o.label, emoji: o.emoji, note: o.note }; });
+      a.question = C.cleanQuestion(r.question || '');
+      a.useQ = true;
       drawAiList(root);
+      say(plural(a.list.length, 'card') + ' dealt. Edit or remove any, then add them.');
     }).catch(function (err) {
       if (err.status === 401) { out.innerHTML = ''; return openAccount('“Fill the deck for me” uses AI, so it needs a free account - it comes with $2 of credit. Everything else in Settle is free.', openFill); }
       if (err.status === 402) { out.innerHTML = ''; return openCredit(err.data); }
       if (err.data && err.data.code === 'verify-email') return verifyNote(out, err);
       showError(err, out);
-    }).then(function () { if (btn) { btn.disabled = false; btn.innerHTML = 'Suggest ideas <span class="ai">AI</span> <span class="small">about a cent</span>'; } });
+    }).then(function () { if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = state.ai.list ? 'Deal again <span class="ai">AI</span>' : AI_BTN; } });
+  }
+  /** Whether the dealt question would go into the form: only when the
+   *  person has not typed one of their own. */
+  function aiQuestionFree() {
+    var d = state.draft; if (!d) return false;
+    var q = C.cleanQuestion(d.question);
+    return !q || C.DECKS.some(function (k) { return k.question === q; });
   }
   function drawAiList(root) {
     var a = state.ai; var out = $('#aiOut', root);
-    var n = a.list.filter(function (x) { return x.on; }).length;
+    var n = a.list.filter(function (x) { return C.cleanOption({ label: x.label }); }).length;
     var ex = $('.chips[aria-label="Examples"]', root); if (ex) ex.hidden = true;
-    out.innerHTML = '<p class="small muted" style="margin:0">Ideas, not venues - check what’s actually open. Untick any you don’t want.</p><div class="chips">' + a.list.map(function (x, i) {
-      return '<button class="chip" type="button" data-act="aichip" data-i="' + i + '" aria-pressed="' + x.on + '" title="' + esc(x.note) + '"><span class="ce" aria-hidden="true">' + esc(x.emoji || '•') + '</span><span class="cl">' + esc(x.label) + '</span></button>';
-    }).join('') + '</div><button class="btn block" type="button" data-act="aiadd"' + (n ? '' : ' disabled') + '>Add ' + plural(n, 'idea') + ' to my list</button>';
+    var go = $('#aiGo', root); if (go) { go.classList.remove('big'); go.classList.add('ghost'); go.innerHTML = 'Deal again <span class="ai">AI</span>'; }
+    out.innerHTML = (a.question && aiQuestionFree() ? '<label class="switch aiq"><input type="checkbox" id="aiUseQ"' + (a.useQ ? ' checked' : '') + '><span class="st"><b>“' + esc(a.question) + '”</b><span>Use this as the question</span></span></label>' : '') +
+      '<p class="small muted m0">Kinds of places, not real ones - check what’s actually open. Reword a card or remove it; nothing is added until you say.</p>' +
+      '<ul class="ailist" aria-label="The cards dealt">' + a.list.map(function (x, i) {
+        return '<li class="airow"><span class="ae" aria-hidden="true">' + esc(x.emoji || '•') + '</span><span class="at"><input class="ainput" data-ai="' + i + '" maxlength="' + C.LIMITS.label + '" value="' + esc(x.label) + '" aria-label="Card ' + (i + 1) + '" autocomplete="off">' + (x.note ? '<span class="an">' + esc(x.note) + '</span>' : '') + '</span>' +
+          '<button class="xbtn" type="button" data-act="airm" data-i="' + i + '" aria-label="Remove ' + esc(x.label) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></li>';
+      }).join('') + '</ul><button class="btn block big" type="button" data-act="aiadd" id="aiAdd"' + (n ? '' : ' disabled') + '>Add ' + plural(n, 'card') + ' to my deck</button>';
+    $$('.ainput', out).forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        a.list[Number(inp.getAttribute('data-ai'))].label = inp.value;
+        var m = a.list.filter(function (x) { return C.cleanOption({ label: x.label }); }).length;
+        var add = $('#aiAdd', out); add.disabled = !m; add.textContent = 'Add ' + plural(m, 'card') + ' to my deck';
+      });
+    });
+    var uq = $('#aiUseQ', out); if (uq) uq.addEventListener('change', function () { a.useQ = uq.checked; });
   }
 
   /* ---------------- join ---------------- */
@@ -892,18 +939,18 @@
     var j = state.join;
     if (!j) { main.innerHTML = '<p class="busy">Looking that up…</p>'; return; }
     if (j.error) {
-      main.innerHTML = '<div class="narrow"><section class="card center"><div style="font-size:3rem" aria-hidden="true">🔑</div><h1>That code didn’t work</h1><p class="muted">' + esc(j.error) + '</p><div class="row"><button class="btn" type="button" data-act="joincode">Try another code</button><a class="btn ghost" href="' + esc(BASE) + '#start">What is Settle?</a></div></section></div>';
+      main.innerHTML = '<div class="narrow"><section class="card center"><div class="big-emoji" aria-hidden="true">🔑</div><h1>That code didn’t work</h1><p class="muted">' + esc(j.error) + '</p><div class="row"><button class="btn" type="button" data-act="joincode">Try another code</button><a class="btn ghost" href="' + esc(BASE) + '#start">What is Settle?</a></div></section></div>';
       return;
     }
     var bits = [j.mode === 'rank' ? 'Rank your top 3' : 'Swipe', plural(j.options, 'option'), plural(j.joined, 'person', 'people') + ' in'];
     if (j.deadline) bits.push(dueLabel(j.deadline));
     var closed = !j.open; var full = j.full;
     var html = '<div class="narrow"><section class="card"><p class="eyebrow">You’re invited to settle something</p><h1>' + esc(j.question) + '</h1><p class="muted">' + esc(bits.join(' · ')) + '</p>' +
-      '<div class="chips" aria-label="Some of the options">' + j.preview.map(function (o) { return '<span class="chip" style="cursor:default"><span class="ce" aria-hidden="true">' + esc(o.emoji || '•') + '</span><span class="cl">' + esc(o.label) + '</span></span>'; }).join('') + (j.options > j.preview.length ? '<span class="chip" style="cursor:default">+' + (j.options - j.preview.length) + ' more</span>' : '') + '</div>';
-    if (closed) html += '<p class="err" style="margin-top:14px">Voting on this one has closed.</p><p class="small muted">If you were in it, open it from the phone you joined on.</p><button class="btn ghost block" type="button" data-act="new">Start your own</button>';
-    else if (full) html += '<p class="err" style="margin-top:14px">Everyone this was for has joined.</p><p class="small muted">Ask whoever sent it to start another for you.</p>';
+      '<div class="chips" aria-label="Some of the options">' + j.preview.map(function (o) { return '<span class="chip static"><span class="ce" aria-hidden="true">' + esc(o.emoji || '•') + '</span><span class="cl">' + esc(o.label) + '</span></span>'; }).join('') + (j.options > j.preview.length ? '<span class="chip static">+' + (j.options - j.preview.length) + ' more</span>' : '') + '</div>';
+    if (closed) html += '<p class="err mt16">Voting on this one has closed.</p><p class="small muted">If you were in it, open it from the phone you joined on.</p><button class="btn ghost block" type="button" data-act="new">Start your own</button>';
+    else if (full) html += '<p class="err mt16">Everyone this was for has joined.</p><p class="small muted">Ask whoever sent it to start another for you.</p>';
     else {
-      html += '<form id="joinForm" style="margin-top:12px"><label class="field"><span>Your name</span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" autocomplete="given-name" placeholder="First name or nickname" value="' + esc(myName()) + '"></label>' +
+      html += '<form class="mt12" id="joinForm"><label class="field"><span>Your name</span><input class="input" name="name" maxlength="' + C.LIMITS.name + '" autocomplete="given-name" placeholder="First name or nickname" value="' + esc(myName()) + '"></label>' +
         '<p class="small muted">' + (j.named ? 'Your name shows beside your votes at the reveal.' : 'Votes are anonymous - only how many voted is shown.') + ' No account, nothing to install.</p>' +
         '<div id="joinErr"></div><button class="btn block big" type="submit">' + (j.mode === 'rank' ? 'Join and rank →' : 'Join and swipe →') + '</button></form>';
     }
@@ -950,7 +997,7 @@
     return api('GET', 'api/me').then(function (me) { state.me = me; drawTop(); return me; })
       .catch(function () { state.me = { signedIn: false }; drawTop(); return state.me; });
   }
-  function drawTop() { $('#acct').textContent = signedIn() ? 'Account' : 'Sign in'; }
+  function drawTop() { $('#acctLabel').textContent = signedIn() ? 'Account' : 'Sign in'; }
   function openAccount(reason, then, login) {
     var mode = login ? 'login' : 'register';
     function draw2(root) {
@@ -962,8 +1009,8 @@
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -985,9 +1032,9 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row" style="justify-content:space-between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">“Fill the deck for me” costs about a cent. Decisions, decks, votes and the reveal are free.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt8 mb0">“Fill the deck for me” costs about a cent. Decisions, decks, votes and the reveal are free.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block mt16" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () {
@@ -1056,6 +1103,8 @@
     var d = state.draft;
     switch (a) {
       case 'closesheet': closeSheet(); break;
+      case 'home': closeSheet(true); if (DEC_ID || JOIN_CODE) location.href = BASE; else go(''); break;
+      case 'account': closeSheet(true); if (signedIn()) openSettings(); else openAccount(); break;
       case 'demo': go('demo'); break;
       case 'demoagain': startDemo(); scrollTo(0, 0); break;
       case 'new': closeSheet(true); state.draft = newDraft(); if (DEC_ID || JOIN_CODE) { location.href = BASE + '#new'; } else go('new'); break;
@@ -1154,13 +1203,20 @@
       case 'mode': d.mode = t.getAttribute('data-v'); drawNew(); break;
       case 'fill': openFill(); break;
       case 'aiex': { var inp = $('#aiPrompt'); inp.value = t.getAttribute('data-v'); state.ai.prompt = inp.value; break; }
-      case 'aichip': { var ai2 = state.ai.list[Number(t.getAttribute('data-i'))]; ai2.on = !ai2.on; drawAiList($('#sheet')); break; }
+      case 'airm': {
+        var gone = state.ai.list.splice(Number(t.getAttribute('data-i')), 1)[0];
+        drawAiList($('#sheet')); say('Removed ' + (gone ? gone.label : 'the card') + '.');
+        var nextX = $$('#sheet .xbtn')[Math.min(Number(t.getAttribute('data-i')), state.ai.list.length - 1)] || $('#aiPrompt');
+        if (nextX) nextX.focus({ preventScroll: true });
+        break;
+      }
       case 'aiadd': {
-        var picked = state.ai.list.filter(function (x) { return x.on; });
+        var picked = state.ai.list.filter(function (x) { return C.cleanOption({ label: x.label }); });
         var n2 = addItems(d, picked, true);
-        d.items.forEach(function (it) { if (picked.some(function (p) { return C.fold(p.label) === C.fold(it.label); })) it.own = true; });
-        state.ai = { prompt: state.ai.prompt, list: null };
-        closeSheet(true); drawNew(); toast(plural(n2, 'idea') + ' added');
+        d.items.forEach(function (it) { if (picked.some(function (p) { var c2 = C.cleanOption({ label: p.label }); return c2 && C.fold(c2.label) === C.fold(it.label); })) it.own = true; });
+        if (state.ai.question && state.ai.useQ && aiQuestionFree()) d.question = state.ai.question;
+        state.ai = { prompt: state.ai.prompt, list: null, question: '', useQ: true };
+        closeSheet(true); drawNew(); toast(n2 ? plural(n2, 'card') + ' added to your deck' : 'Those are already on the list');
         break;
       }
       default: break;
@@ -1169,7 +1225,6 @@
 
   /* ---------------- start ---------------- */
 
-  $('#acct').addEventListener('click', function () { if (signedIn()) openSettings(); else openAccount(); });
   drawTop();
   route();
   loadMe().then(function () {

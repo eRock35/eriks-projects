@@ -863,6 +863,102 @@
     return '﻿' + lines.join('\r\n') + '\r\n';
   }
 
+  /* ---------------- a POS report, read from a photo ---------------- */
+
+  // A model only TRANSCRIBES the report (lib/gemini.js). Everything that
+  // decides anything is here, in the same file the split lives in: which
+  // figures need a second look, what the lines add up to, which printed name
+  // is which person on the team, and which part of the day a label means.
+
+  /** Below this, a figure is "unclear" and the shift lead confirms it. */
+  var UNCLEAR = 0.8;
+
+  /** A printed shift label ("DINNER", "PM", "Late night") as one of PARTS, or null. */
+  function partFromLabel(v) {
+    var s = clean(v, 30).toLowerCase();
+    if (!s) return null;
+    if (/brunch/.test(s)) return 'brunch';
+    if (/all[\s-]?day|full[\s-]?day|daily/.test(s)) return 'allday';
+    if (/late|night|close|closing|overnight/.test(s)) return 'late';
+    if (/lunch|\bam\b|morning|\bday\b|open/.test(s)) return 'lunch';
+    if (/dinner|\bpm\b|evening|eve\b/.test(s)) return 'dinner';
+    return null;
+  }
+
+  /**
+   * What the report's figures come to, by Tipout's arithmetic (integers,
+   * never the model's): for card tips, cash tips and food sales -
+   *   source 'printed'  the total as printed; `unclear` when the reader was
+   *                     not sure of it; `linesSum` when every staff line
+   *                     carries that figure and they add up to something else
+   *   source 'summed'   no total printed, but every staff line has the
+   *                     figure, so Tipout added them up (always confirmed)
+   *   source 'missing'  type it
+   * `flag` is true when the shift lead has to confirm the figure.
+   * Per-person sales are all sales, not food, so food sales is never summed.
+   */
+  function reportCheck(report) {
+    var staff = (report && report.staff) || [];
+    var totals = (report && report.totals) || {};
+    var out = {};
+    ['card', 'cash', 'sales'].forEach(function (k) {
+      var t = totals[k] || {};
+      var printed = Number.isInteger(t.cents) ? t.cents : null;
+      var all = k !== 'sales' && staff.length > 0 && staff.every(function (p) { return p[k] && Number.isInteger(p[k].cents); });
+      var sum = all ? staff.reduce(function (s, p) { return s + p[k].cents; }, 0) : null;
+      var o = { cents: null, source: 'missing', unclear: false, linesSum: null, lines: 0, flag: false };
+      if (printed !== null) {
+        o.cents = printed; o.source = 'printed';
+        o.unclear = !(Number(t.confidence) >= UNCLEAR);
+        if (sum !== null && sum !== printed) { o.linesSum = sum; o.lines = staff.length; }
+        o.flag = o.unclear || o.linesSum !== null;
+      } else if (sum !== null && sum <= LIMITS.maxCents) {
+        o.cents = sum; o.source = 'summed'; o.lines = staff.length; o.flag = true;
+      }
+      out[k] = o;
+    });
+    return out;
+  }
+
+  function nameKey(s) {
+    return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ.]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Printed names against the team, by the app and never by a model. Returns
+   * one entry per printed name: { pid, how, options } -
+   *   'exact'      the same name (case, accents and dots aside)
+   *   'first'      the same first name, the initial missing on one side
+   *   'prefix'     a cut-off or longer form (MARC / Marco, Sam / Samantha)
+   *   'ambiguous'  more than one person it could be (options lists them)
+   *   'none'       nobody on the team
+   * Nobody is matched to two lines. Every match is a proposal the shift lead
+   * confirms; anything but 'exact' is flagged.
+   */
+  function matchStaff(names, people) {
+    var ppl = (people || []).map(function (p) { var k = nameKey(p.name).split(' '); return { id: p.id, first: k[0] || '', init: k[1] || '', key: k.join(' ') }; });
+    var rows = (names || []).map(function (n) { var k = nameKey(n).split(' '); return { first: k[0] || '', init: k[1] || '', key: k.join(' '), out: null }; });
+    var used = {};
+    var free = function (p) { return !used[p.id]; };
+    var take = function (r, p, how) { used[p.id] = true; r.out = { pid: p.id, how: how, options: [] }; };
+    rows.forEach(function (r) {
+      if (!r.first) { r.out = { pid: null, how: 'none', options: [] }; return; }
+      var hit = ppl.filter(function (p) { return free(p) && p.key === r.key; });
+      if (hit.length === 1) take(r, hit[0], 'exact');
+    });
+    rows.forEach(function (r) {
+      if (r.out) return;
+      var same = ppl.filter(function (p) { return free(p) && p.first === r.first && (!p.init || !r.init || p.init === r.init); });
+      if (same.length > 1 && r.init) { var byInit = same.filter(function (p) { return p.init === r.init; }); if (byInit.length === 1) same = byInit; }
+      if (same.length === 1) return take(r, same[0], 'first');
+      if (same.length > 1) { r.out = { pid: null, how: 'ambiguous', options: same.map(function (p) { return p.id; }) }; return; }
+      var near = r.first.length >= 3 ? ppl.filter(function (p) { return free(p) && p.first.length >= 3 && p.first !== r.first && (p.first.indexOf(r.first) === 0 || r.first.indexOf(p.first) === 0); }) : [];
+      if (near.length === 1) return take(r, near[0], 'prefix');
+      r.out = near.length > 1 ? { pid: null, how: 'ambiguous', options: near.map(function (p) { return p.id; }) } : { pid: null, how: 'none', options: [] };
+    });
+    return rows.map(function (r) { return r.out; });
+  }
+
   return {
     LIMITS: LIMITS, METHODS: METHODS, PARTS: PARTS, DENOMS: DENOMS, DENOM_CENTS: DENOM_CENTS, TEMPLATES: TEMPLATES,
     template: template, methodInfo: methodInfo, partLabel: partLabel,
@@ -875,5 +971,6 @@
     drawerCents: drawerCents, envelopes: envelopes, envelopesFor: envelopesFor, solveExact: solveExact, denomLabel: denomLabel, billsText: billsText,
     methodLine: methodLine, receiptText: receiptText, shareCard: shareCard,
     week: week, csvCell: csvCell, exportCsv: exportCsv,
+    UNCLEAR: UNCLEAR, partFromLabel: partFromLabel, reportCheck: reportCheck, matchStaff: matchStaff,
   };
 });

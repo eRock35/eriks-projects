@@ -40,8 +40,10 @@ ones).
 **Who pays.** Almost nobody. Reading a statement, the flags, the swipe, the
 calendar and adding drips by hand are free and need no account - there is no
 server step in any of them. Saving the list needs a **free** account (no AI).
-The one metered thing is **snapping a subscriptions page** (Haiku for the free
-tier, Sonnet for members via `identity.planFor`), a cent or two.
+The one metered thing is **the snap** - a photo read by a model, a cent or
+two: a subscriptions page on Claude today (Haiku for the free tier, Sonnet
+for members via `identity.planFor`), or a subscriptions page *or a statement*
+on Gemini once `DRIP_AI_PROVIDER=gemini` is set (see "The AI feature").
 
 **The honest risk.** Pattern-finding is a guess: a monthly-ish restaurant can
 look like a bill, a bill paid from another card is invisible, and a bank's
@@ -60,7 +62,12 @@ too stays on the device.
 
 ## The decisions that matter
 
-- **The statement never reaches the server.** `public/drip-core.js` (UMD:
+- **The statement FILE never reaches the server.** (A photo the person
+  chooses to snap is the one thing that is sent - the page says so in those
+  words, on the Add screen, in the snap sheet and in the footer: "A statement
+  file is read on this phone and never uploaded. A photo you choose to snap
+  is sent once to be read, and never kept." Do not blur that line.)
+  `public/drip-core.js` (UMD:
   `window.DripCore` in the page, `require` in the server and tests) parses it
   in the browser. There is **no route** that accepts one (a POST to
   `/api/statement` is a 404, tested), `test/run.js` reads `app.js` and holds
@@ -147,7 +154,8 @@ too stays on the device.
   spent, ONE forced tool `record_subscriptions` `{items: [{name, price,
   cadence, renews}]}`, whitespace streamed. The prompt: read only what is
   shown, never invent a subscription, a price or a date.
-  `Core.cleanSnapItems`: 60 max, names bounded and stripped of markup,
+  This is the Claude path, the default; the Gemini path is under "The AI
+  feature". `Core.cleanSnapItems`: 60 max, names bounded and stripped of markup,
   control and bidi characters, prices through the cents parser (words, $0 and
   negatives dropped), cadence from a fixed set (synonyms mapped, anything else
   dropped), renewal dates checked against today. The page shows an editable
@@ -170,6 +178,114 @@ too stays on the device.
   page with their words; a provider error is a 502 (503 "The AI is busy")
   sentence. Nothing logged carries a merchant, an amount or an image.
 
+## The AI feature: snap a page or a statement to find quiet drains (2026-11-23)
+
+Erik's per-app plan: *Drip - Gemini - "Snap your subscriptions page or
+statement to find quiet drains." Why: screenshots.* Built on the redesign
+branch, **off until switched on**.
+
+- **The switch.** `DRIP_AI_PROVIDER=gemini` (a Cloud Run setting, read per
+  request). Unset - or anything else - is `claude`, Drip's provider since it
+  shipped, so merging changed nothing live. `/api/me` carries `snap`:
+  `'subscriptions'` (Claude) or `'statement'` (Gemini), and the page's words
+  follow it ("Snap my subscriptions" / "Snap a page or statement", and the
+  sheet names Google Gemini only when that is what will read the photo).
+- **The model is a reader, never a judge** (`lib/gemini.js`). A
+  `responseSchema` of `{items: [{merchant, amount (null when unreadable),
+  cadence (weekly|monthly|quarterly|annual|not_shown - only when the page
+  itself says), nextDate, lastDate, confidence 0..1}]}`. There is no field
+  for a total, a yearly cost, "is this a subscription", a card or account
+  number, a name or an address, and nothing else in an answer is read.
+  `cleanReading` clamps every field (cents through `Core.toCents`, dates real
+  and in range, confidence 0..1, 60 rows) and **keeps** a row whose amount or
+  cadence could not be read, as null - the page asks the person rather than
+  guessing. `scrub()` takes card/account-shaped digits, emails, phone numbers
+  and links out of every merchant name.
+- **Drip decides what a drain is** (`Core.snapCandidates`, on the phone, the
+  same file the CSV goes through): a row whose page states a cadence is a
+  drain as shown; dated statement lines go through `findRecurring` - what
+  repeats on a cadence is a drain, with the engine's cadence and next date;
+  one line from the curated table or a "membership" descriptor is a drain
+  whose cadence is a **marked guess**; everything else is a one-off, listed
+  apart and never counted. The review totals (a year, a month) are summed on
+  the page from the ticked rows with `yearlyOf`. Nothing joins the list until
+  the person ticks it and taps Add; low-confidence and price-less rows start
+  unticked with a "Hard to read" / "Price not readable" chip.
+- **Before sending**: each photo is shrunk to ~1600 px JPEG on the device,
+  and **Trim** cuts the top and bottom off (two sliders, a live preview of
+  exactly what will be sent) so a name, address or account number never
+  leaves the phone. The server caps 3 photos, 4 MB each, 8 MB together, type
+  by magic bytes. Never stored, never logged (tested: the store's dump is
+  byte-identical after a snap).
+- **Gates and cost**: `requireUser, requireBudget, requireDailyCap`, the
+  12 MB parser, the image checks, then `global.LAB_AI_GUARD.allow({provider,
+  req, app: 'drip'})` (its 429/503 sentence goes to the page as a real
+  status, before the stream starts), then ONE call through
+  `LAB_AI_GUARD.gemini.generate`, then `record` with `priceUsd`. The person's
+  own ledger is charged the call's real dollars (`chargeGemini`: written as
+  the Haiku input tokens that cost the same, route `snap:gemini-3.8-flash`).
+  The Claude path is wrapped by the same guard (`allow('claude')`, `record`
+  unless the member's own key paid). With no guard (the app on its own) only
+  the stand-in answers; a real Gemini call needs the lab.
+- **Fallback (2026-11-23).** With the switch on, a snap Gemini could not
+  read (the Gemini monthly cap, a thrown call, no rows, no helper) goes to
+  the Claude reader for the same photos, unchanged (`allow('claude')`, meter,
+  record); its answer is Claude's (no `reader: 'statement'`). One log line
+  `[drip] gemini failed (<code>); used claude`; a billed Gemini failure is
+  still recorded and charged. Burst refusals answer as before. The schema
+  has **no `maxItems`**: live Vertex answered 400 to every snap with it at 60
+  (fine at 20); `cleanReading` still keeps at most 60 rows.
+- **Claude first (2026-11-23).** `DRIP_AI_PROVIDER=claude-first`: Claude
+  reads the snap; a thrown call, no rows, the Claude cap or no key sends the
+  same photos to Gemini (`reader: 'statement'`, log `[drip] claude failed
+  (<code>); used gemini`). Burst refusals are final. `/api/me` keeps `snap:
+  'subscriptions'`, so the page words stay Claude's (no provider named).
+- **The stand-in** (`lib/fakeai.js` `gemini`): triggers in image bytes
+  `BLANK`, `INJECT`, `STATEMENT`, `UPSTREAMnnn`, else a subscriptions page
+  with one blurred price. `DRIP_FAKE_SCENE=STATEMENT` picks a scene for a
+  browser run, where the page re-encodes the photo.
+- **To switch it on** (Erik's yes): Vertex AI enabled and `aiplatform.user`
+  for `challenge-run@` (the guard's note), then `DRIP_AI_PROVIDER=gemini` on
+  the service. To switch back, unset it.
+
+## The design (2026-11-23, the all-apps redesign)
+
+HOA Desk's rules, Drip's own blue. `public/app.css` opens with them.
+
+- **Pure white page, true black in the dark**; no gradient (tested), no
+  tinted surfaces, no boxes for their own sake. Hairlines `--line`, gray
+  `--fill` only for controls and quiet notes, 12 px cards, 10 px inputs and
+  tiles, pill buttons and chips. The only shadow is `--float`, on things that
+  float (the tab pill, the swipe card, sheets, the toast).
+- **One accent**: `--accent` `#0b4a8f` (lab.js `color`; `#6fb3ff` in the
+  dark) for the primary action, links and the current tab. Keep / cut / not
+  sure colours are status only, and every chip and stamp carries its word.
+  Category colours appear only as the total's bar, its dots and a card's
+  dot/sparkline (set through the CSSOM by `paint()`).
+- **Type**: system stack only; 13, 15, 16, 20, 28 and up (the total and the
+  welcome headline are the "and up"); tabular numbers wherever they line up.
+- **Three views, one nav** (`#tabs`, `go(view)`): **Drips** (the welcome or
+  your status line, the total, "Wait, what?", a one-row way into deciding,
+  every drip), **Keep or cut** (the swipe stack and the plan), **Add**
+  (statement file, snap, by hand). On a phone the nav is a slim floating
+  pill - line icons, a label only on the current item; from 1000 px it sits
+  in the top bar with a quiet underline, and Drips puts the list beside the
+  total. Every main task is 1-2 taps from the home view: check a statement
+  (Check my statement -> choose files), decide (Keep or cut -> Cut/Keep),
+  snap (Snap -> choose photos), add by hand (Add one by hand -> Add it), edit
+  a drip (its row -> Done), save (Save my list).
+- **The welcome** is a centred hero over Alex's example: one headline, one
+  line, two pill buttons, "Read on your phone. Nothing is uploaded."
+- **No `style=` anywhere** - not in `index.html`, not written by `app.js`
+  (tested); the few computed values go on through the CSSOM. Icons are one
+  table of thin line SVGs (`ICONS`); emoji remain only as a drip's category
+  tile and the brand mark.
+- **Motion** (press states, the view and sheet entrances, the card's fly-off,
+  the meter, the confetti) lives entirely inside `@media
+  (prefers-reduced-motion: no-preference)` (tested); every screen is complete
+  at rest. `desktop.css` is still linked (shared file) but the body no longer
+  opts into it with `.dk`.
+
 ## The first run
 
 The page opens on **Alex's** example: a year of one made-up credit card
@@ -178,23 +294,23 @@ only - "Streamio", "TuneBox", "Melodia Music", "CloudVault", "FitNest Gym",
 ...) with 14 drips and ordinary spending that must not be detected. A year
 rather than six months, because the yearly renewal is the drip people forget
 most and a shorter statement cannot show one. On a 390px phone the first
-screen is: the dark strip ("This is an example statement for Alex - swipe
-through it, then try your own", a big **Check my statement**, "Read on your
-phone. Nothing is uploaded."), the hero ("Alex has 14 drips costing **$218**
-a month - $2,616 a year", a category bar with its text legend) and the three
-most surprising flags (price creep, trial turned paid, two music apps).
-Scrolling: the swipe stack, then every drip (tap to edit), gone-quiet ones
-apart, and Snap / Add by hand.
+screen is the welcome ("Find what's quietly draining your account.",
+**Check my statement**, **Try Alex's example**, "Read on your phone. Nothing
+is uploaded."), then the total ("Alex has 14 drips costing **$218** a month -
+$2,616 a year", a category bar with its text legend) and the three most
+surprising flags (price creep, trial turned paid, two music apps).
+Scrolling: the way into Keep or cut, then every drip (tap to edit),
+gone-quiet ones apart, and Snap / Add by hand.
 
-**Check my statement** opens the import screen: "Read on this phone. Nothing
+**Check my statement** opens the Add view: "Read on this phone. Nothing
 is uploaded.", three steps (sign in to your bank's website; Activity →
 Download → CSV, 6-12 months; drop it here), a drop zone (several files),
 "paste the CSV text", and the other ways in - **Snap my subscriptions page**
 (asks to sign in; 401 → sign in, 402 → the credit sheet, 403 `verify-email`
 → its sentence and "Send the link again") and **Add one by hand**.
 
-On a desktop the stack sits in a sticky right column beside the total, the
-flags and the list.
+On a desktop the list sits beside the total and the flags; Keep or cut is
+its own view there too.
 
 ## Local run and tests
 
@@ -229,7 +345,9 @@ Card (Merchant column).
 Public: `GET /api/health`, `/api/meta`, `/api/me`, the page. Signed in,
 free: `GET|PUT|DELETE /api/list`. Metered (`requireUser, requireBudget,
 requireDailyCap`, then the parser): `POST /api/snap` `{photos: [{type,
-data}]}`. There is deliberately no route for a statement.
+data}]}` -> `{items, dropped}` (Claude) or `{items, dropped, reader:
+'statement'}` with `cents`/`cadence` possibly null and a `confidence` per
+row (Gemini). There is deliberately no route for a statement file.
 
 ## Ideas not built yet
 

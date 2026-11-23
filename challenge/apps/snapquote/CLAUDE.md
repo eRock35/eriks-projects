@@ -131,11 +131,122 @@ same split as the siblings. Both read images. A draft with four photos is
 roughly 6k input and 1.5k output tokens: about 1.5¢ on Haiku, so the $2 free
 allowance is on the order of 100 quotes.
 
+## Design (redesigned 2026-11-23)
+
+The lab's shared look, written out at the top of `public/app.css`: a pure
+white page (true black in dark mode), hairlines instead of boxes, lists over
+cards, system type in five sizes, a 4/8 spacing scale, one accent, pill
+buttons, 10 px inputs, 12 px cards, no shadows except on what floats.
+
+- **One accent: the lab card's emerald**, deepened to `#047857` in light
+  (5.48:1 under white text and as link text on white) and `#34d399` in dark.
+  `lab.js` colours are unchanged. Status colours (grey draft, blue sent,
+  violet viewed, amber changes, green won, red lost) are for a quote's status
+  only and every pill carries its word.
+- **A customer's quote wears the pro's brand colour as a fill only** - the
+  logo tile, the Accept button, the chosen option's dot - with an ink picked
+  by `inkFor()` (near-black above a luminance of 0.179, else white, whichever
+  contrasts more). Never brand-coloured text: a pro can pick any colour.
+- **Navigation.** Phones: a slim floating translucent pill, four 1.5 px line
+  icons, the label only on the current one. From 900 px: the same four
+  buttons in the top bar with a quiet underline (the shared `desktop.css`
+  rail is overridden at the end of `app.css`). In the editor and on "Check
+  the lines" a phone shows the action bar instead of the pill
+  (`body.has-bar`); the back arrow returns.
+- **Taps from home (the pipeline):** new quote 1; open a quote 1; scoreboard
+  1; business 1; read a job 2 (New quote, then Read the job, once a photo or
+  a voice note is in); send a quote 2 (open it, Send).
+- **No `style=` attribute anywhere**, in the HTML or written by script.
+  Values only known at run time (a brand colour, a bar's width) are written
+  as `data-css="--brand:#0891b2;--brand-ink:#fff"` by `css()` and applied as
+  custom properties through the CSSOM by one `MutationObserver` (`paint`) -
+  nothing but a `--name` is ever applied. The suite checks the page writes no
+  style attribute, inline script or `on*=` handler.
+- **Motion** (press states, the sheet rising, review lines settling in, the
+  recording pulse, confetti) sits only inside `prefers-reduced-motion:
+  no-preference`; every page is complete at rest.
+- **Measured in headless Chrome, 390 / 320 / 1440 px, both themes:** lowest
+  text contrast 5.48:1 light and 7.22:1 dark for the app's own colours
+  (5.15:1 for the ink on a sample brand-colour fill); nothing sideways at
+  390 or 320; every control 44 px or more; no CSP or console error.
+
+## Read the job: Gemini, behind `SNAPQUOTE_AI_PROVIDER` (2026-11-23)
+
+Erik's AI plan for this app: *job photos plus a voice note become priced line
+items; the server does the maths.* It is built and **switched off**:
+`SNAPQUOTE_AI_PROVIDER=gemini` turns it on, anything else (and unset) is
+`claude`, the app as it was. The switch is read per request (`providerNow()`),
+so it is a Cloud Run setting and nothing else; `/api/me` reports `ai` and
+`voice`. **Turning it on is Erik's call**, and needs Vertex AI reachable by
+`challenge-run@` (see `challenge/CLAUDE.md`, "Lab AI guard").
+
+- **Claude stays the default reader and stays beside it.** "Snap my quote"
+  (`POST /api/quotes/draft`, Claude drafts a whole quote, prices included) is
+  untouched, and with Gemini on it is still there as "Draft a whole quote
+  instead". Polish and follow-up stay on Claude either way.
+- **What Gemini is asked for** (`lib/gemini.js`, one `responseSchema` call):
+  `relevant`, a `title`, `heard` (one or two sentences of what the voice note
+  said), up to 20 `items` - `task`, `category`, `quantity` (nullable), `unit`
+  (the app's list), `materials`, `confidence` (high / medium / low) - and up
+  to four `questions` to check on site.
+- **The model never outputs money.** The schema has no price, cost, rate,
+  total, tax or margin field (tested by name); anything like it in the answer
+  is never read; and `noMoney()` takes currency amounts out of every string.
+  The fake's `MONEY` trigger is a model that prices anyway, and the suite
+  proves none of it reaches a line, a price or a total.
+- **Prices come from the pro's own numbers** (`lib/rates.js`), in order:
+  their **price list** (new: `rates` on the profile, up to 40, edited under
+  Business), a line on one of their templates, a line on one of their last 60
+  quotes, then their hourly rate for a labor line in hours. A match needs the
+  same unit and the same side of the labor line. **No match is a 0 flagged
+  "Needs your price" - never a guess.** Every line says where its price came
+  from. Totals, markup and tax are `lib/quote.js`, as everywhere.
+- **Nothing is saved by a read.** `POST /api/quotes/read` answers a proposal;
+  the page's "Check the lines" screen (`#/review`) is where the person edits,
+  removes and adds lines, with unsure lines and guessed quantities flagged in
+  amber. "Save as quote" is the free `POST /api/quotes` with `read: {…}`,
+  which cleans the lines like any edit, computes the totals and stores an
+  ordinary quote (`source: 'read'`; a stored line keeps its usual shape - no
+  confidence or flags). What was heard is kept only as the private
+  description, like dictated notes always were.
+- **Media.** Up to four photos, shrunk on the device as before. The voice
+  note is recorded in the page (`MediaRecorder`, 32 kbps), **stops by itself
+  at 60 seconds and says so**, or is a chosen file checked for length;
+  `lib/audio.js` checks it by its bytes, 2 MB at most, a WAV over a minute
+  refused. Photos and the recording go to the model inline once and are
+  **never stored or logged** - the same promise the photos always had. The
+  read route alone has a 12 MB parser, mounted after the gates.
+- **Order of a read:** `requireUser` -> the switch (404 `ai-off`) ->
+  `requireBudget` -> `requireDailyCap` -> the parser -> photos, audio and note
+  validated (a 400 costs nothing) -> `LAB_AI_GUARD.allow` ->
+  `LAB_AI_GUARD.gemini.generate` -> `LAB_AI_GUARD.record` with `priceUsd`, and
+  the person's own ledger charged the same dollars (`chargeGemini`, written
+  as the Haiku input tokens that cost that much, route
+  `read:gemini-3.8-flash`). A call that failed after billing is still
+  recorded. The provider's words never reach the page (502 / 503 with the
+  route's sentence); the guard's "no" shows its own message.
+- **No Claude fallback (2026-11-23).** Read the job is Gemini-only: Claude's
+  "Snap my quote" is a different request (no audio, prices, saves a quote), so
+  a Gemini failure keeps the read's friendly 502/503/422 and the guard's
+  message, and the person can still draft or build by hand. Tested.
+- **Claude first (2026-11-23).** `SNAPQUOTE_AI_PROVIDER=claude-first` turns
+  Read the job on exactly as `gemini` does (Gemini-only, same friendly
+  errors; `/api/me` says `ai: 'claude-first', voice: true`). Draft, polish and
+  follow-up stay Claude, unchanged.
+- **Claude's three calls now ask the guard too** (`withClaude`: `allow`
+  `claude`, the call, `record` at the Claude price unless the member's own
+  key paid). With no guard loaded (the app on its own) nothing changes.
+- **Stand-in.** `SNAPQUOTE_FAKE_AI=1` answers Gemini from `lib/fakeai.js`
+  (`gemini`, `geminiCalls`); triggers `BLANK`, `EMPTY`, `UNSURE`, `MONEY`,
+  `INJECT`, `UPSTREAMnnn`. Tests never touch the network.
+- Local, with it on:
+  `SNAPQUOTE_AI_PROVIDER=gemini npm run dev`.
+
 ## Local run and tests
 
 ```
 npm run dev     # memory store + fake model, mounted at http://localhost:8091/snapquote/
-npm test        # 33 end-to-end tests over HTTP, under a /snapquote mount
+npm test        # 46 end-to-end tests over HTTP, under a /snapquote mount
 ```
 
 `SNAPQUOTE_MEMORY=1` and `SNAPQUOTE_FAKE_AI=1` both **throw on Cloud Run**
@@ -218,8 +329,10 @@ After that, `gcpdeploy ship snapquote` handles every later deploy.
   Connect — the obvious paid feature.
 - **No rate limit on the public POSTs** beyond: accept once, 20 change
   requests per quote, and one in-flight write per token.
-- Voice is browser-only (Web Speech API); Safari on iOS supports it, Firefox
-  does not, and the mic button hides where it is missing.
+- With Claude as the reader, voice is browser-only dictation (Web Speech
+  API); Safari on iOS supports it, Firefox does not, and the mic button hides
+  where it is missing. With Gemini on, the voice note is a real recording.
+- A read gives one price; Good / Better / Best is added in the editor.
 - No beacon/analytics until it has a subdomain and a place in `lib/views.js`.
 
 ## Security fixes (2026-09-27)

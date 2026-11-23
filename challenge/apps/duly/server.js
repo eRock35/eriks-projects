@@ -10,7 +10,7 @@
 //   - you are signed in (free): the bill list is kept in your account, so it
 //     follows you to another phone - the same fields as on the phone, and the
 //     same refusal of anything shaped like an account number;
-//   - you tap "Read a statement": the one model call, metered and signed in.
+//   - you tap "Snap a statement": the one model call, metered and signed in.
 //     The pasted text (stripped of account-shaped numbers first) or the photo
 //     is read once and dropped; what comes back is a proposal the page shows.
 
@@ -22,6 +22,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/duly-core');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const photo = require('./lib/photo');
 const identityLib = require('./lib/identity');
 
@@ -32,6 +33,13 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('DULY_FAKE_AI=1 is for loc
 // Free tier on Haiku, members on Sonnet - decided in one place by
 // identity.planFor, like every sibling.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a statement. DULY_AI_PROVIDER=gemini moves it to Gemini
+// on Vertex AI (through the lab's AI guard); anything else - unset included -
+// is the provider Duly has always used, so shipping this code changes
+// nothing until the setting is made. DULY_AI_PROVIDER=claude-first keeps
+// Claude first and asks Gemini only when Claude fails. Read per request.
+const providerNow = () => (process.env.DULY_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.DULY_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const LIMITS = {
   savesPerAccount: 240,            // bill-list writes per account...
@@ -136,8 +144,8 @@ app.get('/api/meta', (_req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false });
-  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
+  if (!req.user) return res.json({ signedIn: false, reader: providerNow() });
+  res.json({ signedIn: true, reader: providerNow(), email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
 });
 
 /* ------------------------------------------------------------------ *
@@ -264,17 +272,143 @@ app.delete('/api/bills', identity.requireUser, route('Could not clear it.', asyn
  * ------------------------------------------------------------------ */
 
 /** Gates, then the 9 MB parser, then the request checked (a 400 costs
- *  nothing), then one forced tool. Nothing here writes to the store, and
- *  nothing logged carries a byte of the bill. Not streamed: one bill reads
- *  in seconds, far short of the silence that drops a phone. */
-app.post('/api/read', ...spend, readJson, route('The bill could not be read right now. Try again in a minute - or add it by hand.', async (req, res) => {
+ *  nothing), then the lab's AI guard (the month's cap per provider and the
+ *  burst limits, when the host has one), then ONE call: a forced tool on
+ *  Claude, or a four-field responseSchema on Gemini. Nothing here writes to
+ *  the store, and nothing logged carries a byte of the bill. Not streamed:
+ *  one bill reads in seconds, far short of the silence that drops a phone. */
+const READ_FALLBACK = 'The bill could not be read right now. Try again in a minute - or add it by hand.';
+const NOTHING = 'Nothing like a bill could be read from that. Try a sharper photo, or paste the part with the amount and due date - or add it by hand.';
+
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'duly' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Adding a bill by hand still works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'duly', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: the identity meter charges the person. */
+async function readWithClaude(req, b, today) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return ai.cleanProposal(await ai.read(client, model, b, today, (u) => { used = u; }), today);
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function readWithGemini(req, b, today) {
+  try { await guardAllow('gemini', req); } catch (err) {
+    // Gemini's month is spent: Claude can still answer. A burst refusal is
+    // per person across both providers, so it is sent as it is.
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(b, today);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 100, outputTokens: 50 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), {
+      status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502),
+      fallback: err && typeof err.code === 'string' && /^[a-z-]{1,20}$/.test(err.code) ? err.code : 'error',
+    });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  return gemini.cleanReading(out && out.json, today);
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `read:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
+/** Why a Claude read failed, as a fixed code for the log - or null for a
+ *  burst refusal, which is per person across both providers and is sent as
+ *  it is. Never the provider's own words. */
+function claudeFailure(err) {
+  if (!err) return 'error';
+  if (err.code === 'burst-minute' || err.code === 'burst-day') return null;
+  if (err.claudeFailed) return err.claudeFailed;
+  if (err.code === 'monthly-cap') return 'monthly-cap';
+  return Number.isInteger(err.status) ? 'http' : 'error';
+}
+
+app.post('/api/read', ...spend, readJson, route(READ_FALLBACK, async (req, res) => {
   const today = todayOf(req);
   const b = ai.brief(req.body, photo);
-  const proposal = ai.cleanProposal(await ai.read(await clientFor(req), modelFor(req), b, today), today);
-  if (!proposal.payee && proposal.amount === null) throw httpError(422, 'Nothing like a bill could be read from that. Try a sharper photo, or paste the part with the amount and due date - or add it by hand.');
+  // Gemini first when the switch is on; if it fails for any reason but a
+  // burst refusal, Claude reads the same request exactly as it always has.
+  let proposal = null;
+  let reader = 'claude';
+  if (providerNow() === 'gemini') {
+    try {
+      proposal = await readWithGemini(req, b, today);
+      // Gemini reads no payee, so "nothing" there is no amount and no date.
+      if (proposal.amount === null && proposal.dueDate === null) throw Object.assign(new Error('unusable'), { fallback: 'unusable' });
+      reader = 'gemini';
+    } catch (err) {
+      if (!err || !err.fallback) throw err;
+      console.warn(`[duly] gemini failed (${err.fallback}); used claude`);
+      proposal = null;
+    }
+  }
+  if (!proposal && providerNow() === 'claude-first') {
+    // Claude first; if it fails for any reason but a burst refusal, Gemini
+    // reads the same request down its own path (allow, call, record, charge).
+    try {
+      proposal = await readWithClaude(req, b, today);
+      if (!proposal.payee && proposal.amount === null) throw Object.assign(new Error('unusable'), { claudeFailed: 'unusable' });
+    } catch (err) {
+      const why = claudeFailure(err);
+      if (!why) throw err;
+      console.warn(`[duly] claude failed (${why}); used gemini`);
+      proposal = await readWithGemini(req, b, today);
+      if (proposal.amount === null && proposal.dueDate === null) throw httpError(422, NOTHING);
+      reader = 'gemini';
+    }
+  }
+  if (!proposal) {
+    proposal = await readWithClaude(req, b, today);
+    if (!proposal.payee && proposal.amount === null) throw httpError(422, NOTHING);
+  }
   proposal.stripped = proposal.stripped || b.stripped;
   res.set('Cache-Control', 'no-store');
-  res.json({ proposal });
+  res.json({ proposal, reader });
 }));
 
 /* ------------------------------------------------------------------ *

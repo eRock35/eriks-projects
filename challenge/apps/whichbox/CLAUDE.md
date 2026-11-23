@@ -84,8 +84,9 @@ Whichbox is knowing what is in which box.
 **Who pays.** Almost nobody. Moves, storage lists, boxes, photos, labels,
 signs, search, moving day, sharing with helpers and the CSV are free, need
 no account and make no model call. A **free** account adds one metered
-thing: "List what's in this box" from one photo (Haiku free, Sonnet for
-members via `identityLib.planFor`), about a cent.
+thing: "List what's in this box" from one photo, about a cent - read by
+Claude today (Haiku free, Sonnet for members via `identityLib.planFor`), or
+by Gemini once `WHICHBOX_AI_PROVIDER=gemini` is set (below).
 
 **How it becomes an iPhone app.** The camera opening a label's QR straight
 into the app (universal links), a widget with "Kitchen: 12 of 14
@@ -219,16 +220,66 @@ right one waits** (a phone polling the same dead id counts once); 900
 writes per address and 400 per member in 10 minutes. IPv6 counts by its
 /64. 20 moves and lists on one phone.
 
+## Design (2026-11-23, Erik's app style)
+
+Redesigned to the lab's shared look; `public/app.css` opens with the rules
+and `test/run.js` ("the look") holds them.
+
+- **Pure white** (`#ffffff`; true black in dark, sheets on `#1c1c1e`),
+  hairlines `#e5e5ea`, no gradients, no shadows but a barely-there one on
+  floating things (the tab pill, the save bar, sheets, the toast). Corners:
+  12 px cards, 10 px inputs and number tiles, pill buttons and chips.
+- **Lists over boxes.** `.card` is a section, not a box: space, a heading
+  and a hairline group things. Boxes are a list - each row led by its number
+  on a 52 px tile in its room's colour, the room's name written beside it.
+  A box (`.boxed`, `.alertcard`) only where it is one object: the label on
+  the first page, the labels preview, "Loaded but not delivered".
+- **One accent**: the lab card's marker-pen violet blue `#3a3196` (lab.js
+  `color2`; `#b9b3f5` in dark) for the primary action, links and the active
+  tab. Green, amber, red and blue only for a box's status and flags. A
+  room's own colour is data (it is the band on its printed label), never
+  decoration.
+- **Navigation**: one `<nav class="tabbar">` inside the header. On a phone
+  it is a slim floating translucent pill (1.5 px line icons, a label only on
+  the active tab, a small accent mark, safe-area aware, 48 px targets); from
+  900 px it sits in the top bar with a quiet underline. `desktop.css` is
+  still loaded (synced, untouched) but the body no longer opts in with
+  `dk`, so there is no side rail.
+- **Type**: the system stack on 13 / 15 / 16 / 20 / 28 px plus display
+  sizes (the hero, a box's number, "9 of 18"), tight-tracked headings,
+  tabular numbers. Spacing on 4/8.
+- **The first page** is a centred hero: the question, one line, "Try a
+  made-up move" and "Start a move", two text links, and the label itself
+  drawn plainly.
+- **No style attributes**, in the page or written by script (tested). A
+  room's colour is `data-rc="<palette id>"` with the table in the stylesheet
+  (tested against `Core.PALETTE`); stacked bars are SVG rects; a label's
+  millimetre sizes ride in `data-sz` and are set through the CSSOM by
+  `applySizes` (listed properties, plain lengths only) for the preview and
+  the printout. The printed labels and signs themselves are unchanged.
+- **Icons**: one small set of line icons (`ICONS` / `ic()` in `app.js`);
+  no emoji as icons.
+- **Motion** (press states, the view rising, sheets, the scan line over the
+  photo while it is read) only inside `prefers-reduced-motion:
+  no-preference`; every page is complete at rest.
+- **Taps from the boxes list** (home once a move exists): add a box 1,
+  find 1 (or type in the search field: 0), mark a box delivered 2 (open it,
+  the big button - or Moving day, the row's button), print labels 2, list a
+  box from a photo 2 (Add a box, "List what's in it").
+- Measured in the browser (headless Chrome, 390 / 320 / 1440 px, light and
+  dark, every view and the AI sheet): the lowest text contrast is 5.02:1
+  in both themes, no target under 44 px, nothing scrolls sideways at 320 px,
+  no console error or CSP report; 18 labels still print as 3 Letter pages.
+
 ## The model call (metered, signed in only)
 
 **`POST /api/ai/contents`**: `requireUser, requireBudget, requireDailyCap`
 **then** the route's own 1.4 MB parser (401 / 402 / 403 / 503 before it,
 never 413 - tested), then `ai.brief`: exactly `{image: {type, data}}`, a
 JPEG or PNG **by its bytes**, at most 1 MB and 1600 px a side, its metadata
-stripped again (`lib/image.js`) - a 400 costs nothing. Then one forced tool
-`record_contents` through one call site (`ai.ask`), told the photo and one
-fixed sentence - nothing about the person (tested by reading the fake's
-log). Then `cleanAiAnswer`:
+stripped again (`lib/image.js`) - a 400 costs nothing. Then the lab's AI
+guard, then ONE call by the reader that is switched on, then
+`cleanAiAnswer`:
 
 - at most 40 items, each plain, under 40 characters, no markup, no links, no
   long numbers, no repeats (by `itemKey`);
@@ -238,16 +289,61 @@ log). Then `cleanAiAnswer`:
   high / medium / low;
 - nothing usable is a 422.
 
-Nothing is stored. The sheet says what is sent before the tap ("this one
-photo, shrunk on this phone with its location removed. Nothing else - not
-your move's name or address, your rooms, or what's already listed"),
-labels the answer "AI-written - check every line", unticks things already
-in the box ("Already listed"), and adds only what is ticked - to the add
-form or to an existing box (and keeps the photo with the box, on the
-phone). Signed out it explains and offers a free account; Try it says it is
-for your own boxes; 401 opens sign-in, 402 the credit sheet, 403
-`verify-email` its sentence and "Send the link again"; sheets size
-themselves below the confirm-your-email banner.
+**The switch: `WHICHBOX_AI_PROVIDER`.** Exactly `gemini` moves the reader
+to Gemini; anything else - unset included - is Claude, as it has always
+been (`providerNow()`, read per request, so it is a Cloud Run setting and
+never a code change). **Merging changed nothing live; switching it on is
+Erik's call.** `/api/me` reports `reader` so the sheet can say who reads
+the photo.
+
+**`claude-first` (2026-11-23):** Claude reads first, exactly as unset; if it fails for any reason but a
+burst refusal (SDK error, an answer the clamp rejects, Claude's `monthly-cap`, no key) the Gemini reader
+answers the same photo (`listClaudeFirst`, log `[whichbox] claude failed (<code>); used gemini`, `reader`
+on the answer). `/api/me` says `claude-first` and the sheet names both readers.
+
+- **Claude** (default): one forced tool `record_contents` through one call
+  site (`ai.ask`), told the photo and one fixed sentence - nothing about the
+  person (tested by reading the fake's log). The identity meter charges the
+  person.
+- **Gemini** (`lib/gemini.js`, `gemini-3.8-flash`): the same photo and one
+  fixed sentence, JSON out against a `responseSchema` whose items are
+  `{name, confidence}` - **one confidence per thing**, which the answer
+  carries as `itemConfidence` (in step with `items`; anything outside the
+  fixed set is `low`). The call is the guard's
+  `global.LAB_AI_GUARD.gemini.generate`; the app has no Vertex client of its
+  own. The person is charged on the identity ledger at the call's real
+  dollars (`chargeGemini`: written as the Haiku input tokens that cost the
+  same, route `contents:gemini-3.8-flash`), so credit and the free tier's
+  daily ceiling keep working. A call that failed after the model billed it
+  is still recorded and charged; the provider's words never reach the page.
+- **Fallback (2026-11-23)** (`listGeminiFirst`): with the switch on, any
+  Gemini failure but a burst refusal (Vertex error, an answer the clamp
+  rejects, Gemini's `monthly-cap`, no helper) runs the Claude reader
+  unchanged and logs `[whichbox] gemini failed (<code>); used claude`;
+  `burst-minute`/`burst-day` are sent as they are. The answer then carries
+  `reader: 'gemini' | 'claude'` (switch off: no `reader`, as before).
+- **The lab's guard** (`challenge/CLAUDE.md`, "Lab AI guard"): after the
+  identity gates and a valid request, `guard.allow({provider, req, app:
+  'whichbox'})` - a no is its status, code and friendly sentence, and no
+  model call - then the call, then `guard.record` with `guard.priceUsd`
+  (for Claude only when the lab's key paid, not a member's own). Coded with
+  `global.LAB_AI_GUARD` optional: on its own the app runs without it, and
+  Gemini can then only be answered by the local stand-in.
+
+Nothing is stored - not the photo, not the answer. The sheet says what is
+sent before the tap ("this one photo, shrunk on this phone with its
+location removed. Nothing else - not your move's name or address, your
+rooms, or what's already listed"), and who reads it. The answer is a list
+to check, labelled "AI-written - check every line": each line can be
+unticked, reworded or removed, and one the reader missed can be typed in;
+things already in the box start unticked ("Already listed"), and so do
+things Gemini was not sure of ("Not sure"). Only what is ticked is added -
+to the add form or to an existing box (and the photo is kept with the box,
+on the phone, as before). Signed out it explains and offers a free account;
+Try it says it is for your own boxes; 401 opens sign-in, 402 the credit
+sheet, 403 `verify-email` its sentence and "Send the link again"; sheets
+size themselves below the confirm-your-email banner. The photo is shrunk on
+the phone (1200 px, then smaller until it is under 1 MB) before it is sent.
 
 ## On the phone
 
@@ -285,9 +381,12 @@ with `REQUIRE_VERIFIED_FOR_FREE_AI=0` (the gate itself is held by the
 suite's gate test and by the lab's). The fake refuses a call that does not
 force a tool, keeps every request (`fakeClient.calls`), and takes
 `fakeClient.mode` for one call: `blank`, `inject`, `unsure`, `maxtokens`,
-`upstreamNNN`.
+`upstreamNNN`. The Gemini stand-in (`fakeai.gemini`, with its own `mode` and
+`calls`) answers the same made-up kitchen box with a confidence per thing;
+the tests inject a fake guard (`fakeGuard`) and never touch a network.
+`WHICHBOX_AI_PROVIDER=gemini npm run dev` shows the Gemini reader locally.
 
-`test/run.js` (36 tests): text and hostile input, codes, box numbering (never
+`test/run.js` (39 tests): text and hostile input, codes, box numbering (never
 reused, 409 naming the next, a drawn id never reused), rooms and colours
 (white text in colour and in grey, kinds, unique names, a room in use kept),
 flags (Valuables never printed), statuses and transitions, search (plurals
@@ -308,7 +407,10 @@ gate order and the owner check before the batch parser, share / join / the
 key cookie and its per-move hash, helper vs owner powers, concurrent
 statuses, edits and adds, the same 404 and expiry on read, the limits,
 hostile input end to end, no photo accepted anywhere, the AI over HTTP,
-the 403 / 402 / 503 gates, and nothing identifying in the store.
+the 403 / 402 / 503 gates, the provider switch and the Gemini schema, the
+Gemini reader over HTTP (gates, allow -> generate -> record, what reached
+the model, clamping, the charge, provider failures), the guard saying no on
+either reader, and nothing identifying in the store.
 
 Rendered with Playwright at 390 px and 1280 px, light and dark: the first
 run, Try it (moving day, boxes, find "kettle", Box 14, labels, More),
@@ -362,7 +464,8 @@ account: `POST /api/moves`, `GET|POST /api/join/:code`. Members
 (`/api/m/:id`): `GET` (`?since=v`), `PUT box/:bid/status`, `DELETE me`.
 Owner: `POST boxes` (a batch), `POST box`, `PATCH box/:bid`, `DELETE
 box/:bid`, `PATCH` (name, places, rooms), `DELETE members/:mid`, `POST
-code`, `DELETE /api/m/:id`. Metered: `POST /api/ai/contents`. The shared
+code`, `DELETE /api/m/:id`. Metered: `POST /api/ai/contents` (Claude, or Gemini behind
+`WHICHBOX_AI_PROVIDER=gemini`). The shared
 account at `/api/auth`.
 
 ## What is deliberately not built

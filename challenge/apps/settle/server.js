@@ -7,7 +7,9 @@
 // recognised by an HttpOnly key, stored only as a hash per decision.
 //
 // A model is used for ONE thing, metered and signed in: "Fill the deck for
-// me" - a short ask turned into 8-20 options. Everything else - the decks,
+// me" - a short ask turned into a deck of options. Claude today (a forced
+// tool); with SETTLE_AI_PROVIDER=gemini a small fast Gemini model deals
+// generic cards through the lab's AI guard. Everything else - the decks,
 // the votes, the vetoes, the match, the runoff, the tie-break wheel - is the
 // core file and costs nothing.
 
@@ -20,6 +22,7 @@ const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/settle-core');
 const D = require('./lib/decisions');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const identityLib = require('./lib/identity');
 
 const PORT = process.env.PORT || 8080;
@@ -29,6 +32,14 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('SETTLE_FAKE_AI=1 is for l
 // Free tier on Haiku, members on Sonnet - decided in one place by
 // identity.planFor, like every sibling.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model fills the deck. SETTLE_AI_PROVIDER=gemini moves it to Gemini
+// Flash Lite on Vertex AI (through the lab's AI guard); anything else -
+// unset included - is the provider Settle has always used. Read per request,
+// so the switch is a setting, not a deploy. SETTLE_AI_PROVIDER=claude-first
+// keeps Claude first and deals the Gemini deck only when Claude fails.
+const PROVIDERS = new Set(['gemini', 'claude-first']);
+const providerNow = () => (PROVIDERS.has(process.env.SETTLE_AI_PROVIDER) ? process.env.SETTLE_AI_PROVIDER : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -220,26 +231,141 @@ app.get('/api/meta', (_req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false });
-  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier });
+  if (!req.user) return res.json({ signedIn: false, ai: providerNow() });
+  res.json({ signedIn: true, ai: providerNow(), email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier });
 });
 
 /* ------------------------------------------------------------------ *
  * Metered: fill the deck for me
  * ------------------------------------------------------------------ */
 
+/** The lab's AI guard (monthly cap per provider, burst limits), when the
+ *  host has one. Its "no" is sent in its own friendly words and no model is
+ *  called. */
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'settle' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. The decks and typing your own still work.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'settle', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: one forced tool, and the identity meter
+ *  charges the person. */
+async function fillWithClaude(req, ask) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return { options: ai.cleanSuggestions(await ai.suggest(client, model, ask, (u) => { used = u; }), ask.have) };
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini Flash Lite, through the guard's Vertex helper. With no guard (the
+ *  app on its own) only the local stand-in can answer; a real call needs the
+ *  lab. */
+async function fillWithGemini(req, ask) {
+  await guardAllow('gemini', req);
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(ask);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 380, outputTokens: 320 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, geminiCode: 'no-helper' });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), geminiCode: err && err.code });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  return gemini.cleanDeck(out && out.json, ask.have);
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `suggest:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
 /** Gates, then a 16 KB parser, then the ask checked (a 400 costs
- *  nothing), then one forced tool. The ask is read once and dropped;
- *  nothing here writes to the store. */
+ *  nothing), then the lab's AI guard, then ONE call: a forced tool on
+ *  Claude, or a responseSchema on Gemini. The ask is read once and dropped;
+ *  nothing here writes to the store. On Gemini the answer also carries the
+ *  question to put to the group, and the cards are generic kinds of place -
+ *  anything shaped like a real one's details is dropped (lib/gemini.js). */
 app.post('/api/suggest', ...spend, suggestJson, route('Ideas aren’t available right now. Try again in a minute - the decks still work.', async (req, res) => {
   const b = req.body || {};
-  const prompt = ai.cleanPrompt(b.prompt);
-  const have = ai.cleanHave(b.have);
-  const options = ai.cleanSuggestions(await ai.suggest(await clientFor(req), modelFor(req), { prompt, have }), have);
-  if (options.length < Core.LIMITS.suggestMin) throw httpError(422, 'Nothing usable came back. Try saying it another way - “board games for six adults”.');
+  const ask = { prompt: ai.cleanPrompt(b.prompt), have: ai.cleanHave(b.have) };
+  const mode = providerNow();
+  const { deck, viaGemini } = mode === 'gemini' ? await fillGeminiFirst(req, ask) : mode === 'claude-first' ? await fillClaudeFirst(req, ask) : { deck: await fillWithClaude(req, ask), viaGemini: false };
+  if (deck.options.length < Core.LIMITS.suggestMin) throw httpError(422, 'Nothing usable came back. Try saying it another way - “board games for six adults”.');
   res.set('Cache-Control', 'no-store');
-  res.json({ options });
+  res.json({ options: deck.options, ...(viaGemini ? { question: deck.question, cards: true } : {}) });
 }));
+
+/** The switch on: Gemini first. If that fails for any reason but a burst
+ *  refusal (a Vertex error, a deck too thin to use, Gemini's monthly cap, no
+ *  helper), Claude fills the same ask exactly as it always has - its own
+ *  allow, gates, meter and record - and the answer is Claude's list. A burst
+ *  refusal is the person's, across both providers, so it is sent as it is. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function fillGeminiFirst(req, ask) {
+  try {
+    const deck = await fillWithGemini(req, ask);
+    if (deck.options.length < Core.LIMITS.suggestMin) throw Object.assign(new Error('unusable'), { geminiCode: 'unusable' });
+    return { deck, viaGemini: true };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const raw = (err && (err.geminiCode || err.code)) || 'error';
+    const code = typeof raw === 'string' && /^[a-z-]{1,24}$/.test(raw) ? raw : 'error';
+    console.error(`[settle] gemini failed (${code}); used claude`);
+    return { deck: await fillWithClaude(req, ask), viaGemini: false };
+  }
+}
+
+/** Claude first (SETTLE_AI_PROVIDER=claude-first): the same two paths the
+ *  other way round. Claude failing for any reason but a burst refusal (a
+ *  thrown SDK error, a list too thin to use, Claude's monthly cap, no key)
+ *  has Gemini deal the same ask, and the answer is Gemini's deck. */
+async function fillClaudeFirst(req, ask) {
+  try {
+    const deck = await fillWithClaude(req, ask);
+    if (deck.options.length < Core.LIMITS.suggestMin) throw httpError(422, 'unusable', { code: 'unusable' });
+    return { deck, viaGemini: false };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const raw = (err && (err.code || (Number.isInteger(err.status) ? `http-${err.status}` : err.name))) || 'error';
+    const code = typeof raw === 'string' && /^[a-z0-9-]{1,24}$/i.test(raw) ? raw.toLowerCase() : 'error';
+    console.error(`[settle] claude failed (${code}); used gemini`);
+    return { deck: await fillWithGemini(req, ask), viaGemini: true };
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * Starting a decision: no account

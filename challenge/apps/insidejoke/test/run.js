@@ -536,7 +536,15 @@ test('the metered routes’ gates come before their big parsers, in order, with 
     assert.deepStrictEqual(layer(p, 'post').route.stack.map((l) => l.handle.name || '(anon)').slice(0, 5), ['requireUser', 'requireBudget', 'requireDailyCap', 'memberGate', 'jsonParser'], p);
   }
   const src = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
-  assert.strictEqual((src.match(/await clientFor\(req\)/g) || []).length, 2, 'only the two metered routes hold a client');
+  assert.strictEqual((src.match(/await clientFor\(req\)/g) || []).length, 1, 'one place holds a client (askClaude), reached only from the two metered routes');
+  assert.strictEqual((src.match(/await askClaude\(req, /g) || []).length, 2);
+  // "Make a round" has the same gates, then the provider switch, then the parser.
+  assert.deepStrictEqual(layer('/api/groups/:gid/round', 'post').route.stack.map((l) => l.handle.name || '(anon)').slice(0, 6), ['requireUser', 'requireBudget', 'requireDailyCap', 'memberGate', 'roundSwitch', 'jsonParser']);
+  // The provider switch: Claude unless INSIDEJOKE_AI_PROVIDER says gemini (test/gemini.js runs that side).
+  // (Was a match on the one-line gemini/claude PROVIDER before claude-first; test/claude-first.js runs that mode.)
+  assert.match(src, /const MODE = \['gemini', 'claude-first'\]\.includes\(process\.env\.INSIDEJOKE_AI_PROVIDER\)/);
+  assert.match(src, /const PROVIDER = MODE === 'gemini' \? 'gemini' : 'claude';/);
+  assert.strictEqual(require('../server').PROVIDER, 'claude', 'unset means the provider the app has always used');
 });
 
 test('a host with a free account makes a group; the cookie is HttpOnly and scoped to the app; nothing identifying is stored', async () => {
@@ -700,6 +708,35 @@ test('photos: the uploader pays for one forced call; drafts wait for review; onl
   assert.match((await host('POST', `${g}/photos`, photoBody('UPSTREAM529'))).data.error, /AI is busy/);
   const inj = await host('POST', `${g}/photos`, photoBody('INJECT'));
   assert.ok(!/<[a-z/!]/i.test(inj.text), 'no markup reaches the page');
+});
+
+test('with the switch off nothing changes: no round route, the page is not offered one, and a guard (when the lab has one) wraps the Claude call', async () => {
+  const g = `/api/groups/${GID}`;
+  assert.strictEqual((await client()('GET', '/api/meta')).data.ai.round, false);
+  assert.strictEqual((await client()('POST', `${g}/round`, { photos: [] })).status, 401, 'signed out is still a 401');
+  const calls = await modelCalls();
+  assert.strictEqual((await host('POST', `${g}/round`, { photos: [], quotes: [{ n: 'Mom', t: 'Did everyone land ok?' }, { n: 'Dad', t: 'Who moved my chair again' }] })).status, 404);
+  const log = [];
+  global.LAB_AI_GUARD = {
+    deny: null,
+    async allow(a) { log.push(['allow', a.provider, a.app]); return this.deny || { ok: true }; },
+    async record(a) { log.push(['record', a.provider, a.app, a.usd]); return true; },
+    priceUsd(a) { log.push(['price', a.provider, a.model, a.inputTokens, a.outputTokens]); return 0.002; },
+  };
+  try {
+    global.LAB_AI_GUARD.deny = { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' };
+    const no = await host('POST', `${g}/photos`, photoBody());
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [429, 'burst-minute', 'Lots of people are using AI right now - try again in a minute.']);
+    await settle();
+    assert.strictEqual(await modelCalls(), calls, 'a no from the guard never reaches the model');
+    global.LAB_AI_GUARD.deny = null;
+    log.length = 0;
+    const yes = await host('POST', `${g}/photos`, photoBody());
+    assert.ok(yes.data.questions.length, yes.text.slice(0, 200));
+    assert.deepStrictEqual(log, [['allow', 'claude', 'insidejoke'], ['price', 'claude', 'claude-haiku-4-5', 1800, 400], ['record', 'claude', 'insidejoke', 0.002]]);
+    for (const q of yes.data.questions) await host('DELETE', `${g}/questions/${q.id}`);
+    await host('DELETE', `${g}/photos/${yes.data.photo.id}`);
+  } finally { delete global.LAB_AI_GUARD; }
 });
 
 test('thumbnails are served to members only, privately, never cached and never sniffed', async () => {

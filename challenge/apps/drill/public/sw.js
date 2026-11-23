@@ -9,7 +9,7 @@
  * a room page (r/<code>), and never another app's (the lab shares this
  * origin). Caches are named drill-*, and only those are ever deleted.
  */
-var CACHE = 'drill-shell-v1';
+var CACHE = 'drill-shell-v2';
 var SHELL = ['./', 'app.css', 'desktop.css', 'app.js', 'drill-core.js', 'qr.js', 'passkey-client.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {

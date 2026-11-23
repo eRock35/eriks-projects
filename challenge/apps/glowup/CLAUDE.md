@@ -63,7 +63,7 @@ platform login, so the seller pastes updates in by hand.
 - **No invented facts, enforced in code** (`ai.validateGlow`, `guard*`). The
   prompt forbids adding facts and asks for `[add: …]` gaps. Then the guard:
   a sentence, title, tag or shot naming a fact the source never mentions
-  (from a list of ~80 amenity/material/claim groups — hot tub, sauna, soy,
+  (from a list of ~90 amenity/material/claim groups — hot tub, sauna, soy,
   sterling, licensed, 24/7, award-winning…) is removed; a number that is not
   in the source becomes `[add: how many minutes]`. The page lists what was
   taken out and why. "Parking: [add: where]" is a question, not a claim, and
@@ -150,6 +150,79 @@ glow-up.
 
 Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the
 same split as the siblings. A glow-up is ~1.5k input / ~1k output tokens.
+
+## The 2026-11-23 redesign and the A/B feature
+
+Erik's all-apps redesign (HOA Desk look) plus this app's row in his AI plan:
+**Claude - "Three A/B titles and a rewritten listing that lifts the score."**
+Glowup already had the model call, so the feature extends it; there is still
+one client and one `glow_up` tool. Nothing new is stored.
+
+### The AI feature
+
+- **What the model writes** (forced tool `glow_up`, unchanged shape): three
+  alternative titles and one rewritten listing, from the facts in the seller's
+  own listing only. The prompt now also names specs, reviews and ratings, and
+  the claim list in `lib/ai.js` gained superhost, best seller, top rated,
+  reviews, rated, #1, "as seen", money-back and sold out. **An option
+  carrying a number or claim the source lacks is dropped** (titles, tags) or
+  loses that sentence / gets `[add: ...]` for the number (the listing text);
+  the page lists what went.
+- **What Glowup computes** (`L.glowResult`, never the model): for each title
+  `score` and `delta` (that title over the rewritten listing) and `alone` /
+  `aloneDelta` (that title over the seller's saved text - what swapping only
+  the title is worth); `rewrite: {title, score, delta}` is the rewritten
+  listing under the seller's own title, shown as a fourth choice, "Keep my
+  title". The tool has no score field; the tests feed a model that sends one.
+- **The page** (`drawGlow`): Before and After as two big numbers side by
+  side, a bar per ring before/after, then each option as a row reading
+  `48 → 76 +28`. The seller picks a row, edits the title and the text (both
+  re-scored live by `rules.js`), and applies with the ordinary `PUT`. The
+  sample shows the same view with no model call.
+- **One tap from a listing**: the score page's "Glow it up · about 1¢" starts
+  the rewrite at once (`state.autoGlow`); the Glow up tab still shows the
+  explainer first, so nothing is spent by browsing.
+- **Lab AI guard** (`challenge/CLAUDE.md`): all three model calls (glow-up,
+  compare, screenshot read) run `guardAllows(req)` after the identity gates
+  and the route's own checks, then `metered()`, which records
+  `{provider: 'claude', app: 'glowup', usd}` in a `finally` from the call's
+  own token counts (`ai.*` take an `onUsage` callback) - an answer that fails
+  validation was still billed, so it is still recorded; a call that never
+  came back is not. A no from the guard is its sentence plus "Your score,
+  every fix and editing are free and still work." with its status and `code`.
+  No guard (tests, `npm run dev`): the identity gates stand alone.
+- Provider: Claude through the lab's existing Anthropic client, models from
+  `identityLib.planFor` (Haiku free, Sonnet for members). No provider switch,
+  no federation.
+
+### The look
+
+`public/app.css` was rewritten; `index.html` and `app.js` restructured.
+
+- Pure white (#fff; true black in dark mode), system font, hairlines
+  (#e5e5ea) and lists instead of cards and tinted panels. Tokens at the top
+  of `app.css`, once for light and once under `prefers-color-scheme: dark`.
+- **One accent**: the plum from `lab.js` (`#6d1b7b`; `#dba6e8` on black).
+  Green, amber and red are a score's grade (`.g-*` set `--g`) and nothing
+  else. The old amber-pink-violet gradient, the emoji in the chrome and the
+  confetti are gone. Every text colour measures 4.5:1 or better in the
+  browser in both themes.
+- **Navigation**: phones get a floating translucent pill (`.pillbar`: 1.5 px
+  line icons, the label and a dot only on the active item, safe-area aware,
+  48 px targets); from 900 px a top nav with an underline. Both are plain
+  links with `data-tab`. The body keeps `class="dk"` and the shared
+  `desktop.css` (never edited), but there is no `.dk-tabbar` any more, so no
+  rail; `app.css` overrides its `main` width.
+- **No `style=` anywhere**, in the HTML or written by script: bar widths are
+  SVG `width` attributes (`barSvg`), dial and ring sweeps are
+  `stroke-dashoffset` attributes, textareas size themselves with
+  `field-sizing`. Keep it that way.
+- Motion (press states, the view rising in, sheets, the dial's sweep) is all
+  inside one `prefers-reduced-motion: no-preference` block; every page is
+  complete at rest.
+- Taps from the signed-in home (the listings): score a new one 1 (nav) or
+  the head's button; open a listing 1; glow it up 2; edit, compare, versions,
+  share 2. Signed out: score a listing 1, see a glow-up 1.
 
 ## Local run and tests
 

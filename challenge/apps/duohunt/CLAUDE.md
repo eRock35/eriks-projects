@@ -33,10 +33,11 @@ carrier have their own allocation. Best Buy sells it as AT&T and Verizon
 versions; its quoted prices are $1,999.99 / $2,199.99 / $2,599.99 /
 $3,199.99, which the picker shows rounded as "from".
 
-## No model, no data, no timer
+## One model call, no data, no timer
 
-- **No model call anywhere.** No Anthropic client, no metered route, no AI
-  button. Free to serve.
+- **Finding a phone makes no model call** and needs no account. The one
+  model call is **Check a deal** (`POST /api/deal`, below), for signed-in
+  people only.
 - **Nothing stored.** No app collection (`DUOHUNT_COLLECTION_PREFIX` is read
   in `lib/store.js` so anything ever stored goes through it, but nothing is).
   The pick, ZIP and carrier notes live in the browser's `localStorage`; the
@@ -56,7 +57,66 @@ $3,199.99, which the picker shows rounded as "from".
   when it comes back). No server timer, no push; billed per request and
   nothing runs after a response.
 - The shared account is mounted at `api/auth` for the verify banner and
-  passkey client, like every lab app; nothing here needs it.
+  passkey client, like every lab app; only Check a deal needs it.
+
+## Check a deal - the AI feature (Claude, added 2026-11-23)
+
+Erik's plan row: "Paste a carrier deal for the true 36-month cost and the
+catch." Why: fine print. A signed-in person pastes a carrier offer (or taps
+**Try a sample deal** - a made-up carrier, "Northwind Mobile", written for
+this page) and taps **Work it out**. The answer: the 36-month total as one
+big figure, the monthly average, what it costs **if the conditions slip**,
+the working line by line, and **the catch** - each one a plain sentence over
+the offer's own words.
+
+- **The model only reads** (`lib/ai.js`, ONE `messages.create`, ONE forced
+  tool `record_deal_terms`): phone price, down payment, monthly installment
+  and its length, plan price with and without AutoPay, credits (bill credit /
+  instant / prepaid card), fees (one-time / monthly), trade-in, catches
+  `{text, quote}`, and what is unsure. The tool has **no field for a total**
+  and the prompt says copy, never add up, never use what it knows about a
+  carrier; the offer is data, not instructions.
+- **The server does the arithmetic** (`public/deal-core.js` `cost`, shared
+  with the tests; whole cents): phone (down + up to 36 installments, or full
+  price) + 36 x plan + fees - credits (a credit spread past month 36 counts
+  only its first 36 months and says what comes after). "If the conditions
+  slip" = the monthly bill credits stop and the plan is at its no-AutoPay
+  price when the offer states one. A missing plan or phone price is named
+  and the total called partial. Taxes are never included, and the page says so.
+- **What comes back is untrusted** (`cleanTerms`): known fields only; every
+  number clamped (money to $100,000, months to 120) **and kept only if the
+  pasted text itself writes that number** - one it never wrote is dropped
+  and named under "Worth knowing"; every catch kept only if its quote is,
+  whitespace aside, a **substring of the pasted text** (8 to 240 characters,
+  case matters; up to 24 are checked, 8 kept, the failures counted); strings
+  stripped of control/bidi characters and angle brackets. Nothing usable is
+  a 422 in words.
+- **What may be sent** (`brief`): exactly `{text}`, 40 to 6,000 characters,
+  with emails and phone-like numbers replaced first. No pick, no ZIP, no
+  account detail reaches the model.
+- **The gates, in order:** `sameOriginOnly`, `requireUser`, `requireBudget`,
+  `requireDailyCap`, **then** the route's own 32 KB parser (a stranger's body
+  is never read), the brief (a 400 is free), 8 readings per account per ten
+  minutes (`DUOHUNT_DEALS_PER_USER`), then the **Lab AI guard**:
+  `global.LAB_AI_GUARD?.allow({provider: 'claude', req, app: 'duohunt'})` -
+  a no is its own friendly message and no call - the call, then
+  `record` with `priceUsd` (in a `finally`: a call that came back unusable
+  was still paid for; a person's own key is not the lab's spend). Without a
+  guard (the app on its own) it just runs.
+- **Provider:** Claude, through the lab's existing Anthropic client path
+  (`identity.meter`, `identity.clientFor`), models from `identityLib.planFor`
+  (`MODELS` in `server.js`: free on Haiku, members on Sonnet). No
+  federation, no provider switch. The client is made on first use, so
+  finding a phone works on a host with no model key.
+- **Nothing stored or logged**: no collection, nothing in the browser; a
+  failure logs an error name and an upstream status, never a message (which
+  could quote the offer). Provider words never reach the page.
+- **Stand-in:** `DUOHUNT_FAKE_AI=1` (`lib/fakeai.js`) answers with a reading
+  of the sample offer and keeps what it was sent; `fake.mode` gives one
+  dishonest, blank, over-long or failing answer. Throws on Cloud Run.
+- Honest limits: it is arithmetic on the text pasted, not advice; a term the
+  model misreads but that is a number in the text will pass the number
+  check - which is why the working is shown line by line.
 
 ## What it checks, honestly
 
@@ -256,21 +316,44 @@ The store-finder roots were not individually confirmed; if one moves, change
   `DUOHUNT_FAKE_APPLE` / `DUOHUNT_FAKE_BESTBUY` pick a scenario
   (`none`, `quote`, `hostile`, `malformed`, `down`, `nostores`). The lab's
   `npm run dev` sets `DUOHUNT_FAKE_AI=1` with memory, which implies it.
+- `DUOHUNT_FAKE_AI=1` - the stand-in model for Check a deal. With memory it
+  also implies the fake upstream (the lab's `npm run dev`), unless
+  `DUOHUNT_FAKE_UPSTREAM=0`.
 - All three (`_MEMORY`, `_FAKE_UPSTREAM`, `_FAKE_AI`) **throw when
   `K_SERVICE` is set**. Tested.
 - `npm run dev` here: port 8137 at `/duohunt/`, fake upstream.
 
-## The page
+## The page (redesigned 2026-11-23, the HOA Desk look)
 
-Phone first; on a desktop (`desktop.css`, `.dk`) the picker is a sticky
-column beside the results, and each carrier card becomes a full row (what
-you know on the left, what to tap on the right). Every upstream string goes
-in through `textContent`; links only from `DuoCore.safeUrl` with a host
-allow-list. No inline script or handlers (the lab's CSP). Light and dark,
-every text colour at 4.5:1 or better (checked in the tests), 44px taps.
-Rendered at 390px and 1280px, light and dark, with no horizontal scroll and
-no console errors. The service worker caches the shell only and never
-`api/`.
+Phone first. A pure white page (`--bg: #ffffff`; true black in dark), the
+system font only, five sizes, hairline-divided lists instead of stacked
+cards, 12px corners (10px inputs), pill buttons and chips, no gradients, no
+shadows except on what floats. **One accent**, the lab's indigo (`#3b3fc4`;
+`#a5adff` in dark), for the primary action, links and the active nav;
+green/amber/red for status only. Motion only inside
+`prefers-reduced-motion: no-preference`.
+
+**Three views** behind the hash (`app.js` `showView`): **Find a Duo**
+(`#find`, home: a centred hero with "Check stock" and "Check a carrier
+deal", the picker, the results), **Check a deal** (`#deal`) and **Checks**
+(`#checks`: this tab's history and "How this works"). Phones get a slim
+floating translucent pill bar (1.5px line icons, the label only on the
+active item, a small accent dot, safe-area aware); desktop a top nav with a
+quiet underline. The account sheet (sign in / create / passkey / sign out)
+is a `<dialog>` in `deal.js`, opened from the top bar or when Work it out
+needs a sign-in (it then carries on by itself).
+
+Taps from home: check stock 1 (Check everything, ZIP remembered) or 2 from
+the hero; open Apple's page 1; the Shortcut recipe 1; a carrier's page 1;
+mark what you saw 1; watch 1; check a deal 2 (Deal, Work it out - or Try a
+sample deal first); history 1; account 1.
+
+On a desktop (`desktop.css`, `.dk`) the picker is a sticky column beside the
+results. Every upstream or model string goes in through `textContent`; links
+only from `DuoCore.safeUrl` with a host allow-list. No inline script,
+handlers or `style` attributes, in the markup or written by script (colour
+swatches are classes). 44px taps, 48px primary. The service worker
+(`duohunt-shell-v2`) caches the shell only and never `api/`.
 
 **The Shortcut sheet** is a `<dialog>`: a bottom sheet on a phone, a centred
 dialog from 700px, closed by Done, Esc or the backdrop, focus back on "Check
@@ -309,7 +392,9 @@ caching and in-flight sharing, the instance cap, timeouts and errors
 becoming the friendly sentence, no request to a carrier host for any pick,
 ZIP validation and that it is never logged or stored, the Best Buy key never
 leaking, the no-key state, the per-address limit, `K_SERVICE` throws, the
-page's escaping and CSP rules, contrast in both themes.
+page's escaping and CSP rules, the look's rules (white page, no gradients, no fetched fonts, motion only where welcome, three views on both navs), contrast in both themes.
+
+`test/deal.js` (13 tests, stand-in model, no network): the sum in whole cents and its edges; numbers the offer never wrote and quotes that are not word for word dropped and named; exactly `{text}` sent, emails and phone numbers out; the forced tool with no total field; 401 before the body is read; 403/402/503 gates before the parser; the Lab AI guard asked after the gates, its no shown and no call made, its yes recorded with the priced usage (an unusable answer too, a provider failure not), both models priced by the real guard; the per-account limit; nothing stored or logged; the page's deal markup.
 
 ## How it becomes an iPhone app
 

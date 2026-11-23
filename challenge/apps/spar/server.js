@@ -77,6 +77,46 @@ function modelFor(req) {
 // through the budget and the free tier's daily ceiling as well.
 const spend = [identity.requireUser, identity.requireBudget, identity.requireDailyCap];
 
+// The lab's AI guard (challenge/CLAUDE.md, "Lab AI guard"; 2026-11-23): the
+// host sets global.LAB_AI_GUARD; on its own (tests, npm run dev) the app has
+// none and the identity gates stand alone. Every model call in this file goes
+// through metered(): the guard is asked first - a no is its friendly message
+// and no call - and told what the call cost afterwards, in a finally, because
+// a call that came back is paid for whether or not its answer passed the
+// checks. It is asked inside the handler, after the cheap refusals (an empty
+// line, a round that is over, a card already scored), so a request that was
+// never going to reach a model does not use up one of the person's calls.
+const PROVIDER = 'claude';
+async function metered(req, model, still, fn) {
+  const guard = global.LAB_AI_GUARD;
+  if (guard) {
+    const g = await guard.allow({ provider: PROVIDER, req, app: 'spar' });
+    if (!g || !g.ok) {
+      throw Object.assign(httpError((g && g.status) || 429, `${(g && g.message) || 'The AI is resting for now.'} ${still}`), { code: (g && g.code) || 'ai-guard' });
+    }
+  }
+  const client = await clientFor(req);
+  let used = null;
+  const tapped = { messages: { create: async (params) => {
+    const res = await client.messages.create(params);
+    if (res && res.usage) used = res.usage;
+    return res;
+  } } };
+  try {
+    return await fn(tapped, model);
+  } finally {
+    if (guard && used) {
+      try {
+        await guard.record({ provider: PROVIDER, app: 'spar', usd: guard.priceUsd({
+          provider: PROVIDER, model,
+          inputTokens: used.input_tokens || 0, outputTokens: used.output_tokens || 0,
+          cacheWriteTokens: used.cache_creation_input_tokens || 0, cacheReadTokens: used.cache_read_input_tokens || 0,
+        }) });
+      } catch (e) { console.error('ai guard: record failed'); }
+    }
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
@@ -96,6 +136,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
+  if (mine && err.code) body.code = err.code;
   res.status(status).json(body);
 };
 const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
@@ -357,12 +398,16 @@ app.post('/api/rounds/:id/say', ...spend, async (req, res) => {
     const out = await exclusive(`${req.user.id}/${req.params.id}`, async () => {
       const s = await loadSession(req);
       if (s.status !== 'live') throw httpError(409, 'This round is over.');
+      // The cap on turns is the server's: a live round always has lines left
+      // (the last one closes it below), and this refuses one that somehow
+      // does not, before any model is asked.
+      if (s.turns >= s.maxTurns) throw httpError(409, 'This round is out of lines. End it to get your scorecard.');
       s.transcript.push({ who: 'you', text, at: now() });
       s.turns += 1;
-      const client = await clientFor(req);
       // Nothing is saved until the reply is in, so a failed call leaves the
       // round exactly as it was and the player can simply send again.
-      const r = await coach.turn(client, modelFor(req), s.scenario, s);
+      const r = await metered(req, modelFor(req), 'Your round is saved as it stands - pick it up again later.',
+        (client, model) => coach.turn(client, model, s.scenario, s));
       const newly = r.revealed.filter((n) => !(s.revealed || []).includes(n));
       s.revealed = [...new Set([...(s.revealed || []), ...r.revealed])].sort();
       s.transcript.push({ who: 'them', text: r.reply, mood: r.mood, note: r.note, revealed: newly, at: now() });
@@ -386,8 +431,8 @@ app.post('/api/rounds/:id/hint', ...spend, async (req, res) => {
     const s = await loadSession(req);
     if (s.status !== 'live') throw httpError(409, 'This round is over.');
     if ((s.hintsUsed || 0) >= MAX_HINTS) throw httpError(429, `You have used all ${MAX_HINTS} whispers this round.`);
-    const client = await clientFor(req);
-    const h = await coach.hint(client, HINT_MODEL, s.scenario, s);
+    const h = await metered(req, HINT_MODEL, 'The round itself is untouched - carry on without the whisper.',
+      (client, model) => coach.hint(client, model, s.scenario, s));
     await store.merge(sessionsOf(req.user.id), s.id, { hintsUsed: (s.hintsUsed || 0) + 1, updatedAt: now() });
     res.json({ ...h, hintsUsed: (s.hintsUsed || 0) + 1, maxHints: MAX_HINTS });
   } catch (err) { fail(res, err, 'The coach lost their voice. Try again.'); }
@@ -406,8 +451,8 @@ app.post('/api/rounds/:id/finish', ...spend, async (req, res) => {
         return { id: s.id, abandoned: true };
       }
       if (s.status === 'live') { s.status = 'ended'; s.endedAt = now(); }
-      const client = await clientFor(req);
-      const card = await coach.score(client, modelFor(req), s.scenario, s);
+      const card = await metered(req, modelFor(req), 'Your round is saved - come back for the scorecard later.',
+        (client, model) => coach.score(client, model, s.scenario, s));
 
       const player = await loadPlayer(req.user);
       const award = game.award(player, s, card);
@@ -466,7 +511,9 @@ app.post('/api/rounds/:id/share', identity.requireUser, async (req, res) => {
       status: s.status,
       daily: s.daily || null,
       moodTrail: s.moodTrail || [],
-      scorecard: s.scorecard,
+      // The coach's moments quote line after line of what the player typed -
+      // most of their half of the conversation - so they go only with it.
+      scorecard: withTranscript ? s.scorecard : { ...s.scorecard, moments: [] },
       transcript: withTranscript ? s.transcript.map((t) => ({ who: t.who, text: t.text, mood: t.mood })) : null,
       createdAt: now(),
     });
@@ -492,8 +539,8 @@ app.post('/api/custom', ...spend, async (req, res) => {
     if (description.length < 20) throw httpError(400, 'Describe the situation in a sentence or two - who, what you want, and why it is hard.');
     const existing = await store.list(customOf(req.user.id), { limit: MAX_CUSTOM + 1 });
     if (existing.length >= MAX_CUSTOM) throw httpError(409, `You have ${MAX_CUSTOM} scenarios. Delete one to build another.`);
-    const client = await clientFor(req);
-    const s = await coach.invent(client, INVENT_MODEL, description);
+    const s = await metered(req, INVENT_MODEL, 'The library scenarios still work.',
+      (client, model) => coach.invent(client, model, description));
     const row = { ...s, prompt: description, createdAt: now() };
     const id = await store.add(customOf(req.user.id), row);
     res.json({ ...scenarios.publicView(row), id });

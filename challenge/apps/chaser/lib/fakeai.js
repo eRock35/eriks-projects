@@ -6,7 +6,8 @@
 // chases would look like it works.
 //
 // Trigger words for tests:
-//   INJECT       - the chase comes back with markup in it (proves clean())
+//   INJECT       - the subjects and one chase come back with markup in them
+//   BADDEADLINE, BADFEE, BADTHREAT, BADSLOT, ALLBAD - see chase()
 //   a photo whose bytes contain BLANK - "not an invoice" (proves the 422)
 
 if (process.env.CHASER_FAKE_AI === '1' && process.env.K_SERVICE) {
@@ -27,37 +28,57 @@ function toolUse(name, input, usage) {
 
 const field = (text, key) => ((text.match(new RegExp(`^${key}: (.+)$`, 'm')) || [])[1] || '').trim();
 
+// Three versions of the step, every fact a {slot} - the shape the real tool
+// asks for. Trigger words anywhere in the request (the tests put them in the
+// voice sample) make one version break a rule, so the server's check is seen
+// to drop it: BADDEADLINE (a made-up day), BADFEE (a made-up fee), BADTHREAT
+// (a legal threat), BADSLOT (a slot the invoice lacks), ALLBAD (all three).
 function chase(params) {
   const text = params.messages[0].content;
-  const stage = field(text, 'STAGE') || 'Friendly nudge';
-  const first = (text.match(/greet them as "([^"]+)"/) || [])[1] || 'there';
-  const number = field(text, 'INVOICE');
-  const balance = field(text, 'BALANCE DUE');
-  const due = field(text, 'DUE').replace(/ \(.*$/, '');
-  const sign = (text.match(/"""\n([\s\S]*?)\n"""/) || [])[1] || 'Thanks';
-  const link = field(text, 'PAYMENT LINK \\(include it exactly\\)');
-  const promise = /BROKEN PROMISE: they promised to pay by ([^.]+?) and did not/.exec(text);
-  const fee = /LATE FEE TO MENTION: (\S+)/.exec(text);
-  const opener = {
-    'Friendly nudge': `Hope you're well! Just a gentle reminder that invoice ${number} for ${balance} was due on ${due}.`,
-    'Follow-up': `I'm following up on invoice ${number} for ${balance}, due on ${due}. Could you let me know when it will be paid?`,
-    'Firm reminder': `Invoice ${number} for ${balance} is now well overdue. Please arrange payment within 7 days.`,
-    'Final notice': `This is a final notice for invoice ${number} (${balance}, due ${due}). If it is not paid within 7 days I will pause further work.`,
-    'Payment plan offer': `Would it help to split the ${balance} on invoice ${number} into a few smaller payments? Tell me what works.`,
-  }[stage] || `A reminder about invoice ${number} for ${balance}.`;
-  const body = [
-    `Hi ${first},`,
-    opener + (promise ? ` You'd said it would be paid by ${promise[1]}, so I wanted to check in.` : ''),
-    fee ? `Per our terms a late fee of ${fee[1]} now applies.` : '',
-    link ? `You can pay here: ${link}` : '',
-    /INJECT/.test(text) ? '<script>alert(1)</script>Thanks for sorting this <b>quickly</b>.' : '',
-    sign,
-  ].filter(Boolean).join('\n\n');
-  return toolUse('write_chase', {
-    subject: `${stage === 'Final notice' ? 'Final notice' : 'Reminder'}: invoice ${number}${/INJECT/.test(text) ? ' <img src=x onerror=alert(1)>' : ''}`,
-    body,
-    sms: `Hi ${first}, ${stage === 'Friendly nudge' ? 'quick reminder' : 'following up'}: invoice ${number} (${balance}) was due ${due}.${link ? ` ${link}` : ''}`,
-  });
+  const stage = field(text, 'STEP') || 'Friendly nudge';
+  const offered = (k) => text.includes(`\n{${k}} - `);
+  const promise = offered('promise_date');
+  const fee = /^LATE FEE: mention it/m.test(text);
+  const link = offered('payment_link');
+  const late = offered('days_overdue');
+  const ask = {
+    'Friendly nudge': 'It may simply have slipped through.',
+    'Follow-up': 'Could you let me know when it will be paid?',
+    'Firm reminder': 'Please arrange payment within 7 days, and tell me if something is wrong.',
+    'Final notice': 'If it is not paid within 7 days I will pause further work and take further steps to recover it.',
+    'Payment plan offer': 'Would it help to split it into a few smaller payments? Tell me what works.',
+  }[stage] || 'Could you take a look?';
+  const tail = [
+    promise ? "You'd said it would be paid by {promise_date}, so I wanted to check in." : '',
+    fee ? 'Per our terms a late fee of {late_fee} now applies, making {total_with_fee}.' : '',
+    link ? 'You can pay here:\n{payment_link}' : '',
+  ];
+  const body = (lines) => lines.concat(tail).filter(Boolean).join('\n\n');
+  const inject = /INJECT/.test(text) ? '\n\n<script>alert(document.cookie)</script>Thanks for sorting this <b>quickly</b>.' : '';
+  const final = stage === 'Final notice';
+  const subject = `${final ? 'Final notice' : 'Reminder'}: invoice {invoice_number}${/INJECT/.test(text) ? ' <img src=x onerror=alert(1)>' : ''}`;
+  const bad = (word) => new RegExp(`${word}|ALLBAD`).test(text);
+  const options = [
+    {
+      angle: 'warm',
+      subject,
+      body: body(['Hi {first_name},', `Hope you're well! ${final ? 'This is a final notice for' : 'A reminder about'} invoice {invoice_number} for {balance}, which was due on {due_date}. ${ask}${bad('BADDEADLINE') ? ' Please pay by Friday.' : ''}`]) + inject,
+      sms: `Hi {first_name}, ${stage === 'Friendly nudge' ? 'quick reminder' : 'following up'}: invoice {invoice_number} ({balance}) was due {due_date}.${link ? ' {payment_link}' : ''}`,
+    },
+    {
+      angle: 'plain',
+      subject,
+      body: body(['Hi {first_name},', `Invoice {invoice_number} for {balance} was due on {due_date}${late ? ' and is now {days_overdue} overdue' : ''}. ${ask}${bad('BADFEE') ? ' A 5% late fee will be added.' : ''}${bad('BADSLOT') ? ' Our reference is {bank_account}.' : ''}`]),
+      sms: 'Hi {first_name}, invoice {invoice_number} ({balance}) is still open. When can I expect payment?',
+    },
+    {
+      angle: 'brief',
+      subject,
+      body: body(['{first_name},', `{balance} on invoice {invoice_number} is still open. ${ask}${bad('BADTHREAT') ? ' Otherwise we will take legal action.' : ''}`]),
+      sms: '{first_name}, {balance} on invoice {invoice_number} is still open.',
+    },
+  ];
+  return toolUse('write_chase', { options }, { input_tokens: 700, output_tokens: 520 });
 }
 
 function read(params) {

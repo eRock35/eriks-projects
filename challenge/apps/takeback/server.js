@@ -27,6 +27,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/takeback-core');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const identityLib = require('./lib/identity');
 
 const PORT = process.env.PORT || 8080;
@@ -37,6 +38,15 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('TAKEBACK_FAKE_AI=1 is for
 // identity.planFor, like every sibling. Both read an image and take a
 // forced tool.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a receipt. TAKEBACK_AI_PROVIDER=gemini moves it to Gemini
+// on Vertex AI (through the lab's AI guard), where it only transcribes and
+// can also take a pasted order email; anything else - unset included - is
+// the provider Takeback has always used, so shipping this code changes
+// nothing until the setting is made. `claude-first` reads a photo with Claude
+// and goes to Gemini only when Claude fails, and turns the Gemini-only pasted
+// email on. Read per request, never cached.
+const providerNow = () => { const v = process.env.TAKEBACK_AI_PROVIDER; return v === 'gemini' || v === 'claude-first' ? v : 'claude'; };
 
 const LIMITS = {
   listWrites: 120,                 // list saves per account...
@@ -133,8 +143,8 @@ app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: 
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false });
-  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
+  if (!req.user) return res.json({ signedIn: false, reader: providerNow() });
+  res.json({ signedIn: true, reader: providerNow(), email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
 });
 
 /* ------------------------------------------------------------------ *
@@ -202,16 +212,136 @@ app.delete('/api/list', identity.requireUser, route('Could not remove it.', asyn
  * Metered: "Read my receipt or order email"
  * ------------------------------------------------------------------ */
 
-/** Gates, then the parser, then the request rebuilt (only the image, checked
- *  by its bytes - a 400 costs nothing), then one forced tool, then the answer
- *  checked. Nothing here writes to any store, and nothing logged carries a
- *  byte of the image. */
-app.post('/api/ai/receipt', ...spend, aiJson, route('Reading a receipt isn’t available right now. Try again in a minute - adding by hand always works.', async (req, res) => {
-  const b = ai.brief(req.body);
+/** Gates, then the parser, then the request rebuilt (a 400 costs nothing),
+ *  then the lab's AI guard (the month's cap per provider and the burst
+ *  limits, when the host has one), then ONE call: a forced tool on Claude,
+ *  or a transcription against a responseSchema on Gemini. Nothing here
+ *  writes to any store, and nothing logged carries a byte of the image or a
+ *  word of the email. */
+const READ_FALLBACK = 'Reading a receipt isn’t available right now. Try again in a minute - adding by hand always works.';
+
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'takeback' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Adding by hand always works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'takeback', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: the identity meter charges the person. */
+async function readWithClaude(req, b, today) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    const raw = await ai.ask(client, model, b, today, (u) => { used = u; });
+    return ai.answer(raw, today);
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function readWithGemini(req, b, today) {
+  // Every failure past the burst limits carries `fallback` (a short code):
+  // for a photo the route then reads it with Claude instead.
+  try { await guardAllow('gemini', req); } catch (err) {
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
+  const guard = global.LAB_AI_GUARD;
+  const request = gemini.request(b, today);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 100, outputTokens: 50 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), fallback: String((err && err.code) || 'error').slice(0, 20) });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  try {
+    return ai.answer(out && out.json, today, (raw) => gemini.cleanReading(raw, today, b.text || ''));
+  } catch (err) {
+    if (err) err.fallback = 'unusable';
+    throw err;
+  }
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `receipt:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
+/** Why a Claude read failed, as a short code for the one log line. A burst
+ *  refusal is null: it never falls back. */
+function claudeFailure(err) {
+  const code = err && err.code;
+  if (code === 'burst-minute' || code === 'burst-day') return null;
+  return String(code || (err && err.status) || 'error').slice(0, 20);
+}
+
+app.post('/api/ai/receipt', ...spend, aiJson, route(READ_FALLBACK, async (req, res) => {
+  const mode = providerNow();
+  const viaGemini = mode === 'gemini';
+  const transcribes = mode !== 'claude';
+  const b = transcribes ? ai.briefAny(req.body) : ai.brief(req.body);
   const today = serverDay();
-  const raw = await ai.ask(await clientFor(req), modelFor(req), b, today);
+  // claude-first: a photo is Claude's first; pasted text has only Gemini.
+  const geminiFirst = viaGemini || (mode === 'claude-first' && !b.image);
+  let reader = geminiFirst ? 'gemini' : 'claude';
+  let out;
+  try {
+    out = geminiFirst ? await readWithGemini(req, b, today) : await readWithClaude(req, b, today);
+  } catch (err) {
+    if (mode === 'claude-first') {
+      // A photo Claude could not read (a thrown call, an unusable answer, the
+      // Claude cap, no key) goes to the Gemini reader, unchanged. A burst
+      // refusal is final, and pasted text was Gemini's already.
+      const why = !geminiFirst && claudeFailure(err);
+      if (!why) throw err;
+      console.log(`[takeback] claude failed (${why}); used gemini`);
+      out = await readWithGemini(req, b, today);
+      reader = 'gemini';
+    } else {
+      // A photo Gemini could not read goes to the Claude reader, unchanged (its
+      // own guard, meter and record). Pasted text has no Claude reader, and a
+      // burst refusal never falls back.
+      if (!viaGemini || !b.image || !err || !err.fallback) throw err;
+      console.log(`[takeback] gemini failed (${err.fallback}); used claude`);
+      out = await readWithClaude(req, b, today);
+      reader = 'claude';
+    }
+  }
   res.set('Cache-Control', 'no-store');
-  res.json(ai.answer(raw, today));
+  res.json(reader === 'gemini' ? { proposal: out.proposal, stripped: b.stripped || 0, reader } : { ...out, ...(transcribes ? { reader } : {}) });
 }));
 
 /* ------------------------------------------------------------------ *

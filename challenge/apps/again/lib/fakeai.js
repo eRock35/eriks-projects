@@ -121,4 +121,41 @@ function create() {
   return fake;
 }
 
-module.exports = { create, MENU };
+/**
+ * The stand-in for Gemini (AGAIN_AI_PROVIDER=gemini): given the request the
+ * guard's helper would send, an answer in the schema's shape. A menu is the
+ * same made-up trattoria, each row with how sure the reader was (two of them
+ * unsure, so the review has something to ask about); a plate is a made-up
+ * bowl of pasta. `gemini.mode` picks one call's behaviour, like the client's:
+ *   blank        nothing usable - a 422
+ *   inject       hostile output: markup, bidi, links, bad prices, invented
+ *                keys, and for a plate allergen and nutrition claims
+ *   claims       a plate answer that makes diet and allergen claims
+ *   notfood      the photo is not food
+ *   upstreamNNN  the call fails the way the guard's VertexError does
+ */
+async function gemini(body) {
+  await new Promise((r) => setTimeout(r, Number(process.env.AGAIN_FAKE_DELAY_MS || 0)));
+  const mode = gemini.mode;
+  gemini.mode = '';
+  const parts = (body && body.contents && body.contents[0] && body.contents[0].parts) || [];
+  const words = parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('\n');
+  const up = /^upstream(\d{3})$/.exec(mode);
+  if (up) throw Object.assign(new Error(`Gemini answered ${up[1]}. stand-in provider failure`), { name: 'VertexError', code: 'http', status: Number(up[1]) });
+  if (/Describe the plate/.test(words)) {
+    if (mode === 'blank') return { isFood: true, description: '', guess: { name: null, confidence: 'low' } };
+    if (mode === 'notfood') return { isFood: false, description: 'A set of keys on a table', guess: { name: null, confidence: 'low' } };
+    if (mode === 'claims') return { isFood: true, description: 'A vegan, gluten-free bowl that is safe for a nut allergy, about 450 calories', guess: { name: 'Healthy low-carb bowl', confidence: 'high' } };
+    if (mode === 'inject') return { isFood: true, description: '<img src=x onerror=alert(1)>Pasta \u202egnippohs see https://evil.example/win ' + 'x'.repeat(600), guess: { name: '<b>Cacio e pepe</b> www.evil.example', confidence: 'certain', allergens: ['none'] }, calories: 450, ingredients: ['wheat'] };
+    return { isFood: true, description: 'A bowl of long pasta in a pale, glossy sauce with cracked black pepper on top', guess: { name: 'Cacio e pepe', confidence: 'medium' } };
+  }
+  const asked = /Dishes I have eaten at other places/.test(words);
+  if (mode === 'blank') return { dishes: [], currency: '', picks: [], confidence: 'low', note: '' };
+  if (mode === 'inject') return { ...inject().content[0].input, allergens: ['none'] };
+  const sure = { 'Fried artichokes': 'medium', 'Olive oil cake': 'low' };
+  const m = menu(asked).content[0].input;
+  return { ...m, dishes: m.dishes.map((d) => ({ ...d, confidence: sure[d.name] || 'high' })) };
+}
+gemini.mode = '';
+
+module.exports = { create, gemini, MENU };

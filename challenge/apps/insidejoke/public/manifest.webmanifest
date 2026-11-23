@@ -4,7 +4,7 @@
   "description": "Trivia made from your own photos and group chat - play together, even miles apart.",
   "start_url": "./", "scope": "./",
   "display": "standalone",
-  "background_color": "#120e19",
-  "theme_color": "#120e19",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }

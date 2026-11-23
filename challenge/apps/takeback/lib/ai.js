@@ -77,6 +77,29 @@ const SYSTEM = [
 function brief(body) {
   const req = Core.receiptRequest(body);
   if (!req) throw httpError(400, 'Send one image and nothing else. The page shrinks it first - try again from the page.');
+  return image(req);
+}
+
+/** The transcribing reader's request: the one image (as above), or one
+ *  pasted order email - trimmed, capped, and with obvious personal details
+ *  (email addresses, phone numbers, card numbers, long digit runs, street
+ *  lines) taken out before anything is sent. Still a 400 that costs nothing. */
+function briefAny(body) {
+  const req = Core.readingRequest(body);
+  if (!req) {
+    if (body && typeof body === 'object' && typeof body.text === 'string' && Object.keys(body).length === 1) {
+      throw httpError(400, body.text.trim().length > Core.LIMITS.aiTextChars
+        ? `That is too much text. Paste just the part with the order and the return wording - up to ${Core.LIMITS.aiTextChars} characters.`
+        : 'Paste the order email - the part with the store, the items and the date.');
+    }
+    throw httpError(400, 'Send one image, or the text of one order email, and nothing else.');
+  }
+  if (req.image) return image(req);
+  const scrubbed = Core.scrubPersonal(req.text);
+  return { text: scrubbed.text, stripped: scrubbed.removed };
+}
+
+function image(req) {
   const buf = Buffer.from(req.image.data, 'base64');
   const type = img.sniff(buf);
   if (!type || type !== req.image.type) throw httpError(400, 'The image must be a JPEG or PNG. The page shrinks it first - try again from the page.');
@@ -97,7 +120,7 @@ function text(today) {
 }
 
 /** The one place a model is called. */
-async function ask(client, model, req, today) {
+async function ask(client, model, req, today, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 2500,
@@ -109,6 +132,7 @@ async function ask(client, model, req, today) {
       { type: 'text', text: text(today) },
     ] }],
   }, { timeout: 60000, maxRetries: 1 });
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens) || 0, outputTokens: Number(res.usage.output_tokens) || 0 });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That receipt ran long. Try a photo of just the part with the items - or add them by hand.');
   const block = (res && Array.isArray(res.content) ? res.content : []).find((b) => b && b.type === 'tool_use' && b.name === TOOL.name);
   if (!block || !block.input || typeof block.input !== 'object') throw httpError(502, 'The answer did not come back in the expected shape. Try again.');
@@ -117,8 +141,8 @@ async function ask(client, model, req, today) {
 
 /** The answer, checked. A card-number-like run anywhere refuses it whole;
  *  nothing readable is a 422 with a way forward. */
-function answer(raw, today) {
-  const out = Core.cleanReceipt(raw, { today });
+function answer(raw, today, clean) {
+  const out = clean ? clean(raw) : Core.cleanReceipt(raw, { today });
   if (out && out.refused === 'card-number') {
     throw httpError(422, 'That answer had a long run of digits in it that could be a card number, so it was not shown. Crop the card number out of the image and try again - or add the purchase by hand.', { code: 'card-number' });
   }
@@ -126,4 +150,4 @@ function answer(raw, today) {
   return { proposal: out };
 }
 
-module.exports = { httpError, brief, ask, answer, text, TOOL, SYSTEM };
+module.exports = { httpError, brief, briefAny, ask, answer, text, TOOL, SYSTEM };

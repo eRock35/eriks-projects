@@ -87,6 +87,8 @@ integration to consider — with Erik, not in a daily drop.
   reply non-empty. Everything is escaped again when drawn. Review text is
   data: the prompts say so, and the fake model's `INJECT` trigger proves
   markup never survives.
+- **Replies and cool-downs are 2-3 options, each held to the facts
+  (2026-11-23).** See "The AI feature" below.
 - **`requireUser, requireBudget, requireDailyCap` on every model route**
   (`spend` in `server.js`): `/reviews/:id/triage`, `/reviews/:id/draft`,
   `/cooldown`, `/reviews/read`. The 402 comes before any model call — the
@@ -166,6 +168,86 @@ Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the
 same split as the siblings. A draft or cool-down is ~1k input / ~300 output
 tokens: well under a cent on Haiku. A screenshot is ~1.5k input: about a cent.
 
+## The AI feature: replies in the owner's voice, and the cool-down (2026-11-23)
+
+Erik's per-app plan: **Claude** - "Review replies in the owner's voice;
+cool-down rewrites the stinging ones." It extends the two calls the app
+already had; no new route, nothing new stored.
+
+- **`POST /api/reviews/:id/draft`** answers with `options` (2-3 of
+  `{angle heartfelt|brief|straight, label, text, note, lint}`), `dropped`
+  (`[{reason, why}]`), and - unchanged for old callers - the first option
+  flat as `text`, `note`, `source: 'ai'`, `lint`. One model call for all of
+  them. An empty reply box takes the first draft at once (so it is still two
+  taps from the inbox); words already in the box are replaced only by the
+  owner's own "Use this one".
+- **`POST /api/cooldown`** answers with `options` (2-3 of `{angle
+  calm|warm|firm, label, calm, kept: [{point, quote}], heatAfter, lint}`),
+  `dropped`, `removed`, `heatBefore`, and the first version flat (`calm`,
+  `kept` as one string, `heatAfter`, `lint`). Each version's heat is
+  `R.heat()`, never the model's. "Removed" means gone from every version.
+- **The fact check** (`lib/ai.js` `invented(text, facts)`): an option is
+  dropped when it carries a number (digits, or two...thousand in words) that
+  is not in the review, the owner's settings or - for a cool-down - their
+  draft; an offer (refund, discount, freebie, compensation), a promise or a
+  legal threat that the owner's own lines (`alwaysSay`, the draft) do not
+  make - the customer asking for a refund never unlocks one; a personal
+  detail (`R.heat`'s `private`: someone else's phone or email, an order
+  number, the reviewer's full name); or a hostile tone toward the reviewer
+  (insult, blame, threat, argue, dismiss, profanity, sarcasm). It is a word
+  and number list, not a judge: it catches the plain cases, and the owner
+  reads, edits and posts what is left. All dropped -> 422 with the app's own
+  sentence; the page says how many were left out and why, never what they
+  said.
+- **Kept points are traceable.** Each `kept` point carries the words of the
+  draft it came from; `keptPoints` drops any whose quote is not in the draft
+  (letters and digits compared, so quotes and capitals do not matter).
+- **The voice sample** - a reply the owner wrote themselves - lives in the
+  browser (`localStorage` `rave-voice-sample`, set on Your voice), rides in
+  as `voiceSample` (<= 1,200 characters) and is **never stored**; the tests
+  dump the store and the usage rows to prove it. The prompt takes its sound
+  only, and it is in neither `facts.said` nor `facts.owner`.
+- **Provider: Claude, by the path the app always used** (`identity.meter`,
+  `identity.clientFor`, models from `identityLib.planFor`). No provider
+  switch and no federation.
+- **Lab AI guard.** All four model routes go: `spend` gates -> the route's
+  own checks (a 400/404 costs nothing) -> `LAB_AI_GUARD.allow({provider:
+  'claude', req, app: 'rave'})` -> the call -> `record` with `priceUsd`
+  (`withAi` in `server.js`; recorded even when every option was dropped). A
+  no is the guard's message plus the free path, with its `code`. No guard
+  loaded (tests, `npm run dev`): the identity gates stand alone.
+- Fake-model triggers: `INVENT` in a review or a draft (an option with an
+  offer, one with a number, a kept point nobody made), `ALLBAD` in a review
+  (every option invents). A voice sample that opens "Hey" makes the fake
+  greet with "Hey", which is how the tests see it reached the prompt.
+
+## The look (redesigned 2026-11-23)
+
+The HOA Desk rules: a pure white page (true black in dark), 1 px hairlines,
+12 px cards / 10 px inputs / pill buttons, lists over boxes, system type on
+five sizes, 4/8 spacing, no shadow except on what floats.
+
+- **One accent**: the lab's amber. `#d97706` itself is `--star` (stars and
+  the mark only); text and fills use it deepened to `#b45309` (`--accent`,
+  white text 5:1). Status colours (risk, warn, good, ice) only for status,
+  always with words. Emoji are gone from the interface; icons are 1.5 px
+  line SVGs.
+- **Navigation**: phones get a floating translucent pill bar (Inbox, Cool
+  down, Add, Scores, Wall; a label on the current one), desktop a top nav
+  with an underline. Your voice is in the top nav on desktop and behind the
+  account button on a phone. `desktop.css` is still linked (shared, synced)
+  but `body` no longer carries `dk`, so it is inert.
+- **No `style=` anywhere, in the HTML or written by script.** Bars and the
+  heat gauge are SVG `<rect width>` attributes (`meter()`, `setGauge()`),
+  confetti is position/colour/delay classes, the reply box grows by its
+  `rows`. `test/run.js` fails on a `style` attribute or `.style` in `app.js`.
+- The thermometer tube became the **heat gauge** (a number, its word, a
+  bar); the snowflake burst is gone. Confetti stays for inbox zero and badges.
+- Motion only inside `prefers-reduced-motion: no-preference`.
+- Measured in headless Chrome (59 views at 390, 320 and 1440 px, both
+  themes): lowest text contrast 4.63:1 light, 6.3:1 dark; no sideways
+  scroll; no target under 44 px; no console or CSP errors.
+
 ## Local run and tests
 
 ```
@@ -177,7 +259,7 @@ npm test        # pure rules first, then end to end over HTTP under a /rave moun
 set) — in `lib/store.js`, `lib/fakeai.js` and `server.js`; the tests spawn
 each with `K_SERVICE` to prove it. `RAVE_COLLECTION_PREFIX` (set to `rave_` by
 the lab host) prefixes every top-level collection; the default database is
-`challenge`. The fake model answers all four tools deterministically and
+`challenge`. The fake model answers all four tools deterministically (triggers for the fact check are under "The AI feature") and
 refuses any call that does not force a tool. Triggers: `INJECT` in a review or
 a draft puts markup and junk enums in the answer; `SUBTLE` in a review makes
 the model flag a health risk the keywords miss; a screenshot whose bytes

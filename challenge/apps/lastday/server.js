@@ -17,7 +17,11 @@
 //     strict: unknown fields, oversize lists, anything shaped like an address);
 //   - ONE metered, signed-in model call: "Read a messy request", sent the
 //     request MASKED on the device ([person1], [email1]...) and refused if it
-//     still holds an address or a long number;
+//     still holds an address or a long number. It records facts in the
+//     request's own words (each checked to be IN the text); the checklist is
+//     built on the device from the person's own system list, never by a model.
+//     The lab's AI guard (global.LAB_AI_GUARD), when there is one, is asked
+//     before the call and told its cost after;
 //   - the shared account (sign-in, credit) at /api/auth.
 
 const crypto = require('crypto');
@@ -106,6 +110,7 @@ const spend = [identity.requireUser, identity.requireBudget, identity.requireDai
  * ------------------------------------------------------------------ */
 
 const httpError = ai.httpError;
+const AI_FALLBACK = 'Reading the request isn’t available right now. Try again in a minute - the reader on this page and the fields work without it.';
 function failure(err, fallback) {
   const mine = Boolean(err && err.expose && err.status);
   if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
@@ -211,9 +216,30 @@ app.delete('/api/inventory', identity.requireUser, route('Could not remove them.
  * and nothing logged carries a word of it.
  * ------------------------------------------------------------------ */
 
-app.post('/api/ai/request', ...spend, aiJson, route('Reading the request isn’t available right now. Try again in a minute - the reader on this page and the fields work without it.', async (req, res) => {
+app.post('/api/ai/request', ...spend, aiJson, route(AI_FALLBACK, async (req, res) => {
   const brief = ai.brief(req.body);
-  const raw = await ai.ask(await clientFor(req), modelFor(req), brief);
+  // The lab-wide guard (the month's cap and bursts), when the host provides
+  // one - asked after the identity gates and the free 400s, before the call.
+  const guard = global.LAB_AI_GUARD;
+  if (guard?.allow) {
+    const a = await guard.allow({ provider: 'claude', req, app: 'lastday' });
+    if (!a || !a.ok) return res.status((a && a.status) || 503).json({ error: (a && a.message) || AI_FALLBACK, code: a && a.code });
+  }
+  const model = modelFor(req);
+  const client = await clientFor(req);
+  let used = null;
+  let raw;
+  try {
+    raw = await ai.ask(client, model, brief, (u) => { used = u; });
+  } finally {
+    // A call that came back is paid for whether or not its answer was usable.
+    // A person's own key is their spend, not the lab's.
+    if (guard?.record && used && !client.__byok) {
+      try {
+        await guard.record({ provider: 'claude', app: 'lastday', usd: guard.priceUsd({ provider: 'claude', model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) });
+      } catch (e) { console.error('[lastday] guard record failed:', e && e.name ? e.name : 'error'); }
+    }
+  }
   res.set('Cache-Control', 'no-store');
   res.json(ai.answer(raw, brief));
 }));
@@ -263,4 +289,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`lastday listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store, fakeClient, ownerTag, LIMITS };
+module.exports = { app, identity, identityStore, store, fakeClient, ownerTag, LIMITS, MODELS };

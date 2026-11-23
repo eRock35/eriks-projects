@@ -26,6 +26,7 @@ const R = require('./public/rules');
 const S = require('./lib/shifts');
 const ai = require('./lib/ai');
 const photo = require('./lib/photo');
+const gemini = require('./lib/gemini');
 const { demo } = require('./lib/demo');
 const identityLib = require('./lib/identity');
 
@@ -36,6 +37,16 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('TIPOUT_FAKE_AI=1 is for l
 // Free tier on Haiku, members on Sonnet - the split every sibling uses,
 // decided in one place by identity.planFor. Both read photos.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a snapped POS report. TIPOUT_AI_PROVIDER=gemini moves it
+// to Gemini on Vertex AI (through the lab's guard), which transcribes the
+// whole report - totals, who worked, hours - for the shift lead to confirm;
+// anything else, unset included, is Claude reading three totals, as it has
+// always been. Read per request, so the switch is a Cloud Run setting and
+// never a code change.
+// TIPOUT_AI_PROVIDER=claude-first (2026-11-23): Claude reads the three
+// totals first; Gemini's report reader answers when Claude fails.
+const providerNow = () => (process.env.TIPOUT_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.TIPOUT_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -114,7 +125,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
-  if (mine) for (const k of ['field']) if (err[k] !== undefined) body[k] = err[k];
+  if (mine) for (const k of ['field', 'code']) if (err[k] !== undefined) body[k] = err[k];
   res.status(status).json(body);
 };
 
@@ -245,6 +256,9 @@ app.get('/api/me', async (req, res) => {
       name: S.nameFromEmail(req.user.email),
       budget: identityLib.budgetFor(req.user),
       tier: identityLib.planFor(req.user, MODELS).tier,
+      // What a snap reads: 'totals' (three numbers) or 'report' (totals,
+      // who worked and hours).
+      snap: providerNow() === 'gemini' ? 'report' : 'totals',
       setup: await loadSetup(req.user.id),
     });
   } catch (err) { fail(res, err); }
@@ -401,23 +415,154 @@ app.get('/api/export.csv', user, async (req, res) => {
  * ------------------------------------------------------------------ */
 
 /**
- * One photo, read once by the model, never stored. It proposes card tips,
- * cash tips and food sales; the shift lead checks them in the form. The photo
- * is checked by its bytes before any spend (400); nothing readable is a 422.
- * The gates run first, then the 6 MB parser.
+ * One photo, read once by the model, never stored. The gates run first, then
+ * the 6 MB parser, then the photo is checked by its bytes (400, nothing
+ * spent), then the lab's AI guard (the month's cap per provider and the
+ * burst limits, when the host has one; its refusal is a 429/503 with its own
+ * words) - and only then ONE call: a forced tool on Claude, or a
+ * responseSchema on Gemini. Either way the answer is a proposal the shift
+ * lead confirms on the page; every split, percentage and total is
+ * public/rules.js. Nothing readable is a 422.
  */
+const UNREADABLE = 'We couldn’t read a POS report in that photo. Try a closer, flatter, well-lit shot - or type the tips in.';
+const NO_TOTALS = 'We couldn’t find card or cash tip totals on that report. Type them in - it takes a few seconds.';
+const NOTHING = 'We couldn’t find tips or hours on that report. Type them in - it takes a few seconds.';
+
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'tipout' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'Reading photos is resting for now. Typing the tips in always works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'tipout', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: three totals, and the identity meter
+ *  charges the person. */
+async function snapWithClaude(req, image) {
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  let raw;
+  try {
+    raw = await ai.readReport(client, model, image, (u) => { used = u; });
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+  const reading = ai.cleanReading(raw);
+  if (!reading) throw httpError(422, raw && raw.readable === false ? UNREADABLE : NO_TOTALS);
+  return reading;
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function snapWithGemini(req, image) {
+  const guard = global.LAB_AI_GUARD;
+  const today = todayOf(req);
+  const request = gemini.request(image, today);
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1900, outputTokens: 700 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, gemini: 'no-helper' });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), gemini: (err && err.code) || 'error' });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage);
+    }
+  }
+  const report = gemini.cleanReading(out && out.json, today);
+  if (!report) throw httpError(422, UNREADABLE);
+  // Tipout's own arithmetic on the transcription: what the figures come to
+  // and which need a second look. The page runs the same function.
+  const check = R.reportCheck(report);
+  const hasTips = check.card.cents !== null || check.cash.cents !== null;
+  if (!hasTips && !report.staff.length) throw httpError(422, NOTHING);
+  const proposal = { card: '', cash: '', sales: '' };
+  const filled = [];
+  const dropped = [];
+  let low = 1;
+  for (const [k, label] of [['card', 'card tips'], ['cash', 'cash tips'], ['sales', 'food sales']]) {
+    if (check[k].cents !== null) { proposal[k] = R.plain(check[k].cents); filled.push(k); if (check[k].flag) low = Math.min(low, check[k].source === 'printed' ? report.totals[k].confidence : 0.5); } else dropped.push(label);
+  }
+  return { reader: 'report', proposal, filled, dropped, confidence: low >= R.UNCLEAR ? 'high' : low >= 0.5 ? 'medium' : 'low', note: '', report };
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `snap:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
+/** Gemini first, for a feature Claude also has. If the Gemini step fails for
+ *  any reason but a burst refusal - a thrown call, output the validator
+ *  rejects (a 422, or `viaGemini()` resolving falsy), the month's Gemini cap,
+ *  no helper - Claude's own path answers the same request, unchanged (its own
+ *  guard, gates and meter). A burst is per person across both providers: its
+ *  refusal goes out as it is. One log line, no user data. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function geminiElseClaude(viaGemini, viaClaude) {
+  let code;
+  try {
+    const out = await viaGemini();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.gemini || (err.status === 422 ? 'unusable' : err.code))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tipout] gemini failed (${code}); used claude`);
+  return viaClaude();
+}
+
+/** Claude first (TIPOUT_AI_PROVIDER=claude-first): the same two paths in the
+ *  other order. If Claude's own path fails for any reason but a burst
+ *  refusal - a thrown SDK error, a reading the validator rejects (a 422), the
+ *  month's Claude cap, no key - Gemini's own path answers the same photo. */
+async function claudeElseGemini(viaClaude, viaGemini) {
+  let code;
+  try {
+    const out = await viaClaude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.status === 422 ? 'unusable' : (err.code || err.status))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tipout] claude failed (${code}); used gemini`);
+  return viaGemini();
+}
+
 app.post('/api/snap', ...spend, snapJson, async (req, res) => {
   try {
     const image = photo.validate((req.body || {}).image);
-    const client = await clientFor(req);
-    const raw = await ai.readReport(client, modelFor(req), image);
-    const reading = ai.cleanReading(raw);
-    if (!reading) {
-      throw httpError(422, raw && raw.readable === false
-        ? 'We couldn’t read a POS report in that photo. Try a closer, flatter, well-lit shot - or type the tips in.'
-        : 'We couldn’t find card or cash tip totals on that report. Type them in - it takes a few seconds.');
-    }
-    res.json(reading);
+    const viaClaude = async () => { await guardAllow('claude', req); return { reader: 'totals', ...(await snapWithClaude(req, image)) }; };
+    const viaGemini = async () => { await guardAllow('gemini', req); return snapWithGemini(req, image); };
+    const mode = providerNow();
+    res.json(mode === 'gemini' ? await geminiElseClaude(viaGemini, viaClaude)
+      : mode === 'claude-first' ? await claudeElseGemini(viaClaude, viaGemini)
+        : await viaClaude());
   } catch (err) { fail(res, err, 'Could not read that photo. Try again, or type the tips in.'); }
 });
 

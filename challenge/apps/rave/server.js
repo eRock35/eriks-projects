@@ -94,6 +94,38 @@ const user = identity.requireUser;
 
 const now = () => new Date().toISOString();
 const httpError = V.httpError;
+
+// The lab's AI guard (challenge/CLAUDE.md, "Lab AI guard"): a monthly cap per
+// provider and burst limits per person, held by the host in one global. Every
+// model route asks it AFTER the identity gates and the route's own checks (a
+// stranger or a bad request never reaches it) and BEFORE the model, and tells
+// it what the call cost after - whether or not the answer passed the checks.
+// Run on its own (tests, `npm run dev`) there is no guard and the identity
+// gates stand alone.
+const PROVIDER = 'claude';
+async function aiAllow(req, freePath) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const g = await guard.allow({ provider: PROVIDER, req, app: 'rave' });
+  if (g && g.ok) return;
+  throw Object.assign(httpError((g && g.status) || 429, `${(g && g.message) || 'The AI is resting for now.'} ${freePath}`), { code: (g && g.code) || 'ai-guard' });
+}
+async function aiRecord(model, used) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !used) return;
+  try {
+    await guard.record({ provider: PROVIDER, app: 'rave', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) });
+  } catch (e) { console.error('ai guard: record failed'); }
+}
+/** allow -> the call -> record. `fn(model, onUsage)` makes the one model call. */
+async function withAi(req, freePath, fn) {
+  await aiAllow(req, freePath);
+  const model = modelFor(req);
+  let used = null;
+  try { return await fn(model, (u) => { used = u; }); } finally { await aiRecord(model, used); }
+}
+const FREE_REPLY = 'Templates, the checklist and the thermometer are free.';
+
 // Only the app's own errors (httpError, marked `expose`) reach the client
 // with their status and words (2026-09-27). Anything else is logged and
 // answered with the route's fallback - including the Anthropic SDK's errors,
@@ -108,6 +140,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
   const body = { error: mine ? err.message : fallback };
+  if (mine && err.code) body.code = err.code;
   res.status(status).json(body);
 };
 
@@ -329,7 +362,7 @@ app.post('/api/reviews/read', ...spend, bigJson, async (req, res) => {
   try {
     const image = photo.validate((req.body || {}).image);
     const client = await clientFor(req);
-    const raw = await ai.readReview(client, modelFor(req), image);
+    const raw = await withAi(req, 'You can still paste the review in.', (model, onUsage) => ai.readReview(client, model, image, onUsage));
     const proposal = ai.validateRead(raw, todayOf(req));
     if (!proposal) throw httpError(422, 'That doesn’t look like a review we can read. Try a tighter screenshot that shows the stars - or paste it in.');
     res.json(proposal);
@@ -354,26 +387,36 @@ app.post('/api/cooldown', ...spend, async (req, res) => {
     }
     const triage = review ? V.triageOf(review) : null;
     const client = await clientFor(req);
-    const out = await ai.coolDown(client, modelFor(req), angry, review, triage, settings);
+    const out = await withAi(req, 'The thermometer and the checklist are free.', (model, onUsage) => ai.coolDown(client, model, angry, review, triage, settings, { voiceSample: b.voiceSample, onUsage }));
     // The thermometer is ours, not the model's: both sides measured by the
     // same rules the page runs, and anything the rules saw leave is listed
     // even when the model forgot to say so.
     const ctx = { reviewer: review ? review.reviewer : '', contactLine: settings.contactLine };
     const heatBefore = R.heat(angry, ctx);
-    const heatAfter = R.heat(out.calm, ctx);
-    const stillThere = new Set(heatAfter.flags.map((f) => f.kind));
+    const options = out.options.map((o) => ({
+      ...o,
+      heatAfter: R.heat(o.calm, ctx),
+      lint: review ? V.lintFor(o.calm, review, all, settings) : R.lint(o.calm, { contactLine: settings.contactLine }),
+    }));
+    // "Removed" is measured against every version: gone from all of them.
+    const stillThere = new Set(options.flatMap((o) => o.heatAfter.flags.map((f) => f.kind)));
     const listed = new Set(out.removed.map((x) => x.kind));
     for (const f of heatBefore.flags) {
       if (!stillThere.has(f.kind) && !listed.has(f.kind)) out.removed.push({ kind: f.kind, quote: V.clean(f.sample, 100), why: 'Rave’s heat check caught this in your draft.', by: 'rules' });
     }
+    const top = options[0];
+    res.set('Cache-Control', 'no-store');
     res.json({
-      calm: out.calm,
-      kept: out.kept,
+      // The first version, flat, is what this route always answered with.
+      calm: top.calm,
+      kept: top.kept.map((k) => k.point).join(' '),
+      heatAfter: top.heatAfter,
+      lint: top.lint,
+      options,
+      dropped: out.dropped,
       removed: out.removed.map((x) => ({ ...x, emoji: R.kindInfo(x.kind).emoji, label: R.kindInfo(x.kind).label })),
       heatBefore,
-      heatAfter,
       reviewId: review ? review.id : null,
-      lint: review ? V.lintFor(out.calm, review, all, settings) : R.lint(out.calm, { contactLine: settings.contactLine }),
     });
   } catch (err) { fail(res, err, 'Could not cool that down. Try again.'); }
 });
@@ -460,18 +503,27 @@ app.post('/api/reviews/:id/template', user, async (req, res) => {
 
 app.post('/api/reviews/:id/triage', ...spend, (req, res) => mutate(req, res, async (r) => {
   const client = await clientFor(req);
-  const t = await ai.triage(client, modelFor(req), r);
+  const t = await withAi(req, 'The quick read is free.', (model, onUsage) => ai.triage(client, model, r, onUsage));
   r.triage = { ...t, at: now() };
 }));
 
+/** Two or three options in the owner's voice, each checked against the
+ *  review and the owner's settings (lib/ai.js `invented`); nothing is saved
+ *  until the owner picks one, and nothing is ever posted. `voiceSample` - a
+ *  reply the owner wrote themselves - rides in from their device and is not
+ *  stored. */
 app.post('/api/reviews/:id/draft', ...spend, async (req, res) => {
   try {
     const r = await loadReview(req);
     const settings = await loadSettings(req.user.id);
     const client = await clientFor(req);
-    const out = await ai.reply(client, modelFor(req), r, V.triageOf(r), settings);
+    const voiceSample = (req.body || {}).voiceSample;
+    const out = await withAi(req, FREE_REPLY, (model, onUsage) => ai.reply(client, model, r, V.triageOf(r), settings, { voiceSample, onUsage }));
     const all = await loadAll(req.user.id);
-    res.json({ text: out.text, note: out.note, source: 'ai', lint: V.lintFor(out.text, r, all, settings) });
+    const options = out.options.map((o) => ({ ...o, lint: V.lintFor(o.text, r, all, settings) }));
+    res.set('Cache-Control', 'no-store');
+    // The first option, flat, is what this route always answered with.
+    res.json({ text: options[0].text, note: options[0].note, source: 'ai', lint: options[0].lint, options, dropped: out.dropped });
   } catch (err) { fail(res, err, 'Could not write that reply. Try again, or use a template.'); }
 });
 

@@ -40,9 +40,59 @@ the plain-words answer to the light, and the history a buyer can read.
 **Who pays.** Almost nobody. The example garage, adding cars, the plan, the
 board, every action and undo, the pace, costs, the light finder, the history
 report and its link, printing, the calendar file and export/import are
-free, need no account, and make no request. The one metered thing is **"Read
+free, need no account, and make no request. The metered things are **"Read
 my dashboard" / "Read a receipt"** (Haiku for the free tier, Sonnet for
-members via `identity.planFor`), about a cent.
+members via `identity.planFor`), about a cent, and - only when the app is
+switched to Gemini - **"Light or noise?"** (below).
+
+## The look (redesigned 2026-11-23)
+
+Erik's all-apps redesign: clean white, Apple-like, "futuristic but
+professional". The rules live at the top of `public/app.css`; keep them.
+
+- **Pure white page** (`--bg #ffffff`; true black in the dark theme, sheets
+  on `#1c1c1e`). No tints, gradients or heavy boxes. **Lists over boxes**:
+  the board, the log, the plan, the light groups and every menu are rows
+  divided by 1px hairlines (`--line #e5e5ea`). A real card (`.card.box`,
+  12px, hairline) only for the two AI offers and "belt or chain?"; `.card`
+  alone is just a spaced section. The buyer's report is the one sheet of
+  paper. 10px inputs and tiles, pill buttons and chips. The only shadow is
+  the barely-there `--lift` on what floats (nav pill, sheet, toast).
+- **One accent**: the lab's dashboard blue `#1d4f91` (`#8cb8f2` in the
+  dark), for the primary button, links and the active nav. **Status colours
+  only for status** - bands and warning groups - and never alone: each has
+  its word and a line icon. The warning-light tiles stay a dark "dash" in
+  both themes, lit in their own colour: that is the app's picture.
+- **Navigation**: phones get a slim floating translucent pill (line icons,
+  the label only on the active item, a small accent mark, safe-area aware,
+  46px targets); from 900px it is a top nav with a quiet underline, centred
+  in the sticky header. The nav is `.tabbar` **without** `.dk-tabbar`, so the
+  shared `desktop.css` (still loaded, `body.dk` kept) only centres the page
+  and never builds its left rail.
+- **Type**: system stack only; 13 / 15 / 16 / 20 / 28+ (`--t-*`), tight
+  tracked headings, tabular numbers for the odometer, costs and dates.
+- **Icons**: `ICONS` + `ic(name)` in `app.js` - 24px, 1.5px strokes, one path
+  each, including one per plan item (keyed by the item id). **No emoji in
+  the app's own markup** (tested). The plan's `emoji` field stays in
+  `glovebox-core.js` for the buyer's report.
+- **Start**: a centred hero (the lit cluster, the headline, one line, two
+  pill buttons), then two or three plain rows, then how it works.
+- **No `style=` anywhere** - not in the HTML, not written by script
+  (tested): spacing is by the small utility classes (`.mt12`, `.m0`, ...).
+- **Motion** (press states, the sheet and toast arriving, a 0.2s fade
+  between views, the recording meter) sits entirely inside
+  `@media (prefers-reduced-motion: no-preference)` (tested); every page is
+  complete at rest.
+- **Taps from the board** (the app's home): mark a job done 1 (Done) + 1
+  (Add to the log); update mileage 1 + save; log a service 1 + save; look up
+  a light 2 (Lights, the colour) + the shape; "Light or noise?" 1 on a
+  desktop (the side list) or 2 on a phone (Lights, Snap or record); the
+  buyer's link 2 (History, Make a share link); calendar file 2 (More, Add
+  due dates).
+- Measured in the browser at 390, 320 and 1440px, both themes, on every
+  view and both AI sheets: the lowest text contrast is 5.37:1 in light
+  (muted text on white) and 6.61:1 in dark; no target under 44px; nothing
+  scrolls sideways.
 
 ## The decisions that matter
 
@@ -197,7 +247,101 @@ both stories on **every day of a year**. Costs follow the viewer's currency
   finder and the buyer's page working offline once opened: network first,
   own scope only, never `api/`, only `glovebox-*` caches.
 
-## The one model call (metered)
+## "Light or noise?" - a likely cause and how urgent (Gemini, behind a switch)
+
+Erik's per-app AI plan gave Glovebox **Gemini**: "Snap the warning light or
+record the noise: likely cause and urgency" - because it needs photos *and*
+audio. **It is off until `GLOVEBOX_AI_PROVIDER=gemini` is set on the
+service** (read per request; anything else, unset included, is Claude and
+the app behaves exactly as before the redesign). Turning it on is Erik's
+yes, and needs Vertex AI enabled with `aiplatform.user` for `challenge-run@`
+(see "Lab AI guard" in `challenge/CLAUDE.md`). With the switch on, the two
+photo reads below move to Gemini as well, so the app has one provider.
+**Fallback (2026-11-23):** a dashboard or receipt read that fails on Gemini
+(thrown `VertexError`, a not-relevant answer, Gemini's `monthly-cap`, no
+helper) runs the Claude path unchanged (`allow('claude')`, meter, record),
+logging `[glovebox] gemini failed (<code>); used claude`; a burst refusal is
+sent as it is. **"Light or noise?" has no Claude path and never falls back.**
+**Claude first (2026-11-23):** `GLOVEBOX_AI_PROVIDER=claude-first` keeps the
+dashboard and receipt reads on Claude, unchanged; if Claude throws, answers
+not-relevant or hits its `monthly-cap`, Gemini reads the same photo (`[glovebox]
+claude failed (<code>); used gemini`); a burst refusal is sent as it is.
+"Light or noise?" is **on** in this mode (`diagnoseOn()`), Gemini-only, with
+the same safety rules and friendly error. `/api/me` says `ai: 'claude-first'`.
+Its request sets `thinkingConfig: { thinkingLevel: 'LOW' }`: on the default level it
+thought 1,500+ tokens and took 13-30 s (timing out); low answers in about 2 s.
+
+- **Safety first, in code** (`public/glovebox-diagnose.js`, UMD, run by the
+  server, the page and the tests):
+  - The urgency is one of **four**: `stop_now`, `soon`, `can_wait`,
+    `not_sure`. Each has **fixed wording written here** (`URGENCY`), and the
+    page shows only that - never a model's sentence about what to do.
+  - **Always `stop_now`, whatever the model says** (`cleanDiagnosis`): a
+    light seen red; a light that flashes; a light Glovebox's own catalogue
+    marks red; any of the five hazards the model lists (brakes, steering,
+    overheating, smoke, fuel smell); a cause marked `hazard`; and the same
+    danger words in the driver's own note or in what the model said it
+    noticed (`DANGER`). The answer says why, in the app's words (`REASONS`).
+  - **"Not sure" is always allowed** and never overridden downward.
+    **"Can wait" is only ever said** for a named cause that allows it
+    (`wait: true`: a loose heat shield, wipers/washer fluid, a service
+    reminder, an information light) with a confident answer; any other
+    "can wait" comes back "not sure". A named cause is never shown below its
+    own `floor`.
+  - **A mechanic should confirm** (`CONFIRM`) on every answer.
+  - **The likely cause is picked from `CAUSES`** (27, or unknown): the label
+    and the one plain sentence are the app's. No line anywhere tells anyone
+    how to repair anything (tested), exactly as the light catalogue.
+  - The one free-text field, `observed` ("An amber engine outline, lit
+    steadily"), is description only: 160 characters, stripped, and any
+    sentence about safety, urgency or what to do is dropped
+    (`scrubSafe` + `ADVICE`).
+- **The request** (`lib/gemini.js`): `gemini-3.8-flash`, temperature 0, a
+  `responseSchema` in which every field but `observed` is an enum from the
+  app's lists; the photo and the recording inline; the car's fuel and the
+  driver's note (200 characters, between markers, as data).
+- **The route**: `POST /api/diagnose {photo?, audio?, note?, fuel?}` -
+  `requireUser, requireBudget, requireDailyCap`, **then** the 6 MB parser,
+  then "is it switched on" (404 `ai-off`), then the media checked by its
+  bytes (a 400 costs nothing), then `LAB_AI_GUARD.allow`, then
+  `LAB_AI_GUARD.gemini.generate`, then `record` and the person's own ledger
+  (`chargeGemini`: the real dollars, written as the Haiku input tokens that
+  cost the same, route `diagnose:gemini-3.8-flash`), then `cleanDiagnosis`.
+  Not a car: 422. A guard refusal is its own friendly message. A provider
+  failure is a 502/503 in the app's words; usage a failed call was billed
+  for is still recorded and charged.
+- **Media, shrunk and capped, never stored**: the photo is shrunk on the
+  phone to 1280px JPEG (again at 960px if needed) and refused over **2 MB**;
+  a recording is **15 seconds at most** - the recorder stops itself, a
+  chosen file longer than that is refused on the phone - and **1.5 MB**
+  (`lib/audio.js`: real type from the first bytes; a WAV, the one container
+  whose length is a sum, refused past 15 s on the server too). The sheet
+  says both limits. Nothing is written or logged anywhere; the photo and the
+  recording live in the open sheet and are dropped when it closes
+  (`sheetBye`, which also stops a recording in progress).
+- **The page** shows the feature only where `/api/me` says `diagnose: true`
+  (`dxOn()`; every way in is behind it - tested): a row on the start screen,
+  a card on Lights, a button beside "A light just came on?" and in More.
+  Signed out, the sheet explains and offers a free account or the free
+  finder. A matched light links to the catalogue's own page for it.
+- **The stand-in** (`lib/fakeai.js` `gemini`, `GLOVEBOX_FAKE_AI=1`): a photo
+  is an amber check-engine light ("soon"; "flash" in the note makes it
+  flash); a recording is a squeal the model calls "soon" - which must come
+  out **stop now**, because it is the brakes. Triggers in the media's bytes
+  or the note: `BLANK`, `CALM` (a red oil light the model says can wait),
+  `RATTLE`, `MINOR`, `UNSURE`, `INJECT`, `UPSTREAMnnn`. `npm run dev` sets
+  the switch so the feature can be tried locally; `npm test` runs on the
+  default and flips it per test.
+
+## The photo reads (metered)
+
+Both metered routes go through the **lab's AI guard** when the host has one
+(`global.LAB_AI_GUARD`): `allow` after the gates and the request checks and
+before the call, `record` after it with `priceUsd` (a member's own key is
+not counted against the lab's cap). On its own (tests, `npm run dev`) the
+app runs without it. On Gemini the same two reads use `DASH_SCHEMA` /
+`RECEIPT_SCHEMA` in `lib/gemini.js`, reshaped by `toRaw` for the same
+cleaners, so the answers are the same.
 
 `POST /api/read {kind: 'dash'|'receipt', photo, today}`:
 `requireUser, requireBudget, requireDailyCap` **then** a 6 MB parser
@@ -247,8 +391,8 @@ the photo's bytes: `BLANK`, `REDOIL` (the red oil light with the model
 insisting it's fine to drive), `INJECT` (markup, bidi, made-up ids, urgency
 fields, "safe to ignore", 40 lights or lines, absurd numbers), `MAXTOKENS`,
 `UPSTREAMnnn`; otherwise check engine + TPMS and 48,212 mi, or an oil change,
-rotation and wipers receipt. Screenshots at 390px and 1280px, light and dark,
-were taken with playwright-core against `npm run dev`.
+rotation and wipers receipt. The redesign was rendered at 390, 320 and
+1440px, light and dark, with headless Chrome over CDP against the dev server.
 
 The shared files (`lib/identity.js`, `identity-store.js`, `byok.js`,
 `stripe.js`, `webauthn.js`; `public/desktop.css`, `passkey-client.js`,
@@ -266,8 +410,9 @@ told once), IndexedDB `glovebox-receipts` (receipt photos).
 
 ## Routes
 
-Public: `GET /api/health`, `/api/meta`, `/api/me`, `/sw.js`, `/history` (the
-buyer's page), the page. Metered: `POST /api/read`. The shared account at
+Public: `GET /api/health`, `/api/meta`, `/api/me` (also `ai` and `diagnose`:
+which provider, and whether "Light or noise?" is on), `/sw.js`, `/history`
+(the buyer's page), the page. Metered: `POST /api/read`, `POST /api/diagnose`. The shared account at
 `/api/auth`. There is deliberately no route for cars.
 
 ## Ideas not built yet
@@ -285,8 +430,10 @@ buyer's page), the page. Metered: `POST /api/read`. The shared account at
 - A script CSP on every page (`script-src 'self'; object-src 'none';
   base-uri 'self'` + `frame-ancestors`); no inline `<script>` or `on*=` in
   either page; handlers by `data-act` from one listener.
-- No model call for a signed-out visitor, ever; the metered route's gates run
-  before its parser.
+- No model call for a signed-out visitor, ever; both metered routes' gates
+  run before their parser.
+- No `style=` attribute in a page or written by script (tested), so a
+  stricter style CSP stays possible.
 - Nicknames, shops, notes, imported files, history links and model output
   are untrusted: cleaned, bounded, stripped of markup, control and bidi
   characters, and escaped on render. The history link is attacker-writable

@@ -52,6 +52,10 @@
     aiProducts: 200,                // descriptions sent to the AI at most
     aiChars: 120,                   // characters per description sent
     reasonChars: 160,
+    describeLines: 12,              // typed product / contract lines sent to the AI at once
+    describeChars: 160,             // characters per typed line
+    describeParts: 3,               // promises the answer may find in one line
+    partName: 60,
     accountChars: 60,
     descChars: 120,
     periodDays: 3660,               // a service period longer than ten years is refused
@@ -1789,6 +1793,140 @@
   }
 
   /* ================================================================== *
+   * "Describe your products": typed product or contract lines in, a
+   * recognition pattern for each promise in them out - as suggestions the
+   * person edits and confirms. The model picks from fixed lists; the words
+   * of each principle, the Waterfall rule a pattern maps to and every
+   * figure in the preview are worked out here, never by the model.
+   * ================================================================== */
+
+  var PATTERNS = ['ratable', 'point', 'milestone', 'usage', 'exclude', 'unsure'];
+  var PATTERN_WORD = { ratable: 'Ratable', point: 'Point in time', milestone: 'Milestone', usage: 'As used', exclude: 'Not revenue', unsure: 'Unsure' };
+  var STARTS = ['service_start', 'invoice_date', 'delivery', 'go_live', 'milestone_met', 'usage_occurs', 'none'];
+  var START_WORD = { service_start: 'the day service starts', invoice_date: 'the invoice date', delivery: 'delivery to the customer', go_live: 'go-live', milestone_met: 'each milestone being met', usage_occurs: 'the usage happening', none: 'nothing - it is not recognised' };
+  var ENDS = ['service_end', 'term_end', 'same_day', 'final_milestone', 'usage_period_end', 'none'];
+  var END_WORD = { service_end: 'the last day of service', term_end: 'the end of the term', same_day: 'the same day', final_milestone: 'the final milestone', usage_period_end: 'the end of the usage period', none: 'nothing' };
+  var PRINCIPLES = ['over_time', 'stand_ready', 'control', 'progress', 'as_used', 'setup', 'not_revenue', 'unclear'];
+  var PRINCIPLE_TEXT = {
+    over_time: 'Revenue follows the service: the customer receives and uses the benefit as it is provided, so it is commonly recognised evenly over the period.',
+    stand_ready: 'A promise to stand ready - support, maintenance, access - is delivered a day at a time, so it is commonly recognised evenly over the term.',
+    control: 'Revenue is recognised when control passes to the customer - for a one-off deliverable, usually the day it is delivered.',
+    progress: 'Work that builds toward a result is commonly recognised as progress is made - here, as each milestone is met.',
+    as_used: 'Usage is commonly recognised in the period the customer used it, whenever it is billed.',
+    setup: 'An up-front activity that hands the customer nothing on its own is often spread over the service it sets up.',
+    not_revenue: 'Money held for someone else or owed back - a deposit, a pass-through, a tax - is usually not revenue.',
+    unclear: 'The description does not say enough to tell when the promise is delivered.',
+  };
+  var MILESTONE_NOTE = 'Waterfall has no milestone rule. Invoice each milestone when it is met and "on the invoice date" recognises it then.';
+
+  /** What the page would send for the typed text: one cleaned line per
+   *  non-empty line (amounts, dates, ids and addresses taken out), each
+   *  once, and how many were left off the end. */
+  function describeLines(text) {
+    var seen = {}, out = [], over = 0;
+    str(text).split(/\r?\n/).forEach(function (raw) {
+      var d = clip(aiLabel(raw.replace(/^\s*(?:[-*•]|\d{1,2}[.)])\s+/, '').replace(/[$€£¥₹]\s?\d[\d,]*(?:\.\d+)?\s?[kKmM]?\b/g, ' ').replace(/\b\d[\d,]*[.,]\d{2}\b/g, ' ')).replace(/[{}`]/g, ' ').replace(/\s+/g, ' ').trim(), LIMITS.describeChars).replace(/…$/, '').trim();
+      if (d.length < 3 || seen[d.toLowerCase()]) return;
+      seen[d.toLowerCase()] = 1;
+      if (out.length >= LIMITS.describeLines) { over++; return; }
+      out.push(d);
+    });
+    return { lines: out, over: over };
+  }
+  /** The request body, rebuilt on the server: {lines: [text]} and nothing
+   *  else. Anything customer-shaped is a 400 before any model call. */
+  function describeRequest(body) {
+    var fail = function (msg, code) { return { error: msg, code: code || 'shape' }; };
+    if (!onlyKeys(body, ['lines']) || !Array.isArray(body.lines)) return fail('Send the descriptions and nothing else.');
+    if (PERSONAL.test(JSON.stringify(body))) return fail('That looks like customer data (an @ or nine digits in a row) - nothing was sent.', 'personal');
+    if (!body.lines.length || body.lines.length > LIMITS.describeLines) return fail('Send 1 to ' + LIMITS.describeLines + ' descriptions.');
+    var seen = {}, out = [];
+    for (var i = 0; i < body.lines.length; i++) {
+      var d = body.lines[i];
+      if (typeof d !== 'string' || d.length < 3 || d.length > LIMITS.describeChars || line(d, LIMITS.describeChars + 5) !== d || /[<>{}`]/.test(d)) return fail('A description is 3 to ' + LIMITS.describeChars + ' characters of plain text.');
+      if (MONEYISH.test(d)) return fail('A description carries an amount - nothing was sent.', 'amount');
+      if (DATEISH.test(d) || new RegExp(DATE_TOKENS.source, 'i').test(d)) return fail('A description carries a date - nothing was sent.', 'date');
+      if (IDISH.test(d)) return fail('A description carries an id - nothing was sent.', 'id');
+      if (seen[d.toLowerCase()]) return fail('A description is sent once.');
+      seen[d.toLowerCase()] = 1;
+      out.push(d);
+    }
+    return { req: { lines: out } };
+  }
+  function plainReason(v, max) {
+    return clip(line(noMarkup(str(v)), 400)
+      .replace(/\b(?:https?:\/\/|www\.)\S+/gi, '')
+      .replace(/\S+@\S+/g, '')
+      .replace(/\b[a-z0-9-]+\.(?:com|net|org|io|ai|dev|co|app|example)\b\S*/gi, '')
+      .replace(/[{}`]/g, '').replace(/\s+/g, ' ').trim(), max);
+  }
+  /** The Waterfall rule a pattern maps to - decided here, not by the model.
+   *  {rule, months, note}; rule null means "choose by hand". `months` is
+   *  the term when one was found, kept so switching to "over N months"
+   *  starts from it. */
+  function patternRule(part) {
+    var n = part.months || null;
+    if (part.pattern === 'ratable') {
+      if (part.start === 'invoice_date' || part.principle === 'setup') return { rule: 'months', months: n || 12, note: n ? '' : 'No term was given, so this starts at 12 months - change it to what your accountant uses.' };
+      return { rule: 'period', months: n, note: 'Follows each invoice line’s own service period, by day.' + (n ? ' If your export has no period on this line, switch to over ' + plural(n, 'month') + '.' : '') };
+    }
+    if (part.pattern === 'point') return { rule: 'invoice', months: null, note: 'Assumes you invoice on the day it is delivered.' };
+    if (part.pattern === 'milestone') return { rule: 'invoice', months: null, note: MILESTONE_NOTE };
+    if (part.pattern === 'usage') return { rule: 'period', months: null, note: 'Follows the usage period on each line, even when billed after.' };
+    if (part.pattern === 'exclude') return { rule: 'exclude', months: null, note: 'Left out of revenue and of the deferred balance.' };
+    return { rule: null, months: null, note: 'Choose this one by hand.' };
+  }
+  /** The model's answer, checked: only the lines sent (by number, each
+   *  once), up to three promises a line, every choice from its fixed list,
+   *  N from 1 to 60, names and reasons plain. The principle's wording and
+   *  the rule come from this file. */
+  function cleanDescribe(raw, req) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.lines)) return { error: 'The suggestions did not come back in the expected shape.', code: 'shape' };
+    var count = req.lines.length, seen = {}, out = [], dropped = Math.max(0, raw.lines.length - 100);
+    raw.lines.slice(0, 100).forEach(function (x) {
+      if (!x || typeof x !== 'object' || !Number.isInteger(x.n) || x.n < 1 || x.n > count || seen[x.n] || !Array.isArray(x.parts)) { dropped++; return; }
+      var parts = [], names = {};
+      x.parts.forEach(function (p) {
+        if (parts.length >= LIMITS.describeParts) { dropped++; return; }
+        if (!p || typeof p !== 'object' || PATTERNS.indexOf(p.pattern) < 0) { dropped++; return; }
+        var months = null;
+        if (p.months !== undefined && p.months !== null) { if (!(Number.isInteger(p.months) && p.months >= 1 && p.months <= LIMITS.months)) { dropped++; return; } months = p.months; }
+        var name = clip(plainReason(p.name, LIMITS.partName).replace(/\d{9,}/g, '').replace(/…$/, '').trim(), LIMITS.partName);
+        if (!name || names[name.toLowerCase()]) { dropped++; return; }
+        names[name.toLowerCase()] = 1;
+        var part = {
+          name: name, pattern: p.pattern, months: p.pattern === 'ratable' ? months : null,
+          start: STARTS.indexOf(p.start) >= 0 ? p.start : (p.pattern === 'ratable' ? 'service_start' : p.pattern === 'point' ? 'delivery' : p.pattern === 'milestone' ? 'milestone_met' : p.pattern === 'usage' ? 'usage_occurs' : 'none'),
+          end: ENDS.indexOf(p.end) >= 0 ? p.end : (p.pattern === 'ratable' ? 'service_end' : p.pattern === 'point' ? 'same_day' : p.pattern === 'milestone' ? 'final_milestone' : p.pattern === 'usage' ? 'usage_period_end' : 'none'),
+          principle: PRINCIPLES.indexOf(p.principle) >= 0 ? p.principle : (p.pattern === 'ratable' ? 'over_time' : p.pattern === 'point' ? 'control' : p.pattern === 'milestone' ? 'progress' : p.pattern === 'usage' ? 'as_used' : p.pattern === 'exclude' ? 'not_revenue' : 'unclear'),
+          reason: plainReason(p.reason, LIMITS.reasonChars),
+        };
+        if (part.pattern === 'unsure') { part.start = 'none'; part.end = 'none'; part.principle = 'unclear'; }
+        var r = patternRule(part);
+        part.principleText = PRINCIPLE_TEXT[part.principle];
+        part.rule = r.rule; part.ruleMonths = r.months; part.note = r.note;
+        parts.push(part);
+      });
+      if (!parts.length) { dropped++; return; }
+      seen[x.n] = 1;
+      out.push({ n: x.n, d: req.lines[x.n - 1], parts: parts });
+    });
+    if (!out.length) return { error: 'The suggestions came back empty. Choose the rules by hand - the table is free.', code: 'empty' };
+    out.sort(function (a, b) { return a.n - b.n; });
+    return { lines: out, dropped: dropped };
+  }
+  /** What a rule does to one invoice of `amount` (minor units) billed on
+   *  day `bill`, with a service period of `months` from that day: the
+   *  months and what lands in each, adding up to the amount exactly. The
+   *  same split the schedule uses. */
+  function previewRule(amount, bill, rule, months) {
+    var n = Math.max(1, Math.min(LIMITS.months, Math.floor(months) || 12));
+    var r = rule === 'months' ? { rule: 'months', months: n } : { rule: RULES.indexOf(rule) >= 0 ? rule : 'period' };
+    var rec = recognise({ amt: amount, bill: bill, s: bill, e: addMonths(bill, n) }, r);
+    return { kind: rec.kind, parts: rec.parts, total: rec.parts.reduce(function (s, x) { return s + x[1]; }, 0) };
+  }
+
+  /* ================================================================== *
    * The engine the worker (or the page) drives. It holds the file and its
    * lines in memory - in the worker, that is the only place they ever are -
    * and answers with summaries the page draws. Nothing here is kept after
@@ -1921,6 +2059,8 @@
     csvCell: csvCell, toCsv: toCsv, md: md, scheduleCsv: scheduleCsv, waterfallCsv: waterfallCsv, rollCsv: rollCsv, journalCsv: journalCsv, closeMemo: closeMemo,
     defaults: defaults, cleanSettings: cleanSettings, mergeSettings: mergeSettings,
     aiLabel: aiLabel, aiPayload: aiPayload, rulesRequest: rulesRequest, cleanAiRules: cleanAiRules,
+    PATTERNS: PATTERNS, PATTERN_WORD: PATTERN_WORD, STARTS: STARTS, START_WORD: START_WORD, ENDS: ENDS, END_WORD: END_WORD, PRINCIPLES: PRINCIPLES, PRINCIPLE_TEXT: PRINCIPLE_TEXT,
+    describeLines: describeLines, describeRequest: describeRequest, cleanDescribe: cleanDescribe, patternRule: patternRule, previewRule: previewRule,
     createEngine: createEngine, cleanMap: cleanMap, cleanAnswers: cleanAnswers,
   };
 }));

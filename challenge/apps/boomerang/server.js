@@ -381,14 +381,34 @@ app.delete('/api/shelf', identity.requireUser, route('Could not clear it.', asyn
  * ------------------------------------------------------------------ */
 
 /** Gates, then an 8 KB parser, then the ask checked (a 400 costs nothing),
- *  then one forced tool. Nothing here writes to the store. */
+ *  then the lab's AI guard when the host has loaded one (the monthly cap per
+ *  provider and the burst limits; without it - local runs, the app on its
+ *  own - the identity gates stand alone), then one forced tool, then every
+ *  message checked against the facts it was written from. The guard is told
+ *  what the call cost after. Nothing here writes to the app's store. */
+const PROVIDER = 'claude';
 app.post('/api/write', ...spend, writeJson, route('Writing isn’t available right now. Try again in a minute - the ready-made nudges still work.', async (req, res) => {
   const today = todayOf(req);
   const b = ai.brief(req.body, today);
-  const options = ai.cleanOptions(await ai.write(await clientFor(req), modelFor(req), b, today), b.tone);
-  if (!options.length) throw httpError(422, 'Nothing usable came back. Try again, or try another hint.');
-  res.set('Cache-Control', 'no-store');
-  res.json({ options });
+  const guard = global.LAB_AI_GUARD;
+  if (guard) {
+    const g = await guard.allow({ provider: PROVIDER, req, app: 'boomerang' });
+    if (!g || !g.ok) return res.status((g && g.status) || 429).json({ error: `${(g && g.message) || 'The AI is resting for now.'} The ready-made nudges are free.`, code: (g && g.code) || 'ai-guard' });
+  }
+  const model = modelFor(req);
+  let used = null;
+  try {
+    const raw = await ai.write(await clientFor(req), model, b, today, (u) => { used = u; });
+    const options = ai.cleanOptions(raw, b.tone, b, today);
+    if (!options.length) throw httpError(422, 'Nothing usable came back. Try again, or try another hint.');
+    res.set('Cache-Control', 'no-store');
+    res.json({ options });
+  } finally {
+    // A call that came back is paid for whether or not its messages passed the checks.
+    if (guard && used) {
+      try { await guard.record({ provider: PROVIDER, app: 'boomerang', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+    }
+  }
 }));
 
 /* ------------------------------------------------------------------ *

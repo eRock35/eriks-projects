@@ -1,0 +1,32 @@
+{
+ "built": "2026-11-23",
+ "companies": 81,
+ "figures": 7026,
+ "edges": {
+  "curated": 567,
+  "kept": 566,
+  "dropped": [
+   {
+    "by": "MSFT",
+    "from": "NVDA",
+    "to": "MSFT",
+    "type": "supplier",
+    "why": "quote not found verbatim in the source",
+    "tripwire": true
+   }
+  ]
+ },
+ "insights": {
+  "kept": 619,
+  "dropped": 0
+ },
+ "notes": [],
+ "sizes": {
+  "index": 434105,
+  "patterns": 309763,
+  "largestCompany": {
+   "id": "ZBRA",
+   "bytes": 28939
+  }
+ }
+}

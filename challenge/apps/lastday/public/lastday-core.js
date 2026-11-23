@@ -46,6 +46,7 @@
     pasteChars: 20000,              // a pasted request
     aiChars: 4000,                  // what may be sent to the model, masked
     questions: 8, fromChars: 160,
+    aiSystems: 12, aiUnclear: 6,   // systems and unclear passages kept from one AI reading
     dormantMin: 14, dormantMax: 730,
   };
 
@@ -1073,6 +1074,10 @@
       mailbox: has(MAILBOX, str(r.mailbox)) ? r.mailbox : '',
       hardware: Array.isArray(r.hardware) ? r.hardware.filter(function (h) { return HARDWARE.indexOf(h) >= 0; }).slice(0, HARDWARE.length) : [],
       requestedBy: line(r.requestedBy, LIMITS.fieldChars), notes: para(r.notes, LIMITS.notesChars),
+      // From an AI reading, both in the request's own words: their role or
+      // team, and the systems it named that the system list holds.
+      role: line(r.role, LIMITS.systemChars),
+      named: Array.isArray(r.named) ? r.named.map(function (n) { return line(n, LIMITS.systemChars); }).filter(function (n, i, a) { return n && a.indexOf(n) === i; }).slice(0, LIMITS.aiSystems) : [],
       from: {}, createdAt: str(r.createdAt).slice(0, 25), demo: r.demo === true,
       tasks: [],
     };
@@ -1418,6 +1423,7 @@
    * ================================================================== */
 
   var TOKEN = /\[(email|phone|person|link|number|word)(\d{1,3})\]/g;
+  var TOKEN_ONE = /\[(email|phone|person|link|number|word)(\d{1,3})\]/;
   var PHONE = /(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)\s?|\b\d{3}[\s.-])\d{3}[\s.-]\d{4}\b|\b\d{3}[\s.-]\d{4}\b|\+\d{8,14}\b/g;
   var LONGNUM = /\b\d{6,}\b/g;
 
@@ -1531,13 +1537,43 @@
     return needle.length >= 2 && hay.indexOf(needle) >= 0 ? s : '';
   }
 
+  /** Words the model says the request used (a role, a system's name): kept
+   *  only when they are in the masked text as written, carry no token (a
+   *  person is never a system) and are not shaped like an address. */
+  function aiSaid(v, req, max) {
+    var t = aiString(v, req, max);
+    if (!t || t.length < 2 || TOKEN_ONE.test(t) || /[@{}]/.test(t)) return '';
+    return aiFrom(t, req);
+  }
+  /** What a checklist cannot be timed without. The page writes the words. */
+  var ESSENTIALS = ['name', 'lastDay', 'involuntary'];
+  var UNCLEAR = { who: 'who is leaving', last_day: 'the last day', time: 'the time access ends', kind: 'whether it is voluntary', manager: 'their manager', files: 'who takes over the files', mail: 'what happens to the mail', systems: 'which systems they use', equipment: 'what to collect', other: 'something else' };
+  function aiMissing(fields) { return ESSENTIALS.filter(function (k) { return !fields || !has(fields, k); }); }
+  /** The systems a request named, set against the system list: the ones the
+   *  list holds (by its own name) and the ones it does not. The checklist's
+   *  steps only ever come from the list. */
+  function matchSystems(named, inventory) {
+    var out = { known: [], unknown: [] }, seen = {};
+    (named || []).slice(0, LIMITS.aiSystems).forEach(function (x) {
+      var said = line(x && typeof x === 'object' ? x.name : x, LIMITS.systemChars);
+      if (!said) return;
+      var from = line(x && typeof x === 'object' && x.from ? x.from : said, LIMITS.fromChars);
+      var sys = systemFor(inventory || { systems: [] }, said);
+      var key = sys ? 's:' + fold(sys.name) : 'u:' + fold(said);
+      if (seen[key]) return;
+      seen[key] = 1;
+      if (sys) out.known.push({ said: said, system: sys.name, from: from }); else out.unknown.push({ said: said, from: from });
+    });
+    return out;
+  }
+
   /** The model's answer, checked field by field. Returns {fields, questions,
    *  dropped} with fields shaped like parseRequest's, still masked. */
   function cleanAiAnswer(raw, req) {
     var out = { fields: {}, questions: [], dropped: 0 };
     if (!raw || typeof raw !== 'object') return out;
     var wire = { name: 'name', email: 'email', last_day: 'lastDay', last_time: 'lastTime', involuntary: 'involuntary', manager: 'manager', files_to: 'filesTo', mail_to: 'mailTo', mailbox: 'mailbox', hardware: 'hardware' };
-    Object.keys(raw).forEach(function (k) { if (!has(wire, k) && k !== 'questions' && k !== 'note') out.dropped++; });
+    Object.keys(raw).forEach(function (k) { if (!has(wire, k) && ['questions', 'note', 'role', 'systems', 'unclear'].indexOf(k) < 0) out.dropped++; });
     Object.keys(wire).forEach(function (wk) {
       var x = raw[wk];
       if (x === undefined || x === null) return;
@@ -1551,8 +1587,38 @@
       else if (k === 'hardware') { val = Array.isArray(v) ? v.filter(function (h) { return HARDWARE.indexOf(h) >= 0; }).filter(function (h, i, a) { return a.indexOf(h) === i; }) : null; if (val && !val.length) val = null; }
       else { val = aiPerson(v, req) || null; }
       if (val === null) { if (v !== null && v !== undefined && v !== '') out.dropped++; return; }
-      out.fields[k] = { value: val, from: aiFrom(x.from, req), note: 'read by AI - check' };
+      var src = aiFrom(x.from, req);
+      // A fact with no words of the request behind it is kept, but flagged:
+      // the page shows it unticked, as "no matching words".
+      out.fields[k] = { value: val, from: src, note: src ? 'read by AI - check' : 'read by AI - no matching words in the request', quoted: Boolean(src) };
     });
+    // Facts that only ever come from the request's own words. Each is kept
+    // only when it is IN the masked text; the rest are dropped and counted.
+    var facts = { role: null, systems: [], unclear: [] };
+    if (raw.role !== undefined && raw.role !== null) {
+      var rv = raw.role && typeof raw.role === 'object' ? aiSaid(raw.role.value, req, LIMITS.systemChars) : '';
+      if (rv) facts.role = { value: rv, from: aiFrom(raw.role.from, req) || rv }; else if (raw.role && raw.role.value) out.dropped++;
+    }
+    if (Array.isArray(raw.systems)) {
+      var seenSys = {};
+      raw.systems.slice(0, 40).forEach(function (x) {
+        var nm = x && typeof x === 'object' ? aiSaid(x.name, req, LIMITS.systemChars) : '';
+        var key = fold(nm).replace(/[^a-z0-9]/g, '');
+        if (!nm || key.length < 2 || seenSys[key] || facts.systems.length >= LIMITS.aiSystems) { if (x) out.dropped++; return; }
+        seenSys[key] = 1;
+        facts.systems.push({ name: nm, from: aiFrom(x.from, req) || nm });
+      });
+    } else if (raw.systems !== undefined && raw.systems !== null) out.dropped++;
+    if (Array.isArray(raw.unclear)) {
+      raw.unclear.slice(0, 40).forEach(function (x) {
+        var about = x && typeof x === 'object' && has(UNCLEAR, str(x.about)) ? x.about : '';
+        var uf = about ? aiFrom(x.from, req) : '';
+        if (!uf || facts.unclear.length >= LIMITS.aiUnclear || facts.unclear.some(function (u) { return u.about === about && u.from === uf; })) { if (x) out.dropped++; return; }
+        facts.unclear.push({ about: about, from: uf });
+      });
+    } else if (raw.unclear !== undefined && raw.unclear !== null) out.dropped++;
+    out.facts = facts;
+    out.missing = aiMissing(out.fields);
     if (Array.isArray(raw.questions)) {
       raw.questions.slice(0, 20).forEach(function (q) {
         var s = aiString(q, req, LIMITS.fromChars);
@@ -1805,7 +1871,7 @@
     buildIdp: buildIdp, buildApp: buildApp, companyDomains: companyDomains, judge: judge, findOrphans: findOrphans, summarise: summarise, summaryLine: summaryLine, peopleOf: peopleOf, personLine: personLine, accountsFor: accountsFor, isOrphaned: isOrphaned,
     phaseOf: phaseOf, phaseWord: phaseWord, dueOf: dueOf, isOverdue: isOverdue, buildChecklist: buildChecklist, mergeTasks: mergeTasks, progress: progress, cleanLeaver: cleanLeaver, systemFor: systemFor, stepDetail: stepDetail,
     parseRequest: parseRequest, resolveDate: resolveDate, questionsFor: questionsFor, leaverFrom: leaverFrom,
-    maskRequest: maskRequest, unmask: unmask, tokensIn: tokensIn, aiRequest: aiRequest, cleanAiAnswer: cleanAiAnswer,
+    maskRequest: maskRequest, unmask: unmask, tokensIn: tokensIn, aiRequest: aiRequest, cleanAiAnswer: cleanAiAnswer, aiMissing: aiMissing, matchSystems: matchSystems, ESSENTIALS: ESSENTIALS, UNCLEAR: UNCLEAR,
     csvCell: csvCell, toCsv: toCsv, findingsRows: findingsRows, checklistRows: checklistRows, checklistJson: checklistJson, checklistMarkdown: checklistMarkdown, md: md,
     defaults: defaults, cleanInventory: cleanInventory, mergeInventory: mergeInventory, starterSystems: starterSystems,
     createEngine: createEngine,

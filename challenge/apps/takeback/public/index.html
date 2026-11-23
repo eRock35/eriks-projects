@@ -6,8 +6,8 @@
   <title>Takeback — never miss a return window, and make sure the refund lands</title>
   <meta name="description" content="Bought something you might send back? Add it in seconds with its return window, and Takeback counts down the days, walks you through the return (label, packed, dropped off) and watches for the refund - flagging the one that never arrived. Free, no sign-in, and it all stays on your phone.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#11141c" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f6fa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Takeback">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -36,20 +36,22 @@
 <body class="dk">
   <a class="skip" href="#main" id="skip">Skip to the page</a>
   <header class="top">
-    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M13 7L6 13.5l7 6.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 13.5h12.5a6.5 6.5 0 010 13H14" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg></span>Takeback</a>
-    <nav class="top-links" aria-label="Account">
-      <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
-      <button class="btn small ghost" id="acct" type="button">Sign in</button>
-    </nav>
+    <div class="top-in">
+      <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M9.5 5L4 10l5.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 10h10a5 5 0 010 10H11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Takeback</a>
+      <nav class="top-links" aria-label="Account">
+        <span class="offline-pill" id="offlinePill" hidden>Works offline</span>
+        <button class="btn small quiet" id="acct" type="button">Sign in</button>
+      </nav>
+    </div>
   </header>
 
   <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
     <div class="tabbar-inner">
-      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5L4 10l5.5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 10h10a5 5 0 010 10H11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Returns</span><b class="tab-badge" id="homeBadge" hidden></b></button>
-      <button type="button" data-act="tab" data-tab="add"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Add</span></button>
-      <button type="button" data-act="tab" data-tab="money"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Money</span></button>
-      <button type="button" data-act="tab" data-tab="stores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5L5.5 4h13L20 9.5M4 9.5h16M4 9.5c0 1.7 1.3 3 3 3s2.5-1.3 2.5-3c0 1.7 1.1 3 2.5 3s2.5-1.3 2.5-3c0 1.7 1.3 3 2.5 3s3-1.3 3-3M5.5 12.3V20h13v-7.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><span>Stores</span></button>
-      <button type="button" data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Settings</span></button>
+      <button type="button" data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5L4 10l5.5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 10h10a5 5 0 010 10H11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Returns</span><b class="tab-badge" id="homeBadge" hidden></b></button>
+      <button type="button" data-act="tab" data-tab="add"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Add</span></button>
+      <button type="button" data-act="tab" data-tab="money"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-8M10 20V5M15 20v-6M20 20V9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Money</span></button>
+      <button type="button" data-act="tab" data-tab="stores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5L5.5 4h13L20 9.5M5.5 12.5V20h13v-7.5M4 9.5a2.7 2.7 0 005.3 0 2.7 2.7 0 005.4 0 2.7 2.7 0 005.3 0z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg><span>Stores</span></button>
+      <button type="button" data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="15" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Settings</span></button>
     </div>
   </nav>
 

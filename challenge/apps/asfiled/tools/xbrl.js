@@ -1,0 +1,110 @@
+// A small reader for an XBRL instance document (the *_htm.xml the SEC
+// extracts from an inline-XBRL annual report) and its label linkbase.
+// Regex-based on purpose: no dependency, and the files are machine-written.
+
+const fs = require('fs');
+
+function unescape(s) {
+  return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+}
+
+function readInstance(file) {
+  const xml = fs.readFileSync(file, 'utf8');
+  const contexts = {};
+  const ctxRe = /<(?:xbrli:)?context\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/(?:xbrli:)?context>/g;
+  let m;
+  while ((m = ctxRe.exec(xml))) {
+    const body = m[2];
+    const dims = [];
+    const dimRe = /<xbrldi:explicitMember\b[^>]*dimension="([^"]+)"[^>]*>\s*([^<\s]+)\s*</g;
+    let d;
+    while ((d = dimRe.exec(body))) dims.push([d[1], d[2]]);
+    const typed = /<xbrldi:typedMember\b/.test(body);
+    const start = (/<(?:xbrli:)?startDate>\s*([^<\s]+)/.exec(body) || [])[1] || null;
+    const end = (/<(?:xbrli:)?endDate>\s*([^<\s]+)/.exec(body) || [])[1] || (/<(?:xbrli:)?instant>\s*([^<\s]+)/.exec(body) || [])[1] || null;
+    contexts[m[1]] = { dims, typed, start, end };
+  }
+  const units = {};
+  const unitRe = /<(?:xbrli:)?unit\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/(?:xbrli:)?unit>/g;
+  while ((m = unitRe.exec(xml))) {
+    const measures = [...m[2].matchAll(/<(?:xbrli:)?measure>\s*([^<\s]+)/g)].map((x) => x[1].replace(/^.*:/, ''));
+    units[m[1]] = /<(?:xbrli:)?divide>/.test(m[2]) ? measures.join('/') : measures[0];
+  }
+  const facts = [];
+  const factRe = /<([a-zA-Z][\w.-]*:[\w.-]+)\b([^>]*\bcontextRef="[^"]+"[^>]*)>([^<]*)<\/\1>/g;
+  while ((m = factRe.exec(xml))) {
+    const attrs = m[2];
+    const ctx = (/contextRef="([^"]+)"/.exec(attrs) || [])[1];
+    const unit = (/unitRef="([^"]+)"/.exec(attrs) || [])[1] || null;
+    if (!unit || !contexts[ctx]) continue;
+    const v = Number(m[3].trim());
+    if (!Number.isFinite(v)) continue;
+    facts.push({ tag: m[1], ctx: contexts[ctx], unit: units[unit] || unit, val: v });
+  }
+  return { contexts, facts };
+}
+
+/** element QName -> its standard (or terse) label, from a *_lab.xml. */
+function readLabels(file) {
+  const xml = fs.readFileSync(file, 'utf8');
+  const locs = {};
+  let m;
+  const locRe = /<link:loc\b[^>]*>/g;
+  while ((m = locRe.exec(xml))) {
+    const href = (/xlink:href="[^"#]*#([^"]+)"/.exec(m[0]) || [])[1];
+    const label = (/xlink:label="([^"]+)"/.exec(m[0]) || [])[1];
+    if (href && label) locs[label] = href;
+  }
+  const texts = {};
+  const labRe = /<link:label\b([^>]*)>([\s\S]*?)<\/link:label>/g;
+  while ((m = labRe.exec(xml))) {
+    const id = (/xlink:label="([^"]+)"/.exec(m[1]) || [])[1];
+    const role = (/xlink:role="([^"]+)"/.exec(m[1]) || [])[1] || '';
+    if (!id) continue;
+    const kind = role.endsWith('/terseLabel') ? 'terse' : role.endsWith('/label') ? 'std' : null;
+    if (!kind) continue;
+    (texts[id] = texts[id] || {})[kind] = unescape(m[2].replace(/<[^>]+>/g, '')).trim();
+  }
+  const out = {};
+  const arcRe = /<link:labelArc\b[^>]*>/g;
+  while ((m = arcRe.exec(xml))) {
+    const from = (/xlink:from="([^"]+)"/.exec(m[0]) || [])[1];
+    const to = (/xlink:to="([^"]+)"/.exec(m[0]) || [])[1];
+    const el = locs[from];
+    const t = texts[to];
+    if (!el || !t) continue;
+    const q = el.replace(/_/, ':');           // us-gaap_Revenues -> us-gaap:Revenues
+    out[q] = out[q] || {};
+    if (t.terse) out[q].terse = t.terse;
+    if (t.std) out[q].std = t.std;
+  }
+  return out;
+}
+
+// Tags tried for each annual number, in order of preference when one filing
+// reports two of them for the same period (tools/build.js).
+const TAGS = {
+  revenue: ['us-gaap:Revenues', 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', 'us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax', 'us-gaap:SalesRevenueNet', 'ifrs-full:Revenue', 'ifrs-full:RevenueFromContractsWithCustomers'],
+  cost: ['us-gaap:CostOfRevenue', 'us-gaap:CostOfGoodsAndServicesSold', 'us-gaap:CostOfGoodsSold', 'ifrs-full:CostOfSales'],
+  gross: ['us-gaap:GrossProfit', 'ifrs-full:GrossProfit'],
+  rd: ['us-gaap:ResearchAndDevelopmentExpense', 'us-gaap:ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost', 'us-gaap:ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost', 'ifrs-full:ResearchAndDevelopmentExpense'],
+  capex: ['us-gaap:PaymentsToAcquirePropertyPlantAndEquipment', 'us-gaap:PaymentsToAcquireProductiveAssets', 'ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities'],
+  inventory: ['us-gaap:InventoryNet', 'ifrs-full:Inventories', 'ifrs-full:CurrentInventories'],
+};
+
+/** Company facts (data.sec.gov) cut down to the tags above, same shape.
+ *  The build and the verifier read nothing else from it, so the cache keeps
+ *  a few hundred kilobytes a company instead of several megabytes. */
+function slimFacts(facts) {
+  const keep = new Set([].concat(...Object.values(TAGS)));
+  const out = { cik: facts.cik, entityName: facts.entityName, slim: true, facts: {} };
+  for (const [tax, tags] of Object.entries(facts.facts || {})) {
+    for (const [tag, body] of Object.entries(tags)) {
+      if (!keep.has(`${tax}:${tag}`)) continue;
+      (out.facts[tax] = out.facts[tax] || {})[tag] = body;
+    }
+  }
+  return out;
+}
+
+module.exports = { readInstance, readLabels, unescape, TAGS, slimFacts };

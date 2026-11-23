@@ -1114,6 +1114,30 @@ const APPS = [
     audience: 'Contractors, remodelers, builders and handymen',
     status: 'testing',
   },
+  {
+    // Built on Erik's own ask (2026-11-23), so it takes the next drop slot
+    // whatever the business/everyday alternation says; see its CLAUDE.md.
+    slug: 'asfiled',
+    name: 'As Filed',
+    // The link emoji (U+1F517), on no other card.
+    emoji: '\u{1F517}',
+    // Both colours were searched over the whole RGB cube against today's 69
+    // cards: with white text held at 4.5:1 only a handful of regions are
+    // still 20+ in CIE Lab from every card. An electric violet, #8200fe:
+    // 23.8 from Settle's #6d28d9, 24.0 from Punch's #003dff, 35.4 from
+    // Chaser's. A near-black wine, #280010: 21.9 from Hike's #4a1942, 22.6
+    // from Flight's #3d1f0c, 22.9 from Triage's. The two are 117.6 apart.
+    // White text holds 6.21:1 and 19.13:1. The app's one accent is the
+    // violet.
+    color: '#8200fe',
+    color2: '#280010',
+    dropped: '2026-11-23',
+    tagline: 'What big tech’s public filings say - every number with its filing, every link with the exact quote.',
+    blurb: 'For investors, analysts, students and anyone curious how big tech connects. Eighty-one companies - the S&P 500’s information technology sector, plus Amazon, Alphabet, Meta, TSMC and ASML - from chip equipment to cloud and IT services, read from their own annual reports: revenue, gross margin, R&D, capital spending and inventory over a dozen years, where the money comes from, and how much rides on a few customers. Then the patterns across the chain, and a map of who names whom as supplier, customer, partner or competitor. Every figure opens the filing it came from on sec.gov, and every line on the map shows the exact sentence, who said it, the document, the section and the date - a link the documents do not state is not drawn. From public filings. Not investment advice. Free, no sign-in, nothing to type.',
+    features: ['A dozen years of each company’s own reported figures, charted', 'Every number opens its filing: form, period, accession number', 'A map of stated relationships - tap a line for the exact quote', 'Patterns across the chain: inventory, R&D, capital spending, customers'],
+    audience: 'Investors, analysts, students and anyone curious how big tech connects',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

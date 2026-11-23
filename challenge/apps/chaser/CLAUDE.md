@@ -79,15 +79,12 @@ and credit-report talk, and the final notice stays courteous.
   chase sheet; ticked, the amount (as a finished string) goes into the draft.
   It never touches the balance, the statement, the forecast or the totals.
   The tests assert all of that.
-- **Every model call is a forced tool** (`write_chase` → subject, body, sms;
-  `read_invoice` → typed fields) and **the model never decides a number.**
-  A chase is written from `ladder.factsFor()`: amounts, dates and the fee
-  arrive as finished strings, and the prompt says to use them exactly and
-  invent nothing (no links, bank details, fees or consequences). A read
-  invoice's amount goes through `book.toCents` and its dates through
-  `book.isoDay`; anything that fails is left blank for the person. All model
-  text is `clean()`ed (angle brackets, control characters, lengths) before it
-  is returned, and escaped again when drawn.
+- **Every model call is a forced tool** (`write_chase` → two or three
+  options; `read_invoice` → typed fields) and **the model never decides a
+  number** - since 2026-11-23 it never even writes one. See "Chases in your
+  voice" below. A read invoice's amount goes through `book.toCents` and its
+  dates through `book.isoDay`; anything that fails is left blank for the
+  person. All model text is `clean()`ed and escaped again when drawn.
 - **`requireUser, requireBudget, requireDailyCap` on both model routes**
   (`spend` in `server.js`): `/invoices/:id/draft` and `/invoices/read`. Never
   a model call behind a sign-in alone. The 402 comes before any model call —
@@ -157,6 +154,94 @@ same split as the siblings. A chase is ~1k input / ~350 output tokens: well
 under a cent on Haiku, so the $2 free allowance is hundreds of drafts. A snap
 is ~1.5k input: about a cent.
 
+## Chases in your voice (2026-11-23)
+
+Erik's AI plan for Chaser: **Claude - "Payment chases that get firmer over
+time, in your voice."** `POST /api/invoices/:id/draft` was the app's one
+writing call; it was extended, not replaced. Code in `lib/ai.js`.
+
+- **The step is the app's.** Gentle reminder → follow-up → firm → final
+  notice comes from the ladder (`book.derive` → `nextKind`, from what was
+  logged and when), or from the person's own pick in the sheet. The model is
+  told the step; it never chooses one.
+- **Every fact is a slot the server fills.** The model writes
+  `{first_name}`, `{invoice_number}`, `{balance}`, `{due_date}`,
+  `{days_overdue}`, `{payment_link}` (and `{promise_date}`, `{paid_so_far}`,
+  `{late_fee}`… only when the invoice has them - `slotsFor`). `cleanOptions`
+  fills them from `ladder.factsFor` and appends the saved sign-off itself.
+  **The request carries no client name, amount, date, link or business
+  name** - less leaves the building than before, and nothing can be
+  misquoted. A test reads the prompt to prove it.
+- **Two or three wordings** of the same step (`warm`, `plain`, `brief` →
+  "Warmer", "Straight", "Shortest"). The answer keeps its old shape (subject,
+  body, sms = the first option) and adds `options` and `voiced`.
+- **An option is dropped whole, never patched** (`refuse`), when its wording
+  - checked BEFORE the slots are filled, so every digit in it is the
+  model's own - carries: a digit or a spelled-out sum; a month, weekday or
+  "tomorrow"; a deadline ("by the end of the week", "within 3 days"); a fee
+  when none was ticked, interest, a percentage; a link, email or bank
+  detail; courts, lawyers, collections, credit reports; abuse or guilt; any
+  markup; a slot the invoice lacks; or it leaves out the invoice, the
+  balance, the payment link when one is set, or the ticked fee. **The one
+  deadline a draft may state is the ladder's own "within 7 days"**, on a
+  firm reminder or final notice only (`DEADLINE_DAYS`). A bad subject or text
+  message falls back to the template's (the app's own words) rather than
+  losing a good email. Nothing left → 422, and the template is one tap away.
+  It is a word list, not a judge: the person still reads and edits.
+- **The voice** is the tone slider plus an **optional sample of the person's
+  own writing**, pasted on Your voice. It is kept in this browser only
+  (`localStorage` `chaser-voice`), rides in the draft request as `voice`
+  (≤ 1,200 characters, 400 if far longer), goes to the model between
+  markers as a style sample, and is **never stored or logged server-side**
+  (tested by dumping both stores). A new device has no sample until it is
+  pasted there - the price of storing nothing new.
+- **Chaser still sends nothing.** The person picks a wording, edits it, and
+  hands it to their own Mail or Messages; only "I sent it" climbs the ladder.
+- **Gates, in order:** `requireUser, requireBudget, requireDailyCap`, the
+  invoice's own checks (404/409/400), **the lab's AI guard**
+  (`global.LAB_AI_GUARD?.allow({provider: 'claude', req, app: 'chaser'})` -
+  its sentence plus "The free template still works." when it says no), the
+  call, then `record` with `priceUsd` in a `finally` (a call that came back
+  is paid for even if every option was dropped). The snap route does the
+  same. No guard (tests, `npm run dev`) → the identity gates stand alone.
+- **Provider:** Claude through the lab's existing client (`identity.meter`,
+  models by `identityLib.planFor`: Haiku 4.5 free, Sonnet 5 members). No
+  provider switch and no federation were added. Three wordings are ~700
+  tokens in, ~500-900 out: about half a cent on Haiku, a cent or so on Sonnet.
+- **The stand-in** (`CHASER_FAKE_AI=1`) answers with three slotted options;
+  `BADDEADLINE`, `BADFEE`, `BADTHREAT`, `BADSLOT`, `ALLBAD`, `INJECT` and
+  `UPSTREAM<nnn>` in the voice sample make it misbehave for the tests (the
+  model no longer sees a client's name, so the triggers moved there).
+
+## Design (2026-11-23, the HOA Desk style)
+
+- White page (`#fff`), true black in the dark; one accent, Chaser's violet
+  from `lab.js` a step darker in light (`#5b45e0`) so white text holds
+  4.5:1, lighter in the dark (`#a99bff`). Status colours only for status,
+  always with words. No gradients, no tints, no shadows except on what
+  floats. System fonts; five sizes (13, 15, 16, 20, 28) plus the hero and
+  one big number a page. 4/8 spacing.
+- **Lists over boxes:** chases, invoices, clients, forms and timelines are
+  hairline rows. Cards (1px hairline, 12px) only for the late-fee note, the
+  snap tile, share links and badges. The statement stays a white document in
+  both themes and in print.
+- **Navigation:** phones - a floating translucent pill bar, five line icons,
+  the label only on the current one; 900px and up - a top nav with an
+  underline (and "Your voice"). `desktop.css` (the old rail) is still synced
+  into `public/` but no longer loaded.
+- **Signed out:** a centred hero, two pill buttons, then the sample book.
+- **No `style=` anywhere**, in the HTML or written by the script: classes
+  only, `<progress>` for the bars, and one constructed stylesheet (`dynCss`)
+  for the two computed things (the chart tip's position, confetti).
+- Motion (press states, the sheet, confetti, the spinner) only inside
+  `prefers-reduced-motion: no-preference`; every page is complete at rest.
+- Targets are 44px or more, main actions 48px. From Today: chase = 1 tap,
+  chase written in your voice = 2, mark paid = 2, add an invoice = 1 (then
+  the form), snap = 2.
+- Measured in headless Chrome at 390, 320 and 1440px: lowest text contrast
+  4.66:1 light, 6.61:1 dark; nothing scrolls sideways. `test/run.js` holds
+  the page rules.
+
 ## Local run and tests
 
 ```
@@ -168,9 +253,9 @@ npm test        # end-to-end over HTTP under a /chaser mount, plus fixed-date ru
 (`K_SERVICE` set) — in `lib/store.js`, `lib/fakeai.js` and `server.js`.
 `CHASER_COLLECTION_PREFIX` (set to `chaser_` by the lab host) prefixes every
 top-level collection. The fake model answers both tools deterministically and
-refuses any call that does not force a tool; `INJECT` anywhere in a chase's
-facts puts markup in the answer, and a photo whose bytes contain `BLANK`
-reads as "not an invoice".
+refuses any call that does not force a tool; see "Chases in your voice" for
+its trigger words, and a photo whose bytes contain `BLANK` reads as "not an
+invoice".
 
 ## Data (Firestore: `chaser_*` in the lab database `challenge`)
 
