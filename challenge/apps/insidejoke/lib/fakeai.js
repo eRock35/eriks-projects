@@ -121,4 +121,71 @@ function create() {
   };
 }
 
-module.exports = { create };
+/* ------------------------------------------------------------------ *
+ * The Gemini stand-in (INSIDEJOKE_AI_PROVIDER=gemini): the function the
+ * lab guard's helper is handed as `fake`. It gets the request body and
+ * answers the JSON the responseSchema asks for - no network.
+ *
+ * One photo and a chat answer exactly as the Claude stand-in does (same
+ * triggers). A round ("Make a round") - triggers in a photo's bytes:
+ *   BLANK        that photo is not usable
+ *   FACE         only questions that ask who someone is (all dropped)
+ *   anything else - a where, a when and a caption for that photo
+ * and in the typed quotes: INVENTED (only quotes nobody typed); otherwise
+ * each typed line's first words, plus hostile extras that must all be
+ * dropped: a photo number that was never sent, a photo answered twice, a
+ * question about someone's age (every second photo), an invented quote and a paraphrase.
+ * Any request: UPSTREAMnnn (the provider fails), BILLEDFAIL (it fails
+ * after billing), JUNK (the answer is not an object).
+ * ------------------------------------------------------------------ */
+
+function createGemini() {
+  const calls = [];
+  const input = (res) => res.content[0].input;
+  return {
+    calls,
+    async generate(body) {
+      const schema = body && body.generationConfig && body.generationConfig.responseSchema;
+      if (!schema || body.generationConfig.responseMimeType !== 'application/json') throw new Error('fake ai: every call must carry a responseSchema');
+      await new Promise((r) => setTimeout(r, Number(process.env.INSIDEJOKE_FAKE_DELAY_MS || 0)));
+      const parts = (body.contents && body.contents[0] && body.contents[0].parts) || [];
+      const bytesOf = (p) => { try { return Buffer.from(p.inlineData.data, 'base64').toString('latin1'); } catch (e) { return ''; } };
+      const photos = parts.filter((p) => p.inlineData).map(bytesOf);
+      const text = parts.filter((p) => typeof p.text === 'string').map((p) => p.text).join('\n');
+      const all = photos.join('\n') + text;
+      const kind = schema.properties.photos ? 'round' : schema.properties.usable ? 'photo' : 'chat';
+      calls.push(kind);
+      const hit = all.match(/UPSTREAM(\d{3})/);
+      if (hit) throw Object.assign(new Error('stand-in provider failure'), { name: 'VertexError', code: 'http', status: Number(hit[1]) });
+      if (/BILLEDFAIL/.test(all)) throw Object.assign(new Error('stand-in provider failure'), { name: 'VertexError', code: 'bad-json', usage: { inputTokens: 900, outputTokens: 400 } });
+      if (/JUNK/.test(all)) return ['not', 'an', 'object'];
+      if (kind === 'photo') return input(photoAnswer(photos[0] || ''));
+      if (kind === 'chat') { const m = /<excerpt>\n([\s\S]*)\n<\/excerpt>/.exec(text); return input(chatAnswer(m ? m[1] : '')); }
+      const out = { photos: [], quotes: [] };
+      photos.forEach((bytes, i) => {
+        if (/BLANK/.test(bytes)) return out.photos.push({ photo: i + 1, usable: false, questions: [] });
+        if (/FACE/.test(bytes)) return out.photos.push({ photo: i + 1, usable: true, questions: input(photoAnswer(bytes)).questions.slice(0, 2) });
+        out.photos.push({ photo: i + 1, usable: true, questions: [
+          ...(i % 2 ? [{ type: 'odd_one_out', prompt: 'How old is the man in the hat?', options: ['About 40', 'About 60', 'About 80'], answerIndex: 1 }] : []),
+          i % 2 ? { type: 'whats_happening', prompt: 'What is everyone gathered around?', options: ['A birthday cake', 'A campfire', 'A board game'], answerIndex: 0 } : { type: 'where', prompt: 'Where was this taken?', options: ['Lake Tahoe', 'Lake Placid', 'Lake Geneva'], answerIndex: null },
+          { type: 'when', prompt: 'What year was this?', options: [], answerIndex: null },
+          { type: 'caption_this', prompt: 'Caption this!', options: ['Peak lake-day energy', 'The cake survived. Barely.', 'Nobody look at the camera'], answerIndex: null },
+        ] });
+      });
+      if (photos.length) {
+        out.photos.push({ photo: 1, usable: true, questions: [{ type: 'caption_this', prompt: 'A second go at photo one', options: ['Again', 'And again', 'Once more'], answerIndex: null }] });
+        out.photos.push({ photo: 99, usable: true, questions: [{ type: 'caption_this', prompt: 'A photo nobody sent', options: ['One', 'Two', 'Three'], answerIndex: null }] });
+      }
+      const m = /<quotes>\n([\s\S]*)\n<\/quotes>/.exec(text);
+      const lines = m ? m[1].split('\n').map((l) => /^(\d+)\. (.*)$/.exec(l)).filter(Boolean) : [];
+      if (/INVENTED/.test(text)) out.quotes.push({ line: 1, quote: 'I never said anything like this at all' });
+      else {
+        for (const l of lines) { const words = l[2].split(' '); out.quotes.push({ line: Number(l[1]), quote: words.slice(0, Math.min(words.length, 10)).join(' '), speaker: 'Wrong Person' }); }
+        if (lines.length) out.quotes.push({ line: 1, quote: 'This line was never typed by anyone here' }, { line: 1, quote: lines[0][2].toUpperCase() + '!!' }, { line: 77, quote: 'ok' });
+      }
+      return out;
+    },
+  };
+}
+
+module.exports = { create, createGemini };

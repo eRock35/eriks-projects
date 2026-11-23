@@ -3,7 +3,8 @@
 //
 // A model is used for two things, both metered and signed in, both paid by
 // whoever asks: writing questions about a photo, and picking "who said it?"
-// quotes from a stripped excerpt of a chat. Everything else - the chat stats,
+// quotes from a stripped excerpt of a chat. (With INSIDEJOKE_AI_PROVIDER=
+// gemini a third: "Make a round" from several photos and typed quotes.) Everything else - the chat stats,
 // writing your own questions, the daily round, the board, live game night -
 // is free, and members never need an account: a host with a free account
 // makes the group, everyone else joins by link, QR or code with a name and
@@ -18,6 +19,7 @@ const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/ij-core');
 const G = require('./lib/groups');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const photo = require('./lib/photo');
 const { streamedJson } = require('./lib/stream');
 const identityLib = require('./lib/identity');
@@ -49,10 +51,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Two routes carry more than 64 KB - a photo (thumbnail plus the model's
-// copy) and a chat excerpt - and each mounts its own parser AFTER sign-in,
+// Three routes carry more than 64 KB - a photo (thumbnail plus the model's
+// copy), a chat excerpt and a round of photos - and each mounts its own parser AFTER sign-in,
 // budget, the daily cap and membership, so a stranger's body is never read.
-const BIG_ROUTE = /^\/api\/groups\/[a-z0-9]{16}\/(?:photos|chat)$/;
+const BIG_ROUTE = /^\/api\/groups\/[a-z0-9]{16}\/(?:photos|chat|round)$/;
 const photoJson = express.json({ limit: '4mb' });
 const chatJson = express.json({ limit: '512kb' });
 const smallJson = express.json({ limit: '64kb' });
@@ -83,6 +85,13 @@ function clientFor(req) {
   return identity.clientFor(req.user, sharedClient, (apiKey) => new Anthropic({ apiKey }));
 }
 const modelFor = (req) => identityLib.planFor(req.user, MODELS).model;
+
+// Which model writes the questions. INSIDEJOKE_AI_PROVIDER=gemini moves the
+// photo and chat calls to Gemini on Vertex AI (through the lab's AI guard)
+// and switches on "Make a round"; anything else - unset included - is
+// Claude, as it has been since the app shipped.
+const PROVIDER = process.env.INSIDEJOKE_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude';
+const fakeGemini = FAKE_AI ? require('./lib/fakeai').createGemini() : null;
 
 // Never put a model call behind a sign-in alone: it goes through the budget
 // and the free tier's daily ceiling as well.
@@ -229,7 +238,7 @@ app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: 
 
 app.get('/api/meta', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  res.json({ limits: { ...Core.LIMITS, groupsPerHost: G.LIMITS.groupsPerHost, timers: G.LIMITS.timers, liveCounts: G.LIMITS.liveCounts }, colors: Core.COLORS, emoji: Core.EMOJI });
+  res.json({ limits: { ...Core.LIMITS, groupsPerHost: G.LIMITS.groupsPerHost, timers: G.LIMITS.timers, liveCounts: G.LIMITS.liveCounts, roundPhotos: gemini.LIMITS.photos, roundQuotes: gemini.LIMITS.quotes }, colors: Core.COLORS, emoji: Core.EMOJI, ai: { round: PROVIDER === 'gemini' } });
 });
 
 app.get('/api/me', (req, res) => {
@@ -657,11 +666,72 @@ app.delete('/api/groups/:gid/photos/:pid', async (req, res) => {
  * Metered: questions from a photo, and from a chat excerpt
  * ------------------------------------------------------------------ */
 
+/** The lab's monthly cap and burst limits, when the host has a guard. An
+ *  app run on its own has none. Resolves an error to send, or null. A guard
+ *  that throws is logged and allows: the identity gates have already
+ *  passed. Called after the request's own checks (a 400 costs nothing and
+ *  counts nothing) and before anything is streamed, so a "no" is a real
+ *  429 or 503 with the guard's own friendly words. */
+async function guardAllow(req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return null;
+  let a;
+  try { a = await guard.allow({ provider: PROVIDER, req, app: 'insidejoke' }); } catch (e) { console.error('[insidejoke] ai guard: allow failed'); return null; }
+  if (a && a.ok) return null;
+  return httpError((a && a.status) || 503, (a && a.message) || 'The AI is resting for now. Writing your own questions always works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** What a call cost, to the lab's month. Never fails the answer. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'insidejoke', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('[insidejoke] ai guard: record failed'); }
+}
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage, what) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    let usd;
+    try { usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage); } catch (e) { usd = gemini.priceUsd(usage); }
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `${what}:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('[insidejoke] usage: gemini charge failed'); }
+}
+/** One Gemini call, paid for whether it answered or failed after billing.
+ *  The provider's own words never reach the page: failure() turns anything
+ *  that is not the app's own error into a 502 (503 when busy). */
+async function askGemini(req, request, what) {
+  const paid = (usage) => (usage ? Promise.all([guardRecord('gemini', gemini.MODEL, usage), chargeGemini(req, usage, what)]) : null);
+  try {
+    const out = await gemini.ask(global.LAB_AI_GUARD, request, fakeGemini && fakeGemini.generate);
+    await paid(out.usage);
+    return out.json;
+  } catch (err) {
+    await paid(err && err.usage);
+    if (err && !err.expose && !Number.isInteger(err.status)) err.status = err.code === 'timeout' ? 503 : 502;
+    throw err;
+  }
+}
+/** Claude, as before - plus the lab's month, unless the member's own key paid. */
+async function askClaude(req, fn, ...args) {
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try { return await fn(client, model, ...args, (u) => { used = u; }); } finally {
+    if (used && !client.__byok) await guardRecord('claude', model, { inputTokens: Number(used.input_tokens || 0) + Number(used.cache_creation_input_tokens || 0) + Number(used.cache_read_input_tokens || 0), outputTokens: Number(used.output_tokens || 0) });
+  }
+}
+
+const yearOf = (v) => (Number.isInteger(v) && v >= 1900 && v <= new Date().getUTCFullYear() ? v : null);
+
 /**
  * Gates, membership, then the 4 MB parser, then the checks (400s cost
- * nothing) - and only then the whitespace stream, after which a failure is
- * a 200 {error}. The model's copy of the photo is read once and dropped;
- * only the thumbnail and the questions (as drafts) are stored.
+ * nothing), then the lab's AI guard - and only then the whitespace stream,
+ * after which a failure is a 200 {error}. The model's copy of the photo is
+ * read once and dropped; only the thumbnail and the questions (as drafts)
+ * are stored.
  */
 app.post('/api/groups/:gid/photos', ...spend, memberGate, photoJson, async (req, res) => {
   const { doc, actor } = req.group;
@@ -672,16 +742,18 @@ app.post('/api/groups/:gid/photos', ...spend, memberGate, photoJson, async (req,
     if ((doc.photoCount || 0) >= Core.LIMITS.photos) throw httpError(409, `A group can hold ${Core.LIMITS.photos} photos. Delete some old ones first.`);
     thumb = photo.thumbnail(b.thumb);
     image = photo.forModel(b.image);
-    const year = Number.isInteger(b.year) && b.year >= 1900 && b.year <= new Date().getUTCFullYear() ? b.year : null;
     const place = Core.clean(b.place, Core.LIMITS.place) || null;
     const hint = Core.clean(b.hint, Core.LIMITS.hint);
-    facts = { year, place, hint, uploader: actor.member, members: doc.members, photoId: G.newId() };
+    facts = { year: yearOf(b.year), place, hint, uploader: actor.member, members: doc.members, photoId: G.newId() };
     facts.seed = facts.photoId;
+    const no = await guardAllow(req);
+    if (no) throw no;
   } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
   try {
-    const raw = await ai.photoQuestions(await clientFor(req), modelFor(req), image, facts);
-    const qs = ai.cleanPhotoQuestions(raw, facts);
+    const qs = PROVIDER === 'gemini'
+      ? gemini.cleanPhoto(await askGemini(req, gemini.photoRequest(image, facts), 'photo'), facts)
+      : ai.cleanPhotoQuestions(await askClaude(req, ai.photoQuestions, image, facts), facts);
     if (!qs.length) throw httpError(422, 'No fair questions came out of that one. Try another photo, or add a hint like “Lake Lanier, 2019, Dad’s birthday”.');
     await store.set('photos', facts.photoId, { gid: doc.id, by: actor.mid, thumb: thumb.data, bytes: thumb.bytes, width: thumb.width, height: thumb.height, createdAt: new Date().toISOString() });
     await adjustCounts(doc.id, 0, 1);
@@ -704,15 +776,67 @@ app.post('/api/groups/:gid/chat', ...spend, memberGate, chatJson, async (req, re
     excerpt = Core.cleanExcerpt((req.body || {}).excerpt);
     if (excerpt.length < 20) throw httpError(400, 'That chat is too short for a “who said it?” round - it needs at least 20 messages.');
     if (new Set(excerpt.map((l) => l.n)).size < 2) throw httpError(400, 'A “who said it?” round needs at least two people in the chat.');
+    const no = await guardAllow(req);
+    if (no) throw no;
   } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
   try {
-    const raw = await ai.chatQuestions(await clientFor(req), modelFor(req), excerpt);
+    const raw = PROVIDER === 'gemini' ? await askGemini(req, gemini.chatRequest(excerpt), 'chat') : await askClaude(req, ai.chatQuestions, excerpt);
     const qs = ai.cleanChatQuestions(raw, excerpt, `${doc.id}|${Date.now()}`);
     if (!qs.length) throw httpError(422, 'No quotes could be checked against the chat. Try again, or use the free chat stats.');
     const saved = await saveQuestions(doc, actor, qs, { status: 'draft', source: 'chat-ai' });
     send({ questions: saved.map(ownView) });
   } catch (err) { send(failure(err, 'The chat could not be read. Try again in a minute - the free chat stats still work.').body); }
+});
+
+/**
+ * "Make a round" (Gemini only - a 404 until INSIDEJOKE_AI_PROVIDER=gemini):
+ * up to six photos the member chose and up to twelve quotes they typed,
+ * turned into one round of drafts by ONE call. The same order as a photo:
+ * gates, membership, the switch, the 4 MB parser, the checks, the lab's
+ * guard, then the stream. The same promises too: each photo's copy for the
+ * model is read once and dropped (300 KB at most - the page shrinks it),
+ * only the thumbnail of a photo that got a question is kept, the facts are
+ * the member's (place, year, who took it, who said it), every quote must be
+ * an exact piece of what was typed, and the quotes and the note are never
+ * stored - only the questions, as drafts their author reviews.
+ */
+const roundSwitch = (_req, res, next) => (PROVIDER === 'gemini' ? next() : res.status(404).json({ error: 'Not found.' }));
+app.post('/api/groups/:gid/round', ...spend, memberGate, roundSwitch, photoJson, async (req, res) => {
+  const { doc, actor } = req.group;
+  const R = gemini.LIMITS;
+  let photos; let quotes; let hint;
+  try {
+    wrote(req);
+    const b = req.body || {};
+    const sent = Array.isArray(b.photos) ? b.photos : [];
+    if (sent.length > R.photos) throw httpError(400, `A round takes up to ${R.photos} photos.`);
+    if (Array.isArray(b.quotes) && b.quotes.length > R.quotes) throw httpError(400, `A round takes up to ${R.quotes} quotes.`);
+    if ((doc.photoCount || 0) + sent.length > Core.LIMITS.photos) throw httpError(409, `A group can hold ${Core.LIMITS.photos} photos. Delete some old ones first.`);
+    photos = sent.map((p) => {
+      if (!p || typeof p !== 'object') throw httpError(400, 'One of the photos could not be read.');
+      const photoId = G.newId();
+      return { thumb: photo.thumbnail(p.thumb), image: photo.forModel(p.image, R.photoBytes), year: yearOf(p.year), place: Core.clean(p.place, Core.LIMITS.place) || null, uploader: actor.member, members: doc.members, photoId, seed: photoId };
+    });
+    quotes = Core.cleanExcerpt(b.quotes);
+    hint = Core.clean(b.hint, R.hint);
+    if (!photos.length && quotes.length < 2) throw httpError(400, 'Pick at least one photo, or type at least two quotes as “Name: what they said”.');
+    const no = await guardAllow(req);
+    if (no) throw no;
+  } catch (err) { return fail(res, err); }
+  const send = streamedJson(res);
+  try {
+    const raw = await askGemini(req, gemini.roundRequest({ photos, quotes, hint }), 'round');
+    const made = gemini.cleanRound(raw, { photos, quotes, members: doc.members, seed: `${doc.id}|${Date.now()}` });
+    if (!made.questions.length) throw httpError(422, 'No fair questions came out of that. Try other photos, add a place or a year, or type the quotes exactly as they were said.');
+    const kept = photos.filter((p) => made.photoIds.includes(p.photoId));
+    const now = new Date().toISOString();
+    for (const p of kept) await store.set('photos', p.photoId, { gid: doc.id, by: actor.mid, thumb: p.thumb.data, bytes: p.thumb.bytes, width: p.thumb.width, height: p.thumb.height, createdAt: now });
+    if (kept.length) await adjustCounts(doc.id, 0, kept.length);
+    const fromPhotos = await saveQuestions(doc, actor, made.questions.filter((q) => q.photoId), { status: 'draft', source: 'photo' });
+    const fromQuotes = await saveQuestions(doc, actor, made.questions.filter((q) => !q.photoId), { status: 'draft', source: 'chat-ai' });
+    send({ photos: kept.map((p) => ({ id: p.photoId })), questions: fromPhotos.concat(fromQuotes).map(ownView) });
+  } catch (err) { send(failure(err, 'That round could not be made. Try again in a minute - writing your own questions is free meanwhile.').body); }
 });
 
 /* ------------------------------------------------------------------ *
@@ -871,4 +995,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`insidejoke listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, PROVIDER, fakeGemini };
