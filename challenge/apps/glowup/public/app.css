@@ -150,9 +150,9 @@ body.public .pillbar, body.public .topnav, body.public .top-right { display: non
 .gaps .tag { border-style: dashed; color: var(--text); }
 
 /* a listing's sections: quiet underlined tabs */
-.subnav { display: flex; gap: 20px; border-bottom: 1px solid var(--line); margin: 0 0 32px; overflow-x: auto; scrollbar-width: none; }
+.subnav { display: flex; gap: 12px; border-bottom: 1px solid var(--line); margin: 0 0 32px; overflow-x: auto; scrollbar-width: none; }
 .subnav::-webkit-scrollbar { display: none; }
-.subnav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.subnav a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: 15px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .subnav a:hover { text-decoration: none; color: var(--text); }
 .subnav a.on { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
 
@@ -170,10 +170,10 @@ textarea { resize: vertical; field-sizing: content; max-height: 70vh; }
 .hint { font-size: 14px; color: var(--muted); margin: 8px 0 0; }
 .group-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; font-weight: 600; margin: 32px 0 12px; }
 .group-title .count { font-weight: 400; color: var(--muted); }
-.form-row { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+.form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; }
 .stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; height: 48px; }
-.stepper button { width: 44px; height: 46px; border: 0; background: transparent; font-size: 20px; color: var(--accent); }
-.stepper input { width: 44px; min-height: 0; height: 46px; border: 0; padding: 0; text-align: center; background: transparent; font-size: 17px; font-variant-numeric: tabular-nums; }
+.stepper button { flex: none; width: 44px; height: 46px; border: 0; background: transparent; font-size: 20px; color: var(--accent); }
+.field .stepper input { flex: none; width: 44px; min-height: 0; height: 46px; border: 0; padding: 0; text-align: center; background: transparent; font-size: 17px; font-variant-numeric: tabular-nums; }
 .type-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .type-pick button { display: flex; flex-direction: column; gap: 2px; min-height: 64px; padding: 12px 14px; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: transparent; }
 .type-pick b { font-size: 15px; font-weight: 600; line-height: 1.25; }
@@ -412,7 +412,7 @@ details.more summary { min-height: 44px; display: flex; align-items: center; col
   .pillbar { display: none; }
   .top { padding: 0 max(32px, calc((100vw - 1080px) / 2)); }
   .topnav { display: flex; gap: 28px; align-self: stretch; }
-  .topnav a { display: inline-flex; align-items: center; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; border-top: 2px solid transparent; }
+  .topnav a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; border-top: 2px solid transparent; }
   .topnav a:hover { color: var(--text); text-decoration: none; }
   .topnav a.on { color: var(--text); border-bottom-color: var(--accent); }
   body.dk main.wrap { max-width: 1080px; padding: 40px 32px 0; }
