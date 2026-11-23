@@ -29,7 +29,8 @@ if (process.env.WHICHBOX_MEMORY !== '1' || process.env.WHICHBOX_FAKE_AI !== '1')
   process.exit(1);
 }
 
-const { app, identityStore, store, fakeClient } = require('../server');
+const { app, identityStore, store, fakeClient, fakeGemini } = require('../server');
+const gemini = require('../lib/gemini');
 const C = require('../public/whichbox-core');
 const QR = require('../public/qr');
 const K = require('../lib/moves');
@@ -442,6 +443,9 @@ test('the photo reader\u2019s answer: at most 40 short plain names, no links or 
   assert.ok(!/evil|script/.test(bad.note));
   assert.strictEqual(C.cleanAiAnswer({ items: [], room: 'unsure' }), null);
   assert.strictEqual(C.cleanAiAnswer('nope'), null);
+  assert.ok(!('itemConfidence' in ok), 'the Claude reader\u2019s answer keeps its shape');
+  const per = C.cleanAiAnswer({ items: [{ name: 'Kettle', confidence: 'high' }, { name: '<b>Mugs</b>', confidence: 'certain' }, { name: 'mug', confidence: 'high' }, 'Teapot', { name: 'https://evil.example', confidence: 'high' }, { name: 'Toaster', confidence: 'low', url: 'x' }, { confidence: 'high' }, null], room: 'kitchen', room_confidence: 'high', flags: [], confidence: 'medium', note: '' }, { perItem: true });
+  assert.deepStrictEqual([per.items, per.itemConfidence], [['Kettle', 'Mugs', 'Teapot', 'Toaster'], ['high', 'low', 'low', 'low']], 'one confidence per kept item, from the fixed set; anything else is "low"');
   const m = move();
   assert.deepStrictEqual([C.roomForKind(m, 'kitchen').name, C.roomForKind(m, 'bedroom').name, C.roomForKind(m, 'laundry'), C.roomForKind(m, 'unsure')], ['Kitchen', 'Bedroom 1', null, null]);
 });
@@ -464,36 +468,54 @@ test('the made-up move: 18 boxes from 12 Larkfield Lane to 4 Harbour Row, halfwa
  * The page's own promises
  * ================================================================== */
 
-test('every text colour holds 4.5:1 on its surface in both themes; the hero, the mock label, the labels and the lab card too; 44px targets; nothing scrolls sideways', () => {
+test('the look: a pure white page (true black in dark), one accent from the lab card, hairlines and no gradients; every text colour holds 4.5:1 on its surface in both themes, in sheets too; the mock label, the labels and the lab card too; 44px targets; motion only when allowed', () => {
   const css = read('public/app.css');
   const block = (re) => { const m = re.exec(css); assert.ok(m, String(re)); const out = {}; for (const [, k, v] of m[1].matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) out[k] = v; return out; };
   const light = block(/^:root \{([\s\S]*?)\n\}/m);
   const dark = block(/:root:not\(\[data-theme="light"\]\) \{([\s\S]*?)\n {2}\}/);
   const forced = block(/:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/);
   assert.deepStrictEqual(forced, dark, 'the forced dark theme matches the automatic one');
-  for (const [name, t] of [['light', light], ['dark', dark]]) {
+  const sheetDark = block(/:root\[data-theme="dark"\] \.sheet, :root\[data-theme="dark"\] \.toast \{([^}]*)\}/);
+  assert.deepStrictEqual(block(/:root:not\(\[data-theme="light"\]\) \.sheet, :root:not\(\[data-theme="light"\]\) \.toast \{([^}]*)\}/), sheetDark, 'and so do its sheets');
+  assert.deepStrictEqual([light.bg, light.card, dark.bg, dark.card], ['#ffffff', '#ffffff', '#000000', '#000000'], 'pure white, true black');
+  const lab = require('../../../lab').get('whichbox');
+  assert.deepStrictEqual([light.accent, light.link, lab.color2], ['#3a3196', '#3a3196', '#3a3196'], 'one accent: the lab card\u2019s marker-pen violet blue');
+  assert.strictEqual(light.line, '#e5e5ea', 'hairlines');
+  for (const [name, t] of [['light', light], ['dark', dark], ['dark sheet', { ...dark, ...sheetDark, bg: dark.sheet }]]) {
     const ok = (fg, bg, min = 4.5) => assert.ok(ratio(t[fg], t[bg]) >= min, `${name} ${fg} on ${bg}: ${ratio(t[fg], t[bg]).toFixed(2)}`);
-    for (const bg of ['bg', 'card', 'card2', 'bar-bg', 'face']) for (const fg of ['text', 'muted', 'link']) ok(fg, bg);
+    for (const bg of ['bg', 'card', 'card2', 'bar-bg', 'face', 'sheet']) for (const fg of ['text', 'muted', 'link']) ok(fg, bg);
     ok('accent-ink', 'accent'); for (const fg of ['text', 'link', 'muted']) ok(fg, 'accent-soft');
     for (const k of ['ok', 'warn', 'bad', 'info']) { ok(k, `${k}-bg`); ok('text', `${k}-bg`); for (const bg of ['card', 'bg']) ok(k, bg); }
-    for (const fg of ['hero-ink', 'hero-soft']) for (const bg of ['hero-1', 'hero-2']) ok(fg, bg);
     ok('text', 'card2'); ok('bg', 'text');
     ok('accent', 'card', 3); ok('accent', 'track', 3);
   }
-  // Colours written as literals: the hero's buttons, the cardboard mock, every printed label and sign.
-  for (const [fg, bg] of [['#3a3196', '#ffffff'], ['#ffffff', '#c2410c'], ['#111111', '#ffffff'], ['#4b4136', '#ffffff'], ['#333333', '#ffffff'], ['#166534', '#ffffff'], ['#ffffff', '#8a5300'], ['#ffffff', '#3a3196']]) {
+  // Colours written as literals: the brand mark, the mock label, every printed label and sign, a room's number tile.
+  for (const [fg, bg] of [['#ffffff', '#3a3196'], ['#ffffff', '#c2410c'], ['#111111', '#ffffff'], ['#4b4136', '#ffffff'], ['#333333', '#ffffff'], ['#ffffff', '#8a5300']]) {
     assert.ok(ratio(fg, bg) >= 4.5, `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
   }
-  const lab = require('../../../lab').get('whichbox');
   assert.ok(lab && ratio('#ffffff', lab.color) >= 4.5 && ratio('#ffffff', lab.color2) >= 4.5, 'the lab card colours hold white text');
-  for (const sel of ['.btn', '.btn.small', '.link-btn', '.seg button, .chip', '.input, select.input, textarea.input', '.check', 'details.more > summary', '.statusbar button', '.movepill', '.sugg button']) {
+  // A room's colour reaches the page as data-rc: the stylesheet's table is the core's palette, and each holds white text.
+  const rc = [...css.matchAll(/\[data-rc="([a-z]+)"\] \{ --rc: (#[0-9a-f]{6}); \}/g)].map((m) => ({ id: m[1], hex: m[2] }));
+  assert.deepStrictEqual(rc, C.PALETTE.map((p) => ({ id: p.id, hex: p.hex })));
+  for (const p of rc) assert.ok(ratio('#ffffff', p.hex) >= 4.5, p.id);
+  for (const sel of ['.btn', '.btn.small', '.link-btn', '.seg button, .chip', '.input, select.input, textarea.input', '.check', 'details.more > summary', '.statusbar button', '.movepill', '.sugg button', '.tabbar button', '.irow .input']) {
     assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*(min-height|height): (4[4-9]|[5-9]\\d)px').test(css), `${sel}: 44px`);
   }
-  assert.ok(/\.tabbar button \{[^}]*min-height: 60px/.test(css) && /\.itemchip button \{ min-width: 44px; min-height: 44px/.test(css) && /\.swatches button \{ width: 44px; height: 44px/.test(css) && /\.roomrow \.sw \{ width: 44px; height: 44px/.test(css));
+  assert.ok(/\.btn \{[^}]*min-height: 48px/.test(css), 'the primary action is 48px');
+  assert.ok(/\.itemchip button \{ min-width: 44px; min-height: 44px/.test(css) && /\.swatches button \{ width: 44px; height: 44px/.test(css) && /\.roomrow \.sw \{ width: 44px; height: 44px/.test(css) && /\.irow \.rm \{ width: 44px; height: 44px/.test(css) && /\.irow \.tick \{[^}]*width: 44px; height: 44px/.test(css));
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
+  assert.ok(!/gradient\(|@import|url\(|@font-face/.test(css), 'no gradients; system fonts only; nothing fetched by the stylesheet');
+  assert.deepStrictEqual([...new Set(css.match(/box-shadow: [^;]+;/g))].filter((x) => !/var\(--(float|lift)\)|0 0 0 |inset 0 0 0 |: none;/.test(x)), [], 'no shadows but the barely-there one on floating things (rings are outlines)');
+  assert.deepStrictEqual([...new Set((css.match(/border-radius: [^;]+;/g) || []).map((x) => x.replace(/border-radius: |;/g, '')))].filter((x) => !/^(0|12px|10px|8px|6px|4px|999px|50%|16px|20px 20px 0 0|2px|3mm|1\.2mm|1mm)$/.test(x)), [], 'corners: 12px cards, 10px inputs and tiles, pills');
+  // Motion lives inside prefers-reduced-motion: no-preference; reduce switches everything off.
+  const calm = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/, '');
+  assert.ok(!/\btransition:|\banimation(-name)?:/.test(calm.replace(/animation: none !important; transition: none !important;/, '')), 'no animation or transition outside no-preference');
   assert.ok(/prefers-reduced-motion: reduce[\s\S]*animation: none !important; transition: none !important/.test(css));
   assert.ok(/@media print \{[\s\S]*body > \*:not\(#print\) \{ display: none !important; \}[\s\S]*print-color-adjust: exact/.test(css), 'print shows only the labels, in their colours');
   assert.ok(/\.lbl \{[^}]*break-inside: avoid/.test(css) && /\.sheetp \{[^}]*break-after: page/.test(css));
+  // Navigation: a floating pill on a phone, part of the top bar on a desktop.
+  assert.ok(/\.tabbar \{[^}]*position: fixed;[^}]*border-radius: 999px/.test(css) && /@media \(min-width: 900px\) \{[\s\S]*?\.tabbar \{ position: static;/.test(css) && /\.tabbar \{[^}]*env\(safe-area-inset-bottom\)/.test(css));
+  assert.ok(/\.tabbar button svg \{[^}]*stroke-width: 1\.5/.test(css) && /\.tabbar button\[aria-current="page"\] span \{ position: static/.test(css), 'thin line icons; a label only on the active tab');
 });
 
 test('the page: relative links, no inline script or handlers, the banner, storage wrapped, photos shrunk on the phone, every received string escaped, only the listed API paths, what the AI sheet says', () => {
@@ -501,7 +523,9 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'no inline <script>');
   assert.ok(!/\son[a-z]+\s*=/i.test(html), 'no inline handlers');
   assert.ok(html.includes('<script src="verify-banner.js" data-mount="api/auth" defer></script>'));
-  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && html.includes('<script src="qr.js"></script>') && /<body class="dk">/.test(html) && html.includes('class="tabbar dk-tabbar"'));
+  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && html.includes('<script src="qr.js"></script>') && /<header class="top">[\s\S]*<nav class="tabbar" id="tabbar"[\s\S]*<\/header>/.test(html), 'one nav, inside the top bar: a floating pill on a phone, a top nav on a desktop');
+  assert.ok(!/\sstyle\s*=/.test(html) && !/\sstyle=|setAttribute\('style'|cssText/.test(read('public/app.js')), 'no style attributes, in the page or written by script');
+  assert.match(read('public/app.js'), /SIZE_PROPS\.indexOf\(k\) >= 0 && \/\^\[0-9a-z\.,\(\) \]\+\$\/\.test\(v\)\) el\.style\.setProperty\(k, v\)/, 'a label\u2019s sizes are set through the CSSOM: listed properties, plain lengths only');
   assert.ok(!/(src|href)="\//.test(html), 'relative asset links only');
   const js = read('public/app.js');
   assert.ok(!/\son[a-z]+=\\?["']/.test(js), 'no handler written into markup');
@@ -515,6 +539,10 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.match(js, /<b>What is sent:<\/b> this one photo, shrunk on this phone with its location removed\. Nothing else - not your move’s name or address, your rooms, or what’s already listed\./);
   assert.match(js, /<b>Never photos<\/b> - they stay on this phone\./);
   assert.match(js, /Photos stay on the phone that took them/);
+  assert.match(js, /esc\(readerName\(\)\) \+ ' reads it, and our server doesn’t keep it\./, 'the sheet names who reads the photo');
+  assert.match(js, /AI-written - check every line\. Untick, reword or remove anything; nothing is added until you tap Add\./);
+  assert.match(js, /\(dup \|\| c === 'low' \? '' : ' checked'\)/, 'things already listed, and things the reader was not sure of, start unticked');
+  assert.match(js, /data-prm="' \+ i \+ '" aria-label="Remove ' \+ esc\(t\)/, 'every line can be removed');
   assert.match(js, /never printed on the label/);
   assert.ok(!/fetch\(['"]\//.test(js) && !/href="\//.test(js), 'every browser URL is relative to BASE');
   const calls = [...new Set([...js.matchAll(/api\('(GET|POST|PUT|PATCH|DELETE)', '([^']+)'/g)].map((m) => m[2]))].sort();
@@ -523,7 +551,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.match(js, /chunks\.push\(boxes\.slice\(i, i \+ C\.LIMITS\.batch\)\.map\(C\.shareBox\)\)/, 'sharing sends boxes through shareBox - no photo flag');
   assert.match(js, /api\('POST', 'api\/moves', Object\.assign\(C\.shareMeta\(m\)/);
   assert.match(js, /Intl\.getCanonicalLocales\(navigator\.language \|\| 'en-US'\)\[0\] \|\| 'en-US'; \} catch \(e\) \{ return 'en-US'; \}/, 'a locale Intl refuses ("en-US@posix") falls back');
-  for (const f of ['public/index.html', 'public/app.js', 'public/whichbox-core.js', 'server.js', 'lib/ai.js', 'lib/fakeai.js', 'lib/store.js', 'lib/moves.js', 'CLAUDE.md']) assert.ok(!/[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(read(f)), `no email address in ${f}`);
+  for (const f of ['public/index.html', 'public/app.js', 'public/whichbox-core.js', 'server.js', 'lib/ai.js', 'lib/gemini.js', 'lib/fakeai.js', 'lib/store.js', 'lib/moves.js', 'CLAUDE.md']) assert.ok(!/[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(read(f)), `no email address in ${f}`);
   const core = read('public/whichbox-core.js');
   assert.ok(!/\bfetch\(|XMLHttpRequest|localStorage|sessionStorage|navigator\.|indexedDB|WebSocket/.test(core), 'the core touches no network or storage');
   assert.ok(!/Math\.random|Date\.now\(\)|new Date\(\)/.test(core), 'the core has no dice and no clock');
@@ -533,7 +561,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   const risky = unesc(js).split('\n').filter((l) => !/toast\(|say\(|confirm\(|prompt\(|copy\(|download\(|textContent|\.value = |shareText\(/.test(l)).join('\n')
     .match(/['"]\s*\+\s*(m\.name|m\.to|m\.from|b\.note|b\.location|b\.by|t|r\.name|x\.name|i\.name|i\.by|p\.note|s\.name|s\.move|L\.items|L\.move|L\.room|L\.roomText|err\.message|e\.message|me\.email|w\.text|h\.text|text|name|room|label|C\.boxLine\([^)]*\)|C\.itemsLine\([^)]*\)|roomName\([^)]*\))\s*\+/g);
   assert.strictEqual(risky, null, `unescaped: ${risky}`);
-  for (const f of ['server.js', 'lib/ai.js']) assert.ok(!/console\.(log|error|warn)\([^)]*(req\.body|\bbody\b|\bimage\b|\bitems\b)/.test(read(f).replace(/`[^`]*`|'[^'\n]*'/g, "''")), `${f} logs a body`);
+  for (const f of ['server.js', 'lib/ai.js', 'lib/gemini.js']) assert.ok(!/console\.(log|error|warn)\([^)]*(req\.body|\bbody\b|\bimage\b|\bitems\b)/.test(read(f).replace(/`[^`]*`|'[^'\n]*'/g, "''")), `${f} logs a body`);
   assert.ok(!/setInterval|setTimeout/.test(read('server.js') + read('lib/ai.js') + read('lib/moves.js') + read('lib/store.js').replace(/setImmediate/g, '')), 'nothing runs after a response (billed per request)');
   const sw = read('public/sw.js');
   assert.ok(/rel\.indexOf\('api\/'\) === 0\) return;/.test(sw) && /whichbox-shell-v1/.test(sw) && sw.includes("'whichbox-core.js'") && sw.includes("'qr.js'") && /k\.indexOf\('whichbox-'\) === 0/.test(sw), 'the service worker never answers api/ and only clears its own caches');
@@ -955,6 +983,171 @@ test('the gates: unconfirmed free account 403, out of credit 402, the day\u2019s
     await settle();
     assert.strictEqual(await modelCalls(), calls);
   } finally { await identityStore.remove('control', `free-spend-whichbox-${day}`); }
+});
+
+/* ---------------- the photo reader on Gemini (WHICHBOX_AI_PROVIDER=gemini) ---------------- */
+
+/** A stand-in for the lab's guard: it keeps the order things happened in and
+ *  never touches a network. `generate` defaults to the app's own stand-in. */
+function fakeGuard(opts = {}) {
+  const log = { order: [], allow: [], record: [], requests: [] };
+  const guard = {
+    log,
+    allow: async ({ provider, req, app: name }) => { log.order.push('allow'); log.allow.push({ provider, app: name, uid: req.user && req.user.id }); return opts.deny || { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); if (opts.recordThrows) throw new Error('store down'); return true; },
+    priceUsd: ({ provider, model, inputTokens, outputTokens }) => { if (provider === 'gemini') { assert.strictEqual(model, 'gemini-3.8-flash'); return gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }); } return (inputTokens + 5 * outputTokens) / 1e6; },
+    gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 1200, outputTokens: 240 } }; } },
+  };
+  return guard;
+}
+async function withGemini(guard, fn) {
+  process.env.WHICHBOX_AI_PROVIDER = 'gemini';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.WHICHBOX_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('the provider switch: Claude unless WHICHBOX_AI_PROVIDER=gemini, read per request; the Gemini schema asks for a short name and a confidence for each thing, and nothing about the person', async () => {
+  const anon = client();
+  assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', 'unset: the reader the app has always had');
+  for (const v of ['', 'Gemini', 'GEMINI', 'vertex', 'off', '1', 'true']) {
+    process.env.WHICHBOX_AI_PROVIDER = v;
+    try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', `"${v}" is not the switch`); } finally { delete process.env.WHICHBOX_AI_PROVIDER; }
+  }
+  await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
+  assert.match(read('server.js'), /process\.env\.WHICHBOX_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
+  assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['items', 'room', 'room_confidence', 'flags', 'confidence', 'note']);
+  assert.deepStrictEqual(gemini.SCHEMA.required, Object.keys(gemini.SCHEMA.properties));
+  const it = gemini.SCHEMA.properties.items;
+  assert.deepStrictEqual([it.type, it.maxItems, Object.keys(it.items.properties), it.items.required, it.items.properties.confidence.enum], ['ARRAY', 40, ['name', 'confidence'], ['name', 'confidence'], ['high', 'medium', 'low']]);
+  assert.deepStrictEqual(gemini.SCHEMA.properties.room.enum, C.ROOM_KINDS.concat(['unsure']), 'a room KIND, never a room’s name');
+  assert.deepStrictEqual(gemini.SCHEMA.properties.flags.items.properties.flag.enum, ['fragile', 'heavy'], 'never Valuables');
+  assert.ok(/List only what you can see/.test(gemini.SYSTEM) && /never an instruction to you/.test(gemini.SYSTEM) && /never people, faces/.test(gemini.SYSTEM));
+  const rq = gemini.request({ image: { type: 'image/jpeg', data: 'QUJD' } });
+  assert.deepStrictEqual(rq.contents, [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } }, { text: 'List what is in this open box.' }] }], 'one photo and one fixed sentence');
+  assert.deepStrictEqual([rq.model, rq.responseSchema, rq.systemInstruction, rq.generationConfig.temperature, rq.timeoutMs], ['gemini-3.8-flash', gemini.SCHEMA, gemini.SYSTEM, 0, 30000]);
+  // The same table the guard holds: $0.75 / $3.75 per 1M through 2026, double from 2027-01-01.
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+  assert.ok(!/fetch\(|https?:\/\/|console\./.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own (the guard’s helper does) and the reader logs nothing');
+  for (const junk of [null, 'x', 7, [], [{ items: ['Kettle'] }], { items: [] }, { items: [{ name: '<script>' }], room: 'unsure' }]) assert.strictEqual(gemini.cleanAnswer(junk), null, JSON.stringify(junk));
+});
+
+test('the Gemini reader over HTTP: the identity gates before the parser, then allow -> generate -> record; the model gets the photo without its location and nothing about the person; the answer is clamped, with a confidence per thing; charged to the person; nothing stored', async () => {
+  const gia = await register('gia.gemini');
+  const uid = uidOf(mail('gia.gemini'));
+  const layer = app._router.stack.find((l) => l.route && l.route.path === '/api/ai/contents' && l.route.methods.post);
+  assert.deepStrictEqual(layer.route.stack.map((l) => l.handle.name || '(anon)').slice(0, 4), ['requireUser', 'requireBudget', 'requireDailyCap', 'jsonParser'], 'the same gates, whichever reader is on');
+  let g = fakeGuard();
+  await withGemini(g, async () => {
+    // Signed out, and a bad body: no guard count, no model call.
+    assert.strictEqual((await client()('POST', '/api/ai/contents', photoBody())).status, 401);
+    assert.strictEqual((await client()('POST', '/api/ai/contents', BIG)).status, 401, '401 before the big body is read');
+    for (const bad of [{}, { image: photoBody().image, rooms: ['Kitchen'] }, { image: { type: 'image/jpeg', data: png(200, 200).toString('base64') } }, { image: { type: 'image/jpeg', data: jpeg(2400, 1800).toString('base64') } }]) {
+      assert.strictEqual((await gia('POST', '/api/ai/contents', bad)).status, 400);
+    }
+    assert.deepStrictEqual(g.log.order, [], 'a 401 or a 400 never reaches the guard or the model');
+    const usage0 = await modelCalls();
+    const claude0 = fakeClient.calls.length;
+    const r = await gia('POST', '/api/ai/contents', photoBody());
+    assert.strictEqual(r.status, 200, r.text);
+    assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+    assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record'], 'allow, then the call, then record');
+    assert.deepStrictEqual(g.log.allow[0], { provider: 'gemini', app: 'whichbox', uid });
+    assert.strictEqual(fakeClient.calls.length, claude0, 'Claude is not called');
+    const rq = g.log.requests[0];
+    assert.deepStrictEqual([rq.model, rq.responseSchema, rq.systemInstruction], ['gemini-3.8-flash', gemini.SCHEMA, gemini.SYSTEM]);
+    assert.deepStrictEqual(rq.contents[0].parts.map((x) => Object.keys(x)[0]), ['inlineData', 'text']);
+    assert.strictEqual(rq.contents[0].parts[1].text, gemini.TEXT, 'the only words: the fixed sentence');
+    const sent = Buffer.from(rq.contents[0].parts[0].inlineData.data, 'base64');
+    assert.ok(!sent.includes(Buffer.from('GPSLatitude')) && !sent.includes(Buffer.from('Marrow')), 'the model’s copy has no location or comment in it');
+    assert.ok(!/gia\.gemini|example\.com|Larkfield/.test(JSON.stringify(rq).replace(rq.contents[0].parts[0].inlineData.data, '')), 'nothing about the person');
+    const pr = r.data.proposal;
+    assert.deepStrictEqual(Object.keys(pr).sort(), ['confidence', 'flags', 'itemConfidence', 'items', 'note', 'room', 'roomConfidence']);
+    assert.deepStrictEqual(pr.items, ['Kettle', 'Mugs', 'Tea towels', 'Teapot', 'Cereal bowls', 'Wooden spoons', 'Toaster'], '"Mug" folded into "Mugs"');
+    assert.deepStrictEqual(pr.itemConfidence, ['high', 'high', 'high', 'medium', 'high', 'medium', 'low']);
+    assert.deepStrictEqual([pr.room, pr.roomConfidence, pr.flags], ['kitchen', 'high', [{ id: 'fragile', confidence: 'medium' }]]);
+    // What it cost: the guard's month, and the person's own ledger (as the Haiku tokens that cost the same).
+    const usd = gemini.priceUsd({ inputTokens: 1200, outputTokens: 240, at: new Date('2026-11-23T00:00:00Z') });
+    assert.deepStrictEqual(g.log.record, [{ provider: 'gemini', app: 'whichbox', usd }]);
+    await settle();
+    assert.strictEqual(await modelCalls(), usage0 + 1, 'one row in the person’s ledger');
+    const row = (await identityStore.list('usage')).find((x) => x.route === 'contents:gemini-3.8-flash');
+    assert.ok(row && row.uid === uid && Math.abs(row.costUsd - usd) < usd * 0.01 + 1e-6, JSON.stringify(row));
+    assert.ok(!store._dump().includes('Wooden spoons'), 'nothing stored');
+    // Hostile output is clamped by the same door as Claude's.
+    fakeGemini.mode = 'inject';
+    const inj = await gia('POST', '/api/ai/contents', photoBody());
+    assert.strictEqual(inj.status, 200, inj.text);
+    assert.ok(!/<[a-z/!]|\u202e|javascript:|https?:|www\.|evil\.example|valuables|Robin|certain/i.test(inj.text), inj.text.slice(0, 300));
+    const ip = inj.data.proposal;
+    assert.ok(ip.items.length <= 40 && ip.items.every((t) => t.length <= 40) && ip.itemConfidence.length === ip.items.length && ip.itemConfidence.every((c) => ['high', 'medium', 'low'].includes(c)) && ip.room === 'unsure' && ip.confidence === 'low' && !('extra' in ip));
+    fakeGemini.mode = 'unsure';
+    assert.strictEqual((await gia('POST', '/api/ai/contents', photoBody())).data.proposal.room, 'unsure');
+    fakeGemini.mode = 'blank';
+    const blank = await gia('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([blank.status, blank.data.error], [422, ai.NOTHING]);
+  });
+  // A provider failure: a status only, never the provider's words; a call the model billed is still recorded and charged.
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  await withGemini(g, async () => {
+    const usage0 = await modelCalls();
+    const r = await gia('POST', '/api/ai/contents', photoBody());
+    assert.ok(r.status === 502 && !/SECRET|Gemini|Vertex/.test(r.text), r.text);
+    assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record']);
+    await settle();
+    assert.strictEqual(await modelCalls(), usage0 + 1);
+  });
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini took too long.'), { name: 'VertexError', code: 'timeout' }); } });
+  await withGemini(g, async () => {
+    const r = await gia('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, /AI is busy/.test(r.data.error)], [503, true]);
+    assert.deepStrictEqual(g.log.order, ['allow', 'generate'], 'nothing billed, nothing recorded');
+  });
+  // A guard whose store is down never loses the answer.
+  g = fakeGuard({ recordThrows: true });
+  await withGemini(g, async () => assert.strictEqual((await gia('POST', '/api/ai/contents', photoBody())).status, 200));
+  // On its own (no lab guard) only the local stand-in can answer.
+  await withGemini(undefined, async () => {
+    const n = fakeGemini.calls.length;
+    const r = await gia('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.proposal.items.length, fakeGemini.calls.length], [200, 7, n + 1]);
+  });
+  const mid = read('server.js').slice(read('server.js').indexOf('async function guardAllow'), read('server.js').indexOf("app.post('/api/ai/contents'"));
+  assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')"], 'the route logs fixed words only');
+});
+
+test('the lab’s guard can say no - its friendly words, no model call, on either reader - and the gates still answer first; the Claude reader is counted against Claude’s cap', async () => {
+  const hal = await register('hal.guarded');
+  const deny = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+  let g = fakeGuard({ deny });
+  await withGemini(g, async () => {
+    const usage0 = await modelCalls();
+    const r = await hal('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.code, r.data.error], [503, 'monthly-cap', deny.message]);
+    assert.deepStrictEqual(g.log.order, ['allow'], 'never the model');
+    await settle();
+    assert.strictEqual(await modelCalls(), usage0);
+    // Out of credit: the identity's 402 comes first - the guard is never asked.
+    const ida = await register('ida.broke');
+    await identityStore.merge('users', uidOf(mail('ida.broke')), { spentUsd: 100 });
+    assert.strictEqual((await ida('POST', '/api/ai/contents', BIG)).status, 402, '402, not 413');
+    assert.deepStrictEqual(g.log.order, ['allow']);
+  });
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  global.LAB_AI_GUARD = g;
+  try {
+    const n = fakeClient.calls.length;
+    const r = await hal('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.code, g.log.allow[0].provider, fakeClient.calls.length], [429, 'burst-minute', 'claude', n]);
+    g = fakeGuard();
+    global.LAB_AI_GUARD = g;
+    const ok = await hal('POST', '/api/ai/contents', photoBody());
+    assert.strictEqual(ok.status, 200, ok.text);
+    assert.ok(!('itemConfidence' in ok.data.proposal), 'the Claude reader’s answer is as it was');
+    assert.deepStrictEqual(g.log.order, ['allow', 'record']);
+    assert.deepStrictEqual(g.log.record, [{ provider: 'claude', app: 'whichbox', usd: (1700 + 5 * 260) / 1e6 }], 'the lab’s key, counted against Claude’s month');
+  } finally { delete global.LAB_AI_GUARD; }
 });
 
 test('nothing identifying in the shared store: no email, no account id, no browser key, no photo - only first names, rooms and box text', async () => {
