@@ -250,8 +250,19 @@ function shareCard(l, versions, { includeText = false } = {}) {
  */
 function glowResult(src, proposal) {
   const before = R.summary(src);
-  const apply = (title) => ({ ...fieldsOf(src), title, description: proposal.description, tags: proposal.tags.length ? proposal.tags : src.tags });
-  const titles = proposal.titles.map((t) => ({ ...t, score: R.score(apply(t.text)).score }));
+  const base = fieldsOf(src);
+  const tags = proposal.tags.length ? proposal.tags : src.tags;
+  const apply = (title) => ({ ...base, title, description: proposal.description, tags });
+  // Every option is scored twice by the same rules that scored the original:
+  // on its own (that title over the seller's saved text - what an A/B swap of
+  // the title alone is worth) and with the rewritten listing under it.
+  const titles = proposal.titles.map((t) => {
+    const score = R.score(apply(t.text)).score;
+    const alone = R.score({ ...base, title: t.text }).score;
+    return { ...t, score, delta: score - before.score, alone, aloneDelta: alone - before.score };
+  });
+  // The rewritten listing under the seller's own title: the fourth choice.
+  const keep = R.score(apply(src.title)).score;
   const best = titles.length ? titles[0].text : src.title;
   const afterFields = apply(best);
   return {
@@ -259,6 +270,7 @@ function glowResult(src, proposal) {
     after: R.score(afterFields),
     fields: { title: afterFields.title, description: afterFields.description, tags: afterFields.tags },
     titles,
+    rewrite: { title: src.title, score: keep, delta: keep - before.score },
     shots: proposal.shots,
     gaps: proposal.gaps,
     summary: proposal.summary,

@@ -89,6 +89,36 @@ const modelFor = (req) => identityLib.planFor(req.user, MODELS).model;
 const spend = [identity.requireUser, identity.requireBudget, identity.requireDailyCap];
 const user = identity.requireUser;
 
+// The lab's AI guard (challenge/CLAUDE.md, "Lab AI guard"): the host sets
+// global.LAB_AI_GUARD; on its own (tests, npm run dev) the app has none and
+// the identity gates stand alone. All three model calls go through it: the
+// guard is asked first - a no is its friendly message and no call - and told
+// what the call cost afterwards, in a finally, because a call that came back
+// is paid for whether or not its answer passed the checks.
+const PROVIDER = 'claude';
+async function guardAllows(req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const g = await guard.allow({ provider: PROVIDER, req, app: 'glowup' });
+  if (!g || !g.ok) {
+    const e = L.httpError((g && g.status) || 429, `${(g && g.message) || 'The AI is resting for now.'} Your score, every fix and editing are free and still work.`);
+    e.code = (g && g.code) || 'ai-guard';
+    throw e;
+  }
+}
+async function metered(req, fn) {
+  const guard = global.LAB_AI_GUARD;
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return await fn(await clientFor(req), model, (u) => { used = u; });
+  } finally {
+    if (guard && used) {
+      try { await guard.record({ provider: PROVIDER, app: 'glowup', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+    }
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
@@ -108,7 +138,7 @@ const fail = (res, err, fallback = 'Something went wrong.') => {
   if (!mine) console.error(err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : 'error', err && err.status ? `(upstream ${err.status})` : '');
   const upstream = !mine && err && Number.isInteger(err.status);
   const status = mine ? err.status : upstream ? ([429, 503, 529].includes(err.status) ? 503 : 502) : 500;
-  const body = { error: mine ? err.message : fallback };
+  const body = { error: mine ? err.message : fallback, ...(mine && err.code ? { code: err.code } : {}) };
   res.status(status).json(body);
 };
 
@@ -357,8 +387,8 @@ app.get('/api/wins', user, async (req, res) => {
 app.post(SNAP_ROUTE, ...spend, bigJson, async (req, res) => {
   try {
     const image = photo.validate((req.body || {}).image);
-    const client = await clientFor(req);
-    const raw = await ai.readListing(client, modelFor(req), image);
+    await guardAllows(req);
+    const raw = await metered(req, (client, model, onUsage) => ai.readListing(client, model, image, onUsage));
     const proposal = ai.validateRead(raw);
     if (!proposal) throw httpError(422, 'We couldn’t read a listing in that screenshot. Try a tighter shot of the title and description - or paste them in.');
     res.json(proposal);
@@ -375,8 +405,8 @@ app.post('/api/listings/:id/glowup', ...spend, async (req, res) => {
   try {
     const l = await loadListing(req);
     const src = L.fieldsOf(l);
-    const client = await clientFor(req);
-    const raw = await ai.glowUp(client, modelFor(req), src);
+    await guardAllows(req);
+    const raw = await metered(req, (client, model, onUsage) => ai.glowUp(client, model, src, onUsage));
     const proposal = ai.validateGlow(raw, src);
     if (!proposal) throw httpError(422, 'The rewrite came back empty. Try again - or add a little more to the description first.');
     res.json({ listingId: l.id, basedOn: l.versionCount, ...L.glowResult(src, proposal) });
@@ -391,8 +421,8 @@ app.post('/api/listings/:id/compare', ...spend, async (req, res) => {
     const l = await loadListing(req);
     const mine = L.fieldsOf(l);
     const theirs = L.cleanCompetitor(req.body, mine);
-    const client = await clientFor(req);
-    const raw = await ai.compare(client, modelFor(req), mine, theirs);
+    await guardAllows(req);
+    const raw = await metered(req, (client, model, onUsage) => ai.compare(client, model, mine, theirs, onUsage));
     const verdict = ai.validateCompare(raw);
     if (!verdict) throw httpError(422, 'The comparison came back empty. Try again with more of their listing.');
     const result = L.compareResult(mine, theirs, verdict, now(), l.versionCount);
