@@ -201,13 +201,104 @@ change.
   page with their words; a provider error is a 502 (503 "The AI is busy")
   sentence. Nothing logged carries a name, a message, a question or an image.
 
+## Gemini, the lab AI guard and "Make a round" (2026-11-23)
+
+Erik's per-app AI plan gives Inside Joke **Gemini**: "Your photos become
+trivia rounds, plus 'who said it?'" (photo-heavy, high volume). It is built
+and **switched off**: `INSIDEJOKE_AI_PROVIDER=gemini` turns it on; unset (or
+anything else) is Claude exactly as before, so merging changed nothing live.
+Turning it on is Erik's call (and needs Vertex AI enabled for
+`challenge-run@`, see `challenge/CLAUDE.md` "Lab AI guard").
+
+- **What the switch does.** (1) The two existing calls - one photo, a chat
+  excerpt - go to `gemini-3.8-flash` through `global.LAB_AI_GUARD.gemini.generate`
+  with a `responseSchema` instead of a forced tool, and then through **the
+  same cleaning** (`ai.cleanPhotoQuestions`, `ai.cleanChatQuestions`). (2)
+  **Make a round** appears on the Questions tab (`/api/meta` says
+  `ai.round: true`): up to **6 photos** the member picks and up to **12
+  quotes they type** as "Name: what they said", plus an optional one-line
+  note, become one round of drafts in **one call**
+  (`POST /api/groups/:gid/round`; a 404 with the switch off).
+- **Grounded and kind** (`lib/gemini.js`). The facts are never the model's,
+  as before: where = the place typed, when = the year from EXIF or typed,
+  who took it = the uploader. Typed quotes are sent as numbered lines
+  **without their speakers**; a quote that comes back must be an exact
+  substring of exactly one speaker's typed lines (`Core.verifyQuote`) and
+  the speaker is read from there; the other answers are the other people
+  quoted, then group members. The prompt forbids identifying anyone and
+  asking about age, looks, body, health, ethnicity, religion and the like,
+  and mocking; `SENSITIVE` (with `Core.FACE_ASK`) drops any question or
+  answer that does it anyway. Clamped: 2 questions a photo, 12 quotes, 15
+  questions a round, every string through `Core.cleanQuestion`.
+- **The member reviews first.** Everything is a draft only its author sees
+  ("To review"): edit, delete, then "Add N to the bank". Nobody plays a
+  question that was not checked.
+- **Photos.** Shrunk and redrawn on the phone (EXIF and location gone): the
+  usual 640px thumbnail and, for a round, a 1024px copy of at most 280 KB
+  (the server refuses over 300 KB; one photo keeps the 1280px copy). **The
+  data promises are unchanged**: the model's copies are read once and
+  dropped; only the thumbnail of a photo that got a question is stored;
+  typed quotes and the note are never stored - only the questions.
+- **Order of a metered call**: `requireUser, requireBudget, requireDailyCap`,
+  membership, (the switch, for `/round`), the 4 MB parser, the request's own
+  checks (a 400 costs and counts nothing), **`LAB_AI_GUARD.allow`** (its 429
+  / 503 message is sent as is, with `code`), then the stream and the call,
+  then `LAB_AI_GUARD.record` with `priceUsd`. The Claude path is wrapped the
+  same way (`askClaude`; a member's own key is not recorded). An app run on
+  its own has no guard and skips it.
+- **Who pays.** Still whoever asks. A Gemini call is charged to the person's
+  ledger at its real dollars through `identity.recordUsage` (written as the
+  Haiku input tokens that cost the same; `route` says
+  `round:gemini-3.8-flash`, `photo:…`, `chat:…`), and to the lab's month. A
+  call that failed after billing is still paid for (`VertexError.usage`).
+  A round is about two cents.
+- **Stand-in and tests.** `fakeai.createGemini()` answers the three schemas
+  with no network (triggers in its header). `test/gemini.js` (second half of
+  `npm test`, run with the switch on) holds the gates, the guard order, the
+  clamps, what is stored and what is charged; `test/run.js` holds the
+  default (`PROVIDER === 'claude'`, no round route, guard around Claude).
+- **Privacy page**: when the switch goes on it should say Google (Vertex AI)
+  where it says Anthropic.
+
+## Design (2026-11-23 redesign)
+
+The lab's HOA Desk look, in `public/app.css` (one file; `desktop.css` is
+still served but the page no longer opts into it - no `dk` class):
+
+- Pure white (true black in dark), **one accent**: the fuchsia of its
+  `lab.js` pair (`#a21caf`; `#f0abfc` in dark). Status colours only for
+  right/wrong/streak. Members' twelve colours and the four live answer
+  colours are identity, unchanged.
+- Sections and hairline-divided lists, not boxes; a 1px hairline card (12px
+  corners) only for the side panels. Pill buttons (48px+ primary, 44px
+  minimum), 10px inputs. System font, five sizes (13/15/17/22 + display).
+- **Navigation**: one `<nav>` inside the top bar. On a phone it is a slim
+  floating translucent pill (1.5px line icons, a label and a small accent
+  mark only on the current tab); from 900px it sits in the top bar with a
+  quiet underline. The phone top bar has **no backdrop-filter** on purpose
+  (it would trap the fixed pill inside it).
+- **First visit**: a centred hero ("Trivia from your own photos and group
+  chat.", Play today's round / Start a group) above the example family.
+- **No `style=` anywhere**, in HTML or written by script: helper classes,
+  `data-c="<colour id>"` for member colours (the twelve are listed in
+  app.css - keep them in step with `ij-core.js` COLORS), `.w1`-`.w20` bars.
+- Motion (press, sheet, verdict pop) only under
+  `prefers-reduced-motion: no-preference`.
+- Measured in headless Chrome at 390, 320 and 1440, both themes, every tab
+  and the round sheet: lowest text contrast 5.5:1 light, 6.6:1 dark; no
+  sideways scroll; no CSP or console errors.
+- Taps from a group's home (Today): play = 1 (Start); board, live, invite
+  tab = 1; make a round / add from photos / chat / write = 2 (Questions,
+  then the row); copy the invite link = 2. First visit: play the example or
+  start a group = 1.
+
 ## The first run
 
 A first visit opens on the example: "The Riveras" (made up; their "photos" are
 simple SVG drawings in `public/sample.js` - a lake dock, a snowy cabin, an
-80th birthday cake, a beach - no stock or real photos). A dark strip says
-"This is an example family - play today's 5, then start your own" with a big
-**Play today's round** and **Start a group**. Today's five (a where, a "who
+80th birthday cake, a beach - no stock or real photos). A centred hero says
+what the app is, with **Play today's round** and **Start a group**, and a
+line that this is an example family and nothing is saved. Today's five (a where, a "who
 said it?", a night-owl stat, a closest-number, a what's-happening) are graded
 by the same core; three Riveras have already played (Abuela 5/5 from San
 Juan...), the board has streaks (Abuela 🔥 23; the viewer, Lucía, 🔥 4 "play
@@ -219,14 +310,14 @@ A browser that has groups (or a signed-in account) opens on **Your groups**,
 with "Start a group", "Join with a code" and "Play the example". A join link
 (`j/<code>`) shows the group's name and faces, then name, emoji and colour.
 A group (`g/<id>`) has five tabs - Today, Live, Board, Questions, Group - a
-bottom bar on a phone and a rail on a desktop (`desktop.css`), where the round
+floating pill on a phone and part of the top bar on a desktop, where the round
 and "who's played" sit side by side.
 
 ## Local run and tests
 
 ```
 npm run dev     # memory store + fake model, mounted at http://localhost:8117/insidejoke/
-npm test        # pure rules first, then end to end over HTTP under an /insidejoke mount
+npm test        # pure rules first, then end to end over HTTP under an /insidejoke mount; then test/gemini.js with the switch on
 ```
 
 `npm run dev` keeps the free-AI email check on (as production does); add
@@ -283,7 +374,10 @@ Host (free account): `POST|GET /api/groups`, `PUT|DELETE /api/groups/:gid`,
 `GET .../live[?since=v]`, `POST .../live/join|answer`. Metered
 (`requireUser, requireBudget, requireDailyCap`, membership, then the parser):
 `POST .../photos` (4 MB) `{thumb, image: {type, data}, year, place, hint}`,
-`POST .../chat` (512 KB) `{excerpt: [{n, t}]}`. Everything else: 64 KB.
+`POST .../chat` (512 KB) `{excerpt: [{n, t}]}`, and - only with
+`INSIDEJOKE_AI_PROVIDER=gemini` - `POST .../round` (4 MB) `{photos: [{thumb,
+image: {type, data}, year, place}] (<= 6), quotes: [{n, t}] (<= 12), hint}`.
+Everything else: 64 KB.
 
 ## Ideas not built yet
 
