@@ -233,11 +233,23 @@ test('dates as printed: relative and absolute, never the future', () => {
 });
 
 test('model answers are checked: cool-down kinds, screenshot readings, replies', () => {
-  const c = aiLib.validateCool({ calm: 'Hi Brett,\n\n<script>x</script>Thank you for the feedback, truly.', removed: [{ kind: 'blame', quote: 'maybe if <b>you</b>', why: 'ok' }, { kind: 'bogus', quote: 'x', why: 'y' }, { kind: 'blame', quote: 'MAYBE IF <b>YOU</b>', why: 'dup' }, 'junk'], kept: '<i>k</i>' });
-  assert.ok(!/[<>]/.test(c.calm));
+  const DRAFT = 'Brett, maybe if you had booked you would not have waited. Our eggs are cooked to order.';
+  const c = aiLib.validateCool({
+    options: [
+      { angle: 'calm', calm: 'Hi Brett,\n\n<script>x</script>Thank you for the feedback, truly.', kept: [{ point: '<i>Cooked to order</i>', quote: 'our EGGS are cooked to   order' }, { point: 'Short-staffed', quote: 'we were short two cooks' }, { point: 'dup', quote: 'Our eggs are cooked to order' }, 'junk'] },
+      { angle: 'nonsense', calm: 'Hi Brett,\n\nThank you for telling us about your visit.', kept: 'junk' },
+      { angle: 'firm', calm: 'hi', kept: [] },
+    ],
+    removed: [{ kind: 'blame', quote: 'maybe if <b>you</b>', why: 'ok' }, { kind: 'bogus', quote: 'x', why: 'y' }, { kind: 'blame', quote: 'MAYBE IF <b>YOU</b>', why: 'dup' }, 'junk'],
+  }, { draft: DRAFT });
+  assert.ok(!/[<>]/.test(c.options[0].calm));
   assert.deepStrictEqual(c.removed.map((x) => x.kind), ['blame'], 'unknown kinds and duplicates dropped');
-  assert.strictEqual(c.kept, 'ik/i');
-  assert.throws(() => aiLib.validateCool({ calm: '', removed: [] }), /empty/);
+  assert.deepStrictEqual(c.options.map((o) => o.angle), ['calm', 'warm'], 'an unknown angle takes the next free one; an empty version is dropped');
+  assert.deepStrictEqual(c.options[0].kept, [{ point: 'iCooked to order/i', quote: 'our EGGS are cooked to order' }], 'a kept point must quote the draft; markup stripped');
+  assert.deepStrictEqual(c.options[1].kept, []);
+  assert.deepStrictEqual(c.dropped.map((d) => d.reason), ['empty']);
+  assert.throws(() => aiLib.validateCool({ options: [{ angle: 'calm', calm: '', kept: [] }], removed: [] }), /empty/);
+  assert.throws(() => aiLib.validateCool({ calm: 'the old one-answer shape is not accepted any more', removed: [] }), /empty/);
   assert.throws(() => aiLib.validateReply({ reply: 'hi' }), /empty/);
   assert.strictEqual(aiLib.validateRead({ readable: true, stars: 7, text: 'x' }, T), null, 'stars must be 1-5');
   assert.strictEqual(aiLib.validateRead({ readable: true, stars: 3.5, text: 'x' }, T), null);
@@ -246,6 +258,51 @@ test('model answers are checked: cool-down kinds, screenshot readings, replies',
   assert.deepStrictEqual([r.platform, r.stars, r.reviewer, r.date, r.dateGuessed], ['yelp', 2, 'Dana bK/b', '2026-09-21', false]);
   assert.strictEqual(aiLib.validateRead({ readable: true, platform: 'myspace', stars: 4, dateText: 'whenever', text: 'ok' }, T).platform, 'other');
   for (const tool of [aiLib.TRIAGE_TOOL, aiLib.REPLY_TOOL, aiLib.COOL_TOOL, aiLib.READ_TOOL]) assert.strictEqual(tool.input_schema.type, 'object');
+});
+
+test('the fact check: an option that adds a number, an offer, a promise, a legal threat or a personal detail - or argues - is dropped', () => {
+  const review = { reviewer: 'Brett Lawson', stars: 1, text: 'Waited 50 minutes for cold eggs. I want a refund.' };
+  const settings = { businessName: 'Alpine Bakery', ownerName: 'Alice', signOff: 'Cheers,', contactLine: 'alice@alpine.example or 555-010-9999', alwaysSay: 'We bake daily.' };
+  const f = aiLib.factsOf({ review, settings });
+  const why = (t, facts = f) => aiLib.invented(t, facts);
+  assert.strictEqual(why('Hi Brett,\n\nI am sorry about the 50 minute wait and the cold eggs. Feel free to reach me when you have a free moment: alice@alpine.example or 555-010-9999.\n\nCheers,\nAlice'), '', 'the review\'s own number and the owner\'s own contact line are fine');
+  assert.strictEqual(why('Thank you for the 1 star feedback, Brett.'), '', 'the star count is a fact');
+  assert.strictEqual(why('We were short 3 cooks that night.'), 'number');
+  assert.strictEqual(why('The wait hit ninety minutes.'), 'number', 'numbers in words count');
+  assert.strictEqual(why('Your next visit is on us.'), 'offer');
+  assert.strictEqual(why('I will refund your bill.'), 'offer', 'the customer asking for a refund does not let the reply offer one');
+  assert.strictEqual(why('Here is a free coffee for your trouble.'), 'offer');
+  assert.strictEqual(why('I promise this will never happen again.'), 'promise');
+  assert.strictEqual(why('The waiter has been fired.'), 'promise');
+  assert.strictEqual(why('Our lawyers will be in touch.'), 'legal');
+  assert.strictEqual(why('Hi Brett Lawson, thank you.'), 'private');
+  assert.strictEqual(why('Thanks Brett - write to bob@elsewhere.example.'), 'private');
+  assert.strictEqual(why('You clearly did not read the menu.'), 'tone');
+  assert.strictEqual(why('That is not true, and nobody else complained.'), 'tone');
+  // The owner's own lines unlock their own offers - and only theirs.
+  const generous = aiLib.factsOf({ review, settings: { ...settings, alwaysSay: 'Always offer a refund to anyone who waited over 30 minutes.' } });
+  assert.strictEqual(why('I am sorry, Brett. I will refund your bill.', generous), '');
+  assert.strictEqual(why('I am sorry, Brett. Your next visit is 20% off.', generous), 'number');
+  const cool = aiLib.factsOf({ review, settings, draft: 'We offered you compensation on the day and you still wrote this?' });
+  assert.strictEqual(why('We did offer compensation on the day, and I am sorry it fell short.', cool), '', 'a cool-down may keep what the owner\'s draft said');
+  // The voice sample is a sound, not a source: nothing in it is a fact.
+  assert.ok(!('voiceSample' in f) && !f.said.includes('zebra'));
+
+  const out = aiLib.replyOptions({ options: [
+    { angle: 'heartfelt', reply: 'Hi Brett,\n\nI am sorry about the wait. <b>Truly.</b>\n\nCheers,\nAlice', note: 'n' },
+    { angle: 'brief', reply: 'Hi Brett,\n\nSorry! Here is 20% off next time.\n\nCheers,\nAlice', note: 'n' },
+    { angle: 'heartfelt', reply: 'Hi Brett,\n\nI am sorry we let you down that morning.\n\nCheers,\nAlice', note: 'n' },
+    { angle: 'straight', reply: 'x', note: 'n' },
+    'junk',
+  ] }, f);
+  assert.deepStrictEqual(out.options.map((o) => o.angle), ['heartfelt', 'heartfelt']);
+  assert.ok(out.options.every((o) => o.label && !/[<>]/.test(o.text)));
+  assert.deepStrictEqual(out.dropped.map((d) => d.reason), ['number', 'empty']);
+  assert.ok(out.dropped[0].why.includes('number'));
+  assert.throws(() => aiLib.replyOptions({ options: [{ angle: 'brief', reply: 'Hi Brett, your next coffee is on the house, I insist.', note: '' }] }, f), (e) => e.status === 422 && e.expose && /not in the review/.test(e.message));
+  assert.throws(() => aiLib.replyOptions({ options: [] }, f), (e) => e.status === 502);
+  assert.strictEqual(aiLib.REPLY_TOOL.input_schema.properties.options.maxItems, 3);
+  assert.strictEqual(aiLib.COOL_TOOL.input_schema.properties.options.minItems, 2);
 });
 
 test('screenshots: JPEG passes; lies, wrong types and oversize are refused', () => {
@@ -287,6 +344,8 @@ test('the demo: a café inbox with a furious 1-star, a health flag and a cooled 
   assert.strictEqual(brett.status, 'waiting');
   assert.ok(d.cooldown.heatBefore.score >= 35 && d.cooldown.heatAfter.level === 'cool');
   assert.ok(d.cooldown.lint.ok);
+  assert.deepStrictEqual(aiLib.keptPoints(d.cooldown.keptPoints, ANGRY), d.cooldown.keptPoints, 'the sample\'s kept point quotes Ana\'s own draft');
+  assert.strictEqual(aiLib.invented(CALM, aiLib.factsOf({ review: brett, settings: d.settings, draft: ANGRY })), '', 'and its calm reply passes the same fact check');
   assert.ok(d.drafts[brett.id].lint.ok, 'the free template for the furious one passes the checklist');
   assert.ok(d.scoreboard.responseRate > 50 && d.scoreboard.total === d.reviews.length);
   assert.ok(d.wall.reviews.length >= 3 && d.wall.reviews.every((r) => r.stars >= 4));
@@ -524,6 +583,161 @@ test('cool down: metered, measured by the rules on both sides, and the vent is n
   assert.strictEqual(posted.data.replySource, 'cooled');
   assert.ok(posted.data.newBadges.some((b) => b.key === 'cool_head'));
   assert.ok(posted.data.newBadges.some((b) => b.key === 'rescue'), 'a 1-star answered inside a day');
+});
+
+let carol;
+test('reply options in your voice: 2-3 of them, each checked against the facts; the voice sample is used and never stored', async () => {
+  carol = client();
+  await carol('POST', '/api/auth/register', { email: 'carol@example.com', password: 'correct horse battery' });
+  await carol('PUT', '/api/settings', { businessName: 'Cedar Salon', ownerName: 'Carol', signOff: 'Thanks,', contactLine: 'carol@cedar.example', alwaysSay: '' });
+  const rv = (await carol('POST', '/api/reviews', { stars: 2, reviewer: 'Dana Kowalski', text: 'Waited 40 minutes past my appointment and nobody said sorry.' })).data;
+  ids.carol = rv.id;
+  const calls = await modelCalls();
+  const dump = store._dump();
+  const r = await carol('POST', `/api/reviews/${rv.id}/draft`, { voiceSample: 'Hey Sam, thanks a million for coming in - you made our day. zebra-voice-7731' });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+  assert.strictEqual(r.data.options.length, 3);
+  assert.deepStrictEqual(r.data.options.map((o) => o.angle), ['heartfelt', 'brief', 'straight']);
+  for (const o of r.data.options) {
+    assert.ok(o.label && o.note && o.text.startsWith('Hey Dana,'), 'the voice sample reached the prompt');
+    assert.ok(o.text.endsWith('Thanks,\nCarol, Cedar Salon'));
+    assert.ok(!/Kowalski|zebra|Sam\b/.test(o.text), 'no surname, and nothing taken from the sample');
+    assert.ok(o.lint && Array.isArray(o.lint.issues));
+  }
+  assert.deepStrictEqual([r.data.text, r.data.note, r.data.source], [r.data.options[0].text, r.data.options[0].note, 'ai'], 'the first option is still the flat answer');
+  assert.deepStrictEqual(r.data.dropped, []);
+  await settle();
+  assert.strictEqual(await modelCalls(), calls + 1, 'one model call for all the options');
+  assert.strictEqual(store._dump(), dump, 'drafting stores nothing');
+  assert.ok(!store._dump().includes('zebra-voice-7731') && !JSON.stringify(await identityStore.list('usage')).includes('zebra-voice-7731'), 'the voice sample is nowhere');
+  // No sample, or junk for one: the plain greeting.
+  assert.ok((await carol('POST', `/api/reviews/${rv.id}/draft`, { voiceSample: { evil: true } })).data.text.startsWith('Hi Dana,'));
+
+  // The model invents an offer in one option and a number in another: both go, and the page is told why.
+  const inv = (await carol('POST', '/api/reviews', { stars: 2, reviewer: 'Ed', text: 'INVENT slow service.' })).data;
+  const d = await carol('POST', `/api/reviews/${inv.id}/draft`, {});
+  assert.strictEqual(d.status, 200, JSON.stringify(d.data));
+  assert.deepStrictEqual(d.data.options.map((o) => o.angle), ['heartfelt']);
+  assert.deepStrictEqual(d.data.dropped.map((x) => x.reason), ['number', 'number']);
+  assert.ok(!/20%|refund|ninety|three cooks/.test(JSON.stringify(d.data)), 'what was dropped never reaches the page');
+  // Every option invents: nothing is shown, in the app's own words - and the call was still metered.
+  const bad = (await carol('POST', '/api/reviews', { stars: 2, reviewer: 'Flo', text: 'ALLBAD slow service.' })).data;
+  const before = await modelCalls();
+  const none = await carol('POST', `/api/reviews/${bad.id}/draft`, {});
+  assert.strictEqual(none.status, 422);
+  assert.ok(/use a template/.test(none.data.error) && !/lawyers|refund/.test(JSON.stringify(none.data)));
+  await settle();
+  assert.strictEqual(await modelCalls(), before + 1);
+  await carol('DELETE', `/api/reviews/${inv.id}`);
+  await carol('DELETE', `/api/reviews/${bad.id}`);
+});
+
+test('cool-down options: each measured by the rules, each kept point traced to the owner\'s draft, inventions dropped', async () => {
+  const dump = store._dump();
+  const vent = 'Dana, maybe if you had shown up on time you would not have WAITED!! We had a full book that afternoon. Don\'t bother coming back.';
+  const r = await carol('POST', '/api/cooldown', { text: vent, reviewId: ids.carol, voiceSample: 'Hey Sam, thanks a million for coming in.' });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.deepStrictEqual(r.data.options.map((o) => o.angle), ['calm', 'warm', 'firm']);
+  for (const o of r.data.options) {
+    assert.ok(o.calm.startsWith('Hey Dana,') && o.label);
+    assert.strictEqual(o.heatAfter.score, R.heat(o.calm, { reviewer: 'Dana Kowalski', contactLine: 'carol@cedar.example' }).score, 'each version\'s heat is the rules\'');
+    assert.strictEqual(o.heatAfter.level, 'cool');
+    assert.ok(o.lint && Array.isArray(o.lint.issues));
+    for (const k of o.kept) assert.ok(vent.toLowerCase().includes(k.quote.toLowerCase()), `"${k.quote}" is in the draft`);
+  }
+  const firm = r.data.options[2];
+  assert.deepStrictEqual(firm.kept, [{ point: 'We had a full book that afternoon.', quote: 'We had a full book that afternoon' }]);
+  assert.ok(firm.calm.includes('We had a full book that afternoon.'), 'the point is still made, politely');
+  assert.deepStrictEqual([r.data.calm, r.data.heatAfter.score], [r.data.options[0].calm, r.data.options[0].heatAfter.score], 'the first version is still the flat answer');
+  assert.ok(r.data.removed.some((x) => x.kind === 'dismiss') && r.data.removed.some((x) => x.by === 'rules'));
+  assert.strictEqual(store._dump(), dump, 'cooling down writes nothing');
+
+  const inv = await carol('POST', '/api/cooldown', { text: `INVENT ${vent}`, reviewId: ids.carol });
+  assert.strictEqual(inv.status, 200, JSON.stringify(inv.data));
+  assert.deepStrictEqual(inv.data.options.map((o) => o.angle), ['calm', 'firm'], 'the version offering a refund is gone');
+  assert.deepStrictEqual(inv.data.dropped.map((x) => x.reason), ['offer']);
+  assert.ok(!/refund|dessert|short two cooks|short-staffed/i.test(JSON.stringify(inv.data.options)), 'no invented offer, and no kept point the owner never made');
+  assert.strictEqual(inv.data.options[1].kept.length, 1);
+});
+
+test('the lab\'s AI guard, when the host has loaded one: asked after the gates and the route\'s own checks, before the model, told the cost after; a no is its friendly message and no model call', async () => {
+  assert.strictEqual(global.LAB_AI_GUARD, undefined, 'on its own the app has no guard, and everything above ran on the identity gates alone');
+  const seen = { allow: [], record: [], price: [] };
+  let answer = { ok: true };
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.allow.push({ provider: a.provider, app: a.app, uid: a.req.user && a.req.user.id, calls: await modelCalls() }); return answer; },
+    priceUsd: (a) => { seen.price.push(a); return 0.0123; },
+    record: async (a) => { seen.record.push(a); return true; },
+  };
+  try {
+    const anon = client();
+    assert.strictEqual((await anon('POST', `/api/reviews/${ids.carol}/draft`, {})).status, 401);
+    assert.strictEqual((await carol('POST', '/api/cooldown', { text: 'meh' })).status, 400);
+    assert.strictEqual((await carol('POST', '/api/reviews/read', { image: { type: 'image/gif', data: 'R0lGODlh' } })).status, 400);
+    assert.strictEqual((await carol('POST', '/api/reviews/nope/draft', {})).status, 404);
+    assert.deepStrictEqual(seen.allow, [], 'a stranger, a bad request and a missing review never reach the guard');
+
+    const n = await modelCalls();
+    const routes = [
+      ['POST', `/api/reviews/${ids.carol}/draft`, {}],
+      ['POST', '/api/cooldown', { text: 'You were late and you were rude to my staff.' }],
+      ['POST', `/api/reviews/${ids.carol}/triage`, {}],
+      ['POST', '/api/reviews/read', { image: { type: 'image/jpeg', data: JPEG } }],
+    ];
+    for (const [m, p, b] of routes) assert.strictEqual((await carol(m, p, b)).status, 200, p);
+    await settle();
+    assert.strictEqual(await modelCalls(), n + 4);
+    assert.strictEqual(seen.allow.length, 4);
+    assert.ok(seen.allow.every((a) => a.provider === 'claude' && a.app === 'rave' && a.uid === uidOf('carol@example.com')), 'Claude, by the lab\'s existing path - no provider switch');
+    assert.deepStrictEqual(seen.allow.map((a) => a.calls - n), [0, 1, 2, 3], 'asked before each model call');
+    assert.strictEqual(seen.record.length, 4);
+    assert.ok(seen.record.every((a) => a.provider === 'claude' && a.app === 'rave' && a.usd === 0.0123));
+    assert.ok(seen.price.every((a) => a.provider === 'claude' && a.model === 'claude-haiku-4-5' && a.inputTokens > 0 && a.outputTokens > 0), 'the free tier\'s model, from identity.planFor');
+
+    // A call whose every option is dropped was still paid for.
+    const bad = (await carol('POST', '/api/reviews', { stars: 2, reviewer: 'Flo', text: 'ALLBAD slow service.' })).data;
+    assert.strictEqual((await carol('POST', `/api/reviews/${bad.id}/draft`, {})).status, 422);
+    assert.strictEqual(seen.record.length, 5);
+    await carol('DELETE', `/api/reviews/${bad.id}`);
+
+    // The guard says no.
+    answer = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    await settle();
+    const m = await modelCalls();
+    for (const [meth, p, b] of routes) {
+      const r = await carol(meth, p, b);
+      assert.strictEqual(r.status, 503, p);
+      assert.strictEqual(r.data.code, 'monthly-cap');
+      assert.ok(r.data.error.startsWith('AI answers are resting until next month'), r.data.error);
+    }
+    assert.ok((await carol('POST', `/api/reviews/${ids.carol}/draft`, {})).data.error.endsWith('Templates, the checklist and the thermometer are free.'), 'and it names the free path');
+    answer = undefined; // a guard that answers nothing is a no
+    assert.strictEqual((await carol('POST', `/api/reviews/${ids.carol}/draft`, {})).status, 429);
+    await settle();
+    assert.strictEqual(await modelCalls(), m, 'no model call when the guard says no');
+    assert.strictEqual(seen.record.length, 5, 'and nothing recorded');
+    assert.strictEqual((await carol('POST', `/api/reviews/${ids.carol}/template`, {})).status, 200, 'templates never ask the guard');
+
+    // A guard whose record throws never loses the answer.
+    answer = { ok: true };
+    const quiet = console.error; console.error = () => {};
+    try {
+      global.LAB_AI_GUARD.record = async () => { throw new Error('store down'); };
+      assert.strictEqual((await carol('POST', `/api/reviews/${ids.carol}/draft`, {})).status, 200);
+    } finally { console.error = quiet; }
+  } finally { delete global.LAB_AI_GUARD; }
+});
+
+test('the page: no inline script, handler or style attribute, in the markup or written by script', () => {
+  const fs = require('fs');
+  const pub = path.join(__dirname, '..', 'public');
+  const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(pub, 'app.js'), 'utf8');
+  assert.ok(!/\sstyle\s*=/.test(html) && !/\son[a-z]+\s*=/.test(html) && !/<script(?![^>]*\ssrc=)/.test(html));
+  assert.ok(!/style\s*=\s*["\\]/.test(js) && !/\.style\b/.test(js) && !/setAttribute\(\s*['"]style/.test(js) && !/cssText/.test(js), 'app.js writes no style attribute');
+  assert.ok(!/\son[a-z]+=\\?["']/.test(js), 'and no inline handler');
+  assert.ok(/href="app\.css"/.test(html) && /src="rules\.js"/.test(html) && /verify-banner\.js" data-mount="api\/auth"/.test(html));
 });
 
 test('out of credit: 402 before any model call; templates, replies and scores stay free', async () => {

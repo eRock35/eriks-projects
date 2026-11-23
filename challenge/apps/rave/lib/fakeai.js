@@ -8,6 +8,9 @@
 // Trigger words for tests:
 //   INJECT  in a review or a draft - markup and junk enums come back
 //           (proves clean() and the enum checks)
+//   INVENT  in a review or a draft - options that add an offer, a number or
+//           a point nobody supplied come back (proves the fact check and
+//           the kept-point tracing); ALLBAD in a review - every option does
 //   SUBTLE  in a review - the model flags a health risk the keywords miss
 //           (proves the risk union)
 //   a screenshot whose bytes contain BLANK - "not a review" (proves the 422)
@@ -59,6 +62,14 @@ function triage(params) {
   }, { input_tokens: 700, output_tokens: 120 });
 }
 
+/** The greeting the owner's own sample opens with, so the tests (and the eye)
+ *  can tell the voice sample reached the prompt. */
+function greetWord(text) {
+  const sample = quoted(text, 'A REPLY THE OWNER WROTE THEMSELVES');
+  const m = sample.match(/^(Hey|Hello|Hiya|Dear|Hi)\b/);
+  return m ? m[1] : 'Hi';
+}
+
 function reply(params) {
   const text = params.messages[0].content;
   const body = quoted(text, 'REVIEW TEXT:');
@@ -67,16 +78,55 @@ function reply(params) {
   const sign = quoted(text, 'SIGN OFF WITH EXACTLY:') || 'The team';
   const contact = line(text, 'CONTACT LINE for taking things offline \\(use it exactly when needed\\)');
   const sensitive = /^SENSITIVE:/m.test(text);
-  const words = [
-    `Hi ${first || 'there'},`,
-    stars >= 4
-      ? 'Thank you so much for taking the time to write this - it genuinely made our week, and I have shared it with the whole team.'
-      : `Thank you for telling us, and I am sorry your visit was not what you hoped for.${sensitive ? ' This is something I want to look into personally.' : ' That is not the standard we hold ourselves to.'}`,
-    stars <= 2 || sensitive ? `I would really like to talk this through: ${contact || 'please get in touch with us directly'}.` : 'We hope to see you again soon.',
-    /INJECT/.test(body) ? '<img src=x onerror=alert(1)>See you <b>soon</b>.' : '',
-    sign,
-  ].filter(Boolean).join('\n\n');
-  return toolUse('write_reply', { reply: words, note: stars <= 2 ? 'Short, sorry, and offline - no arguing in public.' : 'Thanks first, one specific detail, then the sign-off.' });
+  const hello = `${greetWord(text)} ${first || 'there'},`;
+  const offline = `I would really like to talk this through: ${contact || 'please get in touch with us directly'}.`;
+  const unhappy = stars <= 2 || sensitive;
+  const join = (parts) => parts.filter(Boolean).join('\n\n');
+  const options = [
+    {
+      angle: 'heartfelt',
+      reply: join([
+        hello,
+        stars >= 4
+          ? 'Thank you so much for taking the time to write this - it genuinely made our week, and I have shared it with the whole team.'
+          : `Thank you for telling us, and I am sorry your visit was not what you hoped for.${sensitive ? ' This is something I want to look into personally.' : ' That is not the standard we hold ourselves to.'}`,
+        unhappy ? offline : 'We hope to see you again soon.',
+        /INJECT/.test(body) ? '<img src=x onerror=alert(1)>See you <b>soon</b>.' : '',
+        sign,
+      ]),
+      note: stars <= 2 ? 'Short, sorry, and offline - no arguing in public.' : 'Thanks first, one specific detail, then the sign-off.',
+    },
+    {
+      angle: 'brief',
+      reply: join([
+        hello,
+        stars >= 4 ? 'Thank you - this means a lot to all of us.' : 'Thank you for the feedback, and I am sorry we let you down.',
+        unhappy ? offline : '',
+        sign,
+      ]),
+      note: 'The shortest version that still sounds like a person.',
+    },
+    {
+      angle: 'straight',
+      reply: join([
+        hello,
+        stars >= 4
+          ? 'Thank you for the review. Hearing what worked helps us keep doing it, and I will pass this on to the team.'
+          : 'Thank you for being direct with us. I am sorry about your visit, and I want to understand what went wrong.',
+        unhappy ? offline : 'We look forward to seeing you again.',
+        sign,
+      ]),
+      note: 'Plain and direct - no gushing.',
+    },
+  ];
+  // INVENT: one option makes an offer nobody supplied, one adds a number.
+  // ALLBAD: every option does. The server must drop them.
+  if (/INVENT|ALLBAD/.test(body)) {
+    options[1].reply = join([hello, 'I am sorry about that. Your next visit is 20% off, and I will refund the whole bill.', sign]);
+    options[2].reply = join([hello, 'I am sorry - we were short three cooks that night and the wait hit ninety minutes.', sign]);
+  }
+  if (/ALLBAD/.test(body)) options[0].reply = join([hello, 'I am sorry. Our lawyers will be in touch about this review.', sign]);
+  return toolUse('write_reply', { options }, { input_tokens: 950, output_tokens: 420 });
 }
 
 function coolDown(params) {
@@ -93,14 +143,41 @@ function coolDown(params) {
     removed.push({ kind: 'bogus', quote: 'x', why: 'not a real kind' });
     removed.push({ kind: 'other', quote: '<i>oh wow</i>', why: '<b>markup</b>' });
   }
-  const calm = [
-    `Hi ${first || 'there'},`,
-    'Thank you for your feedback, and I am sorry your visit was not what you hoped for. We were very busy that morning, and I understand how frustrating the wait must have been.',
-    `I would like to hear more and put it right - ${contact || 'please get in touch with us directly'}.`,
-    inject ? '<script>alert(1)</script>Thanks.' : '',
-    sign,
-  ].filter(Boolean).join('\n\n');
-  return toolUse('cool_down', { calm, removed, kept: 'That the wait was down to an unusually busy morning.' });
+  // The owner's fair points: the clauses of the draft with nothing hot in them.
+  const points = draft.split(/[.!?\n]+|\s+(?:and|but)\s+/)
+    .map((c) => c.trim())
+    .filter((c) => c.split(/\s+/).length >= 4 && c.length <= 100 && !/\d/.test(c) && !R.heat(c, {}).flags.length)
+    .slice(0, 2);
+  const kept = points.map((c) => ({ point: `${c.charAt(0).toUpperCase()}${c.slice(1)}.`, quote: c }));
+  const hello = `${greetWord(text)} ${first || 'there'},`;
+  const offline = `I would like to hear more and put it right - ${contact || 'please get in touch with us directly'}.`;
+  const join = (parts) => parts.filter(Boolean).join('\n\n');
+  const say = points.map((c) => `${c.charAt(0).toUpperCase()}${c.slice(1)}.`).join(' ');
+  const options = [
+    {
+      angle: 'calm',
+      calm: join([hello, 'Thank you for your feedback, and I am sorry your visit was not what you hoped for.', offline, inject ? '<script>alert(1)</script>Thanks.' : '', sign]),
+      kept: [],
+    },
+    {
+      angle: 'warm',
+      calm: join([hello, 'Thank you for telling us. I hear how frustrating this was, and I am genuinely sorry we let you down.', offline, sign]),
+      kept: [],
+    },
+    {
+      angle: 'firm',
+      calm: join([hello, `Thank you for your feedback, and I am sorry your visit was not what you hoped for.${say ? ` For our part: ${say}` : ''}`, offline, sign]),
+      kept,
+    },
+  ];
+  // INVENT in the draft: a version that makes an offer the owner never made,
+  // and a "kept" point whose quote is not in the draft. Both must go.
+  if (/INVENT/.test(draft)) {
+    options[1].calm = join([hello, 'I am so sorry. Please accept a full refund and a free dessert on us.', sign]);
+    options[2].kept = [...kept, { point: 'We were short-staffed that day.', quote: 'we were short two cooks that day' }];
+  }
+  if (!say) options.pop();
+  return toolUse('cool_down', { options, removed }, { input_tokens: 1100, output_tokens: 520 });
 }
 
 function read(params) {
