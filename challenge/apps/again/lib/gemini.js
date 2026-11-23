@@ -29,8 +29,10 @@ const MENU_SCHEMA = {
   properties: {
     dishes: {
       type: 'ARRAY',
-      maxItems: Core.LIMITS.aiDishes,
-      description: 'Each thing a person could order, in the menu’s order. Leave out section headings, allergen keys, add-ons on their own and fine print. Copy only; never work anything out.',
+      // No maxItems: Vertex refuses this schema (400 INVALID_ARGUMENT) with
+      // maxItems 80 here (found in the real check, 2026-11-23; 40 passed, 60
+      // did not). The limit is in the words, and Core.cleanMenu clamps to 80.
+      description: `At most ${Core.LIMITS.aiDishes}. Each thing a person could order, in the menu’s order. Leave out section headings, allergen keys, add-ons on their own and fine print. Copy only; never work anything out.`,
       items: {
         type: 'OBJECT',
         properties: {

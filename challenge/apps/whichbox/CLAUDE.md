@@ -310,8 +310,13 @@ the photo.
   dollars (`chargeGemini`: written as the Haiku input tokens that cost the
   same, route `contents:gemini-3.8-flash`), so credit and the free tier's
   daily ceiling keep working. A call that failed after the model billed it
-  is still recorded and charged; the provider's words never reach the page
-  (502, or 503 on a timeout).
+  is still recorded and charged; the provider's words never reach the page.
+- **Fallback (2026-11-23)** (`listGeminiFirst`): with the switch on, any
+  Gemini failure but a burst refusal (Vertex error, an answer the clamp
+  rejects, Gemini's `monthly-cap`, no helper) runs the Claude reader
+  unchanged and logs `[whichbox] gemini failed (<code>); used claude`;
+  `burst-minute`/`burst-day` are sent as they are. The answer then carries
+  `reader: 'gemini' | 'claude'` (switch off: no `reader`, as before).
 - **The lab's guard** (`challenge/CLAUDE.md`, "Lab AI guard"): after the
   identity gates and a valid request, `guard.allow({provider, req, app:
   'whichbox'})` - a no is its status, code and friendly sentence, and no

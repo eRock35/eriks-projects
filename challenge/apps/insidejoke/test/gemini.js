@@ -28,13 +28,15 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 /** A lab guard that records what it was asked, and can say no. */
 function fakeGuard() {
   const g = {
-    log: [], deny: null, generated: [],
-    async allow(a) { g.log.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user && a.req.user.id)]); return g.deny || { ok: true }; },
+    log: [], deny: null, denyFor: null, fail: null, json: null, generated: [],
+    async allow(a) { g.log.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user && a.req.user.id)]); return (g.denyFor && g.denyFor[a.provider]) || g.deny || { ok: true }; },
     async record(a) { g.log.push(['record', a.provider, a.app, a.usd]); return true; },
-    priceUsd({ provider, model, inputTokens, outputTokens }) { assert.deepStrictEqual([provider, model], ['gemini', 'gemini-3.8-flash']); return (inputTokens * 0.75 + outputTokens * 3.75) / 1e6; },
+    priceUsd({ provider, model, inputTokens, outputTokens }) { if (provider === 'claude') return (inputTokens + 5 * outputTokens) / 1e6; assert.deepStrictEqual([provider, model], ['gemini', 'gemini-3.8-flash']); return (inputTokens * 0.75 + outputTokens * 3.75) / 1e6; },
     gemini: {
       async generate(args) {
         g.generated.push(args);
+        if (g.fail) throw g.fail;
+        if (g.json) return { json: g.json, usage: { inputTokens: 1200, outputTokens: 10 } };
         assert.strictEqual(typeof args.fake, 'function', 'the stand-in is handed to the helper - no network');
         const body = { contents: args.contents, systemInstruction: { parts: [{ text: args.systemInstruction }] }, generationConfig: { ...args.generationConfig, responseMimeType: 'application/json', responseSchema: args.responseSchema } };
         return { json: await args.fake(body), usage: { inputTokens: 1200, outputTokens: 800 }, model: args.model, fake: true };
@@ -291,7 +293,67 @@ test('one photo and a chat excerpt go to Gemini too, with the same cleaning and 
   await settle();
   const routes = (await usage()).map((r) => r.route);
   assert.ok(routes.includes('photo:gemini-3.8-flash') && routes.includes('chat:gemini-3.8-flash'));
-  assert.ok(g.log.filter((x) => x[0] === 'allow').every((x) => x[1] === 'gemini'));
+  // (Before the fallback every allow here was Gemini's; the FACE photo, which Gemini leaves with no fair
+  // question, now asks Claude too - which finds none either, so the page still sees the 422 sentence.)
+  assert.deepStrictEqual(g.log.filter((x) => x[0] === 'allow').map((x) => x[1]), ['gemini', 'gemini', 'claude', 'gemini', 'gemini']);
+});
+
+test('the fallback: the photo and chat readers go to Claude when Gemini throws, answers nothing usable or is capped; a burst refusal is sent as is; "Make a round" keeps its own error', async () => {
+  const g = global.LAB_AI_GUARD = fakeGuard();
+  const names = ['Mom', 'Dad', 'Ana', 'Ben'];
+  const excerpt = Array.from({ length: 24 }, (_, i) => ({ n: names[i % 4], t: `message number ${i} from ${['the lake', 'the cabin', 'the car', 'the beach'][i % 4]} with love today` }));
+  const providers = (kind) => g.log.filter((x) => x[0] === kind).map((x) => x[1]);
+  // Gemini throws (one that billed): recorded, then Claude's allow, call and record; a normal 200 with drafts.
+  g.fail = Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } });
+  const before = (await usage()).length;
+  let r = await host('POST', `${G}/photos`, onePhoto());
+  assert.ok(r.status === 200 && r.data.questions && r.data.questions.length && !/SECRET|Vertex/.test(r.text), r.text.slice(0, 300));
+  assert.deepStrictEqual([providers('allow'), providers('record')], [['gemini', 'claude'], ['gemini', 'claude']]);
+  await settle();
+  assert.strictEqual((await usage()).length, before + 2, 'the billed Gemini call and Claude’s: what was actually spent');
+  g.log.length = 0;
+  r = await host('POST', `${G}/chat`, { excerpt });
+  assert.ok(r.status === 200 && r.data.questions.length >= 3, r.text.slice(0, 300));
+  assert.deepStrictEqual(providers('allow'), ['gemini', 'claude']);
+  // Gemini answers nothing usable: Claude.
+  g.fail = null; g.json = { questions: [] }; g.log.length = 0;
+  r = await host('POST', `${G}/chat`, { excerpt });
+  assert.ok(r.status === 200 && r.data.questions.length >= 3, r.text.slice(0, 300));
+  assert.deepStrictEqual(providers('allow'), ['gemini', 'claude']);
+  g.json = null;
+  // Gemini's monthly cap: Claude, before the stream.
+  g.denyFor = { gemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } };
+  g.log.length = 0;
+  const gen = g.generated.length;
+  r = await host('POST', `${G}/photos`, onePhoto());
+  assert.ok(r.status === 200 && r.data.questions.length, r.text.slice(0, 300));
+  assert.deepStrictEqual([providers('allow'), providers('record'), g.generated.length], [['gemini', 'claude'], ['claude'], gen]);
+  // "Make a round" is Gemini only: its cap is the guard's 503, never Claude.
+  g.log.length = 0;
+  r = await host('POST', `${G}/round`, { photos: [], quotes: QUOTES.slice(0, 2) });
+  assert.deepStrictEqual([r.status, r.data.code, providers('allow')], [503, 'monthly-cap', ['gemini']]);
+  // A burst refusal: the guard's 429, no Claude call.
+  for (const code of ['burst-minute', 'burst-day']) {
+    g.denyFor = { gemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } };
+    g.log.length = 0;
+    const u0 = (await usage()).length;
+    for (const [p, body] of [['photos', onePhoto()], ['chat', { excerpt }]]) {
+      r = await host('POST', `${G}/${p}`, body);
+      assert.deepStrictEqual([r.status, r.data.code], [429, code], p);
+    }
+    assert.deepStrictEqual(providers('allow'), ['gemini', 'gemini']);
+    await settle();
+    assert.strictEqual((await usage()).length, u0, 'no call');
+  }
+  g.denyFor = null;
+  // A round that fails on Gemini: its friendly error, and Claude is never asked.
+  g.fail = Object.assign(new Error('x'), { name: 'VertexError', code: 'timeout' });
+  g.log.length = 0;
+  r = await host('POST', `${G}/round`, { photos: [], quotes: QUOTES.slice(0, 2) });
+  assert.ok(r.data.error && !/Vertex|Gemini/.test(r.text), r.text);
+  assert.deepStrictEqual(providers('allow'), ['gemini']);
+  g.fail = null;
+  assert.match(read('server.js'), /console\.error\(`\[insidejoke\] gemini failed \(\$\{code\}\); used claude`\)/);
 });
 
 test('a member with no account never reaches the model; the app on its own (no lab guard) still answers from the stand-in', async () => {

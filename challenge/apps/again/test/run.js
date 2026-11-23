@@ -888,7 +888,7 @@ function fakeGuard(opts = {}) {
   const log = { allow: [], record: [], requests: [], order: [] };
   return {
     log,
-    allow: async (a) => { log.order.push('allow'); log.allow.push({ provider: a.provider, app: a.app, uid: a.req && a.req.user && a.req.user.id }); return opts.deny || { ok: true }; },
+    allow: async (a) => { log.order.push('allow'); log.allow.push({ provider: a.provider, app: a.app, uid: a.req && a.req.user && a.req.user.id }); return (opts.denyFor ? opts.denyFor[a.provider] : opts.deny) || { ok: true }; },
     record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
     priceUsd: ({ provider, inputTokens, outputTokens }) => (provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6),
     gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } }; } },
@@ -1041,14 +1041,20 @@ test('Gemini over HTTP: gates and 400s before the guard; allow, the call, record
     assert.strictEqual((await gia('POST', '/api/ai/plate', plateBody())).status, 422);
     fakeGemini.mode = 'blank';
     assert.strictEqual((await gia('POST', '/api/ai/plate', plateBody())).status, 422);
+    // A menu Gemini could not read falls back to Claude (was a 422 before the fallback).
     fakeGemini.mode = 'blank';
-    assert.strictEqual((await gia('POST', '/api/ai/menu', menuBody())).status, 422);
+    const bm = await gia('POST', '/api/ai/menu', menuBody());
+    assert.deepStrictEqual([bm.status, bm.data.reader], [200, 'claude'], bm.text);
     fakeGemini.mode = 'upstream401';
     const up = await gia('POST', '/api/ai/plate', plateBody());
     assert.ok(up.status === 502 && up.data.error && !/stand-in|Gemini answered/.test(up.text), 'a provider error is not passed on');
+    // A busy Gemini: the plate (Gemini only) keeps its friendly error; the menu falls back to Claude (was a 503 before the fallback).
+    fakeGemini.mode = 'upstream429';
+    const pbusy = await gia('POST', '/api/ai/plate', plateBody());
+    assert.deepStrictEqual([pbusy.status, /AI is busy/.test(pbusy.data.error)], [503, true]);
     fakeGemini.mode = 'upstream429';
     const busy = await gia('POST', '/api/ai/menu', menuBody());
-    assert.deepStrictEqual([busy.status, /AI is busy/.test(busy.data.error)], [503, true]);
+    assert.deepStrictEqual([busy.status, busy.data.reader], [200, 'claude'], busy.text);
   });
   g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
   const blocked = await withGemini(g, () => gia('POST', '/api/ai/plate', plateBody()));
@@ -1061,7 +1067,9 @@ test('Gemini over HTTP: gates and 400s before the guard; allow, the call, record
     const no = await withGemini(deny, () => gia('POST', p, body));
     assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
   }
-  assert.deepStrictEqual(deny.log.order, ['allow', 'allow']);
+  // The plate asks once; the menu asks Gemini, then (its cap is a fallback) Claude, which says no too here.
+  assert.deepStrictEqual(deny.log.order, ['allow', 'allow', 'allow']);
+  assert.deepStrictEqual(deny.log.allow.map((a) => a.provider), ['gemini', 'gemini', 'claude']);
   await settle();
   assert.strictEqual(await modelCalls(), before2, 'and nobody is charged');
   // With no guard (the app on its own) the stand-in still answers; nothing is ever stored.
@@ -1074,6 +1082,55 @@ test('Gemini over HTTP: gates and 400s before the guard; allow, the call, record
   const mid = src.slice(src.indexOf('async function guardAllow'), src.indexOf("app.post('/api/ai/menu'"));
   assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')"], 'and the routes log fixed words only');
   assert.strictEqual((src.match(/generate\(\{ \.\.\.request/g) || []).length, 1, 'one place Gemini is asked');
+});
+
+test('the Gemini menu schema has no dishes maxItems over 40 (Vertex answered 400 to 80 in the real check)', () => {
+  const d = gemini.MENU_SCHEMA.properties.dishes;
+  assert.ok(!(d.maxItems > 40), String(d.maxItems));
+  assert.ok(d.description.startsWith(`At most ${C.LIMITS.aiDishes}.`));
+});
+
+test('the menu reader falls back to Claude: Gemini throws, unusable or capped -> Claude answers 200 with reader claude; a burst refusal -> the guard’s 429 and no Claude call; switch off unchanged; the plate keeps its own error', async () => {
+  const fin = await register('fin.fallback');
+  const gThrow = async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); };
+  let g = fakeGuard({ generate: gThrow });
+  const before = await modelCalls();
+  const c0 = fakeClient.calls.length;
+  let r = await withGemini(g, () => fin('POST', '/api/ai/menu', menuBody()));
+  assert.ok(r.status === 200 && r.data.reader === 'claude' && r.data.menu && !/SECRET/.test(r.text), r.text);
+  assert.strictEqual(fakeClient.calls.length, c0 + 1, 'Claude read it');
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record', 'allow', 'record']);
+  assert.deepStrictEqual(g.log.record.map((x) => x.provider), ['gemini', 'claude'], 'the billed Gemini call is still recorded');
+  await settle();
+  assert.strictEqual(await modelCalls(), before + 2, 'charged what was actually spent: the billed Gemini call and Claude’s');
+  g = fakeGuard();
+  r = await withGemini(g, () => fin('POST', '/api/ai/menu', menuBody()));
+  assert.deepStrictEqual([r.status, r.data.reader], [200, 'gemini'], 'the answer says who read it');
+  g = fakeGuard({ denyFor: { gemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+  r = await withGemini(g, () => fin('POST', '/api/ai/menu', menuBody()));
+  assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'claude', ['allow', 'allow', 'record']]);
+  for (const code of ['burst-minute', 'burst-day']) {
+    g = fakeGuard({ denyFor: { gemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+    const n = fakeClient.calls.length;
+    r = await withGemini(g, () => fin('POST', '/api/ai/menu', menuBody()));
+    assert.deepStrictEqual([r.status, r.data.code, g.log.order, fakeClient.calls.length], [429, code, ['allow'], n]);
+  }
+  // The plate is Gemini only: a failure is its friendly error, never Claude.
+  g = fakeGuard({ generate: gThrow });
+  const n = fakeClient.calls.length;
+  r = await withGemini(g, () => fin('POST', '/api/ai/plate', plateBody()));
+  assert.ok(r.status === 502 && r.data.error && !/SECRET|Vertex/.test(r.text) && fakeClient.calls.length === n, r.text);
+  g = fakeGuard({ denyFor: { gemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+  r = await withGemini(g, () => fin('POST', '/api/ai/plate', plateBody()));
+  assert.deepStrictEqual([r.status, r.data.code, g.log.order], [503, 'monthly-cap', ['allow']]);
+  // Switch off: Claude, the answer as it was (no reader field).
+  g = fakeGuard({ generate: gThrow });
+  global.LAB_AI_GUARD = g;
+  try {
+    r = await fin('POST', '/api/ai/menu', menuBody());
+    assert.deepStrictEqual([r.status, 'reader' in r.data, g.log.order], [200, false, ['allow', 'record']]);
+  } finally { delete global.LAB_AI_GUARD; }
+  assert.match(read('server.js'), /console\.error\(`\[again\] gemini failed \(\$\{code\}\); used claude`\)/);
 });
 
 test('the page keeps the plate honest: only on the Gemini reader, what is sent is shown first, the name is marked a guess and editable, nothing is added without a tap', () => {
