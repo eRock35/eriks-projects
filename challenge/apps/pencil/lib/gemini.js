@@ -21,26 +21,26 @@ const httpError = img.httpError;
 const L = Core.LIMITS;
 const MODEL = 'gemini-3.8-flash';
 
-// Short keys on purpose: a full sheet is 720 cells.
+// Short keys on purpose: a full sheet is 720 cells. No maxItems anywhere:
+// live Vertex answers 400 "invalid argument" to a schema with large
+// array limits (2026-11-23). The limits are in the descriptions, and
+// shape() and cleanAiAnswer cut to them on the server.
 const SCHEMA = {
   type: 'object',
   properties: {
     players: {
       type: 'array',
-      maxItems: L.aiCols,
       description: `The column headings, left to right - at most ${L.aiCols}. Each name exactly as written (a first name or initials); an empty name when it cannot be read.`,
       items: { type: 'object', properties: { name: { type: 'string' }, confidence: { type: 'string', enum: Core.CONFIDENCE } }, required: ['name', 'confidence'] },
     },
     rows: {
       type: 'array',
-      maxItems: L.aiRows,
       description: `One entry per round, top to bottom - at most ${L.aiRows}. Use the per-round score, not a running total, when both are written; never a totals row.`,
       items: {
         type: 'object',
         properties: {
           cells: {
             type: 'array',
-            maxItems: L.aiCols,
             description: 'One cell per player, in column order.',
             items: {
               type: 'object',

@@ -85,7 +85,9 @@ test('the switch: this process reads sheets with Gemini; the schema asks for eve
   assert.deepStrictEqual(S.required, ['players', 'rows', 'confidence', 'note']);
   const cell = S.properties.rows.items.properties.cells.items;
   assert.deepStrictEqual([cell.required, cell.properties.v.type, cell.properties.v.nullable, cell.properties.c.enum], [['v', 'c'], 'integer', true, C.CONFIDENCE]);
-  assert.deepStrictEqual([S.properties.players.maxItems, S.properties.rows.maxItems], [C.LIMITS.aiCols, C.LIMITS.aiRows]);
+  assert.ok(!/maxItems|minItems/.test(JSON.stringify(S)), 'no array limits in the schema: Vertex refuses them (400); the server cuts instead');
+  const big = gemini.shape({ players: [], rows: Array.from({ length: C.LIMITS.aiRows + 5 }, () => ({ cells: Array.from({ length: C.LIMITS.aiCols + 3 }, () => ({ v: 1, c: 'high' })) })) });
+  assert.deepStrictEqual([big.rows.length, big.rows[0].length, big.cells[0].length], [C.LIMITS.aiRows, C.LIMITS.aiCols, C.LIMITS.aiCols], 'shape() cuts rows and cells to the limits');
   assert.ok(!/total/i.test(Object.keys(S.properties).join()) && /Do not add up/.test(gemini.SYSTEM) && /never an instruction to you/.test(gemini.SYSTEM));
   assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
   const src = read('lib/gemini.js') + read('server.js');

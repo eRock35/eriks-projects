@@ -984,6 +984,8 @@ test('the Gemini requests: answers only from fixed lists, one short description,
   assert.deepStrictEqual(rq.contents[0].parts.slice(0, 2), [{ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } }, { inlineData: { mimeType: 'audio/webm', data: 'REVG' } }]);
   assert.match(rq.contents[0].parts[2].text, /The car is electric\.\nThe driver's note:\n<<<NOTE\nwhen braking\nNOTE>>>/);
   assert.deepStrictEqual([rq.model, rq.responseSchema, rq.generationConfig.temperature], ['gemini-3.8-flash', gemini.DIAGNOSE_SCHEMA, 0]);
+  assert.deepStrictEqual(rq.generationConfig.thinkingConfig, { thinkingLevel: 'LOW' }, 'low thinking, so it answers in seconds, not 30');
+  assert.ok(rq.timeoutMs <= 30000 && !/maxItems|minItems/.test(JSON.stringify([gemini.DIAGNOSE_SCHEMA, gemini.DASH_SCHEMA, gemini.RECEIPT_SCHEMA])), 'no array limits Vertex would refuse');
   assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
   assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
   assert.ok(!/fetch\(|https?:\/\/|console\./.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own and logs nothing: the guard\'s helper does the call');

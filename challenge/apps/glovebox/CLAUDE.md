@@ -262,6 +262,8 @@ photo reads below move to Gemini as well, so the app has one provider.
 helper) runs the Claude path unchanged (`allow('claude')`, meter, record),
 logging `[glovebox] gemini failed (<code>); used claude`; a burst refusal is
 sent as it is. **"Light or noise?" has no Claude path and never falls back.**
+Its request sets `thinkingConfig: { thinkingLevel: 'LOW' }`: on the default level it
+thought 1,500+ tokens and took 13-30 s (timing out); low answers in about 2 s.
 
 - **Safety first, in code** (`public/glovebox-diagnose.js`, UMD, run by the
   server, the page and the tests):

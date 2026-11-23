@@ -247,6 +247,8 @@ answer `shape`/`cleanAiAnswer` rejects, Gemini's `monthly-cap`, no helper)
 sends the same photo down the Claude path unchanged (`allow('claude')`, meter,
 record), logging `[pencil] gemini failed (<code>); used claude`; a burst
 refusal is sent as it is.
+**No `maxItems` in the schema:** live Vertex answered 400 "invalid argument" to the
+row/column limits (60/12); they live in the descriptions and `shape()`/`cleanAiAnswer` cut to them.
 
 - `lib/gemini.js` has **no client of its own**: the call is
   `global.LAB_AI_GUARD.gemini.generate(...)` (the lab's one Vertex helper),

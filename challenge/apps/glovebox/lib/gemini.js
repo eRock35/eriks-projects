@@ -136,7 +136,10 @@ function diagnoseRequest({ photo, audio, note, fuel }) {
   if (audio) parts.push(inline(audio));
   const have = photo && audio ? 'a photo of the dashboard and a recording of the noise' : photo ? 'a photo of the warning light' : 'a recording of the noise';
   parts.push({ text: `Here is ${have}.${fuel ? ` The car is ${fuel === 'ev' ? 'electric' : fuel}.` : ''}${note ? `\nThe driver's note:\n<<<NOTE\n${note}\nNOTE>>>` : ''}\nWhat is the likely cause, and how urgent is it?` });
-  return { ...base, contents: [{ role: 'user', parts }], responseSchema: DIAGNOSE_SCHEMA, systemInstruction: SYSTEM.diagnose };
+  // Low thinking: with the default level the model spent 1,500+ thinking
+  // tokens and 13-30 s on one photo (timing out at 30 s); low answers in
+  // 2-3 s. It only picks from lists - cleanDiagnosis still decides urgency.
+  return { ...base, generationConfig: { ...base.generationConfig, thinkingConfig: { thinkingLevel: 'LOW' } }, contents: [{ role: 'user', parts }], responseSchema: DIAGNOSE_SCHEMA, systemInstruction: SYSTEM.diagnose };
 }
 
 /** A dashboard or receipt photo, read as lib/ai.js reads it. */
