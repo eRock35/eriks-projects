@@ -226,6 +226,11 @@ AI guard"). `/api/me` reports `ai: 'claude' | 'gemini'`.
   `global.LAB_AI_GUARD.gemini.generate`. The stand-in is `fakeai.gemini`
   (triggers `BLANK`, `INJECT`, `UPSTREAMnnn`; otherwise nine taco-night
   cards). Local: `SETTLE_AI_PROVIDER=gemini npm run dev`.
+- **Fallback (2026-11-23)** (`fillGeminiFirst`): any Gemini failure but a
+  burst refusal (Vertex error, a deck under `suggestMin` cards, Gemini's
+  `monthly-cap`, no helper) runs the Claude path unchanged and answers with
+  Claude's plain list (no `question`/`cards`); one log line `[settle] gemini
+  failed (<code>); used claude`. `burst-minute`/`burst-day` are sent as is.
 
 ## Local run and tests
 

@@ -672,11 +672,11 @@ app.delete('/api/groups/:gid/photos/:pid', async (req, res) => {
  *  passed. Called after the request's own checks (a 400 costs nothing and
  *  counts nothing) and before anything is streamed, so a "no" is a real
  *  429 or 503 with the guard's own friendly words. */
-async function guardAllow(req) {
+async function guardAllow(req, provider = PROVIDER) {
   const guard = global.LAB_AI_GUARD;
   if (!guard) return null;
   let a;
-  try { a = await guard.allow({ provider: PROVIDER, req, app: 'insidejoke' }); } catch (e) { console.error('[insidejoke] ai guard: allow failed'); return null; }
+  try { a = await guard.allow({ provider, req, app: 'insidejoke' }); } catch (e) { console.error('[insidejoke] ai guard: allow failed'); return null; }
   if (a && a.ok) return null;
   return httpError((a && a.status) || 503, (a && a.message) || 'The AI is resting for now. Writing your own questions always works.', { code: (a && a.code) || 'ai-guard' });
 }
@@ -724,6 +724,45 @@ async function askClaude(req, fn, ...args) {
   }
 }
 
+/* Fallback (the photo and chat readers only - "Make a round" has no Claude
+ * path). With the switch on, a Gemini failure for any reason but a burst
+ * refusal - a thrown error, an answer the cleaners leave empty, Gemini's
+ * monthly cap, no helper - runs the Claude path for the same request,
+ * unchanged: its own allow, meter and record. A burst refusal is the
+ * person's, across both providers, so it is sent as it is. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+function noteFallback(err) {
+  const raw = (err && (err.geminiCode || err.code)) || 'error';
+  const code = typeof raw === 'string' && /^[a-z-]{1,24}$/.test(raw) ? raw : 'error';
+  console.error(`[insidejoke] gemini failed (${code}); used claude`);
+}
+/** Before the stream: the switched provider's guard; Gemini's monthly cap
+ *  moves the request to Claude (and Claude's own allow). Resolves the
+ *  provider to use, or throws the refusal to send. */
+async function allowWithFallback(req) {
+  const no = await guardAllow(req);
+  if (!no) return PROVIDER;
+  if (PROVIDER !== 'gemini' || BURSTS.has(no.code)) throw no;
+  noteFallback(no);
+  const still = await guardAllow(req, 'claude');
+  if (still) throw still;
+  return 'claude';
+}
+/** After the stream: Gemini, and on any failure Claude (its own allow). */
+async function geminiOrClaude(req, viaGemini, viaClaude) {
+  try {
+    const qs = await viaGemini();
+    if (!qs.length) throw Object.assign(new Error('unusable'), { geminiCode: 'unusable' });
+    return qs;
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    noteFallback(err);
+    const no = await guardAllow(req, 'claude');
+    if (no) throw no;
+    return viaClaude();
+  }
+}
+
 const yearOf = (v) => (Number.isInteger(v) && v >= 1900 && v <= new Date().getUTCFullYear() ? v : null);
 
 /**
@@ -735,7 +774,7 @@ const yearOf = (v) => (Number.isInteger(v) && v >= 1900 && v <= new Date().getUT
  */
 app.post('/api/groups/:gid/photos', ...spend, memberGate, photoJson, async (req, res) => {
   const { doc, actor } = req.group;
-  let thumb; let image; let facts;
+  let thumb; let image; let facts; let provider;
   try {
     wrote(req);
     const b = req.body || {};
@@ -746,14 +785,14 @@ app.post('/api/groups/:gid/photos', ...spend, memberGate, photoJson, async (req,
     const hint = Core.clean(b.hint, Core.LIMITS.hint);
     facts = { year: yearOf(b.year), place, hint, uploader: actor.member, members: doc.members, photoId: G.newId() };
     facts.seed = facts.photoId;
-    const no = await guardAllow(req);
-    if (no) throw no;
+    provider = await allowWithFallback(req);
   } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
   try {
-    const qs = PROVIDER === 'gemini'
-      ? gemini.cleanPhoto(await askGemini(req, gemini.photoRequest(image, facts), 'photo'), facts)
-      : ai.cleanPhotoQuestions(await askClaude(req, ai.photoQuestions, image, facts), facts);
+    const viaClaude = async () => ai.cleanPhotoQuestions(await askClaude(req, ai.photoQuestions, image, facts), facts);
+    const qs = provider === 'gemini'
+      ? await geminiOrClaude(req, async () => gemini.cleanPhoto(await askGemini(req, gemini.photoRequest(image, facts), 'photo'), facts), viaClaude)
+      : await viaClaude();
     if (!qs.length) throw httpError(422, 'No fair questions came out of that one. Try another photo, or add a hint like “Lake Lanier, 2019, Dad’s birthday”.');
     await store.set('photos', facts.photoId, { gid: doc.id, by: actor.mid, thumb: thumb.data, bytes: thumb.bytes, width: thumb.width, height: thumb.height, createdAt: new Date().toISOString() });
     await adjustCounts(doc.id, 0, 1);
@@ -770,19 +809,21 @@ app.post('/api/groups/:gid/photos', ...spend, memberGate, photoJson, async (req,
  */
 app.post('/api/groups/:gid/chat', ...spend, memberGate, chatJson, async (req, res) => {
   const { doc, actor } = req.group;
-  let excerpt;
+  let excerpt; let provider;
   try {
     wrote(req);
     excerpt = Core.cleanExcerpt((req.body || {}).excerpt);
     if (excerpt.length < 20) throw httpError(400, 'That chat is too short for a “who said it?” round - it needs at least 20 messages.');
     if (new Set(excerpt.map((l) => l.n)).size < 2) throw httpError(400, 'A “who said it?” round needs at least two people in the chat.');
-    const no = await guardAllow(req);
-    if (no) throw no;
+    provider = await allowWithFallback(req);
   } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
   try {
-    const raw = PROVIDER === 'gemini' ? await askGemini(req, gemini.chatRequest(excerpt), 'chat') : await askClaude(req, ai.chatQuestions, excerpt);
-    const qs = ai.cleanChatQuestions(raw, excerpt, `${doc.id}|${Date.now()}`);
+    const seed = `${doc.id}|${Date.now()}`;
+    const viaClaude = async () => ai.cleanChatQuestions(await askClaude(req, ai.chatQuestions, excerpt), excerpt, seed);
+    const qs = provider === 'gemini'
+      ? await geminiOrClaude(req, async () => ai.cleanChatQuestions(await askGemini(req, gemini.chatRequest(excerpt), 'chat'), excerpt, seed), viaClaude)
+      : await viaClaude();
     if (!qs.length) throw httpError(422, 'No quotes could be checked against the chat. Try again, or use the free chat stats.');
     const saved = await saveQuestions(doc, actor, qs, { status: 'draft', source: 'chat-ai' });
     send({ questions: saved.map(ownView) });

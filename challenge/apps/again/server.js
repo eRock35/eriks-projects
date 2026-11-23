@@ -380,7 +380,7 @@ async function askGemini(req, request, what) {
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, geminiCode: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -390,7 +390,7 @@ async function askGemini(req, request, what) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), geminiCode: err && err.code });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -421,12 +421,32 @@ async function chargeGemini(req, usage, what) {
  *  byte of the photo. */
 app.post('/api/ai/menu', ...spend, aiJson, route('Reading a menu isn’t available right now. Try again in a minute - adding dishes by hand always works.', async (req, res) => {
   const b = ai.brief(req.body);
-  const out = providerNow() === 'gemini'
-    ? ai.answer(null, b, gemini.cleanMenu(await askGemini(req, gemini.menuRequest(b, ai.text(b)), 'menu'), b))
-    : await menuWithClaude(req, b);
+  const out = providerNow() === 'gemini' ? await menuGeminiFirst(req, b) : await menuWithClaude(req, b);
   res.set('Cache-Control', 'no-store');
   res.json(out);
 }));
+
+/** The switch on: Gemini reads the menu first. If that fails for any reason
+ *  but a burst refusal (a Vertex error, an answer the core's door rejects,
+ *  Gemini's monthly cap, no helper), the Claude reader answers the same
+ *  request exactly as it always has - its own allow, gates, meter and
+ *  record. A burst refusal is the person's, across both providers, so it is
+ *  sent as it is. The answer says which reader actually read the menu.
+ *  ("Snap my plate" has no Claude path and keeps its own errors.) */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function menuGeminiFirst(req, b) {
+  try {
+    const menu = gemini.cleanMenu(await askGemini(req, gemini.menuRequest(b, ai.text(b)), 'menu'), b);
+    if (!menu) throw Object.assign(new Error('unusable'), { geminiCode: 'unusable' });
+    return { ...ai.answer(null, b, menu), reader: 'gemini' };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const raw = (err && (err.geminiCode || err.code)) || 'error';
+    const code = typeof raw === 'string' && /^[a-z-]{1,24}$/.test(raw) ? raw : 'error';
+    console.error(`[again] gemini failed (${code}); used claude`);
+    return { ...(await menuWithClaude(req, b)), reader: 'claude' };
+  }
+}
 
 /** "Snap my plate" (Gemini only: with the switch off the route answers the
  *  same 404 as any path that does not exist, after the same gates). One

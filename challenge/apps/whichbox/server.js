@@ -327,7 +327,7 @@ async function listWithGemini(req, b) {
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 220 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, geminiCode: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -337,7 +337,7 @@ async function listWithGemini(req, b) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), geminiCode: err && err.code });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -345,7 +345,7 @@ async function listWithGemini(req, b) {
     }
   }
   const proposal = gemini.cleanAnswer(out && out.json);
-  if (!proposal || !proposal.items.length) throw httpError(422, ai.NOTHING);
+  if (!proposal || !proposal.items.length) throw httpError(422, ai.NOTHING, { geminiCode: 'unusable' });
   return { proposal };
 }
 
@@ -364,10 +364,29 @@ async function chargeGemini(req, usage) {
 
 app.post('/api/ai/contents', ...spend, aiJson, route('Listing a box from a photo isn’t available right now. Try again in a minute - typing the list always works.', async (req, res) => {
   const b = ai.brief(req.body);
-  const out = providerNow() === 'gemini' ? await listWithGemini(req, b) : await listWithClaude(req, b);
+  const out = providerNow() === 'gemini' ? await listGeminiFirst(req, b) : await listWithClaude(req, b);
   res.set('Cache-Control', 'no-store');
   res.json(out);
 }));
+
+/** The switch on: Gemini first. If that fails for any reason but a burst
+ *  refusal (a Vertex error, an answer the clamp rejects, Gemini's monthly
+ *  cap, no helper), the Claude reader answers the same request exactly as it
+ *  always has - its own allow, gates, meter and record. A burst refusal is
+ *  the person's, across both providers, so it is sent as it is. The answer
+ *  says which reader actually read the photo. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function listGeminiFirst(req, b) {
+  try {
+    return { ...(await listWithGemini(req, b)), reader: 'gemini' };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const raw = (err && (err.geminiCode || err.code)) || 'error';
+    const code = typeof raw === 'string' && /^[a-z-]{1,24}$/.test(raw) ? raw : 'error';
+    console.error(`[whichbox] gemini failed (${code}); used claude`);
+    return { ...(await listWithClaude(req, b)), reader: 'claude' };
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * Sharing a move: no account. The owner's phone sends the move's name,

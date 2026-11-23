@@ -257,8 +257,15 @@ Turning it on is Erik's call (and needs Vertex AI enabled for
   `npm test`, run with the switch on) holds the gates, the guard order, the
   clamps, what is stored and what is charged; `test/run.js` holds the
   default (`PROVIDER === 'claude'`, no round route, guard around Claude).
+- **Fallback (2026-11-23).** With the switch on, the photo and chat readers
+  run Claude's path unchanged (its own allow, meter, record) when Gemini
+  fails for any reason but a burst refusal: a thrown error, an answer the
+  cleaners leave empty, Gemini's `monthly-cap` (checked before the stream),
+  no helper (`allowWithFallback`, `geminiOrClaude`; one log line
+  `[insidejoke] gemini failed (<code>); used claude`). Bursts are sent as
+  is. "Make a round" is Gemini only and keeps its own errors.
 - **Privacy page**: when the switch goes on it should say Google (Vertex AI)
-  where it says Anthropic.
+  where it says Anthropic (and, with the fallback, Anthropic too).
 
 ## Design (2026-11-23 redesign)
 

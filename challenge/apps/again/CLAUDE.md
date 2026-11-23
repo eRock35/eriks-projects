@@ -369,6 +369,12 @@ Erik's call, and needs Vertex AI enabled for `challenge-run@` (see the lab's
   `gemini` (the same made-up trattoria, two rows unsure; a made-up bowl of
   pasta), with `gemini.mode` for one call: `blank`, `inject`, `claims`,
   `notfood`, `upstreamNNN`. `AGAIN_AI_PROVIDER=gemini npm run dev` shows it.
+- **Fallback (2026-11-23)** (`menuGeminiFirst`): the menu reader, on any
+  Gemini failure but a burst refusal (Vertex error, a menu the core rejects,
+  Gemini's `monthly-cap`, no helper), runs the Claude reader unchanged and
+  answers `reader: 'claude'` (else `'gemini'`; switch off: no `reader`); one
+  log line `[again] gemini failed (<code>); used claude`. Bursts are sent as
+  is. "Snap my plate" has no Claude path and keeps its own errors.
 
 ## Local run and tests
 

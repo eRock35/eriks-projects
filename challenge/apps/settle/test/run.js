@@ -663,9 +663,9 @@ function fakeGuard(opts = {}) {
   const log = { order: [], allow: [], record: [], requests: [] };
   return {
     log,
-    allow: async ({ provider, req, app: name }) => { log.order.push('allow'); log.allow.push({ provider, app: name, uid: req.user && req.user.id }); return opts.deny || { ok: true }; },
+    allow: async ({ provider, req, app: name }) => { log.order.push('allow'); log.allow.push({ provider, app: name, uid: req.user && req.user.id }); return (opts.denyFor ? opts.denyFor[provider] : opts.deny) || { ok: true }; },
     record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
-    priceUsd: ({ provider, model, inputTokens, outputTokens }) => { assert.strictEqual(provider, opts.provider || 'gemini'); if (provider === 'gemini') { assert.strictEqual(model, 'gemini-3.5-flash-lite'); return gemini.priceUsd({ inputTokens, outputTokens }); } return (inputTokens + 5 * outputTokens) / 1e6; },
+    priceUsd: ({ provider, model, inputTokens, outputTokens }) => { if (opts.provider !== 'any') assert.strictEqual(provider, opts.provider || 'gemini'); if (provider === 'gemini') { assert.strictEqual(model, 'gemini-3.5-flash-lite'); return gemini.priceUsd({ inputTokens, outputTokens }); } return (inputTokens + 5 * outputTokens) / 1e6; },
     gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 380, outputTokens: 320 } }; } },
   };
 }
@@ -760,25 +760,31 @@ test('Fill the deck on Gemini: the gates, then the guard, one schema call, charg
   const inj = await withGemini(g, () => me('POST', '/api/suggest', { prompt: 'INJECT please' }));
   assert.strictEqual(inj.status, 200);
   assert.ok(inj.data.options.length <= gemini.MAX_CARDS && !/<[a-z/!]|example\.com|555-010|Main Street|★|\\u202e|‮/i.test(inj.text));
-  // nothing usable, a provider error, a blocked answer that still billed
-  g = fakeGuard();
+  // nothing usable, a provider error, a blocked answer that still billed: each falls back to Claude,
+  // which here fails the same way, so the page sees Claude's usual error
+  g = fakeGuard({ provider: 'any' });
   await withGemini(g, async () => {
     const blank = await me('POST', '/api/suggest', { prompt: 'BLANK please' });
     assert.deepStrictEqual([blank.status, /Nothing usable/.test(blank.data.error)], [422, true]);
+    assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['gemini', 'claude'], 'a thin Gemini deck falls back to Claude');
     const up = await me('POST', '/api/suggest', { prompt: 'UPSTREAM500 tacos' });
     assert.ok(up.status === 502 && up.data.error && !/stand-in|Gemini answered/.test(up.text), 'a provider error is not passed on');
     const busy = await me('POST', '/api/suggest', { prompt: 'UPSTREAM429 tacos' });
     assert.deepStrictEqual([busy.status, /AI is busy/.test(busy.data.error)], [503, true]);
   });
-  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  // (was a 502 before the fallback: now Claude answers, Claude's list, no Gemini question)
+  g = fakeGuard({ provider: 'any', generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
   const blocked = await withGemini(g, () => me('POST', '/api/suggest', { prompt: 'tacos for four' }));
-  assert.ok(blocked.status === 502 && !/SECRET-PROVIDER-TEXT/.test(blocked.text));
-  assert.deepStrictEqual(g.log.record, [{ provider: 'gemini', app: 'settle', usd: gemini.priceUsd({ inputTokens: 900, outputTokens: 0 }) }], 'a call that failed after it billed is still recorded');
-  // the guard says no: its words, no call
+  assert.ok(blocked.status === 200 && !/SECRET-PROVIDER-TEXT/.test(blocked.text), blocked.text);
+  assert.deepStrictEqual([blocked.data.options.length > 0, blocked.data.cards, blocked.data.question], [true, undefined, undefined]);
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record', 'allow', 'record']);
+  assert.deepStrictEqual(g.log.record[0], { provider: 'gemini', app: 'settle', usd: gemini.priceUsd({ inputTokens: 900, outputTokens: 0 }) }, 'a call that failed after it billed is still recorded');
+  assert.strictEqual(g.log.record[1].provider, 'claude');
+  // the guard says no to both: its words, no call (was ['allow'] before the fallback: Gemini's cap now asks Claude's)
   const deny = fakeGuard({ deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
   const no = await withGemini(deny, () => me('POST', '/api/suggest', { prompt: 'tacos for four' }));
   assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
-  assert.deepStrictEqual(deny.log.order, ['allow']);
+  assert.deepStrictEqual(deny.log.order, ['allow', 'allow']);
   // with no guard at all (the app on its own) the stand-in still answers
   const solo = await withGemini(undefined, () => me('POST', '/api/suggest', { prompt: 'tacos for four' }));
   assert.deepStrictEqual([solo.status, solo.data.options.length], [200, 9]);
@@ -805,6 +811,25 @@ test('on Claude the lab guard is asked first and told the cost; a guard "no" mak
     await settle();
     assert.strictEqual(await modelCalls(), calls);
   } finally { delete global.LAB_AI_GUARD; }
+});
+
+test('the fallback: Gemini throws or its cap is reached -> Claude answers (200); a burst refusal -> the guard’s 429, no Claude call; one fixed log line', async () => {
+  const me = await register('ana.fallback@example.com');
+  let g = fakeGuard({ provider: 'any', generate: async () => { throw Object.assign(new Error('x'), { name: 'VertexError', code: 'timeout' }); } });
+  let r = await withGemini(g, () => me('POST', '/api/suggest', { prompt: 'cheap date ideas in winter' }));
+  assert.deepStrictEqual([r.status, r.data.options.length, r.data.cards, g.log.order], [200, 10, undefined, ['allow', 'generate', 'allow', 'record']], r.text);
+  g = fakeGuard({ provider: 'any', denyFor: { gemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+  r = await withGemini(g, () => me('POST', '/api/suggest', { prompt: 'cheap date ideas in winter' }));
+  assert.deepStrictEqual([r.status, r.data.options.length, g.log.order, g.log.record.map((x) => x.provider)], [200, 10, ['allow', 'allow', 'record'], ['claude']]);
+  for (const code of ['burst-minute', 'burst-day']) {
+    g = fakeGuard({ provider: 'any', denyFor: { gemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+    const calls = await modelCalls();
+    r = await withGemini(g, () => me('POST', '/api/suggest', { prompt: 'cheap date ideas in winter' }));
+    assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']]);
+    await settle();
+    assert.strictEqual(await modelCalls(), calls, 'no Claude call');
+  }
+  assert.match(read('server.js'), /console\.error\(`\[settle\] gemini failed \(\$\{code\}\); used claude`\)/);
 });
 
 let HOST; let ID; let CODE;
