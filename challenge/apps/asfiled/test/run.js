@@ -51,9 +51,11 @@ function walk(dir, out = []) {
     assert.ok(Number.isFinite(f.v) && /^\d{4}-\d\d-\d\d$/.test(f.end) && f.fy === Core.fiscalYear(f.end) && f.tag, `${id}: value, period, tag`);
     const src = Core.figureSource(data, id);
     assert.ok(FILING_URL.test(src.url), `${id}: link ${src.url}`);
-    assert.ok(src.url.includes(`/${byId[f.c].cik}/`), `${id}: link is under the company's own CIK`);
+    const prior = (byId[f.c].priorCiks || []).map((p) => p.cik);
+    if (filing.cik) assert.ok(prior.includes(filing.cik), `${id}: filed under CIK ${filing.cik}, not listed as ${f.c}'s prior registrant`);
+    assert.ok(src.url.includes(`/${filing.cik || byId[f.c].cik}/`), `${id}: link is under the CIK it was filed under`);
   }
-  ok(`all ${Object.keys(data.figures).length} figures carry a form, a fiscal period, an accession number and a sec.gov filing link under the company's own CIK`);
+  ok(`all ${Object.keys(data.figures).length} figures carry a form, a fiscal period, an accession number and a sec.gov filing link under the CIK the filing was made under (the company's own, or a prior registrant companies.js names)`);
   for (const c of data.companies) {
     assert.ok(Core.fig(data, c.id, 'revenue', c.latest), `${c.id}: latest revenue`);
     // Twelve fiscal years where company facts holds them; a recent listing
@@ -66,7 +68,7 @@ function walk(dir, out = []) {
   ok(`every company has a latest revenue figure and twelve fiscal years, or every year its registrant has (${data.companies.filter((c) => c.years.length < 10).map((c) => `${c.id} ${c.years.length}`).join(', ')})`);
 
   /* ---------- the dataset: edges ---------- */
-  const SOURCE_URL = /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/[A-Za-z0-9._-]+\.htm$|^https:\/\/www\.apple\.com\/supply-chain\/pdf\/Apple-Supplier-List\.pdf$/;
+  const SOURCE_URL = /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/[A-Za-z0-9._-]+\.htm$/;
   const ids = new Set();
   for (const e of data.edges) {
     assert.ok(!ids.has(e.id)); ids.add(e.id);
@@ -83,7 +85,7 @@ function walk(dir, out = []) {
     const other = byId[e.by === e.from ? e.to : e.from];
     assert.ok(V.names(other, e.quote), `${e.id}: the quote itself names ${other.name}`);
     if (e.fig) assert.ok(data.figures[e.fig] && data.figures[e.fig].c === e.by, `${e.id}: its tagged figure`);
-    assert.ok(/^https:\/\/www\.(sec\.gov|apple\.com)\//.test(Core.quoteUrl(e)));
+    assert.ok(/^https:\/\/www\.sec\.gov\//.test(Core.quoteUrl(e)));
   }
   ok(`all ${data.edges.length} edges have a speaker, the speaker's own source, a section, a date, a working-format link, and a verbatim quote that names the other company`);
   assert.ok(!data.edges.some((e) => e.from === 'NVDA' && e.to === 'MSFT' && e.by === 'MSFT'), 'the tripwire reached the dataset');
@@ -93,11 +95,105 @@ function walk(dir, out = []) {
   ok('the tripwire (a plausible, unstated NVIDIA -> Microsoft link kept in the curated file) was dropped by the verifier and is not in the dataset');
   const named = new Set(data.edges.flatMap((e) => [e.from, e.to]));
   for (const o of data.others) { assert.ok(named.has(o.id), `${o.id} is on the map with no edge`); assert.ok(OTHERS.some((x) => x.id === o.id)); }
-  for (const [a, b] of [['SAMSUNG', 'AAPL'], ['FOXCONN', 'AAPL'], ['TSM', 'AAPL']]) {
-    const e = data.edges.filter((x) => x.from === a && x.to === b);
-    assert.ok(e.length && e.every((x) => data.sources[x.source].kind === 'supplier-list' || x.by === b || x.by === a));
+  ok('a company outside the set appears only because an edge names it');
+
+  /* ---------- Apple's Supplier List is not a source (dropped 2026-11-23) ---------- */
+  {
+    const curated = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'curated-edges.json'), 'utf8'));
+    assert.ok(!curated.some((e) => e.doc), 'a curated edge names a document other than the speaker\'s annual report');
+    assert.ok(!Object.keys(data.sources).some((k) => /APPLE-SUPPLIER-LIST/.test(k)));
+    assert.ok(Object.values(data.sources).every((s) => s.kind === 'annual-report' || s.kind === 'xbrl'), 'a source that is not an annual report or its XBRL labels');
+    assert.ok(!fs.existsSync(path.join(ROOT, 'tools', 'pdftext.js')));
+    for (const f of ['tools/build.js', 'tools/fetch.js', 'tools/extract.js', 'tools/verify.js', 'public/app.js', 'public/asfiled-core.js', 'public/index.html']) {
+      const body = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      assert.ok(!/apple\.com|Supplier List|supplier-list|APPLE-SUPPLIER/i.test(body), `${f} still mentions Apple's Supplier List`);
+    }
+    // Who sells to Apple: only what the seller's own filing says (Qualcomm, NXP, Skyworks).
+    const toApple = data.edges.filter((e) => e.to === 'AAPL' && (e.type === 'supplier' || e.type === 'customer'));
+    assert.ok(toApple.every((e) => e.by === e.from), 'a supply edge into Apple said by Apple (its 10-K names no supplier)');
+    assert.ok(['QCOM', 'NXPI', 'SWKS'].every((id) => toApple.some((e) => e.from === id)), 'the edges into Apple stated in the suppliers\' own filings stay');
+    assert.ok(!data.edges.some((e) => e.from === 'FOXCONN' && e.to === 'AAPL'), 'Foxconn -> Apple rested only on the list');
   }
-  ok('a company outside the set appears only because an edge names it; the Apple supplier links rest on Apple\'s own list');
+  ok('Apple\'s Supplier List is gone as a source: no edge rests on it, no tool fetches or reads it, no copy mentions it; supplier -> Apple edges stated in the suppliers\' own filings stay');
+
+  /* ---------- no "investor" relationship type (dropped 2026-11-23) ---------- */
+  {
+    assert.ok(!V.TYPES.includes('investor') && !Core.TYPE_NAMES.investor && !Core.DIRECTED.investor);
+    assert.ok(!data.edges.some((e) => e.type === 'investor'));
+    const curated = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'curated-edges.json'), 'utf8'));
+    assert.ok(!curated.some((e) => e.type === 'investor'));
+    const appjs = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+    assert.ok(!/investor|invested/i.test(appjs), 'app.js still has the investor type (filter, legend or copy)');
+    assert.ok(!V.checkEdge({ by: 'NVDA', from: 'NVDA', to: 'INTC', type: 'investor', quote: 'x', source: 'none' }, { sources: {}, texts: {}, byId }).ok);
+  }
+  ok('the investor line type is gone: no type, no edge, no curated entry, no filter, legend or copy, and the verifier refuses it');
+
+  /* ---------- auditors: a service link, verified, off by default ---------- */
+  {
+    const FIRMS = ['DELOITTE', 'PWC', 'EY', 'KPMG', 'BDO'];
+    const aud = data.edges.filter((e) => e.type === 'auditor');
+    for (const c of data.companies) {
+      const mine = aud.filter((e) => e.to === c.id);
+      assert.strictEqual(mine.length, 1, `${c.id}: one auditor edge`);
+      const e = mine[0];
+      assert.ok(FIRMS.includes(e.from) && !byId[e.from].cik, `${c.id}: the auditor is an audit firm outside the set`);
+      assert.ok(e.by === c.id && e.source === c.annual.source, `${c.id}: named in its own latest annual report`);
+      assert.ok(V.names(byId[e.from], e.quote), `${c.id}: the quote names the firm`);
+      assert.ok(/auditor|independent registered public accounting firm|\/s\//i.test(e.quote + ' ' + (e.lead || '')), `${c.id}: the quote is the auditor's own report or names the firm as the auditor`);
+      assert.ok(data.others.some((o) => o.id === e.from && o.filer === false), `${e.from}: shown as another company`);
+    }
+    assert.strictEqual(aud.length, data.companies.length);
+    assert.ok(report.edges.dropped.every((d) => d.type !== 'auditor'), 'an auditor edge failed the verifier');
+    assert.ok(Core.DIRECTED.auditor && Core.TYPE_NAMES.auditor === 'Auditor');
+    const appjs = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+    const types = /var mapState = \{ types: (\{[^}]*\})/.exec(appjs);
+    const defaults = JSON.parse(types[1].replace(/(\w+):/g, '"$1":'));
+    assert.deepStrictEqual(Object.keys(defaults).sort(), Object.keys(Core.TYPE_NAMES).sort(), 'every type has a filter chip default');
+    assert.strictEqual(defaults.auditor, false, 'auditors start off on the map');
+    assert.strictEqual(defaults.competitor, false);
+    assert.ok(['supplier', 'customer', 'service', 'partner'].every((t) => defaults[t] === true));
+    // The default map is the one it was before the auditors: what it draws
+    // under the default filters holds no auditor line and no audit firm.
+    const onByDefault = data.edges.filter((e) => defaults[e.type]);
+    assert.ok(!onByDefault.some((e) => FIRMS.includes(e.from) && e.type === 'auditor'));
+  }
+  ok(`auditors: all ${data.companies.length} companies have one verified "Auditor" edge from the audit firm their own annual report names (${['DELOITTE', 'PWC', 'EY', 'KPMG', 'BDO'].map((f) => `${f} ${data.edges.filter((e) => e.type === 'auditor' && e.from === f).length}`).join(', ')}), and the Auditor chip starts off like Competitors`);
+
+  /* ---------- a company's history across two registrants (priorCiks) ---------- */
+  {
+    const withPrior = FILERS.filter((c) => c.priorCiks);
+    assert.deepStrictEqual(withPrior.map((c) => c.id), ['MRVL']);
+    assert.deepStrictEqual(byId.MRVL.priorCiks.map((p) => p.cik), [1058057]);
+    const m = data.companies.find((c) => c.id === 'MRVL');
+    assert.ok(m.years.length >= 10 && m.years.length === Math.min(12, m.periods), `MRVL: ${m.years.length} years`);
+    assert.deepStrictEqual(m.prior, [{ cik: 1058057, legal: 'Marvell Technology Group Ltd.' }]);
+    const revs = m.years.map((fy) => Core.fig(data, 'MRVL', 'revenue', fy));
+    assert.ok(revs.every(Boolean));
+    const old = revs.filter((f) => data.filings[f.a].cik === 1058057);
+    const cur = revs.filter((f) => !data.filings[f.a].cik);
+    assert.ok(old.length >= 5 && cur.length >= 4, `${old.length} years from the old registrant, ${cur.length} from the new`);
+    assert.ok(Math.max(...old.map((f) => f.fy)) < Math.min(...cur.map((f) => f.fy)), 'the old registrant\'s years come first');
+    for (const f of old) {
+      const fid = `MRVL.revenue.${f.fy}`;
+      const s = Core.figureSource(data, fid);
+      assert.ok(s.url.includes('/edgar/data/1058057/') && s.prior && s.prior.cik === 1058057, `${fid}: links to the old registrant's filing`);
+    }
+    for (const f of cur) assert.ok(Core.figureSource(data, `MRVL.revenue.${f.fy}`).url.includes('/edgar/data/1835632/'));
+    assert.ok(Object.values(data.filings).every((x) => !x.cik || x.c === 'MRVL'), 'only a company with priorCiks has a filing under another CIK');
+    // The join itself, on made-up company facts: the earliest annual report
+    // that reported a period wins, whichever registrant filed it, and the
+    // winner remembers its CIK.
+    const { annualSeries } = require('../tools/build');
+    const row = (end, val, accn, filed) => ({ start: `${Number(end.slice(0, 4)) - 1}${end.slice(4)}`, end, val, accn, form: '10-K', filed });
+    const factsOf = (rows) => ({ facts: { 'us-gaap': { Revenues: { units: { USD: rows } } } } });
+    const s = annualSeries([
+      { cik: 2, facts: factsOf([row('2021-01-30', 30, '0000000002-22-000001', '2022-03-10'), row('2022-01-29', 40, '0000000002-22-000001', '2022-03-10')]) },
+      { cik: 1, facts: factsOf([row('2020-02-01', 20, '0000000001-20-000001', '2020-03-10'), row('2021-01-30', 31, '0000000001-21-000001', '2021-03-10')]) },
+    ], 'revenue', 'USD');
+    assert.deepStrictEqual(Object.keys(s).sort(), ['2020-02-01', '2021-01-30', '2022-01-29']);
+    assert.deepStrictEqual([s['2020-02-01'].cik, s['2021-01-30'].cik, s['2021-01-30'].val, s['2022-01-29'].cik], [1, 1, 31, 2]);
+  }
+  ok('Marvell\'s history is joined across its two registrants (CIK 1058057 before the 2021 re-domicile, 1835632 after) by companies.js priorCiks: ten years or more, each figure linking to the filing it came from under the CIK it was filed under, the earliest-report rule unchanged');
 
   /* ---------- the insights ---------- */
   const fresh = Core.writeAll(data);
@@ -136,6 +232,15 @@ function walk(dir, out = []) {
     assert.ok(!V.checkEdge(e({ from: 'NVDA', to: 'INTC', type: 'competitor', quote: 'makers of chips such as Intel', lead: 'Our partners include:' }), ctx).ok); ok('verifier: a lead-in must be verbatim too');
     assert.ok(!V.checkEdge(e({ type: 'friend' }), ctx).ok);
     assert.ok(!V.checkEdge(e({ source: 'missing' }), ctx).ok); ok('verifier: unknown types and missing sources are refused');
+    // An auditor edge is checked like every other: the firm must be named in the quote, word for word.
+    const at = 'Item 8. Financial Statements\n/s/ Ernst & Young LLP\nWe have served as the Company’s auditor since 2009.';
+    const actx = { ...ctx, sources: { A: { by: 'NVDA', kind: 'annual-report', form: '10-K', sha: sha(T.norm(at)) } }, texts: { A: T.norm(at) }, rawTexts: { A: at } };
+    const ae = (o) => ({ by: 'NVDA', from: 'EY', to: 'NVDA', type: 'auditor', source: 'A', quote: '/s/ Ernst & Young LLP We have served as the Company’s auditor since 2009.', ...o });
+    assert.ok(V.checkEdge(ae({}), actx).ok);
+    assert.ok(!V.checkEdge(ae({ from: 'KPMG' }), actx).ok);
+    assert.ok(!V.checkEdge(ae({ quote: 'We have served as the Company’s auditor since 2009.' }), actx).ok);
+    assert.ok(!V.checkEdge(ae({ quote: '/s/ Ernst & Young LLP We have served as the Company’s auditor since 2008.' }), actx).ok);
+    ok('verifier: an auditor edge needs the firm named in a verbatim quote, like every edge');
   }
 
   /* ---------- the cache, when it is here ---------- */

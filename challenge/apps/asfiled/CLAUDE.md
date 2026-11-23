@@ -38,14 +38,52 @@ Information Technology sector, with both figures and quoted relationships.
   and Verisign in `cloud`; Accenture, Cognizant, IBM, Gartner and CDW in
   `services`.
 - **Fewer than ten years** where the registrant has fewer: Qnity 3
-  (spun off 2025), Sandisk 4 (2025), Marvell 7 (re-domiciled in 2021 under
-  a new CIK; the old registrant's years are not joined), CrowdStrike 9,
-  Datadog 9, Palantir 8. Each company shows `min(12, years its company
-  facts holds)`; the build records `periods` and the test holds it.
+  (spun off 2025), Sandisk 4 (2025), CrowdStrike 9, Datadog 9, Palantir 8.
+  Marvell has 12 since its two registrants were joined (below). Each
+  company shows `min(12, years its company facts holds)`; the build records
+  `periods` and the test holds it.
 - A 52/53-week year ending in the first week of January belongs to the
   year before (`Core.fiscalYear`: Cadence's FY2015 ended 2016-01-02), and a
   year restated under a period end a few days off (Ciena's FY2018:
   2018-10-31, later 2018-11-03) is one year, from the earlier filing.
+
+## Joined registrants: `priorCiks` (2026-11-23, Erik's ask)
+
+A company that re-domiciles or reorganises files under a new CIK, and its
+earlier years stay under the old one. `tools/companies.js` joins them only
+where an entry says so: `priorCiks: [{ cik, legal, why }]`. `fetch.js`
+fetches each prior CIK's company facts to `facts/<ID>.<CIK>.json`;
+`build.js` reads them beside the current CIK's under the same year rule
+(the earliest annual report that reported the period wins, whichever
+registrant filed it); a figure filed under the old CIK has `cik` on its
+filing, so it links to that filing under that CIK; the verifier re-reads it
+from that CIK's facts and refuses a CIK the company does not list. The
+company record carries `prior`, and its page says which years came from the
+earlier registrant.
+
+- **Marvell (MRVL)**: Marvell Technology, Inc., CIK 1835632, since the
+  re-domicile from Bermuda to Delaware in April 2021 (its first 10-K was
+  for FY2022, ended 2022-01-29); before that Marvell Technology Group
+  Ltd., CIK 1058057. FY2015-FY2021 come from the old registrant's own
+  10-Ks, FY2022-FY2026 from the new one's: 12 years (19 periods held).
+
+## Auditors (2026-11-23, Erik's ask)
+
+Each company's latest annual report names its independent registered
+public accounting firm. That is a **service** link, type `auditor`
+("Auditor": firm -> company), one per company, 81 in all, verified like
+every edge. The quote is the signature on the auditor's report with its
+tenure line ("/s/ Ernst & Young LLP We have served as the Company's auditor
+since 2009."), or, where the text has no such line (Meta, Applied
+Materials, First Solar), the report's own sentence naming its firm; IBM's
+10-K carries only PwC's report on the financial statement schedule (its
+statements are in the Annual Report to Stockholders), quoted under that
+report's heading. The firms are "others" (one node per network: Deloitte,
+PwC, EY, KPMG, BDO; TSMC's Deloitte & Touche in Taipei, ASML's
+PricewaterhouseCoopers Accountants N.V. and NXP's EY Accountants B.V. are
+named exactly in their quotes). The Auditor chip is **off by default** on
+the map, like Competitors, so the default map is unchanged; company pages
+list the auditor under "Named in the filings".
 
 ## The one rule: nothing is shown that a source does not say
 
@@ -91,10 +129,13 @@ Information Technology sector, with both figures and quoted relationships.
 - **A report's XBRL labels**: Intel names its three largest customers only
   in its tagged data (the page shows a chart image). Those three edges quote
   the label ("Dell Inc. [Member]") and cite the tagged percentage.
-- **Apple's Supplier List** (the PDF on apple.com; the copy there is the
-  fiscal-year-2022 list, PDF dated 2023-05-17): the only source for who
-  supplies Apple, whose 10-K names no supplier. `tools/pdftext.js` is a
-  small dependency-free PDF text reader written for it.
+- **A previous registrant's company facts**, where a company re-domiciled
+  or reorganised under a new CIK (`priorCiks` in `tools/companies.js`; see
+  "Joined registrants" above).
+- Nothing else. Apple's Supplier List (a 2022 PDF on apple.com) was a
+  source until 2026-11-23, when Erik dropped it: the 17 supplier -> Apple
+  edges that rested only on it went with it, and so did the PDF reader.
+  Every source is now a company's own annual report (or its XBRL labels).
 - Currency: TSMC reports in NT dollars and ASML in euros and the charts keep
   them. Nothing is converted. Sums across companies use US-dollar figures
   only: TSMC's own tagged dollar translation; ASML is left out of the
@@ -119,7 +160,7 @@ fetches just those companies; the manifest keeps everyone else.
 
 ```
 set -a; . ~/.config/lab-secrets/filings.env; set +a   # SEC_USER_AGENT
-npm run data:fetch      # facts, submissions, latest annual report, Apple's list
+npm run data:fetch      # facts (and any prior CIK's), submissions, latest annual report
 npm run data:extract    # text per source; candidate sentences -> cache/candidates.json
 # read the candidates; edit tools/curated-edges.json (quote = exact substring)
 npm run data:build      # figures + verified edges + insights -> public/data/
@@ -148,8 +189,7 @@ that reads it, never logs it, and exits if it is missing. It must never be
 written into any file here, any committed log or any report. The suite
 scans every file in the app for any email address (only `@example.com` test
 addresses pass) and, when the variable is set, for the value itself. The
-tools stay under four requests a second. Apple's PDF is fetched with a
-generic client name.
+tools stay under four requests a second.
 
 ## The published data: an index and parts (since 2026-11-23)
 
@@ -158,7 +198,7 @@ build writes parts (`Core.split`), and the page merges them as it needs
 them (`Core.start`, `Core.merge`; `tools/dataset.js` does the same for the
 verifier and tests):
 
-- `data/index.json` (393 KB; about 60 KB gzipped): every company with its
+- `data/index.json` (424 KB; about 66 KB gzipped): every company with its
   headline figures (latest revenue, gross or cost) and a revenue sparkline,
   the others, every edge (its link is its source's, put back by `start`)
   and every source. Home and the map need nothing else.
@@ -180,7 +220,7 @@ Static. `server.js` serves the page and the data files, mounts the shared
 account at `/api/auth` (so the verify banner works; nothing needs a
 sign-in), and stores nothing. **No model call, no outbound request**; the
 page fetches only its own `data/` parts (CSP `connect-src 'self'`),
-and links open sec.gov / apple.com in a new tab (with a text fragment that
+and links open sec.gov in a new tab (with a text fragment that
 jumps to the quote where the browser supports it). `ASFILED_MEMORY` and
 `ASFILED_FAKE_AI` exist because the lab host sets them; both throw on
 Cloud Run; nothing calls a model. The all-apps redesign brief's "AI feature"
@@ -213,7 +253,8 @@ templates; shared with the tools and tests), `public/app.css`.
   are cut to fit with the full name spoken. One line per pair and family; lines and companies are keyboard
   buttons with spoken labels; tap a line for the sheet (quote, who said it,
   document, section, date, link). Filters by relationship type and layer
-  (competitors start off: they are the clutter). "Follow the flow" walks
+  (competitors and auditors start off: competitors are the clutter, and
+  an audit firm draws a line to every company it audits). "Follow the flow" walks
   supply edges up and down from one company and says, plainly, that a chain
   is only as long as the documents say. **List view** is the same content
   as a table.
@@ -231,8 +272,10 @@ templates; shared with the tools and tests), `public/app.css`.
 
 The expansion (2026-11-23: 381 new edges, 511 in all) was curated from
 each new company's latest 10-K text and re-read for the original nineteen
-for newly added names. Auditor engagements, litigation, whole-company
-acquisitions and former parents (HP/HPE, WDC/Sandisk) are not drawn.
+for newly added names. The same day Erik dropped Apple's Supplier List (17
+edges) and the investor line type (9 edges), and added the auditors (81
+edges): 566 in all. Litigation, whole-company acquisitions, investments
+and former parents (HP/HPE, WDC/Sandisk) are not drawn.
 
 - Most of the 62 name no customer in the set: only KLA (TSMC), Qnity
   (Samsung, TSMC), NXP (Apple, Samsung among its ten largest end
@@ -253,10 +296,12 @@ acquisitions and former parents (HP/HPE, WDC/Sandisk) are not drawn.
   Fortinet names its component suppliers; CDW names the vendors its sales
   rest on - these are among the few supplier statements in the sector.
 
-- Apple's 10-K names no supplier; TSMC, Samsung, Foxconn and the rest are
-  there only through Apple's own Supplier List (fiscal 2022).
+- Apple's 10-K names no supplier, and Apple's Supplier List is no longer a
+  source, so the only lines into Apple are the sellers' own statements
+  (Qualcomm, NXP and Skyworks name Apple as a customer; CDW names Apple as
+  a vendor). TSMC, Samsung and Foxconn are not drawn as Apple suppliers.
 - TSMC's 20-F names no customer (it tags "Customer A" and "Customer B") and
-  no equipment supplier. So TSMC -> Apple/NVIDIA/AMD/Qualcomm/Broadcom rest
+  no equipment supplier. So TSMC -> NVIDIA/AMD/Qualcomm/Broadcom rest
   on the customers' statements, and ASML -> TSMC only on ASML reporting a
   "TSMC Supplier" award.
 - ASML names no customer otherwise; Applied Materials names none at all
@@ -271,7 +316,10 @@ acquisitions and former parents (HP/HPE, WDC/Sandisk) are not drawn.
 ## Tests
 
 `npm test` (`test/run.js`, no network): the dataset's figures and edges
-field by field, the split (sizes, every part rebuilt from the merged data,
+field by field, the prior-CIK join (Marvell's years, links under the CIK
+each was filed under, the join rule on made-up facts), one verified auditor
+edge per company and the Auditor chip off by default, no investor type
+anywhere, no Supplier List source or copy, the split (sizes, every part rebuilt from the merged data,
 the loader merging in any order, `partPath` refusing anything else, the
 gzipped index), the tripwire, insights rebuilt and compared, the verifier
 on made-up sources, the cache re-read when the cache is on the machine, the
