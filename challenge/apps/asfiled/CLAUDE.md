@@ -6,10 +6,46 @@ them"), so it took the next drop slot whatever the business/everyday
 alternation said. The next daily run still takes the opposite of the newest
 drop in `lab.js` as usual; treat this one as a business drop.
 
-What it is: nineteen big technology companies (equipment -> chips -> devices
--> cloud) read from their own annual reports. Three views: each company's
-reported figures over about twelve fiscal years; patterns across companies;
-and a map of relationships a primary document actually states.
+What it is: 81 technology companies read from their own annual reports -
+the whole S&P 500 Information Technology sector plus the five the first
+version had from outside it (Amazon, Alphabet, Meta, TSMC, ASML). Seven
+layers: equipment -> chips -> components -> devices -> software -> cloud
+-> IT services. Three views: each company's reported figures over up to
+twelve fiscal years; patterns across companies; and a map of relationships
+a primary document actually states.
+
+## The company set (expanded 2026-11-23, Erik's choice)
+
+The first drop had nineteen. Erik chose to add the full S&P 500
+Information Technology sector, with both figures and quoted relationships.
+
+- **The list: 76 companies**, from two sources that agree exactly: the
+  State Street Technology Select Sector SPDR (XLK) daily holdings file
+  (ssga.com, "As of 20-Nov-2026"; XLK holds the S&P 500 IT sector) and
+  Wikipedia's "List of S&P 500 companies" (GICS sector column; page last
+  edited 8 November 2026), both read 2026-11-23. Fourteen were already in
+  the set; the other 62: ACN ADBE ADI ADSK AKAM ANET APH CDNS CDW CIEN
+  COHR CRM CRWD CTSH DDOG FFIV FICO FLEX FSLR FTNT GDDY GEN GLW HPE IBM
+  INTU IT JBL KEYS KLAC LITE MCHP MPWR MRVL MSI NOW NTAP NXPI OKTA ON ORCL
+  P (Everpure, formerly Pure Storage) PANW PLTR PTC Q (Qnity) ROP SMCI SNDK
+  SNPS STX SWKS TDY TEL (TE Connectivity) TER TRMB TWLO TYL VRSN WDAY WDC
+  ZBRA. All file 10-Ks. Ids are tickers; Tokyo Electron (not a filer) is
+  `TOKYOEL` because TEL is TE Connectivity's ticker.
+- **Layers** are this app's, not GICS: design software (Synopsys, Cadence)
+  and materials (Qnity) sit with equipment; First Solar and Sandisk with
+  chips; connectors, optics, glass, test gear and contract manufacturers in
+  `components`; storage and networks in `devices`; Oracle, Akamai, GoDaddy
+  and Verisign in `cloud`; Accenture, Cognizant, IBM, Gartner and CDW in
+  `services`.
+- **Fewer than ten years** where the registrant has fewer: Qnity 3
+  (spun off 2025), Sandisk 4 (2025), Marvell 7 (re-domiciled in 2021 under
+  a new CIK; the old registrant's years are not joined), CrowdStrike 9,
+  Datadog 9, Palantir 8. Each company shows `min(12, years its company
+  facts holds)`; the build records `periods` and the test holds it.
+- A 52/53-week year ending in the first week of January belongs to the
+  year before (`Core.fiscalYear`: Cadence's FY2015 ended 2016-01-02), and a
+  year restated under a period end a few days off (Ciena's FY2018:
+  2018-10-31, later 2018-11-03) is one year, from the earlier filing.
 
 ## The one rule: nothing is shown that a source does not say
 
@@ -23,7 +59,7 @@ and a map of relationships a primary document actually states.
   not punctuation), the quote itself must name the other company, the source
   must be the speaker's own document, and a lead-in (for a bulleted list
   under "Our current competitors include:") must be verbatim too. **An edge
-  that fails is dropped and never reaches `public/data/dataset.json`.**
+  that fails is dropped and never reaches `public/data/`.**
   "We rely on third-party foundries" is not an edge: no counterparty.
 - **A commonly assumed link that no source states is not on the map.** Do
   not add one from general knowledge. `tools/curated-edges.json` keeps one
@@ -72,12 +108,21 @@ Raw downloads live **outside the repo** in `~/.cache/filings`
 with accession numbers and short quotes (620 characters at most) with their
 locations. Never commit a filing.
 
+The cache is kept small (the VM's disk is nearly full; 394 MB for 81
+companies): `fetch.js` cuts company facts down to the tags the build reads
+(`xbrl.slimFacts`; add a tag to `xbrl.TAGS` -> delete that company's
+`facts/` file and fetch again), and `extract.js` deletes each report's
+main document once its text is written (the text is what quotes are checked
+against; a report is not fetched again while its text is there). The XBRL
+instance and label files stay for the build. `FILINGS_ONLY=KLAC,TER`
+fetches just those companies; the manifest keeps everyone else.
+
 ```
 set -a; . ~/.config/lab-secrets/filings.env; set +a   # SEC_USER_AGENT
 npm run data:fetch      # facts, submissions, latest annual report, Apple's list
 npm run data:extract    # text per source; candidate sentences -> cache/candidates.json
 # read the candidates; edit tools/curated-edges.json (quote = exact substring)
-npm run data:build      # figures + verified edges + insights -> public/data/dataset.json
+npm run data:build      # figures + verified edges + insights -> public/data/
 npm run data:verify     # re-check the committed dataset against the cache
 npm test
 ```
@@ -106,12 +151,35 @@ addresses pass) and, when the variable is set, for the value itself. The
 tools stay under four requests a second. Apple's PDF is fetched with a
 generic client name.
 
+## The published data: an index and parts (since 2026-11-23)
+
+One `dataset.json` would have been well over 2 MB at 81 companies, so the
+build writes parts (`Core.split`), and the page merges them as it needs
+them (`Core.start`, `Core.merge`; `tools/dataset.js` does the same for the
+verifier and tests):
+
+- `data/index.json` (393 KB; about 60 KB gzipped): every company with its
+  headline figures (latest revenue, gross or cost) and a revenue sparkline,
+  the others, every edge (its link is its source's, put back by `start`)
+  and every source. Home and the map need nothing else.
+- `data/patterns.json` (301 KB; 43 KB gzipped): the patterns and every
+  figure they cite. Loaded on the Patterns view.
+- `data/c/<ID>.json` (29 KB at most; ZBRA): one company's figures and
+  filings, revenue mix, customer concentration and insight sentences.
+  Loaded when a company is opened.
+
+`Core.partPath` is the only way the page names a file (`index`,
+`patterns`, `c/<TICKER>`; anything else throws). The integrity hash is over
+canonical (key-sorted) JSON, so the order parts load in does not matter.
+`server.js` sends the data files gzipped with node's own zlib (the lab
+host does not compress).
+
 ## At run time
 
-Static. `server.js` serves the page and the dataset, mounts the shared
+Static. `server.js` serves the page and the data files, mounts the shared
 account at `/api/auth` (so the verify banner works; nothing needs a
 sign-in), and stores nothing. **No model call, no outbound request**; the
-page fetches only its own `data/dataset.json` (CSP `connect-src 'self'`),
+page fetches only its own `data/` parts (CSP `connect-src 'self'`),
 and links open sec.gov / apple.com in a new tab (with a text fragment that
 jumps to the quote where the browser supports it). `ASFILED_MEMORY` and
 `ASFILED_FAKE_AI` exist because the lab host sets them; both throw on
@@ -136,8 +204,13 @@ templates; shared with the tools and tests), `public/app.css`.
   families, which also differ by dash pattern. The inventory heat table is
   one blue ramp, shaded within each company's own range, numbers in every
   cell.
-- **The map**: layered columns on a wide screen, bands top to bottom on a
-  phone. One line per pair and family; lines and companies are keyboard
+- **The map**: layered columns on a wide screen (two staggered columns in
+  a layer with more than eight), bands of three or four on a phone. By
+  default it shows the companies with the most stated links under the
+  current filters (24; 16 on a phone); "All companies" shows every company
+  in the layers that are on; searching or tapping a company shows it, every
+  company a document links it to, and its supply chain up and down. Labels
+  are cut to fit with the full name spoken. One line per pair and family; lines and companies are keyboard
   buttons with spoken labels; tap a line for the sheet (quote, who said it,
   document, section, date, link). Filters by relationship type and layer
   (competitors start off: they are the clutter). "Follow the flow" walks
@@ -152,9 +225,33 @@ templates; shared with the tools and tests), `public/app.css`.
   header, not a child: the header's backdrop filter would otherwise become
   the fixed bar's containing block. Measured in the browser at 390, 320 and
   1280, light and dark: minimum text contrast 5.39:1 (heat cells), nothing
-  sideways. Every view is one tap from home.
+  sideways. Re-measured at 81 companies (390, 320, 1440): the same. Every view is one tap from home.
 
 ## What is notably NOT on the map (because no source here states it)
+
+The expansion (2026-11-23: 381 new edges, 511 in all) was curated from
+each new company's latest 10-K text and re-read for the original nineteen
+for newly added names. Auditor engagements, litigation, whole-company
+acquisitions and former parents (HP/HPE, WDC/Sandisk) are not drawn.
+
+- Most of the 62 name no customer in the set: only KLA (TSMC), Qnity
+  (Samsung, TSMC), NXP (Apple, Samsung among its ten largest end
+  customers), Skyworks (Apple, 61% of revenue), Coherent (NVIDIA supply
+  agreement), Akamai (Adobe, Autodesk, Sony) and Flex (Amazon, through a
+  warrant) do; Lumentum names Huawei as a past customer.
+- Supermicro's 10-K does not name NVIDIA, Intel or AMD as suppliers (only
+  "we work closely with"), and names no customer. Arista names Broadcom as
+  its merchant silicon vendor but not Microsoft or Meta (two customers at
+  26% and 16%, unnamed). Marvell names no foundry. Jabil, Amphenol, TE,
+  Keysight, Teledyne, Seagate and Western Digital name no customer or
+  supplier in the set.
+- Salesforce, Adobe, Accenture and Gartner name no company in the set
+  (Adobe only in a director's biography). Oracle names no customer and no
+  chip supplier, and does not mention OpenAI. Datadog and ServiceNow name
+  no hosting provider; Synopsys names no competitor.
+- HPE names Intel, AMD, Broadcom and NVIDIA as single-source suppliers;
+  Fortinet names its component suppliers; CDW names the vendors its sales
+  rest on - these are among the few supplier statements in the sector.
 
 - Apple's 10-K names no supplier; TSMC, Samsung, Foxconn and the rest are
   there only through Apple's own Supplier List (fiscal 2022).
@@ -174,7 +271,9 @@ templates; shared with the tools and tests), `public/app.css`.
 ## Tests
 
 `npm test` (`test/run.js`, no network): the dataset's figures and edges
-field by field, the tripwire, insights rebuilt and compared, the verifier
+field by field, the split (sizes, every part rebuilt from the merged data,
+the loader merging in any order, `partPath` refusing anything else, the
+gzipped index), the tripwire, insights rebuilt and compared, the verifier
 on made-up sources, the cache re-read when the cache is on the machine, the
 email / User-Agent scan, the server under its mount (CSP, banner, no inline
 anything, one fetch, no model call), and the lab entry.

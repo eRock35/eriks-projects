@@ -16,7 +16,8 @@
   var data = null;
   var lastWidth = 0;
   var mapState = { types: { supplier: true, customer: true, service: true, partner: true, investor: true, competitor: false }, layers: {}, focus: null, view: 'map', scope: 'linked' };
-  var TOP = 24;          // companies shown by default on the map: the most stated links
+  // Companies shown by default on the map: the most stated links (fewer on a phone).
+  var top = function () { return window.innerWidth < 760 ? 16 : 24; };
   var loaded = {};       // data part -> its promise
   var ready = {};        // data part -> true once merged in
 
@@ -259,7 +260,9 @@
           h('li', null, h('strong', { text: nFig.toLocaleString('en-US') }), 'reported figures'),
           h('li', null, h('strong', { text: String(data.edges.length) }), 'quoted relationships'))),
       h('div', { cls: 'find' }, h('label', { cls: 'ctl-l', for: 'find', text: 'Find a company' }), find), none);
-    data.layers.slice().reverse().forEach(function (l) {
+    // Biggest names first: cloud, devices, chips, then the rest of the chain.
+    var HOME_ORDER = ['cloud', 'devices', 'chips', 'software', 'equipment', 'components', 'services'];
+    data.layers.slice().sort(function (a, b) { return HOME_ORDER.indexOf(a.id) - HOME_ORDER.indexOf(b.id); }).forEach(function (l) {
       var cs = data.companies.filter(function (c) { return c.layer === l.id; }).sort(function (a, b) {
         var fa = Core.fig(data, a.id, a.currency === 'TWD' ? 'revenueUsd' : 'revenue', a.latest); var fb = Core.fig(data, b.id, b.currency === 'TWD' ? 'revenueUsd' : 'revenue', b.latest);
         return (fb ? fb.v : 0) - (fa ? fa.v : 0);
@@ -566,7 +569,7 @@
       Object.keys(deg).forEach(function (id) { set[id] = true; });
       return set;
     }
-    Object.keys(deg).sort(function (a, b) { return deg[b] - deg[a] || nameOf(a).localeCompare(nameOf(b)); }).slice(0, TOP).forEach(function (id) { set[id] = true; });
+    Object.keys(deg).sort(function (a, b) { return deg[b] - deg[a] || nameOf(a).localeCompare(nameOf(b)); }).slice(0, top()).forEach(function (id) { set[id] = true; });
     return set;
   }
   function fit(name, px) {
@@ -615,7 +618,8 @@
     ['supply', 'tie'].forEach(function (f) { defs.appendChild(s('marker', { id: 'arr-' + f, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }, s('path', { cls: 'arr m-' + f, d: 'M0 0L10 5L0 10z' }))); });
     svg.appendChild(defs);
     if (wide) cols.forEach(function (x, i) { if (i) svg.appendChild(s('line', { cls: 'grid', x1: r1((W / cols.length) * i), x2: r1((W / cols.length) * i), y1: 8, y2: H - 8 })); });
-    heads.forEach(function (hd) { svg.appendChild(s('text', { cls: 'm-head', x: hd.x, y: hd.y, 'text-anchor': hd.left ? 'start' : 'middle', text: hd.text })); });
+    var gHeads = s('g');
+    heads.forEach(function (hd) { gHeads.appendChild(s('text', { cls: 'm-head', x: hd.x, y: hd.y, 'text-anchor': hd.left ? 'start' : 'middle', text: hd.text })); });
     var fl = mapState.focus && pos[mapState.focus] ? flow(mapState.focus) : null;
     var inFlow = function (id) { return fl && (id === mapState.focus || fl.up[id] || fl.down[id]); };
     var gEdges = s('g'); var gHits = s('g'); var gNodes = s('g');
@@ -649,7 +653,7 @@
       g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
       gNodes.appendChild(g);
     });
-    svg.appendChild(gEdges); svg.appendChild(gNodes); svg.appendChild(gHits);
+    svg.appendChild(gEdges); svg.appendChild(gHeads); svg.appendChild(gNodes); svg.appendChild(gHits);
     host.appendChild(svg);
   }
   var renderMapPart = function () {};
