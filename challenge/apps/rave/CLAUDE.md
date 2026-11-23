@@ -130,6 +130,44 @@ integration to consider — with Erik, not in a daily drop.
   Badges are the one exception: earned once, stamped with the day, kept.
 - **Another user gets 404 on everything**, never 403.
 
+### The heat meter
+
+`R.heat(text, {reviewer, contactLine})` → `{score 0–100, level, flags}`.
+Points per kind, capped per kind: shouting (whole-word capitals minus common
+acronyms, 6 each, max 20), exclamation storms (max 12), swearing (12, max 30),
+name-calling (12, max 30), blaming the customer (10, max 25), sarcasm (8,
+max 16), threats or legal talk (14, max 28), arguing the facts (8, max 16),
+"don't come back" (12, max 20), defensiveness (6, max 12), private details —
+someone else's phone or email, order/booking numbers, the reviewer's full name
+(14, max 28). The owner's own contact line is never private. Levels: cool
+< 15, warm < 35, hot < 60, boiling. Curly quotes are straightened first.
+
+### The checklist
+
+`R.lint(reply, {stars, reviewer, contactLine, risk, others})`: error for
+empty or a placeholder (`[name]`); warn for over 150 words, copy-paste (word
+trigram Jaccard ≥ 0.8 against the last 60 replies), full name, private
+details, arguing, no offline invitation on 1–2★ or a risk (any email or phone
+from the contact line counts), possible admission of fault on a risk, heat ≥
+35; tips for short replies to unhappy reviews, warmth, and "say thank you" on
+4–5★. `ok` means no errors or warnings.
+
+### The scoreboard
+
+Response rate (all time and last 30 days), median hours to reply, average
+rating with the last-30 vs previous-30 delta, a six-month bar chart of
+monthly averages, the star distribution, topics as loved vs stings (from each
+review's effective triage), the inbox-zero streak — a day counts when every
+review that had landed by its end was answered by its end; the current streak
+runs from today, or from yesterday while something new waits today ("at
+risk") — and badges: First reply, Inbox zero (3+), Week of zero, Cool head,
+Rescue (a 1–2★ answered inside 24 hours), Quick draw (median under a day over
+10+), Fifty answered, Wall of love.
+
+Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the
+same split as the siblings. A draft or cool-down is ~1k input / ~300 output
+tokens: well under a cent on Haiku. A screenshot is ~1.5k input: about a cent.
+
 ## The AI feature: replies in the owner's voice, and the cool-down (2026-11-23)
 
 Erik's per-app plan: **Claude** - "Review replies in the owner's voice;
@@ -209,44 +247,6 @@ five sizes, 4/8 spacing, no shadow except on what floats.
 - Measured in headless Chrome (59 views at 390, 320 and 1440 px, both
   themes): lowest text contrast 4.63:1 light, 6.3:1 dark; no sideways
   scroll; no target under 44 px; no console or CSP errors.
-
-### The heat meter
-
-`R.heat(text, {reviewer, contactLine})` → `{score 0–100, level, flags}`.
-Points per kind, capped per kind: shouting (whole-word capitals minus common
-acronyms, 6 each, max 20), exclamation storms (max 12), swearing (12, max 30),
-name-calling (12, max 30), blaming the customer (10, max 25), sarcasm (8,
-max 16), threats or legal talk (14, max 28), arguing the facts (8, max 16),
-"don't come back" (12, max 20), defensiveness (6, max 12), private details —
-someone else's phone or email, order/booking numbers, the reviewer's full name
-(14, max 28). The owner's own contact line is never private. Levels: cool
-< 15, warm < 35, hot < 60, boiling. Curly quotes are straightened first.
-
-### The checklist
-
-`R.lint(reply, {stars, reviewer, contactLine, risk, others})`: error for
-empty or a placeholder (`[name]`); warn for over 150 words, copy-paste (word
-trigram Jaccard ≥ 0.8 against the last 60 replies), full name, private
-details, arguing, no offline invitation on 1–2★ or a risk (any email or phone
-from the contact line counts), possible admission of fault on a risk, heat ≥
-35; tips for short replies to unhappy reviews, warmth, and "say thank you" on
-4–5★. `ok` means no errors or warnings.
-
-### The scoreboard
-
-Response rate (all time and last 30 days), median hours to reply, average
-rating with the last-30 vs previous-30 delta, a six-month bar chart of
-monthly averages, the star distribution, topics as loved vs stings (from each
-review's effective triage), the inbox-zero streak — a day counts when every
-review that had landed by its end was answered by its end; the current streak
-runs from today, or from yesterday while something new waits today ("at
-risk") — and badges: First reply, Inbox zero (3+), Week of zero, Cool head,
-Rescue (a 1–2★ answered inside 24 hours), Quick draw (median under a day over
-10+), Fifty answered, Wall of love.
-
-Models: free tier Haiku 4.5, members Sonnet 5, via `identity.planFor` — the
-same split as the siblings. A draft or cool-down is ~1k input / ~300 output
-tokens: well under a cent on Haiku. A screenshot is ~1.5k input: about a cent.
 
 ## Local run and tests
 
