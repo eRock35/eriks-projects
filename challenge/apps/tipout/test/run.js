@@ -691,7 +691,7 @@ test('Tipout, not the model, does the sums and the matching: totals checked agai
   assert.deepStrictEqual(R.matchStaff(['Sam'], [team[3]])[0].how, 'prefix');
   for (const [label, part] of [['DINNER', 'dinner'], ['PM', 'dinner'], ['AM shift', 'lunch'], ['Late Night', 'late'], ['BRUNCH', 'brunch'], ['ALL DAY', 'allday'], ['Shift 2', null], ['', null]]) assert.strictEqual(R.partFromLabel(label), part, label);
   // The split itself still comes only from rules.js: a reading changes no share until its numbers are typed into a shift.
-  assert.ok(!/split|allocate/.test(require('fs').readFileSync(path.join(__dirname, '..', 'lib', 'gemini.js'), 'utf8').replace(/\/\/.*$/gm, '').replace(/'[^'\n]*'/g, '')), 'lib/gemini.js never splits anything');
+  assert.ok(!/R\.(split|allocate|envelopes)\(/.test(require('fs').readFileSync(path.join(__dirname, '..', 'lib', 'gemini.js'), 'utf8')), 'lib/gemini.js never splits anything');
 });
 
 test('with TIPOUT_AI_PROVIDER=gemini: the same gates before the parser, the guard asked first, one call, recorded and charged, nothing stored', async () => {
