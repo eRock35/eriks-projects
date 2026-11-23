@@ -206,7 +206,7 @@ function sharpenContext(meeting, invite) {
   };
 }
 
-async function sharpen(client, model, ctx) {
+async function sharpen(client, model, ctx, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 1500,
@@ -215,6 +215,7 @@ async function sharpen(client, model, ctx) {
     tool_choice: { type: 'tool', name: 'sharpen_agenda' },
     messages: [{ role: 'user', content: sharpenPrompt(ctx) }],
   });
+  if (onUsage) onUsage(res && res.usage);
   return pick(res, 'sharpen_agenda');
 }
 
@@ -347,7 +348,7 @@ function recapContext(meeting, logs, notes, hasPhoto) {
   };
 }
 
-async function recap(client, model, ctx, image) {
+async function recap(client, model, ctx, image, onUsage) {
   const text = recapPrompt(ctx);
   const content = image
     ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text }]
@@ -360,6 +361,7 @@ async function recap(client, model, ctx, image) {
     tool_choice: { type: 'tool', name: 'write_recap' },
     messages: [{ role: 'user', content }],
   });
+  if (onUsage) onUsage(res && res.usage);
   return pick(res, 'write_recap');
 }
 
@@ -485,5 +487,5 @@ function validateRecap(raw, ctx) {
 module.exports = {
   sharpen, validateSharpen, sharpenPrompt, sharpenContext, sharpenTool, SHARPEN_SYSTEM,
   recap, validateRecap, recapPrompt, recapContext, RECAP_TOOL, RECAP_SYSTEM,
-  sourceOf, guardFacts, tookItOn, speakerOf,
+  sourceOf, guardFacts, guarded, tookItOn, speakerOf,
 };

@@ -12,6 +12,7 @@
 const R = require('../public/rules');
 const M = require('./meetings');
 const ai = require('./ai');
+const gemini = require('./gemini');
 
 const MIN = R.MIN;
 
@@ -108,6 +109,37 @@ function recapAnswer() {
 }
 
 /** The sharpener's example for the vague invite: half of it could be an email. */
+/** "Record or snap", written by hand the way the model answers and passed
+ *  through the real validator: the wrap-up of the same made-up meeting. */
+function minutesAnswer() {
+  const transcript = [
+    'Maya: Okay, last five minutes. Let\'s say out loud what we decided.',
+    'Speaker 2: We pause the paid social test until the new creative is ready.',
+    'Maya: Agreed. And the webinar moves to the second week of the month.',
+    'Speaker 3: I\'ll draft the webinar invite by Thursday.',
+    'Maya: Chris, can you send the revised budget tomorrow?',
+    'Speaker 4: Yes, will do.',
+    'Maya: Sam will book the studio for the shoot.',
+    'Speaker 2: Can we park the pricing page redesign until next quarter?',
+    'Maya: Parked. Thanks, everyone.',
+  ].join('\n');
+  return {
+    readable: true,
+    transcript,
+    summary: 'The team paused the paid social test, moved the webinar and handed out three actions.',
+    decisions: [
+      { text: 'Pause the paid social test until the new creative is ready', quote: 'We pause the paid social test until the new creative is ready.' },
+      { text: 'Move the webinar to the second week of the month', quote: 'the webinar moves to the second week of the month' },
+    ],
+    actions: [
+      { text: 'Draft the webinar invite', quote: 'I\'ll draft the webinar invite by Thursday.', owner: null, dueText: 'by Thursday' },
+      { text: 'Send the revised budget', quote: 'Chris, can you send the revised budget tomorrow?', owner: 'Chris', dueText: 'tomorrow' },
+      { text: 'Book the studio for the shoot', quote: 'Sam will book the studio for the shoot.', owner: 'Sam', dueText: null },
+    ],
+    parking: [{ text: 'The pricing page redesign', quote: 'Can we park the pricing page redesign until next quarter?' }],
+  };
+}
+
 function sharpenAnswer() {
   return {
     outcome: 'Leave with a go or no-go on the campaign creative, an owner for every launch gap, and the Q4 budget asks agreed or parked.',
@@ -185,6 +217,7 @@ function build(now, today) {
   const sharpen = ai.validateSharpen(sharpenAnswer(), sharpenCtx);
   const recapCtx = ai.recapContext({ ...setup, day }, log, RECAP_NOTES, false);
   const recap = ai.validateRecap(recapAnswer(), recapCtx);
+  const minutes = gemini.validateMinutes(minutesAnswer(), gemini.minutesContext({ ...setup }, 'recording', day));
 
   const audit = auditRows();
   const decided = audit.map((r) => (r.title === 'Friday pipeline review' ? { ...r, decision: 'kill' } : r));
@@ -213,6 +246,7 @@ function build(now, today) {
     script: { endMs: END_MS, marks: MARKS.slice(), events, votes, bingo, speed: 60 },
     sharpen: { invite: setup.invite, proposal: sharpen },
     recap: { notes: RECAP_NOTES, recap },
+    minutes,
     audit,
     scoreboard: board,
     openActions: R.byHeat(openActions, nowMs, day).map((r) => ({ ...r.action, heat: r.heat })),
@@ -227,4 +261,4 @@ function demo(now = Date.now(), today) {
   return cache.value;
 }
 
-module.exports = { demo, build, SETUP, LOG, MARKS, END_MS, VOTERS, AUDIT, RECAP_NOTES, recapAnswer, sharpenAnswer, bingoScript };
+module.exports = { demo, build, SETUP, LOG, MARKS, END_MS, VOTERS, AUDIT, RECAP_NOTES, recapAnswer, sharpenAnswer, minutesAnswer, bingoScript };
