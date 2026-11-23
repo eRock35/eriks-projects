@@ -196,6 +196,24 @@ process.on('exit', (code) => { if (!finished && code === 0) { console.error('ai-
     assert.strictEqual(P({ provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 2000, outputTokens: 1000 }), (2000 * 1 + 1000 * 5) / m);
     assert.ok(Math.abs(P({ provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 0, outputTokens: 0, webSearches: 3 }) - 0.03) < 1e-12);
     ok('Claude prices come from the identity table (searches included)');
+    const near = (a, b) => Math.abs(a - b) < 1e-12;
+    assert.ok(near(P({ provider: 'claude', model: 'claude-opus-5-5', inputTokens: m, outputTokens: m }), 24));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-fable-5-2', inputTokens: 0, cacheReadTokens: m, cacheWriteTokens: m }), 10.2));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-haiku-5-5', inputTokens: 200000, outputTokens: 0 }), 0.1));
+    ok('new models and per-model cache rates (Opus 5.5 $4/$20, Fable 5.2 read $0.20 / write $10, Haiku 5.5 long card)');
+    const iterations = [{ type: 'advisor_message', model: 'claude-opus-5-5', input_tokens: 10000, output_tokens: 1000 }];
+    const exec = (5000 * 2 + 500 * 10) / m;
+    const adv = (10000 * 4 + 1000 * 20) / m;
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', inputTokens: 5000, outputTokens: 500, iterations }), exec + adv));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: { input_tokens: 5000, output_tokens: 500, iterations } }), exec + adv));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', inputTokens: 5000, outputTokens: 500 }), exec), 'without iterations: the executor only');
+    assert.throws(() => P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: { input_tokens: 1, iterations: [{ type: 'advisor_message', model: 'claude-future-9', input_tokens: 1 }] } }), /no Claude price/);
+    assert.throws(() => P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: { input_tokens: -1 } }), TypeError);
+    // A usage object whose cache part the host already recorded counts only the rest.
+    const marked = { input_tokens: 10, output_tokens: 0, cache_read_input_tokens: m };
+    Object.defineProperty(marked, Symbol.for('lab.claudeCache.charged'), { value: true });
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: marked }), 20 / m));
+    ok('the advisor (usage.iterations) is charged at its own model; an unknown advisor throws; host-charged cache counts once');
     assert.throws(() => P({ provider: 'gemini', model: 'gemini-9-ultra', inputTokens: 1 }), /no Gemini price/);
     assert.throws(() => P({ provider: 'claude', model: 'claude-unknown-1', inputTokens: 1 }), /no Claude price/);
     assert.throws(() => P({ provider: 'claude', model: 'constructor', inputTokens: 1 }), /no Claude price/);

@@ -63,6 +63,7 @@ const GEMINI_PRICES = {
 // --check keeps them identical) - so read the first app's copy, falling back
 // to shared/ in a checkout. Loaded on first use: by then the host's
 // SHARED_DEPS hook is in place, so the copy's dependencies are the host's.
+const CACHE_CHARGED = Symbol.for('lab.claudeCache.charged');
 let identityLib = null;
 function identity() {
   if (identityLib) return identityLib;
@@ -85,9 +86,13 @@ function identity() {
 /**
  * Dollars for one call. Throws on an unknown provider or model - a call is
  * never priced as zero.
- * Claude may also pass cacheWriteTokens, cacheReadTokens and webSearches.
+ * Claude may also pass cacheWriteTokens, cacheReadTokens and webSearches,
+ * and `iterations` (usage.iterations) so the advisor tool's consultations are
+ * charged at the advisor model's rates on top of the executor's tokens - or
+ * simply `usage`, the response's whole usage object, which then wins over the
+ * separate counts (per-TTL cache writes and all).
  */
-function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new Date(), cacheWriteTokens = 0, cacheReadTokens = 0, webSearches = 0 } = {}) {
+function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new Date(), cacheWriteTokens = 0, cacheReadTokens = 0, webSearches = 0, iterations = null, usage = null } = {}) {
   const n = (v, name) => {
     const x = Number(v);
     if (!Number.isFinite(x) || x < 0) throw new TypeError(`ai-guard: ${name} must be a non-negative number`);
@@ -107,13 +112,26 @@ function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new
   if (provider === 'claude') {
     const lib = identity();
     if (!Object.prototype.hasOwnProperty.call(lib.PRICES, model)) throw new Error(`ai-guard: no Claude price for model "${model}"`);
-    const usd = lib.priceOf(model, {
-      input_tokens: inTok,
-      output_tokens: outTok,
-      cache_creation_input_tokens: n(cacheWriteTokens, 'cacheWriteTokens'),
-      cache_read_input_tokens: n(cacheReadTokens, 'cacheReadTokens'),
-      server_tool_use: { web_search_requests: n(webSearches, 'webSearches') },
-    });
+    let u;
+    if (usage && typeof usage === 'object') {
+      for (const k of ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) n(usage[k] || 0, k);
+      u = usage;
+      // The host's prompt cache (lib/claude-cache.js) already recorded the
+      // cache part of a breakpoint it added; count it once.
+      if (usage[CACHE_CHARGED]) u = { ...usage, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: undefined };
+    } else {
+      u = {
+        input_tokens: inTok,
+        output_tokens: outTok,
+        cache_creation_input_tokens: n(cacheWriteTokens, 'cacheWriteTokens'),
+        cache_read_input_tokens: n(cacheReadTokens, 'cacheReadTokens'),
+        server_tool_use: { web_search_requests: n(webSearches, 'webSearches') },
+      };
+      if (Array.isArray(iterations)) u.iterations = iterations;
+    }
+    // An advisor on a model the table does not know is never priced as free:
+    // priceOf returns null and this throws, like an unknown executor.
+    const usd = lib.priceOf(model, u);
     if (typeof usd !== 'number' || !Number.isFinite(usd)) throw new Error(`ai-guard: no Claude price for model "${model}"`);
     return usd;
   }

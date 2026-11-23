@@ -659,7 +659,11 @@ redesigned does not touch it and works exactly as before.** Code in
 - **`priceUsd({ provider, model, inputTokens, outputTokens, at })`**: Claude
   from the identity's `PRICES`/`priceOf` (read from an app's synced copy -
   the image has no `shared/`; optional `cacheWriteTokens`, `cacheReadTokens`,
-  `webSearches`); Gemini `gemini-3.8-flash` $0.75 in / $3.75 out per 1M
+  `webSearches`, `iterations`, or the response's whole `usage` object, which
+  then wins; per-model cache rates and the advisor tool's
+  `usage.iterations` are priced there - see the root notes on pricing). **An
+  app that adds the advisor tool passes `usage: res.usage`**, or the
+  advisor's tokens are not counted against the cap; Gemini `gemini-3.8-flash` $0.75 in / $3.75 out per 1M
   through 2026-12-31, **$1.50 / $7.50 from 2027-01-01 UTC**;
   `gemini-3.5-flash-lite` $0.30 / $2.50. An unknown model **throws** - never
   priced as zero. New Gemini models go in `GEMINI_PRICES` (and `lib/vertex.js`
@@ -719,6 +723,46 @@ tests in `test/claude-auth.js`.
   model call), at most once a minute per instance.
 - The guard's `priceUsd`/`record` are unchanged: same models, same prices.
   Usage shows in the Console under the rule's workspace.
+
+## Prompt caching from the host (2026-11-23)
+
+Erik approved making Claude cheaper before adding the advisor tool anywhere.
+`lib/claude-cache.js`, installed by `server.js` right after federation (on
+top of whatever class that left, so the two compose); tests in
+`test/claude-auth.js`. **No app changed.**
+
+- **Off unless `LAB_CLAUDE_CACHE=1`** on the service (an env change; unset to
+  go back). Then every `messages.create` / `messages.stream` request from any
+  lab client - the lab's key, federated or not, and BYOK alike - gets
+  `cache_control: {type: 'ephemeral'}` on its **last system block** (a string
+  system becomes one text block), which caches tools + system together. One
+  breakpoint, never more; the caller's params are never mutated.
+- **Only when it can pay.** Not when the request already has any
+  `cache_control` of its own (top level, tools, system or messages: the app
+  decided); not when system + tools is under the model's minimum
+  (`MIN_TOKENS`: 512 on Opus 5/5.5, Sonnet 5.5, Haiku 5.5, Fable/Mythos;
+  1024 on Sonnet 5, Sonnet 4.6, Opus 4.8; 4096 on Haiku 4.5), estimated at 4
+  characters a token so a borderline prompt is left alone; not for an unknown
+  model; and **not the first time a model+tools+system prefix is seen in five
+  minutes**. A write costs 1.25x, so a prefix that differs every request
+  would pay it every time and never read it back; marking only a repeat
+  means a read can follow. One uncached call per idle prefix is the cost.
+- **The cap.** Apps report input/output tokens to the guard, and a cached
+  prefix leaves `input_tokens`. So for a lab-key call it marked, the module
+  records the cache part itself (`guard.record`, app `lab-cache`) and tags
+  the usage object so a later `priceUsd({ usage })` does not count it twice.
+  BYOK spend is the member's and is not recorded. The identity ledger
+  (`meter`/`recordUsage`) prices the whole usage and needs nothing.
+- **Who benefits today** (2026-11-23 survey): every app's free tier is Haiku
+  4.5, whose 4,096-token minimum no lab prompt reaches, so nothing caches
+  there. On the paid tier (Sonnet 5, 1,024) about a dozen apps with big tool
+  schemas or prompts will: boxed, covenant, drill, duohunt, lastday, leash,
+  receipt (recap), reset, shadow, shelflife (items), sprout, tieout. A model
+  move to Haiku 5.5 / Sonnet 5.5 (512) would bring in most of the rest.
+  Spar marks its own system prompt, but it carries `turnsLeft`, so it writes
+  every turn and never reads: move that line into the messages to fix it.
+- `GET /api/lab/claude-auth` now carries `cache: {on, marked, firstSeen,
+  short, own, prefixes}` (counts only).
 
 ## Commit and PR conventions
 

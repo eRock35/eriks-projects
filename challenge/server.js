@@ -136,6 +136,15 @@ try {
 } catch (err) {
   console.warn('[lab] claude-auth not installed:', err.message);
 }
+// Prompt caching from the host (CLAUDE.md "Prompt caching from the host"):
+// off unless LAB_CLAUDE_CACHE=1. Installed after federation, on top of
+// whatever class that left, so the two compose; BYOK clients cache too.
+const claudeCache = require('./lib/claude-cache').create();
+try {
+  claudeCache.install(require(path.join(path.dirname(require.resolve('@anthropic-ai/sdk')), 'client.js')));
+} catch (err) {
+  console.warn('[lab] claude-cache not installed:', err.message);
+}
 
 const mounted = [];
 for (const a of lab.APPS) {
@@ -515,7 +524,7 @@ host.get('/api/lab/claude-auth', async (req, res) => {
     await claudeAuth.token();
   }
   res.set('Cache-Control', 'no-store');
-  res.json(claudeAuth.status());
+  res.json({ ...claudeAuth.status(), cache: claudeCache.status() });
 });
 
 // Can the lab's runtime account reach Gemini right now? One tiny real call,

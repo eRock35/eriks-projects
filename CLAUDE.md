@@ -350,6 +350,28 @@ page, and for the page to be redesigned well. `test/home.js` holds the rules.
   form's traps are unchanged. With `data-counts` removed, the standings,
   "Live now" and "Most used this week" come back, styled for this design.
 
+## What a Claude call costs (2026-11-23)
+
+`shared/identity.js` `PRICES` / `priceOf` / `priceParts` (synced everywhere;
+the lab guard's `priceUsd` reads the same table). `test/pricing.js` pins it.
+
+- **Prices only from the Claude API docs** (the skill's `shared/models.md`
+  and `model-migration.md`); each row's comment quotes its line. Never guess
+  one: an unknown model prices as `null` (the guard throws), and so does a
+  dated id such as `claude-haiku-4-5-20251001` - add the row if an app uses one.
+- **Cache rates are per model**, not a flat 1.25x/0.1x: a row may give
+  `cacheRead`, `cacheWrite5m`, `cacheWrite1h`; missing ones fall back to
+  0.1x / 1.25x / 2x input. `usage.cache_creation`
+  (`ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`) splits a write
+  by TTL; without it a write is 5-minute. Haiku 5.5 has a second card
+  (`above`: $0.50/$2.50 once the prompt, cached tokens included, passes
+  100K), and its cache multipliers apply to whichever card it is on.
+- **The advisor tool**: top-level usage is the executor's only; every
+  `usage.iterations` entry of `type: 'advisor_message'` is priced at its own
+  `model`'s rates on top (an unknown advisor model makes the call `null`).
+  `recordUsage` rows add `advisorCalls`, `advisorModels`, advisor tokens and
+  `advisorUsd`. Batch halves executor and advisor tokens, never searches.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
