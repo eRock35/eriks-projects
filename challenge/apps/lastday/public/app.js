@@ -108,7 +108,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else here stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else here stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     var b = $('#resend', where);
     b.addEventListener('click', function () {
       b.disabled = true;
@@ -225,8 +225,8 @@
     state.conflictOpen = true;
     var own = state.W.own.inventory, a = C.cleanInventory(acc).inventory;
     var desc = function (i) { return esc(plural(i.systems.length, 'system')) + ', ' + esc(plural(i.settings.domains.length, 'domain')) + ', dormant after ' + esc(i.settings.dormantDays) + ' days'; };
-    sheet('<h2>Your systems changed on another device</h2><p class="muted">The copy in your account is newer than the one this device last saw.</p><div class="note"><p style="margin:0"><b>This device:</b> ' + desc(own) + '</p><p style="margin:6px 0 0"><b>Your account:</b> ' + desc(a) + '</p></div>' +
-      '<div class="btns" style="margin-top:12px"><button class="btn" type="button" id="cfMerge">Merge them</button><button class="btn ghost" type="button" id="cfTake">Use the account’s copy</button><button class="btn ghost" type="button" id="cfKeep">Keep this device’s</button></div><p class="small muted" style="margin-top:8px">Merging keeps every system from both (this device’s wins where both have one of the same name) and both lists of domains and patterns.</p>', function (root) {
+    sheet('<h2>Your systems changed on another device</h2><p class="muted">The copy in your account is newer than the one this device last saw.</p><div class="note"><p class="m0"><b>This device:</b> ' + desc(own) + '</p><p class="m0 mt8"><b>Your account:</b> ' + desc(a) + '</p></div>' +
+      '<div class="btns mt12"><button class="btn" type="button" id="cfMerge">Merge them</button><button class="btn ghost" type="button" id="cfTake">Use the account’s copy</button><button class="btn ghost" type="button" id="cfKeep">Keep this device’s</button></div><p class="small muted mt8">Merging keeps every system from both (this device’s wins where both have one of the same name) and both lists of domains and patterns.</p>', function (root) {
       var done = function (i, msg) { state.conflictOpen = false; closeSheet(); state.W.own.inventory = i; saveSoon(); if (!demo()) draw(); toast(msg); };
       $('#cfMerge', root).addEventListener('click', function () { var m = C.mergeInventory(a, own); done(m.inventory, 'Merged' + (m.added ? ': ' + plural(m.added, 'system') + ' added from the other device.' : '.')); pushInv(acc.updatedAt); });
       $('#cfTake', root).addEventListener('click', function () { done(a, 'Using the account’s copy.'); state.syncBase = acc.updatedAt; state.syncState = 'synced'; drawSync(); });
@@ -239,7 +239,7 @@
     if (state.me && !state.me.sync) return '<span class="sync muted small">Saving to the account is unavailable right now - your systems are on this device.</span>';
     if (state.syncState === 'syncing') return '<span class="sync muted small">Saving your systems to your account…</span>';
     if (state.syncState === 'error') return '<span class="sync small err">Couldn’t save to your account' + (state.syncErr ? ': ' + esc(state.syncErr) : '') + ' <button class="link-btn" type="button" data-act="retrysync">Try again</button></span>';
-    return '<span class="sync small" style="color:var(--ok);font-weight:700">✓ Systems and settings saved to your account - never a person</span>';
+    return '<span class="sync small cok fw6">✓ Systems and settings saved to your account - never a person</span>';
   }
   function drawSync() { $$('[data-sync]').forEach(function (el) { el.innerHTML = syncLine(); }); }
 
@@ -311,22 +311,21 @@
   }
   function startHtml() {
     var h = '<div class="stack">';
-    h += '<section class="hero">' + mockHtml() + '<p class="kicker">For IT managers, MSPs and office managers</p><h1>When someone leaves, every account leaves with them.</h1>' +
-      '<p>Disabling someone in the identity provider doesn’t reach apps that aren’t on single sign-on, doesn’t end live sessions or API tokens, and doesn’t give the licence back. Leavers keep access for months - and nobody can prove otherwise.</p>' +
-      '<p>Lastday finds the accounts left behind, and turns a leaver request into a checklist with evidence. On this device, free.</p>' +
+    h += '<section class="hero"><p class="kicker">For IT managers, MSPs and office managers</p><h1>When someone leaves, every account leaves with them.</h1>' +
+      '<p class="lede">Find the accounts a leaver still holds, and turn the request into a timed checklist with evidence. On this device, free.</p>' +
       '<div class="btns"><button class="btn big primary" type="button" data-act="demo">Try the demo</button><button class="btn big ghost" type="button" data-act="own">Use my own exports</button></div>' +
-      '<div class="trust"><span class="ico" aria-hidden="true">🔒</span><span><b>Read on this device, never uploaded.</b> User lists stay in this browser. No account needed - and nothing is kept after you close the tab unless you ask.</span></div></section>';
-    h += '<div class="grid3 how">' + [
+      '<p class="trust"><b>Read on this device, never uploaded.</b> No account needed - and nothing is kept after you close the tab unless you ask.</p>' + mockHtml() + '</section>';
+    h += '<section class="band"><h2>Got a leaver request already?</h2><p class="muted">Paste the email or ticket - “Sam’s last day is Friday, keep their mailbox for the manager” - and Lastday reads it into the leaver’s details, asks about what is missing, and builds the checklist from your systems. A messy one can be read with AI, masked on this device first.</p><div class="btns"><button class="btn" type="button" data-act="newleaver">Paste a request</button></div></section>';
+    h += '<section><h2>How it works</h2><ol class="how">' + [
       ['Load the exports', 'Your identity provider’s user list, and each app’s - Lastday guesses the columns and shows you its guess.'],
       ['See every orphan', 'Accounts with no active person behind them, admins first: “7 orphaned accounts in 4 apps · 2 are admins”.'],
       ['Close it out', 'Paste the leaver email. Get a timed checklist - before, at the moment, within 24 hours, within 30 days - with evidence for every tick.'],
-    ].map(function (s, i) { return '<section class="card"><span class="n" aria-hidden="true">' + (i + 1) + '</span><h2>' + esc(s[0]) + '</h2><p>' + esc(s[1]) + '</p></section>'; }).join('') + '</div>';
-    h += '<div class="grid2"><section class="card"><h2>Where to find each export</h2><ul class="where">' +
-      '<li><span class="ico" aria-hidden="true">🪪</span><span><b>Your identity provider</b><span class="small muted">Its user list exported as CSV - Okta, Microsoft Entra ID, Google Workspace, JumpCloud or any other. Status and last sign-in help when it has them.</span></span></li>' +
-      '<li><span class="ico" aria-hidden="true">🧩</span><span><b>Each app</b><span class="small muted">Its member or user list as CSV, usually under the admin or billing settings - email, name, role and last active are what Lastday looks for.</span></span></li>' +
-      '<li><span class="ico" aria-hidden="true">📋</span><span><b>No export button?</b><span class="small muted">Copy the user table from the admin page and paste it in - tabs and commas both work.</span></span></li></ul></section>' +
-      '<section class="card"><h2>Got a leaver request already?</h2><p class="muted">Paste the email or ticket - “Sam’s last day is Friday, keep their mailbox for the manager” - and Lastday reads it into the leaver’s details, asks about what is missing, and builds the checklist.</p><button class="btn ghost" type="button" data-act="newleaver">Paste a request</button>' +
-      '<p class="small muted" style="margin:12px 0 0">What it catches: accounts with no active person behind them, people suspended in the identity provider but active in an app, outside addresses, shared and service logins, and licences nobody has used in months.</p></section></div>';
+    ].map(function (x, i) { return '<li><span class="n" aria-hidden="true">' + (i + 1) + '</span><div><h3>' + esc(x[0]) + '</h3><p>' + esc(x[1]) + '</p></div></li>'; }).join('') + '</ol></section>';
+    h += '<section><h2>Where to find each export</h2><ul class="where">' +
+      '<li><b>Your identity provider</b><span class="small muted">Its user list exported as CSV - Okta, Microsoft Entra ID, Google Workspace, JumpCloud or any other. Status and last sign-in help when it has them.</span></li>' +
+      '<li><b>Each app</b><span class="small muted">Its member or user list as CSV, usually under the admin or billing settings - email, name, role and last active are what Lastday looks for.</span></li>' +
+      '<li><b>No export button?</b><span class="small muted">Copy the user table from the admin page and paste it in - tabs and commas both work.</span></li></ul>' +
+      '<p class="small muted m0 mt16">What it catches: accounts with no active person behind them, people suspended in the identity provider but active in an app, outside addresses, shared and service logins, and licences nobody has used in months.</p></section>';
     return h + footer() + '</div>';
   }
 
@@ -399,7 +398,7 @@
   }
   function fileCard(f) {
     var role = f.role;
-    var h = '<div class="appfile" id="file-' + esc(f.id) + '"><div class="fileline"><b>📄 ' + esc(f.name) + '</b><span class="small muted">' + esc(C.groups(f.stats.kept)) + ' rows · ' + esc(f.stats.delimiter) + ' separated</span><button class="btn small ghost" type="button" data-act="rmfile" data-id="' + esc(f.id) + '">Remove</button></div>';
+    var h = '<div class="appfile" id="file-' + esc(f.id) + '"><div class="fileline"><b>' + esc(f.name) + '</b><span class="small muted">' + esc(C.groups(f.stats.kept)) + ' rows · ' + esc(f.stats.delimiter) + ' separated</span><button class="btn small ghost" type="button" data-act="rmfile" data-id="' + esc(f.id) + '">Remove</button></div>';
     if (role === 'app') h += '<label class="field"><span>App name</span><input class="input" data-appname="' + esc(f.id) + '" value="' + esc(f.appName) + '" maxlength="40" autocomplete="off"></label>';
     else h += '<label class="field"><span>Identity provider</span><select class="input" data-idpkind="1">' + Object.keys(C.IDPS).map(function (k) { return '<option value="' + esc(k) + '"' + (settings().idp === k ? ' selected' : '') + '>' + esc(k === 'other' ? 'Another one' : C.IDPS[k]) + '</option>'; }).join('') + '</select><small>Only for the words: “suspended in Okta since Aug 1”.</small></label>';
     var notes = statNotes(f);
@@ -407,16 +406,16 @@
     var allSure = C.mappingProblems(role, f.map).length === 0 && C.fieldKeys(role).every(function (k) { return f.map[k] < 0 || ['sure', 'you'].indexOf(f.sure[k]) >= 0; });
     if (allSure && !f.open) {
       var mapped = C.FIELDS[role].filter(function (fd) { return f.map[fd.key] >= 0; });
-      h += '<div class="mapsum"><p style="margin:0"><b>✓ Every column recognised</b></p><ul class="mapchips">' + mapped.map(function (fd) { return '<li><span class="muted">' + esc(fd.label) + '</span> <b>' + esc(colLetter(f.map[fd.key]) + ' · ' + f.headers[f.map[fd.key]]) + '</b></li>'; }).join('') + '</ul><button class="btn small ghost" type="button" data-act="mapopen" data-id="' + esc(f.id) + '">Check or change</button></div>';
+      h += '<div class="mapsum"><p class="m0"><b>✓ Every column recognised</b></p><ul class="mapchips">' + mapped.map(function (fd) { return '<li><span class="muted">' + esc(fd.label) + '</span> <b>' + esc(colLetter(f.map[fd.key]) + ' · ' + f.headers[f.map[fd.key]]) + '</b></li>'; }).join('') + '</ul><button class="btn small ghost" type="button" data-act="mapopen" data-id="' + esc(f.id) + '">Check or change</button></div>';
     } else {
-      h += '<p class="small muted" style="margin:0">' + (f.guess.unsure ? '<b>Check these.</b> ' : '') + 'Lastday’s guess, from the header names and what the values look like. Change any that are wrong.</p><div class="maprows">' + C.FIELDS[role].map(function (fd) {
+      h += '<p class="small muted m0">' + (f.guess.unsure ? '<b>Check these.</b> ' : '') + 'Lastday’s guess, from the header names and what the values look like. Change any that are wrong.</p><div class="maprows">' + C.FIELDS[role].map(function (fd) {
         var cur = f.map[fd.key], sure = f.sure[fd.key];
         var opts = '<option value="-1"' + (cur < 0 ? ' selected' : '') + '>— not in this file —</option>' + f.headers.map(function (hd, i) { return '<option value="' + i + '"' + (cur === i ? ' selected' : '') + '>' + esc(colLetter(i) + ' · ' + hd) + '</option>'; }).join('');
         var tag = cur < 0 ? '<span class="sure sure-none">Not used</span>' : sure === 'sure' ? '<span class="sure sure-sure">✓ Recognised</span>' : sure === 'you' ? '<span class="sure sure-sure">✓ Your choice</span>' : sure === 'likely' ? '<span class="sure sure-likely">Likely</span>' : '<span class="sure sure-unsure">? Check this</span>';
         return '<div class="maprow"><label class="fl" for="map-' + esc(f.id + '-' + fd.key) + '"><b>' + esc(fd.label) + '</b>' + (fd.need ? '<span class="need">needed</span>' : '') + '<small>' + esc(fd.hint || '') + '</small></label><select class="input" id="map-' + esc(f.id + '-' + fd.key) + '" data-map="' + esc(f.id) + '" data-field="' + esc(fd.key) + '">' + opts + '</select>' + tag + '</div>';
       }).join('') + '</div>';
       var probs = C.mappingProblems(role, f.map);
-      if (probs.length) h += '<ul class="notes" style="color:var(--orphan)">' + probs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+      if (probs.length) h += '<ul class="notes corphan">' + probs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
     }
     var used = {};
     Object.keys(f.map).forEach(function (k) { if (f.map[k] >= 0) used[f.map[k]] = C.fieldOf(role, k).label; });
@@ -426,21 +425,21 @@
   }
   function dropZone(role, multiple) {
     var what = role === 'idp' ? 'the identity provider’s export' : (W().files.apps.length ? 'another app’s export' : 'an app’s user export');
-    return '<div class="drop" data-drop="' + role + '"><p style="margin:0"><b>Drop ' + esc(what) + ' here</b> <span class="muted">- CSV or tab separated</span></p>' +
+    return '<div class="drop" data-drop="' + role + '"><p class="m0"><b>Drop ' + esc(what) + ' here</b> <span class="muted">- CSV or tab separated</span></p>' +
       '<div class="btns"><span class="btn filepick">Choose file' + (multiple ? 's' : '') + '<input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" data-file="' + role + '"' + (multiple ? ' multiple' : '') + ' aria-label="Choose ' + esc(what) + '"></span>' +
       '<button class="btn ghost" type="button" data-act="pastetoggle" data-role="' + role + '">Paste it instead</button></div>' +
-      (state.paste === role ? '<label class="field" style="width:100%"><span>Paste the table</span><textarea class="input code" id="paste-' + role + '" rows="6" spellcheck="false"></textarea></label><button class="btn small" type="button" data-act="pasteread" data-role="' + role + '">Read it</button>' : '') + '</div>';
+      (state.paste === role ? '<label class="field w100"><span>Paste the table</span><textarea class="input code" id="paste-' + role + '" rows="6" spellcheck="false"></textarea></label><button class="btn small" type="button" data-act="pasteread" data-role="' + role + '">Read it</button>' : '') + '</div>';
   }
   function filesHtml() {
     var w = W(), f = w.files;
     var h = '<div class="stack">' + demoStrip();
-    h += '<section class="card"><div class="sec-head"><h1>Your exports</h1>' + (w.result ? '<button class="btn small ghost" type="button" data-act="tab" data-tab="find">Back to the findings</button>' : '') + '</div>' +
-      '<p class="privacy-line"><span aria-hidden="true">🔒</span><span><b>Read on this device, never uploaded.</b> Up to ' + C.LIMITS.apps + ' apps, ' + C.groups(C.LIMITS.rows) + ' rows and ' + Math.round(C.LIMITS.fileBytes / 1048576) + ' MB a file. Nothing is kept after you close the tab unless you ask.</span></p></section>';
-    if (state.busy) h += '<section class="card" role="status"><p style="margin:0"><b>' + esc(state.busy) + '</b></p><div class="bar" style="margin-top:8px"><i data-w="60"></i></div></section>';
-    h += '<section class="card stack"><div><h2>1 · Your identity provider</h2><p class="small muted" style="margin:0">Its user export as CSV - Okta, Microsoft Entra ID, Google Workspace, JumpCloud or any other. A status column (active, suspended) and last sign-in make the findings sharper.</p></div>' + (f.idp ? fileCard(f.idp) : dropZone('idp', false)) + '</section>';
-    h += '<section class="card stack"><div><h2>2 · Your apps</h2><p class="small muted" style="margin:0">Each app’s user or member list as CSV, from its admin settings - one file per app. Email, name, role and last active are what Lastday looks for.</p></div>' + f.apps.map(fileCard).join('') + (f.apps.length < C.LIMITS.apps ? dropZone('app', true) : '') + '</section>';
+    h += '<section class="pagehead"><div class="sec-head"><h1>Your exports</h1>' + (w.result ? '<button class="btn small ghost" type="button" data-act="tab" data-tab="find">Back to the findings</button>' : '') + '</div>' +
+      '<p class="privacy-line"><span><b>Read on this device, never uploaded.</b> Up to ' + C.LIMITS.apps + ' apps, ' + C.groups(C.LIMITS.rows) + ' rows and ' + Math.round(C.LIMITS.fileBytes / 1048576) + ' MB a file. Nothing is kept after you close the tab unless you ask.</span></p></section>';
+    if (state.busy) h += '<section class="card" role="status"><p class="m0"><b>' + esc(state.busy) + '</b></p><div class="bar mt8"><i data-w="60"></i></div></section>';
+    h += '<section class="stack"><div><h2>1 · Your identity provider</h2><p class="small muted m0">Its user export as CSV - Okta, Microsoft Entra ID, Google Workspace, JumpCloud or any other. A status column (active, suspended) and last sign-in make the findings sharper.</p></div>' + (f.idp ? fileCard(f.idp) : dropZone('idp', false)) + '</section>';
+    h += '<section class="stack"><div><h2>2 · Your apps</h2><p class="small muted m0">Each app’s user or member list as CSV, from its admin settings - one file per app. Email, name, role and last active are what Lastday looks for.</p></div>' + f.apps.map(fileCard).join('') + (f.apps.length < C.LIMITS.apps ? dropZone('app', true) : '') + '</section>';
     var cd = w.result ? w.result.domains : null;
-    h += '<section class="card"><h2>3 · Your company</h2><p class="small" style="margin:0 0 8px">' + (settings().domains.length ? 'Addresses at <b>' + esc(settings().domains.join(', ')) + '</b> are yours - the first is the main one, the rest are aliases of it.' : cd && cd.list.length ? 'Read from the export: <b>' + esc(cd.list.join(', ')) + '</b>. Anything else counts as external.' : 'Your domains are read from the identity provider’s export. Add aliases (example.com = example.co.uk) so they count as the same person.') + ' Dormant means ' + esc(settings().dormantDays) + ' days without activity.</p><button class="btn small ghost" type="button" data-act="settings">Domains, shared accounts and dormant days</button></section>';
+    h += '<section><h2>3 · Your company</h2><p class="small m0 mb8">' + (settings().domains.length ? 'Addresses at <b>' + esc(settings().domains.join(', ')) + '</b> are yours - the first is the main one, the rest are aliases of it.' : cd && cd.list.length ? 'Read from the export: <b>' + esc(cd.list.join(', ')) + '</b>. Anything else counts as external.' : 'Your domains are read from the identity provider’s export. Add aliases (example.com = example.co.uk) so they count as the same person.') + ' Dormant means ' + esc(settings().dormantDays) + ' days without activity.</p><button class="btn small ghost" type="button" data-act="settings">Domains, shared accounts and dormant days</button></section>';
     var probs = allProblems();
     h += '<div class="stack"><button class="btn big" type="button" data-act="analyse"' + (probs.length || state.busy ? ' disabled' : '') + '>' + (w.result ? 'Find them again' : 'Find the orphans') + '</button>' + (probs.length ? '<ul class="notes">' + probs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
     return h + footer() + '</div>';
@@ -469,7 +468,7 @@
     if (!s.orphaned) sub.push(esc(plural(c.total, 'account')) + ' checked in ' + esc(plural(r.apps.length, 'app')));
     var counts = { critical: c.critical };
     C.VERDICTS.forEach(function (v) { counts[v] = c[v]; });
-    var h = '<section class="card summary"><p class="lab">' + esc(C.cap1(idpLabel().replace(/^the /, ''))) + ' · ' + esc(plural(r.users, 'person', 'people')) + ' · ' + esc(plural(r.apps.length, 'app')) + ' · ' + esc(plural(c.total, 'account')) + '</p><p class="big">' + big + '</p><p class="sub">' + sub.join(' · ') + '</p>';
+    var h = '<section class="summary"><p class="lab">' + esc(C.cap1(idpLabel().replace(/^the /, ''))) + ' · ' + esc(plural(r.users, 'person', 'people')) + ' · ' + esc(plural(r.apps.length, 'app')) + ' · ' + esc(plural(c.total, 'account')) + '</p><p class="big">' + big + '</p><p class="sub">' + sub.join(' · ') + '</p>';
     h += '<div class="tiles" role="group" aria-label="Show only">' + TILES.map(function (t) {
       return '<button type="button" class="tile e-' + t[2] + (counts[t[0]] ? '' : ' zero') + '" data-act="filter" data-f="' + t[0] + '" aria-pressed="' + (state.filter === t[0]) + '"><b>' + esc(counts[t[0]]) + '</b><span>' + esc(t[0] === 'suspended' ? 'Suspended in ' + idpLabel().replace(/^the /, '') : t[1]) + '</span></button>';
     }).join('') + '</div>';
@@ -491,7 +490,7 @@
     var top = r.findings.filter(function (x) { return x.critical; })[0];
     if (!top) return '';
     var gone = top.user ? (top.user.status === 'suspended' ? 'was suspended' : 'was deprovisioned') + ' in ' + idpLabel() + (top.leftDays !== null ? ' ' + plural(top.leftDays, 'day') + ' ago' : '') : 'is not in ' + idpLabel() + ' at all';
-    return '<div class="hint" role="note"><span class="ico" aria-hidden="true">👉</span><div><p><b>Start here.</b> ' + esc(top.name || top.email) + ' ' + esc(gone) + ' - and is still ' + esc(top.role ? 'a ' + top.role : 'an admin') + ' in ' + esc(top.appName) + '. An admin left behind can add users and change bank details, and nothing alerts anyone.</p><div class="btns"><button class="btn small" type="button" data-act="person" data-k="' + esc(personKey(top)) + '">See everything of theirs</button></div></div><button class="link-btn" type="button" data-act="hintoff">Got it</button></div>';
+    return '<div class="hint" role="note"><div><p><b>Start here.</b> ' + esc(top.name || top.email) + ' ' + esc(gone) + ' - and is still ' + esc(top.role ? 'a ' + top.role : 'an admin') + ' in ' + esc(top.appName) + '. An admin left behind can add users and change bank details, and nothing alerts anyone.</p><div class="btns"><button class="btn small" type="button" data-act="person" data-k="' + esc(personKey(top)) + '">See everything of theirs</button></div></div><button class="link-btn" type="button" data-act="hintoff">Got it</button></div>';
   }
   function findHtml() {
     var r = W().result;
@@ -530,7 +529,7 @@
       '<ul class="accts">' + accts.map(function (x) {
         return '<li class="' + edge(x) + '"><div class="ah"><b>' + esc(x.appName) + '</b>' + vpill(x.verdict, x.critical) + '</div><span class="small">' + esc(x.email) + (x.role ? ' · ' + esc(x.role) : '') + ' · last active ' + esc(lastActive(x)) + '</span><span class="small">' + esc(x.why) + '</span>' + (x.how ? '<span class="small muted">' + esc(C.cap1(x.how)) + '</span>' : '') + '</li>';
       }).join('') + '</ul>' +
-      '<div class="btns" style="margin-top:14px">' + (leaver || (p && p.group === 'leaver') ? '<button class="btn" type="button" id="pMake">Make a leaver checklist</button>' : '') + '<button class="btn ghost" type="button" id="pCopy">Copy as text</button></div>', function (root) {
+      '<div class="btns mt16">' + (leaver || (p && p.group === 'leaver') ? '<button class="btn" type="button" id="pMake">Make a leaver checklist</button>' : '') + '<button class="btn ghost" type="button" id="pCopy">Copy as text</button></div>', function (root) {
       var mk = $('#pMake', root);
       if (mk) mk.addEventListener('click', function () { closeSheet(true); leaverFromPerson(name, u ? u.email : first.email, u && u.changed); });
       $('#pCopy', root).addEventListener('click', function () { copy((p ? p.line : name) + '\n' + accts.map(function (x) { return '- ' + x.appName + ': ' + verdictWord(x.verdict) + (x.role ? ' (' + x.role + ')' : '') + ' - ' + x.why; }).join('\n'), 'Copied.'); });
@@ -544,11 +543,11 @@
     var h = '<div class="stack">' + demoStrip();
     if (!r) return h + '<section class="card empty"><h1>People</h1><p class="muted">Load your exports first - this lists everyone who still has an account somewhere they should not.</p><button class="btn" type="button" data-act="tab" data-tab="find">Load the exports</button></section>' + footer() + '</div>';
     var groups = [['leaver', 'Left, still holding access', 'No active person in ' + idpLabel() + ' - and still signed up here. Admins first.'], ['external', 'Outside accounts', 'Another domain: a guest, contractor or outside firm. Check they still need it.'], ['dormant', 'Dormant', 'Active in ' + idpLabel() + ', but no activity here in ' + settings().dormantDays + ' days or more - a licence to reclaim.']];
-    h += '<section class="card"><h1>People</h1><p class="muted" style="margin:0">' + esc(C.summaryLine(r.summary)) + '.</p></section>';
+    h += '<section class="pagehead"><h1>People</h1><p class="muted m0">' + esc(C.summaryLine(r.summary)) + '.</p></section>';
     groups.forEach(function (g) {
       var ps = r.people.filter(function (p) { return p.group === g[0]; });
       if (!ps.length) return;
-      h += '<section class="stack"><div><h2 style="margin:0">' + esc(g[1]) + ' <span class="muted">(' + esc(ps.length) + ')</span></h2><p class="small muted" style="margin:2px 0 0">' + esc(g[2]) + '</p></div><div class="grid2">' + ps.map(function (p) {
+      h += '<section class="stack"><div><h2 class="m0">' + esc(g[1]) + ' <span class="muted">(' + esc(ps.length) + ')</span></h2><p class="small muted m0 mt4">' + esc(g[2]) + '</p></div><div class="grid2">' + ps.map(function (p) {
         var rest = p.line.indexOf(': ') > 0 ? p.line.slice(p.line.indexOf(': ') + 2) : p.line;
         return '<section class="card pcard ' + (p.critical ? 'e-crit' : 'e-' + p.worst) + '"><div class="row spread"><h3>' + esc(p.name || p.email) + '</h3>' + (p.critical ? '<span class="vp vp-crit"><span aria-hidden="true">!!</span>Critical</span>' : '') + '</div><p class="pline">' + esc(C.cap1(rest)) + '</p><p class="pmeta">' + esc(p.email) + (p.leftDays !== null ? ' · gone ' + esc(plural(p.leftDays, 'day')) : '') + '</p>' +
           '<ul class="appchips">' + p.accounts.filter(function (a) { return g[0] === 'leaver' || a.verdict === p.worst; }).map(function (a) { return '<li class="' + (a.verdict === 'off' ? 'offc' : C.elevated(a.level) && C.isOrphaned(a.verdict) ? 'hot' : '') + '">' + esc(a.appName) + (a.verdict === 'off' ? ' · already off' : a.role ? ' · ' + esc(a.role) : '') + '</li>'; }).join('') + '</ul>' +
@@ -558,7 +557,7 @@
     // Shared accounts by address: reception@ in three apps is one password story.
     var shared = [], byAddr = {};
     r.findings.forEach(function (x) { if (x.verdict !== 'shared') return; var k = x.key || x.email; if (!byAddr[k]) { byAddr[k] = { email: x.email, why: x.sharedWhy, apps: [] }; shared.push(byAddr[k]); } byAddr[k].apps.push(x.appName + (x.role ? ' (' + x.role + ')' : '')); });
-    if (shared.length) h += '<section class="stack"><div><h2 style="margin:0">Shared and service accounts <span class="muted">(' + esc(shared.length) + ')</span></h2><p class="small muted" style="margin:2px 0 0">Nobody leaves from these - but anyone who leaves may know the password. Rotate it when they go.</p></div><section class="card"><ul class="accts">' + shared.map(function (x) {
+    if (shared.length) h += '<section class="stack"><div><h2 class="m0">Shared and service accounts <span class="muted">(' + esc(shared.length) + ')</span></h2><p class="small muted m0 mt4">Nobody leaves from these - but anyone who leaves may know the password. Rotate it when they go.</p></div><section class="card"><ul class="accts">' + shared.map(function (x) {
       return '<li class="e-shared"><div class="ah"><b>' + esc(x.email) + '</b><span class="small muted">' + esc(x.apps.join(', ')) + '</span></div><span class="small">' + esc(C.cap1(x.why)) + '.</span></li>';
     }).join('') + '</ul></section></section>';
     if (!r.people.length && !shared.length) h += '<section class="card empty"><p><b>Nobody to chase.</b></p><p class="muted small">Every account has an active person behind it.</p></section>';
@@ -608,13 +607,13 @@
   }
   function leaversHtml() {
     var ls = W().leavers, n = now();
-    var h = '<div class="stack">' + demoStrip() + '<section class="card"><div class="sec-head"><h1>Leavers</h1><button class="btn" type="button" data-act="newleaver">New leaver</button></div><p class="muted" style="margin:0">A checklist per person leaving, from your systems: what to do before the last day, at the moment they go, within 24 hours and within 30 days - each with who did it, when, and the evidence.</p></section>';
+    var h = '<div class="stack">' + demoStrip() + '<section class="pagehead"><div class="sec-head"><h1>Leavers</h1><button class="btn" type="button" data-act="newleaver">New leaver</button></div><p class="muted m0">A checklist per person leaving, from your systems: what to do before the last day, at the moment they go, within 24 hours and within 30 days - each with who did it, when, and the evidence.</p></section>';
     if (!ls.length) {
-      h += '<section class="card empty"><p><b>No leavers yet.</b></p><p class="muted">Paste the email or ticket that says someone is leaving - or start one from a person the orphan finder found.</p><div class="btns" style="justify-content:center"><button class="btn" type="button" data-act="newleaver">Paste a request</button>' + (demo() ? '<button class="btn ghost" type="button" data-act="sample" data-s="plain">Try Dana’s email about Sam</button>' : '') + '</div></section>';
+      h += '<section class="card empty"><p><b>No leavers yet.</b></p><p class="muted">Paste the email or ticket that says someone is leaving - or start one from a person the orphan finder found.</p><div class="btns jcc"><button class="btn" type="button" data-act="newleaver">Paste a request</button>' + (demo() ? '<button class="btn ghost" type="button" data-act="sample" data-s="plain">Try Dana’s email about Sam</button>' : '') + '</div></section>';
     } else {
       h += '<div class="grid2">' + ls.map(function (lv) {
         var p = C.progress(lv.tasks, n);
-        return '<button type="button" class="card lcard" data-act="openleaver" data-id="' + esc(lv.id) + '"><span class="row spread"><h3>' + esc(lv.name || 'Someone leaving') + '</h3>' + kindPill(lv) + '</span><p>Last day ' + esc(lastDayText(lv)) + '</p><span class="bar" style="display:block"><i data-w="' + esc(p.pct) + '"></i></span><p><b style="color:var(--text)">' + esc(p.done) + ' of ' + esc(p.total) + ' done</b> · ' + esc(p.open) + ' open' + (p.overdue ? ' · <span class="overdue">' + esc(p.overdue) + ' overdue</span>' : '') + '</p></button>';
+        return '<button type="button" class="card lcard" data-act="openleaver" data-id="' + esc(lv.id) + '"><span class="row spread"><h3>' + esc(lv.name || 'Someone leaving') + '</h3>' + kindPill(lv) + '</span><p>Last day ' + esc(lastDayText(lv)) + '</p><span class="bar blk"><i data-w="' + esc(p.pct) + '"></i></span><p><b class="ctext">' + esc(p.done) + ' of ' + esc(p.total) + ' done</b> · ' + esc(p.open) + ' open' + (p.overdue ? ' · <span class="overdue">' + esc(p.overdue) + ' overdue</span>' : '') + '</p></button>';
       }).join('') + '</div>';
     }
     return h + footer() + '</div>';
@@ -624,6 +623,8 @@
     var mail = lv.mailbox ? C.MAILBOX[lv.mailbox] + (lv.mailTo ? ' · ' + lv.mailTo : '') : (lv.mailTo ? lv.mailTo : 'not decided');
     var rows = [['Address', lv.email || 'not given'], ['Last day', lastDayText(lv)], ['Files to', lv.filesTo || 'not decided'], ['Mail', mail], ['Manager', lv.manager || 'not given'], ['Collect', lv.hardware.length ? lv.hardware.join(', ') : 'not listed']];
     if (lv.requestedBy) rows.push(['Asked by', lv.requestedBy]);
+    if (lv.role) rows.push(['Role or team', lv.role]);
+    if (lv.named && lv.named.length) rows.push(['Named in the request', lv.named.join(', ')]);
     return '<ul class="facts">' + rows.map(function (x) { return '<li><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></li>'; }).join('') + '</ul>';
   }
   function taskHtml(t, lv, n) {
@@ -632,7 +633,7 @@
     return '<li class="task' + (t.done ? ' done' : '') + (late ? ' late' : '') + '" id="t-' + esc(t.id.replace(/[^a-z0-9-]/g, '-')) + '"><button class="tick" type="button" data-act="tick" data-t="' + esc(t.id) + '" aria-pressed="' + (t.done ? 'true' : 'false') + '" aria-label="' + esc((t.done ? 'Done: ' : 'Mark done: ') + (t.system ? t.system + ' - ' : '') + t.title) + '">' + (t.done ? '✓' : '') + '</button>' +
       '<button class="tbody" type="button" data-act="task" data-t="' + esc(t.id) + '"><span class="tt">' + esc(t.title) + '</span>' +
       '<span class="tm">' + (t.system ? '<span class="sys">' + esc(t.system) + (t.sso ? ' · SSO' : '') + '</span>' : '<span class="sys">General</span>') + '<span class="muted">' + esc(C.OWNERS[t.owner] || t.owner) + '</span><span class="muted">· ' + esc(due) + '</span>' + (late ? '<span class="overdue">Overdue</span>' : '') + '</span>' +
-      '<span class="td">' + esc(t.detail) + '</span>' + (t.found ? '<span class="found">🔎 ' + esc(t.found) + '</span>' : '') + (t.added ? '<span class="td">Not in your system list - added because the export shows an account.</span>' : '') + (t.notFound && !t.done ? '<span class="nf">' + esc(t.notFound) + '</span>' : '') +
+      '<span class="td">' + esc(t.detail) + '</span>' + (t.found ? '<span class="found">' + esc(t.found) + '</span>' : '') + (t.added ? '<span class="td">Not in your system list - added because the export shows an account.</span>' : '') + (t.notFound && !t.done ? '<span class="nf">' + esc(t.notFound) + '</span>' : '') +
       (t.done ? '<span class="doneby">✓ Done' + (t.by ? ' by ' + esc(t.by) : '') + (t.at ? ' · ' + esc(whenDone(t.at)) : '') + '</span>' : '') +
       (t.evidence ? '<span class="evid"><b>Evidence:</b> ' + esc(t.evidence) + '</span>' : t.done ? '<span class="small muted">Tap to add evidence</span>' : '') + '</button></li>';
   }
@@ -641,19 +642,19 @@
     if (!lv) return leaversHtml();
     var p = C.progress(lv.tasks, n), inv1 = lv.involuntary === true;
     var wide = matchMedia('(min-width: 1000px)').matches;
-    var h = '<div class="stack">' + demoStrip() + '<div><button class="btn small ghost" type="button" data-act="tab" data-tab="leavers">← All leavers</button></div><div class="lwrap"><aside class="lside stack"><section class="card lhead"><p class="lab" style="margin:0">Leaver checklist</p><h1>' + esc(lv.name || 'Someone leaving') + '</h1><div class="row">' + kindPill(lv) + '<span class="small" style="font-weight:700">Last day ' + esc(lastDayText(lv)) + '</span></div>' +
+    var h = '<div class="stack">' + demoStrip() + '<div><button class="btn small ghost" type="button" data-act="tab" data-tab="leavers">All leavers</button></div><div class="lwrap"><aside class="lside stack"><section class="lhead"><p class="lab m0">Leaver checklist</p><h1>' + esc(lv.name || 'Someone leaving') + '</h1><div class="row">' + kindPill(lv) + '<span class="small fw6">Last day ' + esc(lastDayText(lv)) + '</span></div>' +
       '<details class="why facts-box"' + (wide ? ' open' : '') + '><summary>Details: address, files, mail, what to collect</summary>' + factsHtml(lv) + '</details>' +
-      '<div class="prog"><p>' + esc(p.done) + ' of ' + esc(p.total) + ' done · ' + esc(p.open) + ' still open' + (p.overdue ? ' · <span class="overdue">' + esc(p.overdue) + ' overdue</span>' : '') + '</p><div class="bar"><i data-w="' + esc(p.pct) + '"></i></div>' + (p.next ? '<p class="small muted" style="font-weight:600">Next: ' + esc(p.next.system ? p.next.system + ' - ' : '') + esc(p.next.title.charAt(0).toLowerCase() + p.next.title.slice(1)) + '</p>' : '') + (p.done ? '<p class="small muted" style="font-weight:600">' + esc(plural(p.evidence, 'step')) + ' with evidence</p>' : '') + '</div>' +
-      (lv.foundApps && lv.foundApps.length ? '<p class="small" style="margin:0">🔎 The orphan finder saw them in <b>' + esc(lv.foundApps.join(', ')) + '</b> - those steps say what it found.</p>' : lv.checkedApps && lv.checkedApps.length ? '<p class="small muted" style="margin:0">Not found in the ' + esc(lv.checkedApps.join(', ')) + ' exports.</p>' : '<p class="small muted" style="margin:0">Load your exports in Orphans and rebuild, to see which apps they are really in.</p>') +
-      (lv.notes ? '<p class="small" style="margin:0">' + esc(lv.notes) + '</p>' : '') +
+      '<div class="prog"><p>' + esc(p.done) + ' of ' + esc(p.total) + ' done · ' + esc(p.open) + ' still open' + (p.overdue ? ' · <span class="overdue">' + esc(p.overdue) + ' overdue</span>' : '') + '</p><div class="bar"><i data-w="' + esc(p.pct) + '"></i></div>' + (p.next ? '<p class="small muted fw6">Next: ' + esc(p.next.system ? p.next.system + ' - ' : '') + esc(p.next.title.charAt(0).toLowerCase() + p.next.title.slice(1)) + '</p>' : '') + (p.done ? '<p class="small muted fw6">' + esc(plural(p.evidence, 'step')) + ' with evidence</p>' : '') + '</div>' +
+      (lv.foundApps && lv.foundApps.length ? '<p class="small m0">The orphan finder saw them in <b>' + esc(lv.foundApps.join(', ')) + '</b> - those steps say what it found.</p>' : lv.checkedApps && lv.checkedApps.length ? '<p class="small muted m0">Not found in the ' + esc(lv.checkedApps.join(', ')) + ' exports.</p>' : '<p class="small muted m0">Load your exports in Orphans and rebuild, to see which apps they are really in.</p>') +
+      (lv.notes ? '<p class="small m0">' + esc(lv.notes) + '</p>' : '') +
       '<div class="btns"><button class="btn small ghost" type="button" data-act="editleaver">Edit details</button><button class="btn small ghost" type="button" data-act="rebuild">Rebuild from systems</button><button class="btn small ghost" type="button" data-act="exportleaver">Export</button><button class="btn small danger" type="button" data-act="delleaver">Delete</button></div></section>' +
-      (!inv().systems.length ? '<section class="card"><p class="small" style="margin:0"><b>Only the general steps so far.</b> Add your systems - single sign-on or not, what to do, who does it - and each one gets its own steps here.</p><button class="btn small ghost" type="button" data-act="tab" data-tab="systems" style="margin-top:8px">Add your systems</button></section>' : '') +
+      (!inv().systems.length ? '<section class="card"><p class="small m0"><b>Only the general steps so far.</b> Add your systems - single sign-on or not, what to do, who does it - and each one gets its own steps here.</p><button class="btn small ghost mt8" type="button" data-act="tab" data-tab="systems">Add your systems</button></section>' : '') +
       '</aside><div class="stack">';
     C.PHASES.forEach(function (ph) {
       var ts = lv.tasks.filter(function (t) { return t.phase === ph; });
       if (!ts.length) return;
       var d = ts[0].due, dn = ts.filter(function (t) { return t.done; }).length;
-      h += '<section class="card phase"><h2>' + esc(C.phaseWord(ph, inv1)) + ' <small>' + (d ? esc(d.time ? dayLabel(d.day) + ', ' + C.clockLabel(d.time) : 'by ' + dayLabel(d.day)) + ' · ' : '') + esc(dn + ' of ' + ts.length + ' done') + '</small></h2><ul class="tasks">' + ts.map(function (t) { return taskHtml(t, lv, n); }).join('') + '</ul></section>';
+      h += '<section class="phase"><h2>' + esc(C.phaseWord(ph, inv1)) + ' <small>' + (d ? esc(d.time ? dayLabel(d.day) + ', ' + C.clockLabel(d.time) : 'by ' + dayLabel(d.day)) + ' · ' : '') + esc(dn + ' of ' + ts.length + ' done') + '</small></h2><ul class="tasks">' + ts.map(function (t) { return taskHtml(t, lv, n); }).join('') + '</ul></section>';
     });
     return h + '</div></div>' + footer() + '</div>';
   }
@@ -672,7 +673,7 @@
     var lv = leaverById(state.current), t = lv && taskById(lv, id);
     if (!t) return;
     var at = t.at || stamp();
-    sheet('<h2>' + esc(t.title) + '</h2><p class="small muted">' + esc((t.system || 'General') + ' · ' + (C.OWNERS[t.owner] || t.owner) + ' · ' + C.phaseWord(t.phase, lv.involuntary === true)) + '</p><p>' + esc(t.detail) + '</p>' + (t.found ? '<p class="found">🔎 ' + esc(t.found) + '</p>' : '') +
+    sheet('<h2>' + esc(t.title) + '</h2><p class="small muted">' + esc((t.system || 'General') + ' · ' + (C.OWNERS[t.owner] || t.owner) + ' · ' + C.phaseWord(t.phase, lv.involuntary === true)) + '</p><p>' + esc(t.detail) + '</p>' + (t.found ? '<p class="found">' + esc(t.found) + '</p>' : '') +
       '<form class="form" id="taskForm"><label class="check"><input type="checkbox" id="tDone"' + (t.done || ticking ? ' checked' : '') + '> Done</label>' +
       '<div class="two-col"><label class="field"><span>Done by</span><input class="input" id="tBy" maxlength="' + C.LIMITS.byChars + '" value="' + esc(t.by || state.device.initials) + '" placeholder="Your initials" autocomplete="off"><small>Remembered on this device for the next tick.</small></label>' +
       '<label class="field"><span>When</span><input class="input" id="tAt" type="datetime-local" value="' + esc(at.slice(0, 16)) + '"></label></div>' +
@@ -723,7 +724,7 @@
   function pfield(k, inner) {
     var v = state.draft.values[k];
     var empty = k === 'involuntary' ? v === null : k === 'hardware' ? !v.length : !v;
-    return '<div class="pfield' + (empty ? ' missing' : '') + '"><div class="ph"><span>' + esc(FIELD_LABEL[k]) + '</span>' + (state.draft.ai[k] ? '<span class="sure sure-likely">✨ AI - check</span>' : empty ? '<span class="sure sure-unsure">? Not in the request</span>' : '<span class="sure sure-sure">✓ Read</span>') + '</div>' + inner + srcHtml(k) + '</div>';
+    return '<div class="pfield' + (empty ? ' missing' : '') + '"><div class="ph"><span>' + esc(FIELD_LABEL[k]) + '</span>' + (state.draft.ai[k] ? '<span class="sure sure-likely">AI - check</span>' : empty ? '<span class="sure sure-unsure">? Not in the request</span>' : '<span class="sure sure-sure">✓ Read</span>') + '</div>' + inner + srcHtml(k) + '</div>';
   }
   function fieldsHtml() {
     var v = state.draft.values;
@@ -743,18 +744,19 @@
   }
   function newHtml() {
     var d = state.draft;
-    var h = '<div class="stack">' + demoStrip() + '<section class="card stack"><div class="sec-head"><h1>New leaver</h1><button class="btn small ghost" type="button" data-act="tab" data-tab="leavers">All leavers</button></div>' +
-      '<p class="muted" style="margin:0">Paste the email or ticket. Lastday reads who is leaving, their address, the last day, who takes over their files and mail, and what to collect - and asks about the rest. Each answer shows the words it came from. Read on this device.</p>' +
+    var h = '<div class="stack">' + demoStrip() + '<section class="pagehead stack"><div class="sec-head"><h1>New leaver</h1><button class="btn small ghost" type="button" data-act="tab" data-tab="leavers">All leavers</button></div>' +
+      '<p class="muted m0">Paste the email or ticket. Lastday reads who is leaving, their address, the last day, who takes over their files and mail, and what to collect - and asks about the rest. Each answer shows the words it came from. Read on this device.</p>' +
       (demo() ? '<div class="btns"><button class="btn small ghost" type="button" data-act="sample" data-s="plain">Dana’s email about Sam</button><button class="btn small ghost" type="button" data-act="sample" data-s="messy">A messier one</button></div>' : '') +
       '<label class="field"><span>The request</span><textarea class="input tall" id="reqText" maxlength="' + C.LIMITS.pasteChars + '" placeholder="Sam’s last day is Friday - please keep their mailbox for the manager and give their files to Hana.">' + esc(d ? d.text : '') + '</textarea></label>' +
-      '<div class="btns"><button class="btn" type="button" data-act="readreq">Read it</button><button class="btn ghost" type="button" data-act="aireq">✨ Read a messy one with AI</button><button class="btn ghost" type="button" data-act="byhand">Fill it in by hand</button></div></section>';
+      '<div class="btns"><button class="btn" type="button" data-act="readreq">Read it</button><button class="btn ghost" type="button" data-act="aireq">Read a messy one with AI</button><button class="btn ghost" type="button" data-act="byhand">Fill it in by hand</button></div></section>';
     if (d) {
       var qs = draftQuestions();
       var found = FIELD_ORDER.length - qs.filter(function (q) { return FIELD_ORDER.indexOf(q.field) >= 0; }).length;
-      h += '<section class="card stack" id="whatItSays"><div class="sec-head"><h2>What it says</h2><span class="small muted">' + esc(found + ' of ' + FIELD_ORDER.length + ' answered') + '</span></div>';
+      h += '<section class="stack rule" id="whatItSays"><div class="sec-head"><h2>What it says</h2><span class="small muted">' + esc(found + ' of ' + FIELD_ORDER.length + ' answered') + '</span></div>';
       if (qs.length) h += '<div><p class="lab">Still to answer (' + esc(qs.length) + ')</p><ul class="qs">' + qs.map(function (q) { return '<li><span><b aria-hidden="true">? </b>' + esc(q.text) + '</span></li>'; }).join('') + '</ul></div>';
       h += fieldsHtml();
-      h += '<div class="btns"><button class="btn big" type="button" data-act="makeleaver">Make the checklist</button></div><p class="small muted" style="margin:0">Unanswered questions can wait: the checklist says what is not decided, and you can edit the details any time.</p></section>';
+      if (d.values.role || (d.values.named && d.values.named.length)) h += '<p class="small muted m0">' + (d.values.role ? 'Role or team: <b class="ctext">' + esc(d.values.role) + '</b>' : '') + (d.values.role && d.values.named && d.values.named.length ? ' · ' : '') + (d.values.named && d.values.named.length ? 'Named in the request: <b class="ctext">' + esc(d.values.named.join(', ')) + '</b>' : '') + ' <span class="sure sure-likely">AI - check</span></p>';
+      h += '<div class="btns"><button class="btn big" type="button" data-act="makeleaver">Make the checklist</button></div><p class="small muted m0">Unanswered questions can wait: the checklist says what is not decided, and you can edit the details any time.</p></section>';
     }
     return h + footer() + '</div>';
   }
@@ -799,17 +801,17 @@
       var cands = nameCandidates(m.text, extra);
       var b = $('#aiBody', root);
       b.innerHTML = '<p class="lab">What would be sent' + (bits.length ? ' - hidden: ' + esc(bits.join(', ')) : '') + '</p><pre class="masked">' + tokHtml(m.text) + '</pre>' + (m.cut ? '<p class="small muted">Only the first ' + esc(C.groups(C.LIMITS.aiChars)) + ' characters are sent.</p>' : '') +
-        (cands.length ? '<p class="small" style="margin:10px 0 6px"><b>Hide more?</b> These look like names:</p><div class="hwchips">' + cands.map(function (c) { return '<button type="button" data-hide="' + esc(c) + '">Hide “' + esc(c) + '”</button>'; }).join('') + '</div>' : '') +
-        '<div class="row" style="margin-top:10px"><label class="field" style="flex:1 1 220px"><span>Hide another word</span><input class="input" id="aiWord" maxlength="60" autocomplete="off"></label><button class="btn small ghost" type="button" id="aiHide" style="align-self:end">Hide it</button></div>';
+        (cands.length ? '<p class="small m0 mt12 mb8"><b>Hide more?</b> These look like names:</p><div class="hwchips">' + cands.map(function (c) { return '<button type="button" data-hide="' + esc(c) + '">Hide “' + esc(c) + '”</button>'; }).join('') + '</div>' : '') +
+        '<div class="row mt12"><label class="field grow220"><span>Hide another word</span><input class="input" id="aiWord" maxlength="60" autocomplete="off"></label><button class="btn small ghost ase" type="button" id="aiHide">Hide it</button></div>';
       $$('[data-hide]', b).forEach(function (x) { x.addEventListener('click', function () { extra.push(x.getAttribute('data-hide')); render(root); }); });
       $('#aiHide', b).addEventListener('click', function () { var w = C.line($('#aiWord', b).value, 60); if (w.length >= 2) { extra.push(w); render(root); } });
       return m;
     }
-    sheet('<h2>✨ Read a messy request</h2><p class="muted small">For when the reader on this page leaves too many questions. The request is <b>masked on this device first</b>: every name it found becomes [person1], every address [email1], every phone number [phone1]. Only what is shown below is sent - and the answer is unmasked here, as a proposal you check.</p><div id="aiBody"></div><div id="aiErr"></div><div class="btns" id="aiActs" style="margin-top:12px"></div><div id="aiOut"></div>', function (root) {
+    sheet('<h2>Read a messy request with AI</h2><p class="muted small">AI reads the facts - who, the last day, their role, the systems it names, what is unclear - each with the words it came from. <b>The checklist is still built here</b>, from your own system list. The request is <b>masked on this device first</b>: every name it found becomes [person1], every address [email1], every phone number [phone1]. Only what is shown below is sent.</p><div id="aiBody"></div><div id="aiErr"></div><div class="btns mt12" id="aiActs"></div><div id="aiOut"></div>', function (root) {
       var m = render(root);
       var acts = $('#aiActs', root);
       if (!signedIn()) {
-        acts.innerHTML = '<p class="small muted" style="margin:0 0 8px;flex-basis:100%">It uses about a cent of AI credit, so it needs a free account - which comes with $2, and works across every app on this site.</p><button class="btn" type="button" id="aiSignin">Create a free account</button>';
+        acts.innerHTML = '<p class="small muted m0 mb8 basis100">It uses about a cent of AI credit, so it needs a free account - which comes with $2, and works across every app on this site.</p><button class="btn" type="button" id="aiSignin">Create a free account</button>';
         $('#aiSignin', root).addEventListener('click', function () { openAccount('Reading a request uses about a cent of AI credit; a free account comes with $2.', openAi); });
         return;
       }
@@ -824,41 +826,100 @@
           showProposal(root, res, m.map, text);
         }).catch(function (err) {
           btn.disabled = false; btn.textContent = 'Send the masked text';
-          meteredError(err, $('#aiErr', root), openAi, 'Reading a request uses about a cent of AI credit, so it needs a free account (it comes with $2).');
+          var box = $('#aiErr', root);
+          meteredError(err, box, openAi, 'Reading a request uses about a cent of AI credit, so it needs a free account (it comes with $2).');
+          // AI resting, busy or capped: the reader on this page still works.
+          if ([429, 502, 503].indexOf(err.status) >= 0 && box.innerHTML) {
+            box.insertAdjacentHTML('beforeend', '<div class="btns"><button class="btn small ghost" type="button" id="aiNoAi">Read it without AI</button></div>');
+            $('#aiNoAi', box).addEventListener('click', function () { closeSheet(true); readRequest(text); draw(); var sec = $('#whatItSays'); if (sec) sec.scrollIntoView({ block: 'start' }); });
+          }
         });
       });
     });
   }
+  var MISSING_WORD = { name: 'who is leaving', lastDay: 'the last day', involuntary: 'whether it is voluntary or not' };
+  /** The answer, unmasked on this device and shown as a proposal: every fact
+   *  with the words it came from and a tick; the systems it named set
+   *  against the system list; what is unclear or missing; and the checklist
+   *  those facts would make - counted here, from the system list. */
   function showProposal(root, res, map, text) {
+    var un = function (v, max) { return C.line(C.unmask(v, map), max || C.LIMITS.fromChars); };
     var fields = {};
     Object.keys(res.fields || {}).forEach(function (k) {
       if (FIELD_ORDER.indexOf(k) < 0) return;
       var x = res.fields[k], v = x.value;
-      if (typeof v === 'string') v = C.line(C.unmask(v, map), k === 'email' ? 120 : C.LIMITS.fieldChars);
-      fields[k] = { value: v, from: C.line(C.unmask(x.from, map), C.LIMITS.fromChars) };
+      if (typeof v === 'string') v = un(v, k === 'email' ? 120 : C.LIMITS.fieldChars);
+      fields[k] = { value: v, from: un(x.from), quoted: x.quoted !== false && Boolean(x.from) };
     });
-    var qs = (res.questions || []).map(function (q) { return C.line(C.unmask(q, map), C.LIMITS.fromChars); });
+    var facts = res.facts || {};
+    var role = facts.role && facts.role.value ? { value: un(facts.role.value, C.LIMITS.systemChars), from: un(facts.role.from) } : null;
+    var named = (facts.systems || []).map(function (x) { return { name: un(x.name, C.LIMITS.systemChars), from: un(x.from) }; });
+    var unclear = (facts.unclear || []).filter(function (x) { return C.UNCLEAR[x.about]; }).map(function (x) { return { about: C.UNCLEAR[x.about], from: un(x.from) }; });
+    var missing = (res.missing || []).filter(function (k) { return MISSING_WORD[k]; });
+    var qs = (res.questions || []).map(function (q) { return un(q); });
     var show = function (k, v) { return k === 'involuntary' ? (v ? 'Involuntary' : 'Resignation') : k === 'hardware' ? v.join(', ') : k === 'lastDay' ? dayLabel(v) : k === 'lastTime' ? C.clockLabel(v) : k === 'mailbox' ? C.MAILBOX[v] : v; };
     var keys = FIELD_ORDER.filter(function (k) { return fields[k]; });
-    $('#aiOut', root).innerHTML = '<div class="note" style="margin-top:12px"><p class="lab">AI-read - check each one</p>' + (keys.length ? '<ul class="prop">' + keys.map(function (k) { return '<li><b>' + esc(FIELD_LABEL[k]) + ':</b> ' + esc(show(k, fields[k].value)) + (fields[k].from ? ' <span class="small muted">- from “' + esc(fields[k].from) + '”</span>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="small">It found no fields it could vouch for.</p>') +
-      (qs.length ? '<p class="lab" style="margin-top:10px">It asks</p><ul class="prop">' + qs.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ul>' : '') +
-      (res.dropped ? '<p class="small muted">' + esc(plural(res.dropped, 'answer')) + ' that did not pass the checks were left out.</p>' : '') +
-      (keys.length ? '<div class="btns" style="margin-top:10px"><button class="btn" type="button" id="aiUse">Use these</button></div>' : '') + '</div>';
-    var use = $('#aiUse', root);
-    if (use) use.addEventListener('click', function () {
+    var on = {};
+    keys.forEach(function (k) { on[k] = fields[k].quoted; });
+    if (role) on.role = true;
+    var src = function (from, quoted) { return quoted ? '<span class="src">from <q>' + esc(from) + '</q></span>' : '<span class="src"><span class="sure sure-unsure">No matching words in the request</span></span>'; };
+    var factRow = function (k, label, value, from, quoted) { return '<li><label class="check"><input type="checkbox" data-pk="' + esc(k) + '"' + (on[k] ? ' checked' : '') + '><span><span class="pl">' + esc(label) + '</span><b>' + esc(value) + '</b>' + src(from, quoted) + '</span></label></li>'; };
+    function picked() {
+      var v = C.cleanLeaver(state.draft && state.draft.text === text ? state.draft.values : C.leaverFrom(C.parseRequest(text, { today: state.today, time: now().time, dayFirst: DAY_FIRST, names: knownNames() })));
+      keys.forEach(function (k) { if (on[k]) v[k] = k === 'hardware' ? fields[k].value.slice() : fields[k].value; });
+      return C.cleanLeaver(v);
+    }
+    function paint() {
+      var sys = C.matchSystems(named, inv());
+      var tasks = C.buildChecklist(picked(), inv(), [], loadedApps());
+      var per = C.PHASES.map(function (ph) { return tasks.filter(function (t) { return t.phase === ph; }).length; });
+      var inv1 = picked().involuntary === true;
+      var h = '<section class="aiout"><h3>What it read</h3><p class="small muted">Tick what to use. Nothing is filled in until you say so.</p>';
+      if (missing.length) h += '<p class="flag" role="status"><b>Missing: ' + esc(missing.map(function (k) { return MISSING_WORD[k]; }).join(', ')) + '.</b> The request does not say - ask, or set it yourself before the checklist is timed.</p>';
+      h += keys.length || role ? '<ul class="prop">' + keys.map(function (k) { return factRow(k, FIELD_LABEL[k], show(k, fields[k].value), fields[k].from, fields[k].quoted); }).join('') + (role ? factRow('role', 'Role or team', role.value, role.from, true) : '') + '</ul>' : '<p class="small">It found no fields it could vouch for.</p>';
+      if (named.length) h += '<p class="lab mt16">Systems it names</p><ul class="prop plain">' + sys.known.map(function (x) { return '<li><span class="sure sure-sure">✓ In your systems</span><b>' + esc(x.system) + '</b><span class="src">from <q>' + esc(x.from) + '</q></span></li>'; }).join('') +
+        sys.unknown.map(function (x, i) { return '<li><span class="sure sure-unsure">? Not in your system list</span><b>' + esc(x.said) + '</b><span class="src">from <q>' + esc(x.from) + '</q></span><button class="btn small ghost" type="button" data-addsys="' + i + '">Add “' + esc(C.clip(x.said, 30)) + '” to your systems</button></li>'; }).join('') + '</ul>';
+      if (unclear.length) h += '<p class="lab mt16">Unclear in the request</p><ul class="prop plain">' + unclear.map(function (x) { return '<li><b>' + esc(C.cap1(x.about)) + '</b><span class="src"><q>' + esc(x.from) + '</q></span></li>'; }).join('') + '</ul>';
+      if (qs.length) h += '<p class="lab mt16">It asks</p><ul class="prop plain">' + qs.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ul>';
+      if (res.dropped) h += '<p class="small muted mt12">' + esc(plural(res.dropped, 'answer')) + ' that did not pass the checks were left out.</p>';
+      h += '<div class="note mt16"><p class="m0"><b>The checklist this makes: ' + esc(plural(tasks.length, 'step')) + '</b>' + (inv().systems.length ? ' from your ' + esc(plural(inv().systems.length, 'system')) : ' - general steps only, until you add your systems') + '</p><p class="small muted m0 mt4">' + C.PHASES.map(function (ph, i) { return esc(per[i] + ' ' + C.phaseWord(ph, inv1).toLowerCase()); }).join(' · ') + '</p><p class="small muted m0 mt4">Every step comes from your system list and Lastday’s own rules. AI only read the request.</p></div>';
+      h += '<div class="btns mt16"><button class="btn" type="button" id="aiMake">Use these and make the checklist</button><button class="btn ghost" type="button" id="aiUse">Use these, check the fields first</button></div></section>';
+      $('#aiOut', root).innerHTML = h;
+      $$('[data-pk]', root).forEach(function (el) { el.addEventListener('change', function () { on[el.getAttribute('data-pk')] = el.checked; paint(); }); });
+      $$('[data-addsys]', root).forEach(function (el) {
+        el.addEventListener('click', function () {
+          var x = sys.unknown[+el.getAttribute('data-addsys')];
+          if (!x) return;
+          if (inv().systems.length >= C.LIMITS.systems) { toast('The system list is full (' + C.LIMITS.systems + ').'); return; }
+          var next = JSON.parse(JSON.stringify(inv()));
+          next.systems.push({ id: 'sys-' + Date.now().toString(36), name: C.cap1(x.said), sso: false, steps: ['disable', 'sessions'], owner: 'it' });
+          var cl = C.cleanInventory(next, true);
+          if (cl.errors.length) { toast(cl.errors[0], 4200); return; }
+          W().inventory = cl.inventory; sysChanged(); paint();
+          toast('Added to your systems with two steps - adjust it under Systems.', 4200);
+        });
+      });
+      $('#aiUse', root).addEventListener('click', function () { apply(); closeSheet(true); draw(); toast(plural(count(), 'answer') + ' filled in by AI - check each one.'); var sec = $('#whatItSays'); if (sec) sec.scrollIntoView({ block: 'start' }); });
+      $('#aiMake', root).addEventListener('click', function () { apply(); closeSheet(true); draw(); makeLeaver().then(function () { toast('Checklist made from your systems - the AI-read details are marked to check.', 4600); }); });
+    }
+    function count() { return keys.filter(function (k) { return on[k]; }).length + (role && on.role ? 1 : 0); }
+    function apply() {
       if (!state.draft || state.draft.text !== text) readRequest(text);
       var d = state.draft;
       keys.forEach(function (k) {
+        if (!on[k]) return;
         var v = fields[k].value;
         d.values[k] = k === 'hardware' ? v.slice() : v;
-        d.from[k] = fields[k].from; d.notes[k] = 'read by AI - check'; d.ai[k] = true;
+        d.from[k] = fields[k].from; d.notes[k] = fields[k].quoted ? 'read by AI - check' : 'read by AI - no matching words in the request'; d.ai[k] = true;
       });
-      closeSheet(true); draw();
-      toast(plural(keys.length, 'field') + ' filled in by AI - check each one.');
-    });
+      d.values.role = role && on.role ? role.value : '';
+      d.values.named = C.matchSystems(named, inv()).known.map(function (x) { return x.system; });
+    }
+    paint();
   }
 
   function makeLeaver() {
+    if (!state.draft) return Promise.resolve();
     readDraftInputs();
     var v = state.draft.values;
     var lv = C.cleanLeaver(v);
@@ -870,7 +931,7 @@
     if (!lv) return;
     state.draft = { text: '', parsed: null, values: C.cleanLeaver(lv), notes: {}, from: lv.from || {}, ai: {} };
     state.editing = true;
-    sheet('<h2>' + esc(lv.name || 'The leaver') + '</h2><div class="form"><div id="edFields">' + fieldsHtml() + '</div><div class="btns"><button class="btn" type="button" id="edSave">Save and update the steps</button></div><p class="small muted" style="margin:0">Ticks, names and evidence stay with their steps.</p></div>', function (root) {
+    sheet('<h2>' + esc(lv.name || 'The leaver') + '</h2><div class="form"><div id="edFields">' + fieldsHtml() + '</div><div class="btns"><button class="btn" type="button" id="edSave">Save and update the steps</button></div><p class="small muted m0">Ticks, names and evidence stay with their steps.</p></div>', function (root) {
       wireDraft(root);
       $('#edSave', root).addEventListener('click', function () {
         readDraftInputs();
@@ -897,17 +958,17 @@
 
   function systemsHtml() {
     var i = inv(), s = i.settings;
-    var h = '<div class="stack">' + demoStrip() + '<section class="card"><div class="sec-head"><h1>Your systems</h1><span data-sync>' + syncLine() + '</span></div><p class="muted" style="margin:0">Each system: does it sign in through single sign-on, what has to happen when someone leaves, and which role does it. Every leaver checklist is built from this list - it holds systems, never people.</p>' +
-      (!i.systems.length ? '<div class="btns" style="margin-top:12px"><button class="btn" type="button" data-act="starter">Start from a typical small-business list</button><button class="btn ghost" type="button" data-act="sysadd">Add one system</button></div>' : '') + '</section>';
+    var h = '<div class="stack">' + demoStrip() + '<section class="pagehead"><div class="sec-head"><h1>Your systems</h1><span data-sync>' + syncLine() + '</span></div><p class="muted m0">Each system: does it sign in through single sign-on, what has to happen when someone leaves, and which role does it. Every leaver checklist is built from this list - it holds systems, never people.</p>' +
+      (!i.systems.length ? '<div class="btns mt12"><button class="btn" type="button" data-act="starter">Start from a typical small-business list</button><button class="btn ghost" type="button" data-act="sysadd">Add one system</button></div>' : '') + '</section>';
     if (i.systems.length) {
       h += '<div class="sysgrid">' + i.systems.map(function (sys, n) {
         return '<section class="card syscard"><div class="sh"><label class="field"><span>System</span><input class="input" data-sysname="' + n + '" value="' + esc(sys.name) + '" maxlength="' + C.LIMITS.systemChars + '" autocomplete="off"></label><button class="btn small danger" type="button" data-act="sysdel" data-i="' + n + '" aria-label="Remove ' + esc(sys.name) + '">Remove</button></div>' +
-          '<div class="row"><span class="small" style="font-weight:700">Sign-in</span><div class="seg" role="group" aria-label="Single sign-on"><button type="button" data-act="sso" data-i="' + n + '" data-v="1" aria-pressed="' + (sys.sso ? 'true' : 'false') + '">Single sign-on</button><button type="button" data-act="sso" data-i="' + n + '" data-v="0" aria-pressed="' + (sys.sso ? 'false' : 'true') + '">Its own logins</button></div></div>' +
+          '<div class="row"><span class="small fw6">Sign-in</span><div class="seg" role="group" aria-label="Single sign-on"><button type="button" data-act="sso" data-i="' + n + '" data-v="1" aria-pressed="' + (sys.sso ? 'true' : 'false') + '">Single sign-on</button><button type="button" data-act="sso" data-i="' + n + '" data-v="0" aria-pressed="' + (sys.sso ? 'false' : 'true') + '">Its own logins</button></div></div>' +
           '<div><p class="lab">When someone leaves</p><div class="stepchips" role="group" aria-label="Steps">' + C.STEP_KEYS.map(function (k) { var on = sys.steps.indexOf(k) >= 0; return '<button type="button" data-act="step" data-i="' + n + '" data-k="' + k + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + esc(C.STEPS[k].label) + '">' + (on ? '<span aria-hidden="true">✓ </span>' : '') + esc(C.STEPS[k].short) + '</button>'; }).join('') + '</div></div>' +
           '<label class="field"><span>Who does it</span><select class="input" data-sysowner="' + n + '">' + C.OWNER_KEYS.map(function (k) { return '<option value="' + k + '"' + (sys.owner === k ? ' selected' : '') + '>' + esc(C.OWNERS[k]) + '</option>'; }).join('') + '</select><small>A role, never a person - so the list can be shared and synced.</small></label></section>';
       }).join('') + '</div><div class="btns"><button class="btn ghost" type="button" data-act="sysadd"' + (i.systems.length >= C.LIMITS.systems ? ' disabled' : '') + '>Add a system</button></div>';
     }
-    h += '<section class="card"><div class="sec-head"><h2>Settings</h2><button class="btn small ghost" type="button" data-act="settings">Change</button></div><ul class="facts"><li><b>Identity provider</b>' + esc(s.idp === 'other' ? 'not named' : C.IDPS[s.idp]) + '</li><li><b>Company domains</b>' + esc(s.domains.length ? s.domains.join(', ') : 'read from the export') + '</li><li><b>Dormant after</b>' + esc(s.dormantDays + ' days') + '</li><li><b>Shared-account patterns</b>' + esc(plural(s.patterns.length, 'pattern')) + '</li></ul></section>';
+    h += '<section class="rule"><div class="sec-head"><h2>Settings</h2><button class="btn small ghost" type="button" data-act="settings">Change</button></div><ul class="facts"><li><b>Identity provider</b>' + esc(s.idp === 'other' ? 'not named' : C.IDPS[s.idp]) + '</li><li><b>Company domains</b>' + esc(s.domains.length ? s.domains.join(', ') : 'read from the export') + '</li><li><b>Dormant after</b>' + esc(s.dormantDays + ' days') + '</li><li><b>Shared-account patterns</b>' + esc(plural(s.patterns.length, 'pattern')) + '</li></ul></section>';
     return h + footer() + '</div>';
   }
   function openSettings() {
@@ -917,7 +978,7 @@
       '<label class="field"><span>Company domains, one a line</span><textarea class="input code" id="sDom" rows="3" spellcheck="false" placeholder="example.com">' + esc(s.domains.join('\n')) + '</textarea><small>The first is the main one; the rest are aliases of it (example.com = example.co.uk). Empty: read from the identity provider’s export. Anything else counts as external.</small></label>' +
       '<label class="field"><span>Dormant after (days without activity)</span><input class="input" id="sDorm" type="number" min="' + C.LIMITS.dormantMin + '" max="' + C.LIMITS.dormantMax + '" value="' + esc(s.dormantDays) + '"></label>' +
       '<label class="field"><span>Shared and service accounts</span><textarea class="input code" id="sPat" rows="6" spellcheck="false">' + esc(s.patterns.join('\n')) + '</textarea><small>One a line. A word matches the part before the @ (or one piece of it, for words of four letters or more); * matches anything - svc-*, *-bot.</small></label>' +
-      '<div id="sErr"></div><div class="btns"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" id="sReset">Default patterns</button></div><p class="small muted" style="margin:0">Settings hold no person - only these preferences.</p></form>', function (root) {
+      '<div id="sErr"></div><div class="btns"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" id="sReset">Default patterns</button></div><p class="small muted m0">Settings hold no person - only these preferences.</p></form>', function (root) {
       $('#sReset', root).addEventListener('click', function () { $('#sPat', root).value = C.DEFAULT_PATTERNS.join('\n'); });
       $('#setForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -942,21 +1003,21 @@
     var w = W(), r = w.result, ls = w.leavers;
     if (!state.exportId || !leaverById(state.exportId)) state.exportId = ls[0] ? ls[0].id : '';
     var lv = leaverById(state.exportId);
-    var h = '<div class="stack">' + demoStrip() + '<section class="card"><h1>Export</h1><p class="muted" style="margin:0">Everything is made on this device and saved by this browser. CSV cells that a spreadsheet would run as a formula are made safe.</p></section>';
-    h += '<section class="card"><h2>The orphan findings</h2>' + (r ? '<p class="small muted">Every account and its finding: app, address, name, verdict, critical, role, last active, status in ' + esc(idpLabel()) + ', days since they left, how it matched and why. ' + esc(C.groups(r.findings.length)) + ' findings' + (r.okTotal ? ' and ' + esc(C.groups(Math.min(r.ok.length, r.okTotal))) + ' OK accounts' : '') + '.</p><div class="btns"><button class="btn small" type="button" data-act="dlfind">Download CSV</button></div>' : '<p class="small muted">Load your exports in Orphans first.</p><button class="btn small ghost" type="button" data-act="tab" data-tab="find">Load the exports</button>') + '</section>';
-    h += '<section class="card stack"><h2>A leaver’s checklist</h2>';
-    if (!lv) h += '<p class="small muted" style="margin:0">No checklists yet.</p><div><button class="btn small ghost" type="button" data-act="newleaver">New leaver</button></div>';
+    var h = '<div class="stack">' + demoStrip() + '<section class="pagehead"><h1>Export</h1><p class="muted m0">Everything is made on this device and saved by this browser. CSV cells that a spreadsheet would run as a formula are made safe.</p></section>';
+    h += '<section class="rule"><h2>The orphan findings</h2>' + (r ? '<p class="small muted">Every account and its finding: app, address, name, verdict, critical, role, last active, status in ' + esc(idpLabel()) + ', days since they left, how it matched and why. ' + esc(C.groups(r.findings.length)) + ' findings' + (r.okTotal ? ' and ' + esc(C.groups(Math.min(r.ok.length, r.okTotal))) + ' OK accounts' : '') + '.</p><div class="btns"><button class="btn small" type="button" data-act="dlfind">Download CSV</button></div>' : '<p class="small muted">Load your exports in Orphans first.</p><button class="btn small ghost" type="button" data-act="tab" data-tab="find">Load the exports</button>') + '</section>';
+    h += '<section class="stack rule"><h2>A leaver’s checklist</h2>';
+    if (!lv) h += '<p class="small muted m0">No checklists yet.</p><div><button class="btn small ghost" type="button" data-act="newleaver">New leaver</button></div>';
     else {
       if (ls.length > 1) h += '<label class="field"><span>Leaver</span><select class="input" id="expSel">' + ls.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === lv.id ? ' selected' : '') + '>' + esc((x.name || 'Someone leaving') + (x.lastDay ? ' - ' + shortDay(x.lastDay) : '')) + '</option>'; }).join('') + '</select></label>';
       h += '<div><p class="lab">For the ticket</p><p class="small muted">Markdown: the details, then every step by phase with [x] or [ ], who did it, when, and the evidence. Paste it into the ticket.</p><div class="btns"><button class="btn small" type="button" data-act="copymd">Copy Markdown</button><button class="btn small ghost" type="button" data-act="dlmd">Download .md</button></div><details class="why"><summary>Preview</summary><pre class="out wrapit">' + esc(C.checklistMarkdown(lv, now())) + '</pre></details></div>';
       h += '<div><p class="lab">For a PSA or ticketing tool</p><p class="small muted">JSON in one documented shape (<code>lastday.checklist.v1</code>): the leaver, the progress, and one task per step with its phase, due time, system, action, owner role, status, who, when and evidence - ready to map onto tasks or ticket notes. Or the same as a CSV.</p><div class="btns"><button class="btn small" type="button" data-act="dljson">Download JSON</button><button class="btn small ghost" type="button" data-act="dlcsv">Download CSV</button></div><details class="why"><summary>Preview the JSON</summary><pre class="out">' + esc(JSON.stringify(C.checklistJson(lv, now()), null, 2).slice(0, 4000)) + '</pre></details></div>';
     }
     h += '</section>';
-    h += '<section class="card"><h2>On this device</h2>' + keepHtml() + '</section>';
+    h += '<section class="rule"><h2>On this device</h2>' + keepHtml() + '</section>';
     return h + footer() + '</div>';
   }
   function keepHtml() {
-    return '<label class="check"><input type="checkbox" id="keepBox"' + (state.keep ? ' checked' : '') + '> Keep this on this device</label><p class="small muted" style="margin:0">Off by default. When on, your systems, checklists and the last findings stay in this browser until you clear them - names and addresses included, so only on a device you trust. Nothing is ever sent anywhere.</p>' + (state.keep ? '<button class="btn small danger" type="button" data-act="clearkept" style="margin-top:8px">Clear it from this device</button>' : '');
+    return '<label class="check"><input type="checkbox" id="keepBox"' + (state.keep ? ' checked' : '') + '> Keep this on this device</label><p class="small muted m0">Off by default. When on, your systems, checklists and the last findings stay in this browser until you clear them - names and addresses included, so only on a device you trust. Nothing is ever sent anywhere.</p>' + (state.keep ? '<button class="btn small danger mt8" type="button" data-act="clearkept">Clear it from this device</button>' : '');
   }
 
   /* ---------------- sheets and the account (shared shape with the lab) ---------------- */
@@ -998,12 +1059,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my12"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my12"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1025,11 +1086,11 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Reading a messy request costs about a cent. The orphan finder, checklists and exports are free and never leave this device.</p><div id="billing"></div></div>' +
-      '<p class="small" style="margin-top:14px" data-sync>' + syncLine() + '</p>' +
-      '<button class="btn ghost block" id="forget" type="button" style="margin-top:6px">Remove my systems from the account</button>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted m0 mt8">Reading a messy request costs about a cent. The orphan finder, checklists and exports are free and never leave this device.</p><div id="billing"></div></div>' +
+      '<p class="small mt16" data-sync>' + syncLine() + '</p>' +
+      '<button class="btn ghost block mt8" id="forget" type="button">Remove my systems from the account</button>' +
+      (pkOk() ? '<button class="btn ghost block mt12" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); draw(); }); });

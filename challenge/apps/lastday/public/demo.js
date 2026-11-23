@@ -183,6 +183,7 @@
       'quick one - Jojo from the hygiene team won’t be back after the 14th, HR has the paperwork. ',
       'can u make sure the shared front desk login + the alarm code get changed, theyve had both for years. ',
       'their stuff in the drive should probably go to whoever covers hygiene, ask Maya. ',
+      'they still have the accounting login too, and that old x-ray viewer. ',
       'not a happy exit so pls do it the morning of, before they come in. thx - D',
     ].join('');
   }

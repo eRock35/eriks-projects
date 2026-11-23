@@ -31,7 +31,7 @@ if (process.env.LASTDAY_MEMORY !== '1' || process.env.LASTDAY_FAKE_AI !== '1') {
   process.exit(1);
 }
 
-const { app, identityStore, store, fakeClient, ownerTag } = require('../server');
+const { app, identityStore, store, fakeClient, ownerTag, MODELS } = require('../server');
 const C = require('../public/lastday-core');
 const D = require('../public/demo');
 const ai = require('../lib/ai');
@@ -672,7 +672,7 @@ test('every text colour holds 4.5:1 on its surface in both themes; the hero, the
   assert.ok(lab && ratio('#ffffff', lab.color) >= 4.5 && ratio('#ffffff', lab.color2) >= 4.5, 'the lab card colours hold white text');
   for (const sel of ['.btn', '.link-btn', '.seg button', '.filters button', '.tile', '.input, textarea.input, select.input', '.check', '.hwchips button, .stepchips button']) assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*min-height: 4[4-9]px').test(css), `${sel}: 44px`);
   assert.ok(/\.tick \{[^}]*width: 44px; height: 44px/.test(css) && /\.tbody \{[^}]*min-height: 44px/.test(css));
-  assert.ok(/\.frow \{[^}]*min-height: 60px/.test(css) && /\.tabbar button \{[^}]*min-height: 60px/.test(css));
+  assert.ok(/\.frow \{[^}]*min-height: 60px/.test(css) && /\.tabbar button \{[^}]*min-height: 48px/.test(css));
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
   assert.ok(/\.ftable-wrap \{[^}]*overflow: auto/.test(css) && /\.tablewrap \{[^}]*overflow: auto/.test(css) && /\.out \{[^}]*overflow: auto/.test(css) && /\.filters \{[^}]*overflow-x: auto/.test(css) && /\.masked \{[^}]*overflow: auto/.test(css), 'tables, previews and exports scroll in their own box');
 });
@@ -946,6 +946,144 @@ test('the gates: unconfirmed free account 403, out of credit 402, the day\u2019s
     await settle();
     assert.strictEqual(await modelCalls(), calls);
   } finally { await identityStore.remove('control', `free-spend-lastday-${day}`); }
+});
+
+/* ================================================================== *
+ * A messy request becomes an offboarding checklist (the AI feature)
+ * ================================================================== */
+
+test('the AI facts: a role, systems and unclear passages are kept only when their words are IN the masked text; a field with no matching words is flagged; missing essentials are named; the model never adds a system', () => {
+  const text = '[person1] from the hygiene team won’t be back after the 14th. they still have the accounting login and that old x-ray viewer. [email1]';
+  const req = C.aiRequest({ text, today: TODAY }).req;
+  const out = C.cleanAiAnswer({
+    name: { value: '[person1]', from: '[person1] from the' },
+    last_day: { value: '2026-11-14', from: 'someday soon' },
+    role: { value: 'the hygiene team', from: 'from the hygiene team' },
+    systems: [
+      { name: 'accounting login', from: 'have the accounting login' },
+      { name: 'x-ray viewer', from: 'not in the text at all' },
+      { name: 'Accounting Login', from: 'dupe' },
+      { name: 'Root password vault', from: 'the accounting login' },
+      { name: '[person1]', from: '[person1] from the' },
+      { name: 'pat' + AT + 'evil.example', from: 'x' },
+      { name: '<script>vault</script>', from: 'x' },
+      'x-ray viewer', null,
+    ],
+    unclear: [{ about: 'last_day', from: 'after the 14th' }, { about: 'last_day', from: 'after the 14th' }, { about: 'launch', from: 'after the 14th' }, { about: 'other', from: 'never said' }],
+    questions: [],
+  }, req);
+  assert.deepStrictEqual([out.fields.name.quoted, out.fields.lastDay.quoted, out.fields.lastDay.from], [true, false, ''], 'no matching words: kept, flagged');
+  assert.match(out.fields.lastDay.note, /no matching words/);
+  assert.deepStrictEqual(out.facts.role, { value: 'the hygiene team', from: 'from the hygiene team' });
+  assert.deepStrictEqual(out.facts.systems, [{ name: 'accounting login', from: 'have the accounting login' }, { name: 'x-ray viewer', from: 'x-ray viewer' }], 'only systems the request names, once each; a quote that is not in the text falls back to the name itself');
+  assert.deepStrictEqual(out.facts.unclear, [{ about: 'last_day', from: 'after the 14th' }]);
+  assert.deepStrictEqual(out.missing, ['involuntary']);
+  assert.ok(out.dropped >= 7);
+  assert.deepStrictEqual(C.cleanAiAnswer({ role: { value: 'Chief of Nothing', from: 'x' }, systems: 'all of them', unclear: {} }, req).facts, { role: null, systems: [], unclear: [] });
+  assert.deepStrictEqual(C.cleanAiAnswer({ questions: ['Who is leaving?'] }, req).missing, ['name', 'lastDay', 'involuntary']);
+  const many = C.cleanAiAnswer({ systems: text.split(' ').map((w) => ({ name: w, from: w })) }, req);
+  assert.ok(many.facts.systems.length <= C.LIMITS.aiSystems);
+  for (const sys of many.facts.systems) assert.ok(text.toLowerCase().includes(sys.name.toLowerCase()) && !/\[|@/.test(sys.name));
+});
+
+test('the checklist is built by the app: named systems are set against the system list, steps come only from that list and the rules, and the leaver keeps the role and the named systems', () => {
+  const inv = C.cleanInventory(D.inventory()).inventory;
+  const m = C.matchSystems([{ name: 'accounting login', from: 'have the accounting login' }, { name: 'x-ray viewer', from: 'that old x-ray viewer' }, { name: 'the Accounting app', from: 'x' }, 'alarm code'], inv);
+  assert.deepStrictEqual(m.known, [{ said: 'accounting login', system: 'Accounting', from: 'have the accounting login' }]);
+  assert.deepStrictEqual(m.unknown.map((x) => x.said), ['x-ray viewer', 'alarm code']);
+  assert.deepStrictEqual(C.matchSystems(null, null), { known: [], unknown: [] });
+  const lv = C.cleanLeaver({ name: 'Jojo', lastDay: '2026-11-14', involuntary: true, role: 'the hygiene team', named: ['Accounting', 'Accounting', '', 'x'.repeat(200)] });
+  assert.deepStrictEqual([lv.role, lv.named.length, lv.named[0]], ['the hygiene team', 2, 'Accounting']);
+  assert.deepStrictEqual([C.cleanLeaver({}).role, C.cleanLeaver({}).named], ['', []], 'a leaver saved before this still loads');
+  const tasks = C.buildChecklist(lv, inv, [], []);
+  const systems = new Set(tasks.map((t) => t.system).filter(Boolean));
+  assert.deepStrictEqual([...systems].sort(), inv.systems.map((x) => x.name).sort(), 'every system step is from the list - a named system that is not in it adds nothing');
+  assert.strictEqual(JSON.stringify(C.checklistJson(Object.assign(lv, { tasks }), { day: TODAY, time: '10:00' }).leaver).includes('hygiene'), false, 'the documented PSA shape is unchanged');
+  const js = read('public/app.js');
+  assert.match(js, /C\.buildChecklist\(picked\(\), inv\(\), \[\], loadedApps\(\)\)/, 'the preview counts the app’s own checklist');
+  assert.match(js, /C\.matchSystems\(named, inv\(\)\)/);
+  assert.ok(!/style="/.test(js) && !/style="/.test(read('public/index.html')), 'no style attribute in the page or written by it');
+});
+
+test('the tool and the provider: one forced tool that asks for words, never steps; Claude through the lab’s own client and planFor; no other provider wired', () => {
+  const props = ai.READ_TOOL.input_schema.properties;
+  for (const k of ['name', 'last_day', 'role', 'systems', 'unclear', 'hardware', 'questions']) assert.ok(props[k], k);
+  assert.deepStrictEqual(props.systems.items.required, ['name', 'from']);
+  assert.deepStrictEqual(props.unclear.items.properties.about.enum, Object.keys(C.UNCLEAR));
+  assert.ok(!Object.keys(props).some((k) => /step|task|checklist|action/.test(k)), 'the tool has no place to put a step');
+  assert.match(ai.SYSTEM, /never suggest a system, a step or a task/);
+  assert.match(ai.SYSTEM, /copied exactly from the request/);
+  const src = read('server.js') + read('lib/ai.js');
+  assert.ok(!/gemini|vertex|aiplatform|AI_PROVIDER/i.test(src), 'Claude only: no provider switch here');
+  assert.match(read('server.js'), /new Anthropic\(\{ apiKey: process\.env\.ANTHROPIC_API_KEY \}\)/);
+});
+
+test('a messy request over HTTP: the role, the named systems and the unclear words come back in the request’s own words; a request with no last day says so; hostile facts are dropped; nothing is stored', async () => {
+  const sys = await register('sys.reads');
+  const raw = D.messyRequest();
+  const m = C.maskRequest(raw, C.parseRequest(raw, { today: TODAY }).people.concat(['Jojo', 'Maya']));
+  const r = await sys('POST', '/api/ai/request', { text: m.text, today: TODAY });
+  assert.strictEqual(r.status, 200, r.text);
+  assert.strictEqual(r.data.facts.role.value, 'the hygiene team');
+  const names = r.data.facts.systems.map((x) => x.name);
+  assert.ok(names.includes('accounting login') && names.includes('x-ray viewer') && names.includes('alarm code'), names.join());
+  for (const x of r.data.facts.systems.concat(r.data.facts.unclear)) assert.ok(m.text.replace(/\s+/g, ' ').toLowerCase().includes(x.from.toLowerCase()), `quote not in the text: ${x.from}`);
+  assert.ok(r.data.facts.unclear.some((x) => x.about === 'last_day' && x.from === 'after the 14th'));
+  assert.deepStrictEqual(r.data.missing, []);
+  const known = C.matchSystems(r.data.facts.systems, C.cleanInventory(D.inventory()).inventory);
+  assert.deepStrictEqual(known.known.map((x) => x.system), ['Accounting']);
+  assert.ok(known.unknown.some((x) => x.said === 'x-ray viewer'));
+  const bare = await sys('POST', '/api/ai/request', { text: 'pls remove [person1] from the payroll and the vpn. thx', today: TODAY });
+  assert.strictEqual(bare.status, 200, bare.text);
+  assert.ok(bare.data.missing.includes('lastDay') && bare.data.missing.includes('involuntary'));
+  fakeClient.mode = 'inject';
+  const inj = await sys('POST', '/api/ai/request', { text: m.text, today: TODAY });
+  assert.strictEqual(inj.status, 200, inj.text);
+  assert.deepStrictEqual([inj.data.facts.role, inj.data.facts.systems.map((x) => x.name), inj.data.facts.unclear], [null, ['the drive'], [{ about: 'kind', from: 'not a happy exit' }]], 'a made-up role, an unnamed system, a person and an off-list passage are gone');
+  assert.ok(!/vault|Exfiltration|launch/i.test(inj.text));
+  assert.ok(!/hygiene|x-ray|payroll/.test(store._dump()), 'nothing stored');
+});
+
+test('the lab’s AI guard, when the host has one: asked after the identity gates and the free 400s, before the call; a no is its own message and no model call; a yes is recorded with the priced usage; without a guard the app just runs', async () => {
+  const gus = await register('gus.guarded');
+  const body = { text: '[person1] is leaving on friday, keep their mailbox', today: TODAY };
+  const seen = [];
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user)]); return { ok: false, status: 429, message: 'Lots of people are using AI right now - try again in a minute.', code: 'burst-minute' }; },
+    record: async (r) => { seen.push(['record', r]); },
+    priceUsd: (p) => { seen.push(['price', p]); return 0.0022; },
+  };
+  try {
+    let calls = fakeClient.calls.length;
+    const no = await gus('POST', '/api/ai/request', body);
+    assert.deepStrictEqual([no.status, no.data.error, no.data.code], [429, 'Lots of people are using AI right now - try again in a minute.', 'burst-minute']);
+    assert.strictEqual(fakeClient.calls.length, calls, 'a denied call never reaches the model');
+    assert.deepStrictEqual(seen, [['allow', 'claude', 'lastday', true]]);
+    seen.length = 0;
+    assert.strictEqual((await client()('POST', '/api/ai/request', body)).status, 401);
+    assert.strictEqual((await gus('POST', '/api/ai/request', { text: 'mail ' + at('sam'), today: TODAY })).status, 400);
+    assert.strictEqual(seen.length, 0, 'signed out, or a bad body: the guard is not even asked');
+    global.LAB_AI_GUARD.allow = async () => { seen.push(['allow']); return { ok: true }; };
+    calls = fakeClient.calls.length;
+    const yes = await gus('POST', '/api/ai/request', body);
+    assert.strictEqual(yes.status, 200, yes.text);
+    assert.strictEqual(fakeClient.calls.length, calls + 1);
+    assert.deepStrictEqual(seen, [['allow'], ['price', { provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 700, outputTokens: 300 }], ['record', { provider: 'claude', app: 'lastday', usd: 0.0022 }]]);
+    seen.length = 0;
+    fakeClient.mode = 'maxtokens';
+    assert.strictEqual((await gus('POST', '/api/ai/request', body)).status, 502);
+    assert.deepStrictEqual(seen.map((x) => x[0]), ['allow', 'price', 'record'], 'a call that came back unusable was still paid for');
+    seen.length = 0;
+    fakeClient.mode = 'upstream529';
+    assert.strictEqual((await gus('POST', '/api/ai/request', body)).status, 503);
+    assert.deepStrictEqual(seen.map((x) => x[0]), ['allow'], 'a provider failure billed nothing');
+    const realGuard = require('../../../lib/ai-guard');
+    if (typeof realGuard.priceUsd === 'function') for (const mdl of Object.values(MODELS)) assert.ok(realGuard.priceUsd({ provider: 'claude', model: mdl, inputTokens: 700, outputTokens: 300 }) > 0, mdl);
+    global.LAB_AI_GUARD.record = async () => { throw new Error('ledger down'); };
+    assert.strictEqual((await gus('POST', '/api/ai/request', body)).status, 200, 'a guard that fails to record never loses the answer');
+  } finally { delete global.LAB_AI_GUARD; }
+  assert.strictEqual((await gus('POST', '/api/ai/request', body)).status, 200, 'no guard: the app still runs');
+  assert.match(read('server.js'), /global\.LAB_AI_GUARD/);
 });
 
 /* ---------------- run ---------------- */
