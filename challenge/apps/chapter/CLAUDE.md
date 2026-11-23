@@ -361,6 +361,113 @@ carries an id the sheet says so ("the store may pay Chapter a small
 commission"). The host can add the book's **ISBN** under Club -> Edit the
 book (optional, check digit verified) so the links open the exact edition.
 
+## Visual redesign (2026-11-23): Erik's app style
+
+Erik: "Chapter looks dated." A first pass in the website's navy look was
+dropped the same day for **Erik's app style**, in Erik's own words: "Clean white
+background, sleek like Apple, modern but professional, with soft motion that
+makes it feel current. Very user friendly: big tap targets, plain labels,
+simple icons, a bottom tab bar on phones, every main task one or two taps
+from home. Phone first, then desktop." The rules are the ones Erik approved
+for HOA Desk. **Presentation only**: no route, data, API or rule changed,
+and every feature of the 2026-11-22 upgrade is where it was.
+
+**The rules** (also at the top of the "Visual redesign" layer in `app.css`;
+keep them when adding anything):
+
+- A **white page**. Cards are white with a **1px hairline** (`#e5e5ea`) and
+  **12px corners**; fields 10px; **pills** for buttons and chips. Gray fills
+  (`--card2`, `#f5f5f7`) only where a group needs one (a reply under a
+  note, a locked count, a quiet note). **No shadows**, except a barely-there
+  one on what floats: the phone's bar, sheets, toasts, the welcome card.
+- **One accent**: Chapter's plum (`#6d2b7a`, from its lab card), used
+  sparingly - the primary button, links, the active tab, your bookmark and
+  its meter. Status colours (ready, behind, locked, a question) are the
+  only other colour.
+- **Five type sizes** - 13, 15, 17, 20, 28 - plus the welcome headline;
+  tight tracking on headlines; system fonts only. Note, reply and
+  meeting-note text is 17px at 1.55, capped at 66 characters a line.
+- **Spacing** on a 4/8 scale.
+- **One icon set**: 24px, a 1.5px line, no fill (`ic()` in `app.js`, the tab
+  icons in `index.html`, drawn by `.ico` / `.tabbar svg`). Emoji are only
+  what readers chose or wrote: their avatar, their reactions.
+- **Lists over boxes**: the club home's tasks, the readers, the welcome
+  view's points are rows with hairlines between them.
+- **Navigation is one element** (`#tabbar`, now inside the top bar's
+  markup): on a phone a **slim floating translucent bar** at the bottom,
+  48px buttons, only the active item labelled, a small accent mark under
+  it; from 900px the same element is the **top navigation** in the bar,
+  words only. It no longer becomes the shared sheet's left rail (the nav
+  dropped the `dk-tabbar` class; `desktop.css` itself is untouched and still
+  centres sheets and sets the shell's width).
+- **The welcome view** is apple.com-like: one big centred headline ("Read
+  together."), one line under it, two pill buttons (Start a club, Join with
+  a code), two quiet links, a lot of white - then the example board.
+- **Plain labels**: "Update my page", "Start a thread", "Vote for the next
+  book", "RSVP", "Read it", "Buy this book", "Next meetup".
+- **Soft motion only under `prefers-reduced-motion: no-preference`**: a
+  view rises in once when the route changes (`arrive()` - never on a
+  redraw or a poll), a sheet slides up, buttons ease on press. Nothing
+  moves by itself; the page is complete at rest.
+- **44px targets, 48px for primary actions**; nothing sideways at 390 or
+  320px; text contrast 4.5:1 or better in both themes. The dark theme is
+  designed too: a black page, `#1c1c1e` fills and sheets, the plum lifted
+  to `#d9a8e6`.
+
+**Every main task is one or two taps from the club home** (the Home tab,
+which is the old Board): the bookmark card (Update my page, +1 chapter,
+I've finished), then a list - the current chapter's discussion, the next
+meetup **with RSVP on the row**, Vote for the next book, Read it, Buy this
+book, and what is locked ahead - then Who's where. Counted in the browser
+from the club home on a phone:
+
+| Task | Taps |
+|---|---|
+| Update my progress (+1 chapter) | 1 |
+| Open the bookmark sheet (chapter and page) | 1 |
+| Read the current chapter's threads | 1 |
+| Reply in the current chapter's thread (box open) | 2 |
+| RSVP to the next meetup | 1 |
+| Vote for the next book | 2 |
+| "Read it" (is there a free copy?) | 1 |
+| The book open in the reader | 2 |
+
+`chapternow` (the discussion row) only sets the Notes tab's existing
+chapter filter to the reader's own chapter and opens that tab - the server
+has already left out everything past it.
+
+**No inline style attributes.** The 129 `style="..."` the page used to
+write into markup are gone: fixed ones became `data-u` utilities in
+`app.css`; the ones worked out per reader (a place along the spine, a bar's
+width, a ribbon's colour) are `data-w/-l/-b/-h/-c/-bg` attributes that
+`dyn()` applies through the element's style object after each draw, checked
+as a number or a six-digit hex first. (The lab's CSP was not changed.)
+
+**How it is written**: the token blocks at the top of `app.css` were
+replaced (same names, so `test/run.js`'s contrast test still reads them),
+and one "Visual redesign" layer near the end overrides the rules above it.
+Markup changed in `index.html` (the nav moved into the top bar, new icons,
+labels Home / Discuss / Meet / Vote / Shelf) and in `app.js` (`viewFirst`,
+`clubHead`, `viewBoard` and its task list, `ic()`, `dyn()`, `arrive()`,
+labels). **Two assertions in `test/run.js` changed**, both pinning old
+markup: the tab buttons' `min-height: 60px` is now 48px (a slim floating
+bar), and `class="tabbar dk-tabbar"` became "the nav sits inside the top
+bar, without `dk-tabbar`, and no markup carries a style attribute".
+
+**Checked in headless Chrome over CDP**, phone first: 390 and 320 px, then
+1440 px, light and dark - the welcome view, start, join, the made-up
+club's five tabs, a four-reader club's home, threads (locked for the
+reader at chapter 3, open for the others), meetups and meeting notes, the
+vote, the shelf, the bookmark, club, meeting-note and buy sheets, "Read
+it" and the Archive's reader in its frame, and the library: 72 views. No
+console error or CSP violation, nothing past the edge at 390 or 320 px,
+no style attribute in markup. **Text contrast was measured in the
+browser** on every visible text node against the background it sits on:
+the lowest is **5.68:1 in the light theme and 5.42:1 in the dark** (4.5 is
+the floor). The run found one 41px-wide "Delete" link on a meeting note,
+since given a 44px minimum. Not measured: emoji, and whatever the Internet
+Archive draws inside its own frame.
+
 ## My library (2026-11-11)
 
 Erik asked for a personal library in the book club app, all in one round:

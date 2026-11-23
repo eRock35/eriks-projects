@@ -471,7 +471,8 @@ test('every text colour holds 4.5:1 on its surface in both themes; the hero, the
   for (const sel of ['.btn', '.btn.small', '.link-btn', '.seg button, .chip', '.input, select.input, textarea.input', '.check', 'details.more > summary', '.approve', '.crow', '.emojis button', '.stepper button', '.rsvp button']) {
     assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*(min-height|height): (4[4-9]|[5-9]\\d)px').test(css), `${sel}: 44px`);
   }
-  assert.ok(/\.tabbar button \{[^}]*min-height: 60px/.test(css) && /\.rate button \{ width: 44px; height: 44px/.test(css) && /\.reacts button \{[^}]*min-height: 44px; min-width: 44px/.test(css));
+  // The phone's bar is a slim floating one since the 2026-11-23 redesign: 48px buttons (it was a 60px full-width bar).
+  assert.ok(/\.tabbar button \{[^}]*min-height: 48px/.test(css) && /\.rate button \{ width: 44px; height: 44px/.test(css) && /\.reacts button \{[^}]*min-height: 44px; min-width: 44px/.test(css));
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
   assert.ok(/prefers-reduced-motion: reduce[\s\S]*animation: none !important; transition: none !important/.test(css));
 });
@@ -481,7 +482,9 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'no inline <script>');
   assert.ok(!/\son[a-z]+\s*=/i.test(html), 'no inline handlers');
   assert.ok(html.includes('<script src="verify-banner.js" data-mount="api/auth" defer></script>'));
-  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && /<body class="dk">/.test(html) && html.includes('class="tabbar dk-tabbar"'));
+  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && /<body class="dk">/.test(html));
+  // Since the 2026-11-23 redesign the club's navigation is one element inside the top bar - the floating bar on a phone, the top nav on a desktop - and no longer the shared sheet's left rail.
+  assert.ok(/<header class="top">[\s\S]*<nav class="tabbar" id="tabbar" aria-label="Club" hidden>[\s\S]*<\/header>/.test(html) && !html.includes('dk-tabbar') && !/ style="/.test(html + read('public/app.js')), 'the nav sits in the top bar; no markup carries a style attribute');
   assert.ok(!/(src|href)="\//.test(html), 'relative asset links only');
   const js = read('public/app.js');
   assert.ok(!/\son[a-z]+=\\?["']/.test(js), 'no handler written into markup');

@@ -125,6 +125,23 @@
     return out + '</span>';
   }
 
+  /* One icon set: 24px, a 1.5px line, drawn by stylesheet (stroke, no fill). */
+  var ICONS = {
+    chat: 'M5 5.5h14v9.5h-8.2L6.5 19v-4H5z',
+    calendar: 'M4.5 6.5h15v13h-15zM4.5 10.5h15M8.5 4v4M15.5 4v4',
+    check: 'M5 12.5l4.5 4.5L19 7.5',
+    book: 'M12 7c-2-1.4-4.8-1.9-7.5-1.5v12.5c2.7-.4 5.5.1 7.5 1.5 2-1.4 4.8-1.9 7.5-1.5V5.5C16.800 5.1 14 5.600 12 7zM12 7v12.5',
+    bag: 'M6.500 8.500h11l-.9 11H7.400zM9 8.500V7a3 3 0 016 0v1.500',
+    lock: 'M7 11h10v8.500H7zM9 11V8.500a3 3 0 016 0V11',
+    people: 'M3.500 19c0-3 2.300-5 5.500-5s5.500 2 5.500 5M9 11a3.250 3.250 0 100-6.500A3.250 3.250 0 009 11zM18 8.500v6M15 11.500h6',
+    chevron: 'M9.500 6l6 6-6 6',
+    plus: 'M12 5.500v13M5.500 12h13',
+    pin: 'M12 20.500s6-5.400 6-10a6 6 0 10-12 0c0 4.600 6 10 6 10zM12 12.500a2 2 0 100-4 2 2 0 000 4z',
+    flag: 'M6 20.500v-16M6 5h11l-2 3.500 2 3.500H6',
+    video: 'M4.500 7.500h10v9h-10zM14.500 10.500l5-2.500v8l-5-2.500',
+  };
+  function ic(name) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICONS[name] + '"/></svg>'; }
+
   function showError(err, where) {
     if (err && err.status === 402) return openCredit(err.data);
     if (err && err.status === 401) return openAccount('Sign in to keep going.');
@@ -245,7 +262,15 @@
     draw();
     if (r.view === 'home' && signedIn()) loadAccountClubs();
   }
-  window.addEventListener('hashchange', route);
+  window.addEventListener('hashchange', function () { route(); arrive(); });
+  /** The page rises in when the view changes - only then, and only where the
+   *  stylesheet allows motion. */
+  function arrive() {
+    var m = $('#main');
+    m.classList.remove('enter');
+    void m.offsetWidth;
+    m.classList.add('enter');
+  }
 
   /* ---------------- loading a club ---------------- */
 
@@ -343,31 +368,30 @@
     return '<div class="mock" aria-hidden="true"><div class="mtop"><small>The Quillfeather Readers · 6 readers</small><b>Pride and Prejudice</b></div>' +
       '<div class="mtrack">' + spineHtml(rows.map(function (r, i) { return { pct: r[1], emoji: r[0], you: Boolean(r[2]), color: BMC[i] }; }), { pct: 68.9, label: 'Thu · ch 42' }, 29.5, 'Start', 'ch 61') + '</div>' +
       '<div class="mline">Maya is 3 chapters ahead of you</div>' +
-      '<div class="mline lock">🔒 4 notes waiting past chapter 18</div>' +
+      '<div class="mline lock">4 notes waiting past chapter 18</div>' +
       '<div class="mline warn">Read 4 chapters a day to reach chapter 42 by Thu</div></div>';
   }
   function viewFirst() {
-    return '<section class="hero panel"><div class="panel-fx" aria-hidden="true"></div><div class="hero-grid"><div>' +
-      '<p class="kicker">Book club · no accounts</p><h1>A book club that keeps up - and never spoils the ending.</h1>' +
-      '<p>See who has read how far, leave notes that stay locked until each reader reaches that chapter, plan the meetup and vote on what’s next. Free, no accounts, no app to install.</p>' +
-      '<div class="cta"><button class="btn big white" type="button" data-act="try">Try it</button><button class="btn big line" type="button" data-act="startform">Start a club</button><button class="btn big line" type="button" data-act="joinform">Join with a code</button></div>' +
-      '<p class="small" data-u="margin-14px-0-0"><button class="link-btn hero-link" type="button" data-act="library">📚 Or keep a library of your own books →</button></p>' +
-      '</div>' + mockBoard() + '</div></section>' +
-      '<section data-u="margin-top-22px"><h2>Every club has the same three problems</h2><div class="grid three">' +
-      '<div class="card problem"><span class="q">“Who’s read how far?”</span><p class="muted small" data-u="margin-0">Half the club is on chapter 30, someone hasn’t started, and the meeting is Thursday.</p><span class="a">A board of bookmarks: who’s where, and how much a day gets you there.</span></div>' +
-      '<div class="card problem"><span class="q">The spoiler in the group chat</span><p class="muted small" data-u="margin-0">The fast reader can’t help it, and the twist is gone for everyone else.</p><span class="a">Notes tagged by chapter - locked until you’ve read that far.</span></div>' +
-      '<div class="card problem"><span class="q">The endless “what next?” thread</span><p class="muted small" data-u="margin-0">Forty messages, three polls and nobody sure what won.</p><span class="a">Nominate, tap every book you’d read - a clear winner, and the tie-break shown.</span></div>' +
+    return '<section class="hero"><h1>Read together.</h1>' +
+      '<p class="lead">A book club that keeps up - and never spoils the ending.</p>' +
+      '<div class="cta"><button class="btn big" type="button" data-act="startform">Start a club</button><button class="btn big soft" type="button" data-act="joinform">Join with a code</button></div>' +
+      '<p class="hero-more"><button class="link-btn" type="button" data-act="try">Try the example club</button><button class="link-btn" type="button" data-act="library">Keep my own library</button></p>' +
+      '</section>' + mockBoard() +
+      '<section class="band"><h2>Every club has the same three problems</h2><div class="grid three">' +
+      '<div class="problem"><span class="q">“Who’s read how far?”</span><p class="muted small">Half the club is on chapter 30, someone hasn’t started, and the meeting is Thursday.</p><span class="a">A board of bookmarks: who’s where, and how much a day gets you there.</span></div>' +
+      '<div class="problem"><span class="q">The spoiler in the group chat</span><p class="muted small">The fast reader can’t help it, and the twist is gone for everyone else.</p><span class="a">Threads by chapter - locked until you’ve read that far.</span></div>' +
+      '<div class="problem"><span class="q">The endless “what next?” thread</span><p class="muted small">Forty messages, three polls and nobody sure what won.</p><span class="a">Nominate, tap every book you’d read - a clear winner, and the tie-break shown.</span></div>' +
       '</div></section>' +
-      '<section class="card" data-u="margin-top-14px"><h2>How it works</h2><ol class="how">' +
+      '<section class="band"><h2>How it works</h2><ol class="how">' +
       '<li><div><b>Start a club</b> with the book and how many chapters it has.<br><span class="muted small">Chapters are the same in every edition; pages are not.</span></div></li>' +
       '<li><div><b>Share the code</b> in your group chat. Friends join with a first name and an emoji - no account, no app.</div></li>' +
-      '<li><div><b>Move your bookmark</b> as you read. Notes unlock as you catch up, and the board shows the meeting as the finish line.</div></li></ol></section>' +
-      '<section data-u="margin-top-14px"><div class="grid two">' +
-      '<div class="card feat"><span class="ic">📅</span><b>Meetups</b><span class="muted small">Date, place or call link, RSVPs, and one tap into your calendar.</span></div>' +
-      '<div class="card feat"><span class="ic">💬</span><b>Discussion questions</b><span class="muted small">Members add their own, by chapter, under the same spoiler rule. Signed in, AI can suggest a few.</span></div>' +
-      '<div class="card feat"><span class="ic">📚</span><b>The shelf</b><span class="muted small">Every book you’ve read together, each reader’s stars and the club average.</span></div>' +
-      '<div class="card feat"><span class="ic">🖼️</span><b>A card to share</b><span class="muted small">“Our club finished it - 4.2★ avg”, drawn on your phone.</span></div>' +
-      '</div><p class="small muted center" data-u="margin-top-14px">The club is kept on the lab’s server under a code; this phone holds your key. A club nobody opens for 120 days is deleted. Signing in is optional.</p></section>';
+      '<li><div><b>Move your bookmark</b> as you read. Threads unlock as you catch up, and the board shows the meeting as the finish line.</div></li></ol></section>' +
+      '<section class="band"><h2>Also in every club</h2><div class="grid two feats">' +
+      '<div class="feat">' + ic('calendar') + '<b>Meetups</b><span class="muted small">Date, place or call link, RSVPs, meeting notes, and one tap into your calendar.</span></div>' +
+      '<div class="feat">' + ic('chat') + '<b>Discussion questions</b><span class="muted small">Members add their own, by chapter, under the same spoiler rule. Signed in, AI can suggest a few.</span></div>' +
+      '<div class="feat">' + ic('book') + '<b>Read it, or buy it</b><span class="muted small">A free public-domain copy opens right here when one exists; otherwise, where to borrow or buy.</span></div>' +
+      '<div class="feat">' + ic('check') + '<b>The vote and the shelf</b><span class="muted small">Pick the next book together; every book you finish keeps its stars and the club average.</span></div>' +
+      '</div><p class="small muted center fine">The club is kept on the lab’s server under a code; this phone holds your key. A club nobody opens for 120 days is deleted. Signing in is optional.</p></section>';
   }
 
   function viewHome() {
@@ -493,13 +517,10 @@
   /* ---- a club ---- */
 
   function clubHead(v) {
-    var demoBar = isDemo() ? '<div class="ribbon"><span>✨ The made-up club - every tap works, nothing is saved.</span><span class="row"><button class="btn small" type="button" data-act="startform">Start my own</button><button class="btn small ghost" type="button" data-act="tryleave">Leave</button></span></div>' : '';
+    var demoBar = isDemo() ? '<div class="ribbon"><span>The made-up club - every tap works, nothing is saved.</span><span class="row"><button class="btn small" type="button" data-act="startform">Start my own</button><button class="btn small ghost" type="button" data-act="tryleave">Leave</button></span></div>' : '';
     var off = state.offline ? '<div class="offline-bar" role="status">You’re offline - this is the club as of ' + esc(new Date(state.offlineAt || now()).toLocaleTimeString(LOCALE, { hour: 'numeric', minute: '2-digit' })) + '. Moving your bookmark, notes and votes need the internet.</div>' : '';
-    var me = myRow(v), unit = v.book.unit === 'ch' ? 'CH' : 'P.';
-    var readout = me ? '<p class="readout">' + (me.done ? '<b>FINISHED</b> · ' + unit + ' ' + esc(v.book.total) + ' / ' + esc(v.book.total) : '<b>' + unit + ' ' + esc(me.pos) + '</b> / ' + esc(v.book.total) + ' · ' + esc(Math.round(me.pct)) + '%') + '</p>' : '';
-    return demoBar + off + '<section class="panel club-head"><div class="panel-fx" aria-hidden="true"></div><div class="ch-main"><p class="kicker">' + esc(v.name) + '</p><h1>' + esc(v.book.title) + '</h1>' + (v.book.author ? '<p class="by">by ' + esc(v.book.author) + '</p>' : '') + readout + '</div>' +
-      '<button class="btn small ghost" type="button" data-act="clubsheet">' + (v.host ? '⚙ Club & invite' : 'Club & invite') + '</button>' +
-      (me ? '<div class="meter" aria-hidden="true"><i data-w="' + (me.done ? 100 : me.pct) + '"></i></div>' : '') + '</section>';
+    return demoBar + off + '<header class="pagehead"><div class="ph-main"><p class="eyebrow">' + esc(v.name) + '</p><h1>' + esc(v.book.title) + '</h1>' + (v.book.author ? '<p class="muted by">by ' + esc(v.book.author) + '</p>' : '') + '</div>' +
+      '<button class="btn small ghost" type="button" data-act="clubsheet">' + ic('people') + '<span>Club</span></button></header>';
   }
   function viewClub() {
     var v = V();
@@ -533,25 +554,44 @@
   function colorOf(v, id) { var i = v.members.map(function (m) { return m.id; }).indexOf(id); return BMC[(i < 0 ? 0 : i) % BMC.length]; }
   function viewBoard(v) {
     var B = v.board, book = v.book, me = myRow(v);
-    var nudgeIc = { behind: '⏳', late: '⏰', 'on-track': '✅', ready: '🎯', done: '🎉', none: '📖' };
     var finish = B.finish ? { pct: B.finish.pct, label: B.finish.label.charAt(0).toUpperCase() + B.finish.label.slice(1) + ' · ' + C.atShort(book, B.finish.at) } : null;
     var marks = B.rows.map(function (r) { return { pct: r.pct, emoji: r.emoji, you: r.you, color: colorOf(v, r.id) }; });
     var party = '';
     if (B.allDone) {
       var first = !state.partied[v.id + book.id];
       state.partied[v.id + book.id] = true;
-      party = '<div class="party panel"><div class="panel-fx" aria-hidden="true"></div>' + (first ? '<div class="confetti" aria-hidden="true">🎉📚🎉</div>' : '') + '<h2>Everyone has finished ' + esc(book.title) + '</h2><p>' + (book.avg ? 'The club average so far: ' + esc(book.avg.toFixed(1)) + '★ from ' + esc(plural(book.rated, 'rating')) + '.' : 'Rate it, then pick what’s next.') + '</p>' +
-        '<div class="row" data-u="justify-content-center"><button class="btn white" type="button" data-act="card" data-id="' + esc(book.id) + '">Share card</button><button class="btn white" type="button" data-act="tab" data-tab="next">What’s next</button></div></div>';
+      party = '<div class="party">' + (first ? '<div class="confetti" aria-hidden="true">🎉📚🎉</div>' : '') + '<h2>Everyone has finished ' + esc(book.title) + '</h2><p>' + (book.avg ? 'The club average so far: ' + esc(book.avg.toFixed(1)) + '★ from ' + esc(plural(book.rated, 'rating')) + '.' : 'Rate it, then pick what’s next.') + '</p>' +
+        '<div class="row" data-u="justify-content-center"><button class="btn" type="button" data-act="tab" data-tab="next">Vote for the next book</button><button class="btn soft" type="button" data-act="card" data-id="' + esc(book.id) + '">Share card</button></div></div>';
     }
-    var where = me ? '<div class="card"><div class="where"><div><p class="lab" data-u="margin-0">Your bookmark</p><div class="big">' + (me.done ? 'Finished 🎉' : me.pos ? esc(C.atLabel(book, me.pos).replace(/^./, function (c) { return c.toUpperCase(); })) : 'Not started') + '</div><span class="of">' + (me.done ? 'of ' + esc(book.title) : 'of ' + esc(C.units(book, book.total)) + (me.pos && me.alt ? ' · ' + esc(C.altShort(book, me.alt)) + ' in your copy' : '')) + '</span></div>' +
-      '<button class="btn" type="button" data-act="progress">Update</button></div>' +
-      (me.done ? '' : '<div class="row" data-u="margin-top-10px"><button class="btn small soft" type="button" data-act="plus1">+1 ' + esc(C.unitWord(book, 1)) + '</button><button class="btn small ghost" type="button" data-act="finished">I’ve finished</button></div>') +
-      (me.done ? '<div data-u="margin-top-10px"><p class="lab" data-u="margin-0-0-4px">Your rating</p>' + rateHtml(book.id, book.myRating) + '</div>' : '') + '</div>' : '';
-    var nudge = B.nudge ? '<div class="nudge ' + esc(B.nudge.kind) + '" role="status"><span class="ic" aria-hidden="true">' + esc(nudgeIc[B.nudge.kind] || '📖') + '</span><span>' + esc(B.nudge.line) + '</span></div>' : '';
-    var locked = v.locked.total ? '<button class="crow" type="button" data-act="tab" data-tab="notes" data-u="margin-top-0"><span class="tile">🔒</span><span><b>' + esc(C.lockedLine(v.locked, book)) + '</b><small>They unlock as you read on.</small></span><span aria-hidden="true">›</span></button>' : '';
+    var pos = me ? (me.done ? book.total : me.pos) : 0;
+    var where = me ? '<section class="card mark"><p class="eyebrow">Your bookmark</p><div class="big">' + (me.done ? 'Finished' : me.pos ? esc(cap(C.atLabel(book, me.pos))) : 'Not started') + '</div>' +
+      '<p class="of">' + (me.done ? 'All of ' + esc(book.title) : 'of ' + esc(C.units(book, book.total)) + (me.pos && me.alt ? ' · ' + esc(C.altShort(book, me.alt)) + ' in your copy' : '')) + '</p>' +
+      '<div class="meter" aria-hidden="true"><i data-w="' + (me.done ? 100 : me.pct) + '"></i></div>' +
+      '<div class="actions"><button class="btn" type="button" data-act="progress">Update my page</button>' + (me.done ? '' : '<button class="btn soft" type="button" data-act="plus1">+1 ' + esc(C.unitWord(book, 1)) + '</button><button class="btn ghost" type="button" data-act="finished">I’ve finished</button>') + '</div>' +
+      (me.done ? '<div class="myrate"><p class="eyebrow">Your rating</p>' + rateHtml(book.id, book.myRating) + '</div>' : '') + '</section>' : '';
+    var nudge = B.nudge ? '<p class="nudge ' + esc(B.nudge.kind) + '" role="status">' + esc(B.nudge.line) + '</p>' : '';
+    // The things a reader comes here to do, each one tap away.
+    // (Both lines arrive here already escaped by the caller.)
+    function task(act, attrs, icon, titleHtml, subHtml) {
+      return '<button class="task" type="button" data-act="' + act + '"' + attrs + '>' + ic(icon) + '<span class="t-main"><b>' + titleHtml + '</b><small>' + subHtml + '</small></span>' + ic('chevron') + '</button>';
+    }
+    var here = v.notes.filter(function (n) { return n.at === pos; }).length;
+    var talk = task('chapternow', '', 'chat', pos ? esc(cap(C.atLabel(book, pos))) + ' discussion' : 'Discussion',
+      pos ? (here ? esc(plural(here, 'thread')) + ' here · read or reply' : 'No threads here yet · start a thread') + (v.locked.total ? ' · ' + esc(v.locked.total) + ' locked ahead' : '') : 'Set your bookmark to open the threads');
     var meet = v.meetings.filter(function (m) { return !m.past; })[0];
-    var meetCard = meet ? '<button class="crow" type="button" data-act="tab" data-tab="meet"><span class="tile">📅</span><span><b>' + esc(cap(C.dayLabel(meet.date, today(), LOCALE))) + (meet.time ? ' · ' + esc(C.timeLabel(meet.time, LOCALE)) : '') + '</b><small>' + esc(meet.place || (meet.link ? 'Video call' : 'Meeting')) + ' · read to ' + esc(C.atLabel(book, meet.target)) + ' · ' + esc(meet.rsvps.yes.length) + ' going</small></span><span aria-hidden="true">›</span></button>' :
-      (v.host ? '<button class="crow" type="button" data-act="meetform"><span class="tile">📅</span><span><b>Plan the meeting</b><small>It becomes the finish line on this board.</small></span><span aria-hidden="true">›</span></button>' : '');
+    var meetRow = meet ? '<div class="task-group">' + task('tab', ' data-tab="meet"', 'calendar', 'Next meetup · ' + esc(cap(C.dayLabel(meet.date, today(), LOCALE))) + (meet.time ? ', ' + esc(C.timeLabel(meet.time, LOCALE)) : ''),
+      esc(meet.place || (meet.link ? 'Video call' : 'Meeting')) + ' · read to ' + esc(C.atLabel(book, meet.target)) + ' · ' + esc(meet.rsvps.yes.length) + ' going') +
+      '<div class="rsvp-line"><span class="eyebrow">RSVP</span><div class="rsvp" role="group" aria-label="RSVP">' + ['yes', 'maybe', 'no'].map(function (a) {
+        return '<button type="button" data-act="rsvp" data-id="' + esc(meet.id) + '" data-a="' + a + '" aria-pressed="' + (meet.mine === a ? 'true' : 'false') + '">' + { yes: 'Going', maybe: 'Maybe', no: 'Can’t' }[a] + '</button>';
+      }).join('') + '</div></div></div>' :
+      (v.host ? task('meetform', '', 'calendar', 'Plan a meetup', 'It becomes the finish line on the board.') : '');
+    var vt = v.vote, won = vt.closed ? vt.noms.filter(function (n) { return n.id === vt.closed.winner; })[0] : null;
+    var voteRow = task('tab', ' data-tab="next"', 'check', 'Vote for the next book',
+      vt.closed ? 'The vote is in' + (won ? ': ' + esc(won.title) : '') : vt.noms.length ? esc(vt.voted) + ' of ' + esc(vt.of) + ' have voted' + (vt.mine.length ? ' · you’ve voted' : '') : 'Nothing nominated yet · add a book');
+    var readRow = task('read', '', 'book', 'Read it', 'Free here when a public-domain copy exists');
+    var buyRow = task('buy', '', 'bag', 'Buy this book', 'Opens a store’s own page in a new tab');
+    var locked = v.locked.total ? task('tab', ' data-tab="notes"', 'lock', esc(C.lockedLine(v.locked, book)), 'They unlock as you read on.') : '';
+    var tasks = '<nav class="card tasks" aria-label="In this club">' + talk + meetRow + voteRow + readRow + buyRow + locked + '</nav>';
     var list = B.rows.map(function (r) {
       var alt = !r.done && r.pos && r.alt ? '<small>' + esc(C.altShort(book, r.alt)) + '</small>' : '';
       return '<div class="mrow' + (r.you ? ' you' : '') + '"><span class="av" data-bg="' + esc(colorOf(v, r.id)) + '">' + esc(r.emoji) + '</span><div data-u="min-width-0"><span class="nm">' + esc(r.name) + '</span>' + (r.host ? ' <span class="pill t-host">Host</span>' : '') +
@@ -560,21 +600,21 @@
     // Where's everyone, at a glance (older saved views have none: skip it).
     var G = B.glance, glance = '';
     if (G && B.rows.length > 1) {
-      var chips = [[G.finished, '🏁', 'finished'], [G.ahead, '⬆', 'ahead of you'], [G.same, '＝', 'with you'], [G.behind, '⬇', 'behind you'], [G.notStarted, '💤', 'not started']]
-        .filter(function (c) { return c[0]; }).map(function (c) { return '<span><i aria-hidden="true">' + c[1] + '</i> <b>' + esc(c[0]) + '</b> ' + c[2] + '</span>'; }).join('');
+      var chips = [[G.finished, '', 'finished'], [G.ahead, '', 'ahead of you'], [G.same, '', 'with you'], [G.behind, '', 'behind you'], [G.notStarted, '', 'not started']]
+        .filter(function (c) { return c[0]; }).map(function (c) { return '<span><b>' + esc(c[0]) + '</b> ' + c[2] + '</span>'; }).join('');
       glance = '<div class="glance">' + chips + '</div>' + (G.line ? '<p class="small muted" data-u="margin-6px-0-0">' + esc(G.line) + '</p>' : '');
     }
     var summary = B.finish ? plural(B.ready, 'reader') + ' of ' + B.rows.length + ' ready for ' + C.atShort(book, B.finish.at) : plural(B.finished, 'reader') + ' of ' + B.rows.length + ' finished';
-    return '<div class="grid split">' +
-      '<div class="stack">' + party + nudge + where + '<div class="card"><div class="sec-head"><h2>Who’s where</h2><span class="small muted">' + esc(summary) + '</span></div>' +
+    return '<div class="grid split home">' +
+      '<div class="stack">' + party + where + nudge + tasks + '</div>' +
+      '<div class="stack"><section class="card"><div class="sec-head"><h2>Who’s where</h2><span class="small muted">' + esc(summary) + '</span></div>' +
       (B.headline ? '<p class="headline">' + esc(B.headline) + '</p>' : '') + glance +
-      spineHtml(marks, finish, me ? me.pct : null, 'Start', C.atShort(book, book.total)) + '<div data-u="margin-top-8px">' + list + '</div></div></div>' +
-      '<div class="stack">' + meetCard + locked + bookCard() + inviteMini(v) + '</div></div>';
+      spineHtml(marks, finish, me ? me.pct : null, 'Start', C.atShort(book, book.total)) + '<div class="readers">' + list + '</div></section>' + inviteMini(v) + '</div></div>';
   }
   /** Read it (free, where a legal copy exists) and buy it (a store's own page). */
   function bookCard() {
-    return '<div class="card"><p class="lab">The book</p><div class="row"><button class="btn soft" type="button" data-act="read">📖 Read it</button><button class="btn ghost" type="button" data-act="buy">🛒 Buy this book</button></div>' +
-      '<p class="small muted" data-u="margin-10px-0-0">Free to read here when a public-domain copy exists. Otherwise: where to borrow or buy it.</p></div>';
+    return '<div class="card"><p class="eyebrow">The book</p><div class="row"><button class="btn soft" type="button" data-act="read">Read it</button><button class="btn ghost" type="button" data-act="buy">Buy this book</button></div>' +
+      '<p class="small muted">Free to read here when a public-domain copy exists. Otherwise: where to borrow or buy it.</p></div>';
   }
   function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
   function inviteMini(v) {
@@ -608,7 +648,7 @@
     }).join('');
     var box = state.replyTo === n.id
       ? '<form class="reply-form" data-re="' + esc(n.id) + '"><label class="field"><span class="vh">Your reply</span><textarea class="input" maxlength="' + C.LIMITS.reply + '" placeholder="Reply - seen by the same readers as the note">' + esc(state.replyText) + '</textarea></label><div class="rerr"></div><div class="row"><button class="btn small" type="submit">Reply</button><button class="btn small ghost" type="button" data-act="replycancel">Cancel</button></div></form>'
-      : '<button class="link-btn" type="button" data-act="reply" data-id="' + esc(n.id) + '">💬 ' + (rs.length ? 'Reply' : 'Reply to start a thread') + '</button>';
+      : '<button class="link-btn" type="button" data-act="reply" data-id="' + esc(n.id) + '">' + (rs.length ? 'Reply' : 'Start a thread') + '</button>';
     return '<div class="thread">' + (rs.length ? '<p class="th-count">' + esc(plural(rs.length, 'reply', 'replies')) + '</p>' : '') + list + box + '</div>';
   }
   function noteHtml(n, book, v, grouped) {
@@ -629,7 +669,7 @@
   function lockedHtml(v) {
     var L = v.locked, book = v.book;
     if (!L.total) return '';
-    return '<div class="locked" role="status"><b>🔒 ' + esc(C.lockedLine(L, book)) + '</b><span class="chips">' + L.chapters.map(function (c) { return '<span>' + esc(C.atShort(book, c[0])) + ' · ' + esc(c[1]) + '</span>'; }).join('') + '</span>' +
+    return '<div class="locked" role="status"><b>' + ic('lock') + '<span>' + esc(C.lockedLine(L, book)) + '</span></b><span class="chips">' + L.chapters.map(function (c) { return '<span>' + esc(C.atShort(book, c[0])) + ' · ' + esc(c[1]) + '</span>'; }).join('') + '</span>' +
       '<span class="small">Only readers who have reached each one can see it - nobody’s text is sent to this phone until you get there.</span><button class="btn small" type="button" data-act="progress" data-u="justify-self-start">I’ve read further</button></div>';
   }
   function viewNotes(v) {
@@ -646,7 +686,7 @@
     var chooser = book.unit === 'ch'
       ? '<select class="input" id="cAt" aria-label="Which chapter it is about">' + Array.from({ length: Math.max(pos, 1) }, function (_, i) { return '<option value="' + (i + 1) + '"' + (i + 1 === at ? ' selected' : '') + '>Chapter ' + (i + 1) + '</option>'; }).reverse().join('') + '</select>'
       : '<input class="input" id="cAt" type="number" min="1" max="' + Math.max(pos, 1) + '" value="' + at + '" inputmode="numeric" aria-label="Which page it is about">';
-    var compose = pos ? '<form class="card compose" id="compose"><div class="seg" role="group" aria-label="What kind"><button type="button" data-kind="note" aria-pressed="' + (cm.kind === 'note') + '">💬 Note</button><button type="button" data-kind="question" aria-pressed="' + (cm.kind === 'question') + '">❓ Question</button></div>' +
+    var compose = pos ? '<form class="card compose" id="compose"><div class="seg" role="group" aria-label="What kind"><button type="button" data-kind="note" aria-pressed="' + (cm.kind === 'note') + '">Note</button><button type="button" data-kind="question" aria-pressed="' + (cm.kind === 'question') + '">Question</button></div>' +
       '<label class="field"><span class="vh">Your ' + (cm.kind === 'question' ? 'question' : 'note') + '</span><textarea class="input" id="cText" maxlength="' + max + '" placeholder="' + (cm.kind === 'question' ? 'What should the club talk about?' : 'A reaction, a thought - no need to quote the book') + '">' + esc(cm.text) + '</textarea></label>' +
       '<div class="row spread"><label class="field" data-u="flex-1-1-180px"><span class="small">About</span>' + chooser + '</label><span class="count" id="cCount">' + Array.from(cm.text).length + ' / ' + max + '</span></div>' +
       '<p class="small muted" data-u="margin-0">Only readers who have reached ' + esc(C.atLabel(book, at)) + ' will see it.</p><div id="cErr"></div>' +
@@ -668,11 +708,11 @@
       return '<button type="button" data-act="rsvp" data-id="' + esc(m.id) + '" data-a="' + a + '" aria-pressed="' + (m.mine === a ? 'true' : 'false') + '">' + label + '<small>' + esc(m.rsvps[a].length) + '</small></button>';
     }).join('');
     var who = ['yes', 'maybe', 'no'].filter(function (a) { return m.rsvps[a].length; }).map(function (a) { return '<b>' + { yes: 'Going', maybe: 'Maybe', no: 'Can’t make it' }[a] + ':</b> ' + esc(C.nameList(m.rsvps[a])); }).join(' · ');
-    return '<div class="card stack"><div><p class="lab" data-u="margin-0">' + (m.past ? 'Past meeting' : big ? 'Next meeting' : 'Meeting') + '</p><div class="meet-big">' + esc(when) + '</div>' + (big && m.time ? '<div class="meet-time">' + esc(C.timeLabel(m.time, LOCALE)) + '</div>' : '') + '</div>' + tzNote +
-      (m.place ? '<div class="meet-line">📍 <span>' + esc(m.place) + '</span> <a href="' + esc(C.mapLink(m.place)) + '" target="_blank" rel="noopener noreferrer">Map</a></div>' : '') +
-      (m.link ? '<div class="meet-line">🎥 <a href="' + esc(m.link) + '" target="_blank" rel="noopener noreferrer">Join the call</a></div>' : '') +
-      '<div class="meet-line">🏁 <span>Read to <b>' + esc(C.atLabel(book, m.target)) + '</b>' + (m.target >= book.total ? ' (the end)' : '') + '</span></div>' +
-      (m.past ? '' : '<div class="rsvp" role="group" aria-label="Are you going?">' + rs + '</div>') + (who ? '<p class="who-list" data-u="margin-0">' + who + '</p>' : '') + meetingNotesHtml(m, v) +
+    return '<div class="card stack"><div><p class="lab" data-u="margin-0">' + (m.past ? 'Past meetup' : big ? 'Next meetup' : 'Meetup') + '</p><div class="meet-big">' + esc(when) + '</div>' + (big && m.time ? '<div class="meet-time">' + esc(C.timeLabel(m.time, LOCALE)) + '</div>' : '') + '</div>' + tzNote +
+      (m.place ? '<div class="meet-line">' + ic('pin') + '<span>' + esc(m.place) + '</span> <a href="' + esc(C.mapLink(m.place)) + '" target="_blank" rel="noopener noreferrer">Map</a></div>' : '') +
+      (m.link ? '<div class="meet-line">' + ic('video') + '<a href="' + esc(m.link) + '" target="_blank" rel="noopener noreferrer">Join the call</a></div>' : '') +
+      '<div class="meet-line">' + ic('flag') + '<span>Read to <b>' + esc(C.atLabel(book, m.target)) + '</b>' + (m.target >= book.total ? ' (the end)' : '') + '</span></div>' +
+      (m.past ? '' : '<p class="eyebrow rsvp-lab">RSVP</p><div class="rsvp" role="group" aria-label="RSVP">' + rs + '</div>') + (who ? '<p class="who-list" data-u="margin-0">' + who + '</p>' : '') + meetingNotesHtml(m, v) +
       '<div class="row">' + (m.past ? '' : '<button class="btn small ghost" type="button" data-act="ics" data-id="' + esc(m.id) + '">Add to calendar</button>') +
       (v.host ? '<button class="btn small ghost" type="button" data-act="meetedit" data-id="' + esc(m.id) + '">Edit</button><button class="link-btn danger" type="button" data-act="meetdel" data-id="' + esc(m.id) + '">Remove</button>' : '') + '</div></div>';
   }
@@ -685,9 +725,9 @@
       return '<div class="mn' + (n.decision ? ' dec' : '') + '" data-nt="' + esc(n.id) + '">' + (n.decision ? '<span class="pill t-ok">✓ Decided</span>' : '<span class="pill t-host">Discussed</span>') +
         '<p class="tx">' + esc(n.text) + '</p><small>' + esc(n.own ? 'You' : n.name) + ' · ' + esc(C.atShort(book, n.at)) + (n.canRemove ? ' · <button class="link-btn" type="button" data-act="delnote" data-id="' + esc(n.id) + '">' + (n.own ? 'Delete' : 'Remove') + '</button>' : '') + '</small></div>';
     }).join('');
-    var locked = L.total ? '<p class="mn-lock">🔒 ' + esc(plural(L.total, 'meeting note')) + ' waiting past ' + esc(myPos(v) ? C.atLabel(book, myPos(v)) : 'the start') + ' <span class="chips">' + L.chapters.map(function (c) { return '<span>' + esc(C.atShort(book, c[0])) + ' · ' + esc(c[1]) + '</span>'; }).join('') + '</span></p>' : '';
+    var locked = L.total ? '<p class="mn-lock">' + ic('lock') + '<span>' + esc(plural(L.total, 'meeting note')) + ' waiting past ' + esc(myPos(v) ? C.atLabel(book, myPos(v)) : 'the start') + '</span><span class="chips">' + L.chapters.map(function (c) { return '<span>' + esc(C.atShort(book, c[0])) + ' · ' + esc(c[1]) + '</span>'; }).join('') + '</span></p>' : '';
     return '<div class="mnotes"><p class="lab" data-u="margin-0">Meeting notes</p>' + (rows || locked ? rows + locked : '<p class="small muted" data-u="margin-0">' + (m.past ? 'Nothing written down yet.' : 'What you talk about and decide goes here - during the meeting or after.') + '</p>') +
-      '<button class="btn small soft" type="button" data-act="mnote" data-id="' + esc(m.id) + '" data-u="justify-self-start">＋ Add a meeting note</button></div>';
+      '<button class="btn small soft" type="button" data-act="mnote" data-id="' + esc(m.id) + '" data-u="justify-self-start">Add a meeting note</button></div>';
   }
   function openMeetingNote(id) {
     var v = V(), book = v.book, pos = myPos(v);
@@ -735,8 +775,8 @@
     if (vt.closed) {
       var w = vt.noms.filter(function (n) { return n.id === vt.closed.winner; })[0];
       var max = Math.max.apply(null, vt.noms.map(function (n) { return n.votes || 0; }).concat([1]));
-      head = '<div class="winner panel"><div class="panel-fx" aria-hidden="true"></div><p class="kicker">The vote is in</p><h2>📖 ' + esc(w ? w.title : 'The winner') + '</h2><p data-u="margin-0-0-12px">' + esc(vt.closed.line) + '</p>' +
-        (v.host ? '<div class="row"><button class="btn white" type="button" data-act="startnext">Start ' + esc(w ? w.title : 'it') + '</button><button class="btn line" type="button" data-act="reopen">Re-open the vote</button></div>' : '<p class="small" data-u="margin-0">The host starts the next book when the club is ready.</p>') + '</div>' +
+      head = '<div class="winner"><p class="eyebrow">The vote is in</p><h2>' + esc(w ? w.title : 'The winner') + '</h2><p data-u="margin-0-0-12px">' + esc(vt.closed.line) + '</p>' +
+        (v.host ? '<div class="row"><button class="btn" type="button" data-act="startnext">Start ' + esc(w ? w.title : 'it') + '</button><button class="btn soft" type="button" data-act="reopen">Re-open the vote</button></div>' : '<p class="small" data-u="margin-0">The host starts the next book when the club is ready.</p>') + '</div>' +
         '<div class="card">' + vt.noms.slice().sort(function (a, b) { return (b.votes || 0) - (a.votes || 0); }).map(function (n) {
           return '<div data-u="padding-8px-0"><div class="row spread"><b>' + esc(n.title) + '</b><span class="num">' + esc(plural(n.votes || 0, 'vote')) + '</span></div><div class="vbar"><i data-w="' + Math.round(((n.votes || 0) / max) * 100) + '"></i></div></div>';
         }).join('') + '</div>';
@@ -748,7 +788,7 @@
         (n.mine ? '<button class="link-btn small" type="button" data-act="unnom" data-id="' + esc(n.id) + '">Take it off</button>' : v.host ? '<button class="link-btn small" type="button" data-act="unnom" data-id="' + esc(n.id) + '">Remove</button>' : '') + '</div>' +
         '<button class="approve" type="button" data-act="approve" data-id="' + esc(n.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? '✓ I’d read it' : 'I’d read it') + '</button></div>';
     }).join('') : '<p class="muted" data-u="margin-0">Nothing nominated yet. What should the club read next?</p>';
-    head = '<div class="card"><div class="sec-head"><h2>What’s next?</h2><span class="small muted">' + esc(vt.voted) + ' of ' + esc(vt.of) + ' have voted</span></div>' +
+    head = '<div class="card"><div class="sec-head"><h2>Vote for the next book</h2><span class="small muted">' + esc(vt.voted) + ' of ' + esc(vt.of) + ' have voted</span></div>' +
       '<p class="small muted">Tap every book you’d happily read. The most taps wins; a tie goes to the book nominated first. Counts stay hidden until the host closes the vote, so nobody follows the crowd.</p>' + noms +
       (v.host && vt.noms.length ? '<button class="btn block" type="button" data-act="closevote" data-u="margin-top-12px"' + (vt.voted ? '' : ' disabled') + '>Close the vote and see the winner</button>' : '') + '</div>';
     return '<div class="grid split"><div class="stack">' + head + nominateForm(v) + '</div><div class="stack">' + nextSide(v) + '</div></div>';
@@ -757,7 +797,7 @@
     var mine = v.vote.noms.filter(function (n) { return n.mine; }).length;
     if (mine >= C.LIMITS.nomsPerMember) return '<div class="card"><p class="small muted" data-u="margin-0">You’ve nominated ' + C.LIMITS.nomsPerMember + '. Take one off to add another.</p></div>';
     if (v.vote.noms.length >= C.LIMITS.noms) return '';
-    return '<button class="btn soft block" type="button" data-act="nominate">＋ Nominate a book</button>';
+    return '<button class="btn soft block" type="button" data-act="nominate">Nominate a book</button>';
   }
   function openNominate() {
     sheet('<h2>Nominate a book</h2><p class="small muted">Everyone taps every book they’d happily read. You can put up ' + C.LIMITS.nomsPerMember + '.</p><form class="fields" id="nomForm" autocomplete="off">' +
@@ -889,7 +929,7 @@
       '<p class="center" id="pUnlock" data-u="font-weight-800-min-height-1-5em-margin-6px-0"></p>' +
       '<label class="field"><span>' + (book.unit === 'ch' ? 'Page in your copy' : 'Chapter') + ' <small class="hint">(optional - shown beside your bookmark)</small></span><input class="input" id="pAlt" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="' + esc(me && me.alt ? me.alt : '') + '"></label>' +
       '<p class="small muted" data-u="margin-6px-0-0">' + (book.unit === 'ch' ? 'Notes unlock by chapter, because pages differ between editions. The page is only for the board.' : 'Notes unlock by page. The chapter is only for the board.') + '</p><div id="pErr"></div>' +
-      '<div class="row"><button class="btn big" type="button" id="pSave" data-u="flex-1-1-160px">Save</button><button class="btn big ghost" type="button" id="pDone" data-u="flex-1-1-160px">Finished 🎉</button></div>',
+      '<div class="row"><button class="btn big" type="button" id="pSave" data-u="flex-1-1-160px">Save</button><button class="btn big ghost" type="button" id="pDone" data-u="flex-1-1-160px">I’ve finished</button></div>',
     function (root) {
       var cur = val;
       function show() {
@@ -1012,7 +1052,7 @@
   function bookmarkWord(v) { var me = myRow(v), book = v.book; return !me ? '' : me.done ? 'Finished' : me.pos ? cap(C.atLabel(book, me.pos)) : 'Not started'; }
   function outLinks(list) {
     return list.map(function (l) {
-      return '<a class="crow out" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer"><span class="tile" aria-hidden="true">' + ({ bookshop: '🏪', bn: '📗', amazon: '📦', library: '🏛️', gutenberg: '📜', standard: '📘', openlibrary: '📚' }[l.id] || '🔗') + '</span><span><b>' + esc(l.name) + '</b><small>' + esc(l.note) + '</small></span><span aria-hidden="true">↗</span></a>';
+      return '<a class="crow out" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer"><span class="tile" aria-hidden="true">' + ic(/^(library|gutenberg|standard|openlibrary)$/.test(l.id) ? 'book' : 'bag') + '</span><span><b>' + esc(l.name) + '</b><small>' + esc(l.note) + '</small></span><span aria-hidden="true">↗</span></a>';
     }).join('');
   }
   function openBuy() {
@@ -1027,7 +1067,7 @@
     var v = V(), book = v.book;
     sheet('<h2>Read ' + esc(book.title) + '</h2><div id="rdSlot"><p class="muted">Looking for a copy you can read for free…</p></div>' +
       '<div class="sheet-sec"><p class="lab">Other places to find it</p>' + outLinks(C.readLinks(book)) +
-      '<div class="row" data-u="margin-top-12px"><button class="btn small ghost" type="button" data-act="buy">🛒 Buy this book</button></div>' +
+      '<div class="row" data-u="margin-top-12px"><button class="btn small ghost" type="button" data-act="buy">Buy this book</button></div>' +
       '<p class="small muted" data-u="margin-top-10px">Chapter never copies a book’s text. It only opens a copy where reading it is legal - or points you to one.</p></div>',
     function (root) {
       var id = state.clubId;
@@ -1620,6 +1660,12 @@
       case 'plus1': if (v) { var me = myRow(v); saveProgress(Object.assign({ pos: Math.min(v.book.total, (me ? me.pos : 0) + 1) }, me && me.alt ? { alt: null } : {})); } break;
       case 'readplus': if (v) { var rme = myRow(v); saveProgress(Object.assign({ pos: Math.min(v.book.total, (rme ? rme.pos : 0) + 1) }, rme && rme.alt ? { alt: null } : {}), null, true); } break;
       case 'finished': saveProgress({ done: true }); break;
+      case 'chapternow': if (v) {
+        var cp = myPos(v);
+        state.chapter = cp && v.notes.some(function (x) { return x.at === cp; }) ? cp : 'all';
+        state.filter = 'all'; state.compose.at = cp || null;
+        go(clubHash('notes'));
+      } break;
       case 'read': if (v) openRead(); break;
       case 'readhere': if (v) openReader(); break;
       case 'buy': if (v) openBuy(); break;
