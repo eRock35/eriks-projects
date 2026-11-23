@@ -650,6 +650,12 @@ redesigned does not touch it and works exactly as before.** Code in
   `LAB_AI_BURST_IP_MINUTE` / `LAB_AI_BURST_IP_DAY` (default to the account
   numbers). To lift a cap early in a month, raise its env var (or, with
   Erik's say-so, lower that month's `usd` in Firestore).
+- **A per-app allowance** (Erik, 2026-11-23, for Spar, whose practice round
+  is a call a turn): `LAB_AI_BURST_APP_<SLUG>="<perMinute>/<perDay>"` gives
+  that app its own burst book per account and per address instead of the
+  shared one, so its calls neither use up nor are stopped by the lab-wide
+  5/30. Set on the service: `LAB_AI_BURST_APP_SPAR=15/150`. Malformed values
+  are ignored. The monthly caps are unchanged and still apply.
 - **`priceUsd({ provider, model, inputTokens, outputTokens, at })`**: Claude
   from the identity's `PRICES`/`priceOf` (read from an app's synced copy -
   the image has no `shared/`; optional `cacheWriteTokens`, `cacheReadTokens`,

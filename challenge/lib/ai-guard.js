@@ -178,6 +178,20 @@ function create({ store = memoryStore(), env = process.env, now = Date.now, fetc
   burst.ipMinute = envNumber(env, 'LAB_AI_BURST_IP_MINUTE', burst.accountMinute);
   burst.ipDay = envNumber(env, 'LAB_AI_BURST_IP_DAY', burst.accountDay);
 
+  // Per-app allowance (Erik, 2026-11-23, for Spar: a practice round is a call
+  // a turn). LAB_AI_BURST_APP_<SLUG>="<perMinute>/<perDay>" gives that app its
+  // own burst book per person and per address, instead of the shared one, so
+  // its calls neither use up nor are stopped by the lab-wide 5/30. Caps are
+  // unchanged. A malformed value is ignored (the shared book applies).
+  const appBurst = {};
+  for (const [k, v] of Object.entries(env)) {
+    const m = /^LAB_AI_BURST_APP_([A-Z0-9]+)$/.exec(k);
+    const n = /^\s*(\d{1,4})\s*\/\s*(\d{1,5})\s*$/.exec(String(v || ''));
+    if (m && n && Number(n[1]) > 0 && Number(n[2]) >= Number(n[1])) {
+      appBurst[m[1].toLowerCase()] = { perMinute: Number(n[1]), perDay: Number(n[2]) };
+    }
+  }
+
   /* ----- month-to-date spend, cached ----- */
 
   const totals = {}; // provider -> { month, usd, at }
@@ -269,10 +283,16 @@ function create({ store = memoryStore(), env = process.env, now = Date.now, fetc
 
     try {
       const keys = [];
+      const own = Object.prototype.hasOwnProperty.call(appBurst, app) ? appBurst[app] : null;
       const uid = req.user && req.user.id;
-      if (uid) keys.push({ key: `a:${uid}`, perMinute: burst.accountMinute, perDay: burst.accountDay });
       const ip = ipKey(req.ip || (req.socket && req.socket.remoteAddress));
-      if (ip) keys.push({ key: `i:${ip}`, perMinute: burst.ipMinute, perDay: burst.ipDay });
+      if (own) {
+        if (uid) keys.push({ key: `a:${uid}:${app}`, perMinute: own.perMinute, perDay: own.perDay });
+        if (ip) keys.push({ key: `i:${ip}:${app}`, perMinute: own.perMinute, perDay: own.perDay });
+      } else {
+        if (uid) keys.push({ key: `a:${uid}`, perMinute: burst.accountMinute, perDay: burst.accountDay });
+        if (ip) keys.push({ key: `i:${ip}`, perMinute: burst.ipMinute, perDay: burst.ipDay });
+      }
       const code = takeBurst(keys);
       if (code) return deny(code);
     } catch (err) {

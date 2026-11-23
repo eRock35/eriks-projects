@@ -308,6 +308,41 @@ process.on('exit', (code) => { if (!finished && code === 0) { console.error('ai-
     }
   }
 
+  /* ---------------- burst: a per-app allowance (Spar) ---------------- */
+  {
+    const c = clock('2026-11-23T10:00:00Z');
+    const g = aiGuard.create({ env: env({ LAB_AI_BURST_APP_SPAR: '15/150', LAB_AI_BURST_APP_BAD: 'lots', LAB_AI_BURST_APP_ODD: '9/3' }), now: c.now, log: quiet });
+    // Spar: 15 a minute for one account, on its own book.
+    for (let i = 0; i < 15; i++) assert.ok((await g.allow({ provider: 'claude', req: req(`198.51.100.${i}`, 'u1'), app: 'spar' })).ok, `spar ${i + 1}`);
+    const s16 = await g.allow({ provider: 'claude', req: req('198.51.100.99', 'u1'), app: 'spar' });
+    assert.strictEqual(s16.code, 'burst-minute');
+    // Spar's 15 did not touch the shared book: another app still gets its 5 ...
+    for (let i = 0; i < 5; i++) assert.ok((await g.allow({ provider: 'claude', req: req(`203.0.113.${i}`, 'u1'), app: 'rave' })).ok, `rave ${i + 1}`);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: req('203.0.113.9', 'u1'), app: 'rave' })).code, 'burst-minute');
+    // ... and spending the shared 5 does not stop Spar once its minute slides.
+    c.t += 61 * 1000;
+    assert.ok((await g.allow({ provider: 'gemini', req: req('198.51.100.50', 'u1'), app: 'spar' })).ok);
+    // Spar's day: 150, then burst-day.
+    let used = 16; // 15 + 1 above
+    while (used < 150) {
+      c.t += 61 * 1000;
+      for (let i = 0; i < 15 && used < 150; i++, used++) assert.ok((await g.allow({ provider: 'claude', req: req(`10.0.${used % 250}.${i}`, 'u1'), app: 'spar' })).ok, `spar day ${used + 1}`);
+    }
+    c.t += 61 * 1000;
+    assert.strictEqual((await g.allow({ provider: 'claude', req: req('10.9.9.9', 'u1'), app: 'spar' })).code, 'burst-day');
+    // Malformed or nonsensical settings are ignored: those apps keep the shared 5.
+    const g2 = aiGuard.create({ env: env({ LAB_AI_BURST_APP_BAD: 'lots', LAB_AI_BURST_APP_ODD: '9/3' }), now: c.now, log: quiet });
+    for (const app of ['bad', 'odd']) {
+      for (let i = 0; i < 5; i++) assert.ok((await g2.allow({ provider: 'claude', req: req(`192.0.2.${i}`, `x-${app}`), app })).ok);
+      assert.strictEqual((await g2.allow({ provider: 'claude', req: req('192.0.2.200', `x-${app}`), app })).code, 'burst-minute');
+    }
+    // The monthly cap still applies to an app with its own allowance.
+    const store = { async get() { return { usd: 25 }; }, async bump() {} };
+    const g3 = aiGuard.create({ store, env: env({ LAB_AI_BURST_APP_SPAR: '15/150' }), now: c.now, log: quiet });
+    assert.strictEqual((await g3.allow({ provider: 'claude', req: req('192.0.2.1', 'u9'), app: 'spar' })).code, 'monthly-cap');
+    ok('LAB_AI_BURST_APP_<SLUG>="m/d" gives one app its own burst book (Spar 15/150); bad values ignored; caps still apply');
+  }
+
   finished = true;
   clearInterval(keepAlive);
   console.log(`ai-guard: ${n} passed`);
