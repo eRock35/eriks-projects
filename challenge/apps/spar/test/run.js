@@ -593,6 +593,30 @@ test('no model call without an account, and the stand-in is refused on Cloud Run
   assert.throws(() => execFileSync(process.execPath, ['-e', "require('./lib/fakeai')"], { cwd: require('path').join(__dirname, '..'), env: { ...process.env, SPAR_FAKE_AI: '1', K_SERVICE: 'x' }, stdio: 'pipe' }));
 });
 
+test('the page: no inline script, handler or style attribute; one white theme and a quiet dark one; the nav in both shapes', async () => {
+  const fs = require('fs'); const pub = require('path').join(__dirname, '..', 'public');
+  const html = fs.readFileSync(pub + '/index.html', 'utf8');
+  const js = fs.readFileSync(pub + '/app.js', 'utf8');
+  const css = fs.readFileSync(pub + '/app.css', 'utf8');
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html) && !/\son[a-z]+\s*=/i.test(html));
+  assert.ok(!/\sstyle\s*=/.test(html) && !/style=/.test(js) && !/\.style\./.test(js) && !/cssText|setAttribute\('style/.test(js), 'no style attribute, in the page or written by script');
+  assert.ok(!/<body[^>]*class="dk"/.test(html), 'the shared desktop rail is not opted into');
+  assert.ok(html.includes('<script src="verify-banner.js" data-mount="api/auth" defer></script>'));
+  for (const tab of ['arena', 'build', 'progress', 'teams']) assert.strictEqual((html.match(new RegExp(`data-tab="${tab}"`, 'g')) || []).length, 2, `${tab}: once in the phone bar, once in the top nav`);
+  assert.match(css, /:root \{\s*--bg: #ffffff;/);
+  assert.match(css, /prefers-color-scheme: dark[\s\S]*--bg: #000000;/);
+  assert.ok(!/gradient\(/.test(css), 'no gradients');
+  assert.ok(!/@import|@font-face|fonts\.googleapis/.test(css + html), 'system fonts only');
+  // Every animation and transition sits inside the reduced-motion guard.
+  const guard = css.indexOf('@media (prefers-reduced-motion: no-preference)');
+  assert.ok(guard > 0 && !/animation|transition/.test(css.slice(css.indexOf('*/') + 2, guard)));
+  // The page is served under the mount with relative assets.
+  const page = await fetch(base + '/');
+  assert.strictEqual(page.status, 200);
+  assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+  assert.ok((await page.text()).includes('href="app.css"'));
+});
+
 /* ---------------- run ---------------- */
 
 (async () => {
