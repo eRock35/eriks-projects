@@ -221,17 +221,15 @@
   function home() {
     var nFig = Object.keys(data.figures).length;
     var page = h('div', { cls: 'page' },
-      h('section', { cls: 'hero' },
+      h('section', { cls: 'hero center' },
         h('p', { cls: 'eyebrow', text: 'From public filings' }),
         h('h1', { text: 'What the filings say.' }),
         h('p', { cls: 'lede', text: 'Nineteen big technology companies, in their own reported numbers and their own words. Every figure opens its filing. Every relationship shows the exact quote.' }),
+        h('div', { cls: 'cta' }, h('a', { cls: 'pill', href: '#/map', text: 'Open the map' }), h('a', { cls: 'pill line', href: '#/patterns', text: 'See the patterns' })),
         h('ul', { cls: 'stats' },
-          h('li', null, h('strong', { text: String(data.companies.length) }), ' companies'),
-          h('li', null, h('strong', { text: nFig.toLocaleString('en-US') }), ' reported figures'),
-          h('li', null, h('strong', { text: String(data.edges.length) }), ' quoted relationships'))),
-      h('section', { cls: 'feature' },
-        h('a', { cls: 'fcard f-map', href: '#/map' }, h('span', { cls: 'f-eyebrow', text: 'The map' }), h('span', { cls: 'f-title', text: 'Who names whom' }), h('span', { cls: 'f-text', text: 'Suppliers, customers, partners and competitors, from equipment to cloud. Tap a line for the quote.' })),
-        h('a', { cls: 'fcard f-pat', href: '#/patterns' }, h('span', { cls: 'f-eyebrow', text: 'Patterns' }), h('span', { cls: 'f-title', text: 'Across the chain' }), h('span', { cls: 'f-text', text: 'Inventory cycles, R&D against margin, capital spending waves, and dependence on a few customers.' }))));
+          h('li', null, h('strong', { text: String(data.companies.length) }), 'companies'),
+          h('li', null, h('strong', { text: nFig.toLocaleString('en-US') }), 'reported figures'),
+          h('li', null, h('strong', { text: String(data.edges.length) }), 'quoted relationships'))));
     data.layers.slice().reverse().forEach(function (l) {
       var cs = data.companies.filter(function (c) { return c.layer === l.id; });
       page.appendChild(h('section', { cls: 'group' },
