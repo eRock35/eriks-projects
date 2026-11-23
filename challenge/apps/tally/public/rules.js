@@ -933,7 +933,127 @@
     return lines.join('\r\n') + '\r\n';
   }
 
+  /* ---------------- a snapped report: scrub, then check ---------------- */
+
+  var CARD_TYPES = { visa: 'Visa', mastercard: 'Mastercard', amex: 'Amex', discover: 'Discover', debit: 'Debit', other: 'Other cards' };
+  var REPORT_TEXT_MAX = 6000;
+
+  /**
+   * A pasted report, made safe to send to a reader: card, account, merchant
+   * and terminal numbers cut to their last four, emails, links and phone
+   * numbers out, and the value of any line labelled as a person or a place
+   * (cashier, server, customer, address...) removed. Dates and money are left
+   * alone - they are what the reader is for. Runs on the phone (the page
+   * shows the result before anything is sent) and again on the server.
+   */
+  function scrubReportText(v) {
+    var s = String(v == null ? '' : v).slice(0, REPORT_TEXT_MAX * 4).replace(/\r\n?/g, '\n');
+    s = s.replace(/<[^<>\n]*>/g, ' ').replace(/[<>]/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f​-‏‪-‮]/g, ' ');
+    s = s.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[email removed]');
+    s = s.replace(/\b(?:https?:\/\/|www\.)\S+/gi, '[link removed]');
+    s = s.replace(/^([ \t]*(?:cashier|server|employee|operator|clerk|staff|customer|card ?holder|name|owner|contact|address|phone|tel|fax|e-?mail)\b[ \t]*[:#-]?)[^\n]*$/gim, '$1 [removed]');
+    s = s.replace(/(?:\+?1[\s.-]?)?(?:\(\d{3}\)\s?|\b\d{3}[\s.-])\d{3}[\s.-]\d{4}\b/g, '[phone removed]');
+    s = s.replace(/(?:[xX*•#]{2,}[\s-]*)+(\d{2,})/g, function (_m, d) { return '••' + d.slice(-4); });
+    s = s.replace(/(^|[^\d.,])(\d{4}(?:[ -]\d{4}){2,3}|\d{8,})(?!\d|[.,]\d)/g, function (_m, pre, run) {
+      return pre + '••' + run.replace(/\D/g, '').slice(-4);
+    });
+    s = s.split('\n').map(function (l) { return l.replace(/[ \t]+/g, ' ').trim(); }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return s.slice(0, REPORT_TEXT_MAX);
+  }
+
+  /**
+   * A report's printed figures, checked with Tally's own arithmetic. The
+   * reader only transcribes; every sum, difference and verdict is worked out
+   * here, in cents, from the figures the owner has confirmed (anything not
+   * confirmed arrives as null and is left out of every line).
+   *
+   * report: { date, cardCents, refundsCents, tipsCents, feesCents, netCents,
+   *           tx, cardTypes: [{type, cents}] }
+   * ctx:    { settings, days, deposits, today }
+   * Returns { lines: [{key, tone: ok|warn|info, title, text}], expected, due }.
+   */
+  function checkReport(report, ctx) {
+    var r = report || {}; var c = ctx || {};
+    var s = settingsOf(c.settings);
+    var n = function (v) { return Number.isInteger(v) && v >= 0 && v <= LIMITS.maxCents ? v : null; };
+    var card = n(r.cardCents); var refunds = n(r.refundsCents); var tips = n(r.tipsCents); var fees = n(r.feesCents); var net = n(r.netCents);
+    var tx = Number.isInteger(r.tx) && r.tx >= 0 && r.tx <= LIMITS.maxTx ? r.tx : null;
+    var date = isoDay(r.date);
+    var days = c.days || []; var deposits = c.deposits || [];
+    var lines = [];
+    var add = function (key, tone, title, text) { lines.push({ key: key, tone: tone, title: title, text: text }); };
+
+    // 1. Do the card-type lines add up to the card sales printed?
+    var types = (Array.isArray(r.cardTypes) ? r.cardTypes : []).filter(function (t) { return t && n(t.cents) !== null; });
+    if (types.length && card !== null) {
+      var sum = types.reduce(function (a, t) { return a + t.cents; }, 0);
+      var names = types.map(function (t) { return CARD_TYPES[t.type] || CARD_TYPES.other; });
+      var list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
+      if (sum === card) add('types', 'ok', 'Card types add up', list + ' come to ' + money(sum) + ' - the card sales printed.');
+      else add('types', 'warn', 'Card types don’t add up', list + ' come to ' + money(sum) + ', ' + money(Math.abs(sum - card)) + (sum < card ? ' less' : ' more') + ' than the card sales printed (' + money(card) + '). A line may be missing or misread - check them against the report.');
+    }
+
+    // 2. Does the report agree with itself?
+    var charged = card !== null ? card + (tips || 0) : null;
+    if (charged !== null && net !== null && fees !== null) {
+      var own = charged - (refunds || 0) - fees;
+      if (own === net) add('sum', 'ok', 'The report adds up', 'Sales' + (tips ? ' + tips' : '') + (refunds ? ' − refunds' : '') + ' − fees = ' + money(net) + ', the payout printed.');
+      else add('sum', 'warn', 'The report doesn’t add up', 'Sales' + (tips ? ' + tips' : '') + (refunds ? ' − refunds' : '') + ' − fees comes to ' + money(own) + ', but the payout printed is ' + money(net) + ' - ' + money(Math.abs(own - net)) + (net < own ? ' less. Something else was held back, or a figure was misread.' : ' more. A figure may be misread.'));
+    }
+
+    // 3. The fee printed (or left by the payout) against the plan.
+    var plan = charged !== null && charged > 0 && tx !== null ? expected({ grossCents: card, tipsCents: tips || 0, refundsCents: refunds || 0, txCount: tx }, s) : null;
+    var fee = fees !== null ? fees : (charged !== null && net !== null && charged - (refunds || 0) - net >= 0 ? charged - (refunds || 0) - net : null);
+    if (plan && fee !== null) {
+      var over = fee - plan.fee;
+      var high = over > Math.max(FEE_HIGH_MIN, Math.round(charged * FEE_HIGH_BPS / 10000));
+      var feeWords = (fees !== null ? 'The fee printed is ' : 'The payout leaves a fee of ') + money(fee) + ' (' + pct(fee / charged) + '). Your plan, ' + feeText(s) + ', estimates ' + money(plan.fee) + ' (' + pct(plan.feeRate) + ')';
+      if (high) add('fee', 'warn', 'Fee higher than your plan', feeWords + ' - ' + money(over) + ' more. If this keeps up, ask ' + procName(s) + ' whether your rate changed.');
+      else add('fee', 'ok', 'Fee in line with your plan', feeWords + '.');
+    }
+
+    // 4. What should reach the bank, and by when.
+    var due = date ? dueBy(date, s) : null;
+    if (plan && plan.net > 0) {
+      add('expect', 'info', 'Should reach your bank', money(plan.net) + (due ? ' by ' + dayLong(due) : '') + ', by your fee settings' + (net !== null ? '; the report prints a payout of ' + money(net) + (Math.abs(net - plan.net) <= tolerance(plan.net, s) ? ', within your allowance.' : ', ' + money(Math.abs(net - plan.net)) + (net < plan.net ? ' less.' : ' more.')) : '.'));
+    }
+
+    // 5. Against the day already closed for that date.
+    var day = date ? days.filter(function (d) { return d.date === date; })[0] || null : null;
+    var same = false;
+    if (day && card !== null) {
+      var diffs = [];
+      var cmp = function (label, printed, typed) { if (printed !== null && printed !== (typed || 0)) diffs.push(label + ' ' + money(printed) + ' on the report, ' + money(typed || 0) + ' in your books'); };
+      cmp('card sales', card, day.grossCents); cmp('refunds', refunds, day.refundsCents); cmp('tips', tips, day.tipsCents);
+      if (tx !== null && tx !== (day.txCount || 0)) diffs.push('transactions ' + tx + ' on the report, ' + (day.txCount || 0) + ' in your books');
+      same = !diffs.length;
+      if (same) add('day', 'ok', 'Matches the day you closed', dayLong(date) + ' in your books has the same numbers.');
+      else add('day', 'warn', 'Differs from the day you closed', dayLong(date) + ': ' + diffs.join('; ') + '. Saving replaces the day with the report’s numbers.');
+    } else if (date && card !== null) {
+      add('day', 'info', 'Not closed yet', dayLong(date) + ' isn’t in your books. Check the numbers below and close it.');
+    }
+
+    // 6. Has the payout arrived?
+    if (net !== null && net > 0) {
+      var from = date || '0000-00-00'; var to = date ? addDays(date, 21) : '9999-99-99';
+      var near = deposits.filter(function (d) { return d.date >= from && d.date <= to; });
+      var exact = near.filter(function (d) { return d.amountCents === net; })[0];
+      if (exact) add('deposit', 'ok', 'The payout is in your books', 'A deposit of ' + money(net) + ' reached the bank on ' + dayLong(exact.date) + '.');
+      else {
+        var today = isoDay(c.today);
+        var late = due && today && today > due;
+        add('deposit', late ? 'warn' : 'info', late ? 'The payout hasn’t shown up' : 'Payout not in your books yet', 'No deposit of ' + money(net) + ' is in your books' + (due ? (late ? '; it was due by ' + dayLong(due) + '. Add newer bank lines, then ask ' + procName(s) + '.' : '; it is due by ' + dayLong(due) + '.') : '. Add your bank’s lines and Tally will look for it.'));
+      }
+    } else if (day && same) {
+      var result = reconcile(days, deposits, s, c.today);
+      var row = rowOf(result, date);
+      if (row) add('deposit', row.status === 'matched' ? 'ok' : row.status === 'pending' || row.status === 'none' ? 'info' : 'warn', STATUS[row.status].label, explain(result, row));
+    }
+    return { lines: lines, expected: plan ? plan.net : null, due: due };
+  }
+
   return {
+    CARD_TYPES: CARD_TYPES, scrubReportText: scrubReportText, checkReport: checkReport,
     LIMITS: LIMITS, PRESETS: PRESETS, DEFAULT_KEYWORDS: DEFAULT_KEYWORDS, DEFAULTS: DEFAULTS, STATUS: STATUS, WEEKDAYS: WEEKDAYS, MONTHS: MONTHS,
     clean: clean, toCents: toCents, money: money, money0: money0, moneyShort: moneyShort, plain: plain, pct: pct, bpsText: bpsText, toBps: toBps, plural: plural,
     isoDay: isoDay, isoMonth: isoMonth, addDays: addDays, daysBetween: daysBetween, dow: dow, weekday: weekday, monthOf: monthOf, addMonths: addMonths,
