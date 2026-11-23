@@ -19,7 +19,7 @@ const path = require('path');
 const T = require('./text');
 const sec = require('./sec');
 
-const TYPES = ['supplier', 'customer', 'service', 'partner', 'investor', 'competitor'];
+const TYPES = ['supplier', 'customer', 'service', 'auditor', 'partner', 'competitor'];
 const proof = (sourceSha, quote) => T.sha(`${sourceSha}\n${T.norm(quote)}`);
 
 function aliasRe(a) {
@@ -81,9 +81,7 @@ function checkEdge(e, ctx) {
   }
   const raw = ctx.rawTexts[e.source] || '';
   const pos = rawOffset(raw, at);
-  if (src.kind === 'supplier-list') {
-    section = `Supplier List, page ${raw.slice(0, pos).split('\f').length}`;
-  } else if (e.section) {
+  if (e.section) {
     const s = T.norm(e.section);
     const sat = text.lastIndexOf(s, at);
     if (sat < 0 || at - sat > 30000) return fail('the named section heading is not found before the quote');
@@ -123,9 +121,14 @@ function recheck(data) {
       if (!ok) problems.push(`${id}: no such value in the report's XBRL instance`);
       continue;
     }
-    facts[f.c] = facts[f.c] || JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${f.c}.json`), 'utf8'));
+    // A figure filed under a previous registrant (companies.js `priorCiks`)
+    // is checked against that registrant's company facts.
+    const fcik = (data.filings[f.a] || {}).cik;
+    const fkey = fcik ? `${f.c}.${fcik}` : f.c;
+    if (fcik && !((require('./companies').byId[f.c] || {}).priorCiks || []).some((p) => p.cik === fcik)) { problems.push(`${id}: filed under CIK ${fcik}, which companies.js does not list as ${f.c}'s prior registrant`); continue; }
+    facts[fkey] = facts[fkey] || JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${fkey}.json`), 'utf8'));
     const [tax, tag] = f.tag.split(':');
-    const rows = (((facts[f.c].facts[tax] || {})[tag] || {}).units || {})[f.u] || [];
+    const rows = (((facts[fkey].facts[tax] || {})[tag] || {}).units || {})[f.u] || [];
     if (!rows.some((r) => r.accn === f.a && r.end === f.end && r.val === f.v)) problems.push(`${id}: ${f.tag} ${f.end} = ${f.v} is not in ${f.a}`);
   }
   return problems;

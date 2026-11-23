@@ -4,7 +4,17 @@
 // devices -> software -> cloud -> IT services. `aliases` are the strings a
 // filing uses for that company; they are matched as whole words. `filer: false` marks a company that files nothing
 // with the SEC that this app reads: it only ever appears on the map when a
-// document from a company in the set (or its own public list) names it.
+// document from a company in the set names it.
+//
+// `priorCiks` joins a company's history across a change of SEC registrant
+// (a re-domicile or holding-company reorganisation files under a new CIK,
+// and the old CIK keeps the earlier years). Each entry is
+// { cik, legal, why }. tools/fetch.js fetches each prior CIK's company
+// facts to facts/<ID>.<CIK>.json; tools/build.js reads them beside the
+// current CIK's with the same year rule (the value from the earliest annual
+// report that reported the period, whichever registrant filed it), and each
+// figure's filing records the CIK it was filed under, so its link opens
+// that filing. Only an explicit entry here joins anything.
 
 const FILERS = [
   { id: 'AAPL', cik: 320193, name: 'Apple', legal: 'Apple Inc.', layer: 'devices', form: '10-K', aliases: ['Apple'] },
@@ -35,7 +45,10 @@ const FILERS = [
   { id: 'SNPS', cik: 883241, name: 'Synopsys', legal: 'Synopsys, Inc.', layer: 'equipment', form: '10-K', aliases: ['Synopsys'] },
   { id: 'CDNS', cik: 813672, name: 'Cadence', legal: 'Cadence Design Systems, Inc.', layer: 'equipment', form: '10-K', aliases: ['Cadence Design Systems', 'Cadence'] },
   { id: 'ADI', cik: 6281, name: 'Analog Devices', legal: 'Analog Devices, Inc.', layer: 'chips', form: '10-K', aliases: ['Analog Devices', 'ADI'] },
-  { id: 'MRVL', cik: 1835632, name: 'Marvell', legal: 'Marvell Technology, Inc.', layer: 'chips', form: '10-K', aliases: ['Marvell'] },
+  // Marvell re-domiciled from Bermuda to Delaware in April 2021: the years
+  // before are filed under the old registrant (see priorCiks above).
+  { id: 'MRVL', cik: 1835632, name: 'Marvell', legal: 'Marvell Technology, Inc.', layer: 'chips', form: '10-K', aliases: ['Marvell'],
+    priorCiks: [{ cik: 1058057, legal: 'Marvell Technology Group Ltd.', why: 'the registrant before the April 2021 re-domicile to Delaware' }] },
   { id: 'MCHP', cik: 827054, name: 'Microchip', legal: 'Microchip Technology Incorporated', layer: 'chips', form: '10-K', aliases: ['Microchip Technology', 'Microchip'] },
   { id: 'MPWR', cik: 1280452, name: 'Monolithic Power', legal: 'Monolithic Power Systems, Inc.', layer: 'chips', form: '10-K', aliases: ['Monolithic Power'] },
   { id: 'NXPI', cik: 1413447, name: 'NXP', legal: 'NXP Semiconductors N.V.', layer: 'chips', form: '10-K', aliases: ['NXP'] },
@@ -141,7 +154,16 @@ const OTHERS = [
   { id: 'INFOSYS', name: 'Infosys', layer: 'services', aliases: ['Infosys'] },
   { id: 'TCS', name: 'Tata Consultancy Services', layer: 'services', aliases: ['Tata Consultancy'] },
   { id: 'WIPRO', name: 'Wipro', layer: 'services', aliases: ['Wipro'] },
-  { id: 'DELOITTE', name: 'Deloitte', layer: 'services', aliases: ['Deloitte'] },
+  // The audit firms: on the map only through "Auditor" edges (each company's
+  // own annual report names its independent registered public accounting
+  // firm) or another stated link. One node per network: Deloitte & Touche
+  // LLP and TSMC's Deloitte & Touche (Taipei) are both "Deloitte"; the
+  // quote on each edge names the exact firm.
+  { id: 'DELOITTE', name: 'Deloitte', layer: 'services', aliases: ['Deloitte', 'DELOITTE'] },
+  { id: 'PWC', name: 'PwC', layer: 'services', aliases: ['PricewaterhouseCoopers', 'PRICEWATERHOUSECOOPERS'] },
+  { id: 'EY', name: 'EY', layer: 'services', aliases: ['Ernst & Young', 'ERNST & YOUNG', 'EY Accountants'] },
+  { id: 'KPMG', name: 'KPMG', layer: 'services', aliases: ['KPMG'] },
+  { id: 'BDO', name: 'BDO', layer: 'services', aliases: ['BDO USA', 'BDO'] },
   { id: 'KYNDRYL', name: 'Kyndryl', layer: 'services', aliases: ['Kyndryl'] },
 ];
 

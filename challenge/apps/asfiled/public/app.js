@@ -15,7 +15,9 @@
   var sheet = document.getElementById('sheet');
   var data = null;
   var lastWidth = 0;
-  var mapState = { types: { supplier: true, customer: true, service: true, partner: true, investor: true, competitor: false }, layers: {}, focus: null, view: 'map', scope: 'linked' };
+  // Competitors and auditors start off: the first are the clutter, the second
+  // a line from an audit firm to every company, which would crowd out the rest.
+  var mapState = { types: { supplier: true, customer: true, service: true, auditor: false, partner: true, competitor: false }, layers: {}, focus: null, view: 'map', scope: 'linked' };
   // Companies shown by default on the map: the most stated links (fewer on a phone).
   var top = function () { return window.innerWidth < 760 ? 16 : 24; };
   var loaded = {};       // data part -> its promise
@@ -62,7 +64,7 @@
   function r1(n) { return Math.round(n * 10) / 10; }
   function nameOf(id) { var c = Core.company(data, id); return c ? c.name : id; }
   function layerName(id) { for (var i = 0; i < data.layers.length; i += 1) if (data.layers[i].id === id) return data.layers[i].name; return id; }
-  function safeUrl(u) { return /^https:\/\/(www\.sec\.gov|www\.apple\.com)\//.test(String(u)) ? u : null; }
+  function safeUrl(u) { return /^https:\/\/www\.sec\.gov\//.test(String(u)) ? u : null; }
   function ext(url, label) {
     var ok = safeUrl(url);
     return ok ? h('a', { href: ok, target: '_blank', rel: 'noopener noreferrer', cls: 'ext' }, label, h('span', { cls: 'sr', text: ' (opens the source in a new tab)' })) : h('span', { text: label });
@@ -91,7 +93,8 @@
       h('dl', { cls: 'kv' },
         h('dt', { text: 'Filing' }), h('dd', { text: 'Form ' + src.form + ', filed ' + src.filed }),
         h('dt', { text: 'Period' }), h('dd', { text: 'Fiscal year ended ' + f.end }),
-        h('dt', { text: 'Accession no.' }), h('dd', { text: src.accn })),
+        h('dt', { text: 'Accession no.' }), h('dd', { text: src.accn }),
+        src.prior ? [h('dt', { text: 'Registrant' }), h('dd', { text: src.prior.legal + ' (CIK ' + src.prior.cik + '), the company’s earlier SEC registrant' })] : null),
       h('p', null, ext(src.url, 'Open this filing on sec.gov')));
   }
   function edgeCard(e) {
@@ -106,8 +109,8 @@
         h('dt', { text: 'Who said it' }), h('dd', { text: nameOf(e.by) }),
         h('dt', { text: 'Document' }), h('dd', { text: src.title }),
         h('dt', { text: 'Section' }), h('dd', { text: e.section }),
-        h('dt', { text: src.kind === 'supplier-list' ? 'PDF dated' : 'Filed' }), h('dd', { text: e.date })),
-      h('p', null, ext(src.kind === 'xbrl' ? e.url : Core.quoteUrl(e), src.kind === 'supplier-list' ? 'Open the list on apple.com' : 'Open the source on sec.gov')));
+        h('dt', { text: 'Filed' }), h('dd', { text: e.date })),
+      h('p', null, ext(src.kind === 'xbrl' ? e.url : Core.quoteUrl(e), 'Open the source on sec.gov')));
   }
   function showCites(title, cites) {
     openSheet(title, cites.map(function (id) {
@@ -289,6 +292,17 @@
 
   /* ---------------- one company ---------------- */
 
+  /** A company whose history spans two SEC registrants (a re-domicile):
+   *  which years were filed under the earlier one. Each figure still opens
+   *  its own filing, under the CIK it was filed under. */
+  function priorNote(c) {
+    if (!c.prior) return null;
+    return c.prior.map(function (p) {
+      var fys = c.years.filter(function (fy) { var f = Core.fig(data, c.id, 'revenue', fy); return f && (data.filings[f.a] || {}).cik === p.cik; });
+      if (!fys.length) return null;
+      return h('p', { cls: 'note', text: 'FY' + fys[0] + (fys.length > 1 ? '–FY' + fys[fys.length - 1] : '') + ' were filed by ' + p.legal + ' (CIK ' + p.cik + '), the earlier registrant; each figure opens the filing it came from.' });
+    });
+  }
   function companyPage(id) {
     var c = Core.company(data, id);
     if (!c || !c.filer) return h('div', { cls: 'page' }, h('p', { cls: 'none', text: 'That company is not one of the ' + data.companies.length + ' here.' }), h('p', null, h('a', { href: '#/', text: 'All companies' })));
@@ -300,7 +314,8 @@
       h('section', { cls: 'hero small' },
         h('p', { cls: 'eyebrow', text: layerName(c.layer) }),
         h('h1', { text: c.name }),
-        h('p', { cls: 'lede' }, c.legal + ' · reports in ' + (c.currency === 'USD' ? 'US dollars' : c.currency === 'EUR' ? 'euros' : 'New Taiwan dollars') + ' · latest annual report: ', ext(src.url, 'Form ' + src.form + ' for the year ended ' + src.period), ', filed ' + src.date + '.')));
+        h('p', { cls: 'lede' }, c.legal + ' · reports in ' + (c.currency === 'USD' ? 'US dollars' : c.currency === 'EUR' ? 'euros' : 'New Taiwan dollars') + ' · latest annual report: ', ext(src.url, 'Form ' + src.form + ' for the year ended ' + src.period), ', filed ' + src.date + '.'),
+        priorNote(c)));
     var grid = h('div', { cls: 'grid' });
     page.appendChild(grid);
     var defs = [
@@ -355,10 +370,10 @@
     return page;
   }
 
-  function family(type) { return type === 'competitor' ? 'rival' : type === 'partner' || type === 'investor' ? 'tie' : 'supply'; }
+  function family(type) { return type === 'competitor' ? 'rival' : type === 'partner' ? 'tie' : 'supply'; }
   function pairTitle(e) { return nameOf(e.from) + (Core.DIRECTED[e.type] ? ' → ' : ' · ') + nameOf(e.to); }
   function verb(e) {
-    return { supplier: 'supplies', customer: 'sells to', service: 'provides a service or platform to', investor: 'has invested in', partner: 'partners with', competitor: 'is named as a competitor by' }[e.type];
+    return { supplier: 'supplies', customer: 'sells to', service: 'provides a service or platform to', auditor: 'is named as the auditor of', partner: 'partners with', competitor: 'is named as a competitor by' }[e.type];
   }
   function edgeLine(e) { return e.type === 'competitor' ? nameOf(e.to) + ' is named as a competitor by ' + nameOf(e.from) : nameOf(e.from) + ' ' + verb(e) + ' ' + nameOf(e.to); }
   function openPair(a, b) {
@@ -520,8 +535,8 @@
       var a = Core.company(data, e.from); var b = Core.company(data, e.to);
       if (!mapState.layers[a.layer] || !mapState.layers[b.layer]) return;
       var fam = family(e.type);
-      var key = (fam === 'supply' || e.type === 'investor' ? e.from + '>' + e.to : [e.from, e.to].sort().join('~')) + '|' + fam;
-      if (!out[key]) { out[key] = { key: key, from: e.from, to: e.to, fam: fam, directed: fam === 'supply' || e.type === 'investor', edges: [] }; list.push(out[key]); } else if (e.type === 'investor') out[key].directed = true;
+      var key = (fam === 'supply' ? e.from + '>' + e.to : [e.from, e.to].sort().join('~')) + '|' + fam;
+      if (!out[key]) { out[key] = { key: key, from: e.from, to: e.to, fam: fam, directed: fam === 'supply', edges: [] }; list.push(out[key]); }
       out[key].edges.push(e);
     });
     return list;
@@ -751,8 +766,8 @@
         h('div', { cls: 'ctl' }, h('span', { cls: 'ctl-l', text: 'Companies' }), scopeBar, viewBar)),
       h('section', { cls: 'card map-card' }, scopeNote, host, listHost,
         h('ul', { cls: 'legend pad' },
-          h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-supply', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Supply, sales or service (arrow shows direction)'),
-          h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-tie', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Partner or investor'),
+          h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-supply', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Supply, sales, service or audit (arrow shows direction)'),
+          h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-tie', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Partner'),
           h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-rival', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Competitor, as stated'),
           h('li', null, s('svg', { width: 14, height: 14, 'aria-hidden': 'true', cls: 'node' }, s('circle', { cx: 7, cy: 7, r: 6 })), 'A company in the set, sized by latest revenue'),
           h('li', null, s('svg', { width: 14, height: 14, 'aria-hidden': 'true', cls: 'node other' }, s('circle', { cx: 7, cy: 7, r: 5 })), 'Another company, shown only because a document names it')),
