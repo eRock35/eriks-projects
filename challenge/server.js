@@ -126,6 +126,17 @@ const aiGuard = require('./lib/ai-guard');
 const guard = aiGuard.create({ store });
 global.LAB_AI_GUARD = guard;
 
+// The lab's own Claude calls through workload identity federation (CLAUDE.md
+// "Claude through federation"): off unless LAB_CLAUDE_AUTH=federation. It
+// swaps the shared SDK's Anthropic class before any app is required, so a
+// client made with the lab's key federates and a member's own key does not.
+const claudeAuth = require('./lib/claude-auth').create();
+try {
+  claudeAuth.install(require(path.join(path.dirname(require.resolve('@anthropic-ai/sdk')), 'client.js')));
+} catch (err) {
+  console.warn('[lab] claude-auth not installed:', err.message);
+}
+
 const mounted = [];
 for (const a of lab.APPS) {
   if (a.status !== 'testing') continue;
@@ -492,6 +503,19 @@ host.get('/api/lab/ai-guard', async (_req, res) => {
     console.error('[lab] ai-guard status:', err.message);
     res.status(500).json({ error: 'Not available.' });
   }
+});
+
+// Is the lab on federation, and did the last token exchange work. Nothing
+// secret: no id, token or key. ?check=1 tries an exchange (free; no model
+// call), at most once a minute across the instance.
+let claudeAuthCheckedAt = 0;
+host.get('/api/lab/claude-auth', async (req, res) => {
+  if (req.query.check === '1' && Date.now() - claudeAuthCheckedAt > 60 * 1000) {
+    claudeAuthCheckedAt = Date.now();
+    await claudeAuth.token();
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json(claudeAuth.status());
 });
 
 host.get('/api/lab/leaderboard', async (req, res) => {

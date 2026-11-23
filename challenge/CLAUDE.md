@@ -676,6 +676,44 @@ redesigned does not touch it and works exactly as before.** Code in
 - Memory: the guard costs about nothing at start (the identity price table
   loads on the first Claude price).
 
+## Claude through federation (2026-11-23)
+
+Erik set up workload identity federation on the Claude Console (rule "gcp",
+issuer "google-cloud", target service account "erik-apps") and asked for the
+lab's own Claude usage to run on it instead of the long-lived API key.
+`lib/claude-auth.js`, installed by `server.js` right after the AI guard;
+tests in `test/claude-auth.js`.
+
+- **Off unless `LAB_CLAUDE_AUTH=federation`** on the service. Unset it (an env
+  change, no deploy) to go straight back to the key. The ids are plain
+  settings, never in this public repo: `LAB_WIF_RULE_ID` (fdrl_...),
+  `LAB_WIF_ORG_ID`, `LAB_WIF_SERVICE_ACCOUNT_ID` (svac_..., optional),
+  `LAB_WIF_WORKSPACE_ID` (wrkspc_...; required because the rule is enabled in
+  every workspace), `LAB_WIF_GOOGLE_SA` (the Google service account the rule
+  matches), `LAB_WIF_AUDIENCE` (default `https://api.anthropic.com`).
+- **How.** Every app builds `new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })`
+  from the host's copy of the SDK (SHARED_DEPS), so the host swaps the SDK's
+  `client.js` `Anthropic` export for a subclass before any app is required.
+  A client made with **the lab's key** gets a fetch that sends
+  `Authorization: Bearer <federated token>` and no `x-api-key`; a client made
+  with **any other key (BYOK)** is untouched. No app changed.
+- **The token.** `challenge-run@` (Token Creator on the Google service
+  account) asks IAM Credentials for that account's Google ID token (audience,
+  `includeEmail`), exchanges it at `POST /v1/oauth/token`, and caches the
+  Anthropic token until a minute before it ends (10 minutes on the rule); one
+  exchange at a time. The exchange itself is free.
+- **Never breaks the lab.** No token (any failure) -> the request goes out with
+  the API key, a one-minute back-off, one log line a minute
+  (`[claude-auth] federation unavailable (<code>); using the API key`), no
+  ids or secrets. A token the API refuses (401) is dropped and that request
+  is re-sent with the key. So `ANTHROPIC_API_KEY` stays on the service as the
+  fallback.
+- **`GET /api/lab/claude-auth`**: `{mode, configured, lastOkAt, lastError,
+  exchanges, fallbacks}`, nothing secret; `?check=1` tries an exchange (no
+  model call), at most once a minute per instance.
+- The guard's `priceUsd`/`record` are unchanged: same models, same prices.
+  Usage shows in the Console under the rule's workspace.
+
 ## Commit and PR conventions
 
 Never put a Claude session link in anything pushed to GitHub. See the repo
