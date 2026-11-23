@@ -544,7 +544,7 @@ details.more > summary::before { border-radius: 999px; background: var(--card2);
 .hero h1 { margin: 0 0 16px; font-size: clamp(48px, 13.5vw, 96px); line-height: 1; letter-spacing: -.045em; font-weight: 700; color: var(--text); }
 .hero .lead { margin: 0 auto; max-width: 22em; font-size: clamp(19px, 2.2vw, 24px); line-height: 1.35; letter-spacing: -.015em; color: var(--muted); }
 .hero .cta { justify-content: center; gap: 12px; margin-top: 32px; }
-.hero-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 24px; margin: 12px 0 0; }
+.hero-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 24px; margin: 12px auto 0; max-width: none; }
 .hero-more .link-btn { color: var(--link); font-size: 15px; }
 .mock { max-width: 420px; margin: 8px auto 0; border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); box-shadow: 0 8px 40px rgba(0, 0, 0, .06); animation: none; }
 .mock .mtop { padding: 16px 20px 12px; background: none; border-bottom: 1px solid var(--line); }
