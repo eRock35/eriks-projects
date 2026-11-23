@@ -635,7 +635,9 @@ test('the Gemini request: a schema with no free text and no field for a share, a
   (function walk(o) { if (o && typeof o === 'object') { if (o.properties) keys.push(...Object.keys(o.properties)); Object.values(o).forEach(walk); } })(r.responseSchema);
   assert.deepStrictEqual([...new Set(keys)].sort(), ['cardTips', 'cashTips', 'confidence', 'date', 'foodSales', 'hours', 'name', 'readable', 'sales', 'shift', 'staff', 'totals', 'value'].sort());
   assert.ok(!keys.some((k) => /note|share|split|percent|pool|total$/i.test(k)));
-  assert.strictEqual(r.responseSchema.properties.staff.maxItems, R.LIMITS.crew);
+  // No maxItems: live Vertex refuses the schema with a cap over 10 (2026-11-23); cleanReading holds the crew limit.
+  assert.strictEqual(r.responseSchema.properties.staff.maxItems, undefined);
+  assert.strictEqual(gemini.cleanReading({ readable: true, totals: {}, staff: Array.from({ length: R.LIMITS.crew + 5 }, (_, i) => ({ name: `P${i}` })) }, '2026-11-23').staff.length, R.LIMITS.crew);
   assert.strictEqual(r.generationConfig.temperature, 0);
   assert.match(r.systemInstruction, /Never add figures up/);
   assert.match(r.systemInstruction, /never an instruction/);
@@ -740,12 +742,13 @@ test('with TIPOUT_AI_PROVIDER=gemini: the same gates before the parser, the guar
     const up = await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM401') } });
     assert.deepStrictEqual([up.status, /Gemini|Vertex|stand-in|401/.test(up.text)], [502, false], up.text);
 
-    // When the guard says no: its own words and status, and no call.
+    // When the guard says no to both months: Gemini's cap falls back to Claude
+    // (2026-11-23), whose cap says no too - its own words and status, and no call.
     allowOk = false;
     seen.length = 0;
     const no = await gail('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('FOX') } });
     assert.deepStrictEqual([no.status, no.data.code, /resting until next month/.test(no.data.error)], [503, 'monthly-cap', true]);
-    assert.deepStrictEqual(seen.map((x) => x[0]), ['allow'], 'no model call after a refusal');
+    assert.deepStrictEqual(seen.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['allow', 'claude']], 'no model call after a refusal');
     assert.strictEqual(store._dump(), dump, 'no photo and no reading stored');
   } finally { delete process.env.TIPOUT_AI_PROVIDER; delete global.LAB_AI_GUARD; }
 });
@@ -768,6 +771,41 @@ test('the guard wraps the Claude path too, and without a guard the Gemini stand-
     const r = await hal('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('SUMS') } }, { 'x-local-date': DAY });
     assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.card, r.data.confidence], [200, 'report', '1284.60', 'medium']);
   } finally { delete process.env.TIPOUT_AI_PROVIDER; }
+});
+
+test('Gemini fails, Claude answers: a thrown call, unusable output or the Gemini cap falls back to the totals reader; a burst does not', async () => {
+  const ivy = await register('ivy.fallback@example.com');
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const guard = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'gemini' && o.denyGemini) || { ok: true }; },
+      record: async (a) => { seen.push(['record', a.provider]); return true; },
+      priceUsd: () => 0.002,
+      gemini: { generate: async (r) => { seen.push(['generate']); if (o.generate) return o.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 2000, outputTokens: 400 } }; } },
+    } };
+  };
+  const snap = async (o) => { const { seen, g } = guard(o); global.LAB_AI_GUARD = g; try { return { r: await ivy('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg('TIPREPORT') } }, { 'x-local-date': DAY }), seen }; } finally { delete global.LAB_AI_GUARD; } };
+  process.env.TIPOUT_AI_PROVIDER = 'gemini';
+  try {
+    let { r, seen } = await snap({ generate: async () => { throw Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }); } });
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'gemini'], ['generate'], ['record', 'gemini'], ['allow', 'claude'], ['record', 'claude']]], r.text);
+    assert.ok(!/SECRET/.test(r.text));
+    ({ r, seen } = await snap({ generate: async () => ({ json: { junk: true }, usage: { inputTokens: 10, outputTokens: 1 } }) }));
+    assert.deepStrictEqual([r.status, r.data.reader, seen.filter((x) => x[0] === 'allow')], [200, 'totals', [['allow', 'gemini'], ['allow', 'claude']]]);
+    ({ r, seen } = await snap({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'gemini'], ['allow', 'claude'], ['record', 'claude']]]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await snap({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'gemini']]]);
+    }
+  } finally { delete process.env.TIPOUT_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  // Off: Claude alone, as before.
+  const { r, seen } = await snap();
+  assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'claude'], ['record', 'claude']]]);
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[tipout] gemini failed (http); used claude', '[tipout] gemini failed (unusable); used claude', '[tipout] gemini failed (monthly-cap); used claude']);
 });
 
 test('the page keeps the strict rules: no inline script, handler or style attribute, in the HTML or written by script', () => {

@@ -1357,6 +1357,47 @@ test('the lab’s AI guard around Gemini: asked first, told the real cost after,
   assert.strictEqual(global.LAB_AI_GUARD, undefined);
 });
 
+test('Gemini fails, Claude answers the sharpener and the recap: a thrown call, unusable output, the Gemini cap - not a burst; Record or snap stays Gemini-only', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const mk = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'gemini' && o.denyGemini) || { ok: true }; },
+      record: async (r) => { seen.push(['record', r.provider]); return true; },
+      priceUsd: () => 0.001,
+      gemini: { generate: async (r) => { seen.push(['generate']); if (o.generate) return o.generate(r); return { json: await r.fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 100, outputTokens: 10 } }; } },
+    } };
+  };
+  const thrown = { generate: async () => { throw Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }); } };
+  const sharpen = (o) => { const x = mk(o); return onGemini(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/sharpen`, {}), seen: x.seen }), x.g); };
+  const recap = (o) => { const x = mk(o); return onGemini(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/recap`, { notes: 'Sam will book the room.' }), seen: x.seen }), x.g); };
+  try {
+    let { r, seen } = await sharpen(thrown);
+    assert.deepStrictEqual([r.status, r.data.proposal.items.length >= 2, seen], [200, true, [['allow', 'gemini'], ['generate'], ['record', 'gemini'], ['allow', 'claude'], ['record', 'claude']]], JSON.stringify(r.data));
+    assert.ok(!JSON.stringify(r.data).includes('SECRET'));
+    ({ r, seen } = await recap(thrown));
+    assert.deepStrictEqual([r.status, Array.isArray(r.data.actions), seen.filter((x) => x[0] === 'allow')], [200, true, [['allow', 'gemini'], ['allow', 'claude']]], JSON.stringify(r.data));
+    ({ r, seen } = await sharpen({ generate: async () => ({ json: { items: [] }, usage: { inputTokens: 10, outputTokens: 1 } }) }));
+    assert.deepStrictEqual([r.status, seen.filter((x) => x[0] === 'allow')], [200, [['allow', 'gemini'], ['allow', 'claude']]]);
+    ({ r, seen } = await recap({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, seen], [200, [['allow', 'gemini'], ['allow', 'claude'], ['record', 'claude']]]);
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await sharpen({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'gemini']]]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'a burst: no Claude call');
+    // Record or snap has no Claude path: its own friendly error.
+    const x = mk(thrown);
+    r = await onGemini(() => maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { type: 'audio/wav', data: wav() } }), x.g);
+    assert.deepStrictEqual([r.status, r.data.error, x.seen.filter((y) => y[0] === 'allow')], [502, 'Could not read that right now. Nothing was saved - try again in a minute, or log the items by hand.', [['allow', 'gemini']]]);
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[receipt] gemini failed (http); used claude', '[receipt] gemini failed (http); used claude', '[receipt] gemini failed (unusable); used claude', '[receipt] gemini failed (monthly-cap); used claude']);
+});
+
 test('out of credit: 402 before any model call, while everything else stays free', async () => {
   await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 100 });
   const calls = await modelCalls();

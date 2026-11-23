@@ -296,6 +296,13 @@ processor or Z report to reconcile card sales and payouts."**
   `snap:gemini-3.8-flash`), so the $2 credit and the free daily cap still
   hold. With no guard (the app on its own) only the stand-in can answer;
   a real Gemini call needs the lab.
+- **Claude is the fallback for a photo (2026-11-23).** With the switch on, if
+  the Gemini read of a photo fails for any reason but a burst refusal (a
+  thrown call, a reading the validator rejects, the Gemini `monthly-cap`, no
+  helper), the Claude Z-report reader answers it unchanged, marked `reader:
+  'zreport'` so the page draws the old banner (`geminiElseClaude`; log
+  `[tally] gemini failed (<code>); used claude`). Pasted text is Gemini's
+  alone: its failure stays the app's own sentence. Bursts go out as they are.
 - **The sample shows it without a model.** `lib/demo.js` hand-writes
   Saturday's batch report as a reading (through the real cleaner): tips hard
   to read, the fee printed at the crept 2.9%. With the reader switched on,
