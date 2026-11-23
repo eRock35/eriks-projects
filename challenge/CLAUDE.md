@@ -133,6 +133,15 @@ What he asked for, kept for the record:
    a crew leaderboard. If it can read a Hopscotch crawl or passport by its
    share link rather than duplicating it, better.
 
+### As Filed, on Erik's ask (2026-11-23)
+
+Erik asked for an app that reads public company filings and shows what you
+can learn from them. It shipped as **As Filed** (drop #70) outside the
+alternation, like the two above. It is the lab's one app with a build-time
+data pipeline (`apps/asfiled/tools/`, raw downloads cached outside the repo)
+and a hard rule that nothing is shown a primary source does not state; read
+`apps/asfiled/CLAUDE.md` before touching its data. No runtime AI.
+
 ### Rebuilding the lost drops, one a day (Erik, 2026-11-21)
 
 Eight drops built and reviewed from 2026-11-12 to 2026-11-19 were lost with
