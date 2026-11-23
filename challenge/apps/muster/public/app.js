@@ -33,6 +33,23 @@
   // A tag the browser reports but Intl refuses ("en-US@posix" in some
   // headless browsers) would make every date throw: fall back.
   var LOCALE = (function () { try { return Intl.getCanonicalLocales(navigator.language || 'en-US')[0] || 'en-US'; } catch (e) { return 'en-US'; } }());
+
+  // Positions and widths worked out here (the ruler's bands, the timeline,
+  // the progress bar) are written as data-l / data-w and applied through the
+  // CSSOM as the markup lands, so no markup carries a style attribute.
+  function place(el) {
+    if (el.hasAttribute('data-l')) el.style.left = el.getAttribute('data-l');
+    if (el.hasAttribute('data-w')) el.style.width = el.getAttribute('data-w');
+  }
+  new MutationObserver(function (list) {
+    list.forEach(function (m) {
+      Array.prototype.forEach.call(m.addedNodes, function (n) {
+        if (n.nodeType !== 1) return;
+        if (n.matches('[data-l], [data-w]')) place(n);
+        $$('[data-l], [data-w]', n).forEach(place);
+      });
+    });
+  }).observe(document.documentElement, { childList: true, subtree: true });
   function pad2(n) { return ('0' + n).slice(-2); }
   /** Today, in this device's own day. */
   function today() { var d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
@@ -59,7 +76,7 @@
     pf: null, chk: null, built: null, pendingId: '', statusDate: '', showSsn: false, showMap: false, recheck: null,
     batch: null, results: null, audit: [], chain: null, match: null, decisions: null, work: null,
     res: null, filter: 'todo', open: {}, showNone: false, exportMask: true,
-    letter: { crid: '', tone: 'warm', text: '', edited: false, person: null, source: 'template' },
+    letter: { crid: '', tone: 'warm', text: '', edited: false, person: null, source: 'template', ai: null },
     busy: '', seq: 0,
   };
   function db() { return state.demo ? demoStore : real; }
@@ -107,7 +124,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else here stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else here stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     reveal(where);
     var b = $('#resend', where);
     b.addEventListener('click', function () {
@@ -224,8 +241,8 @@
     state.conflictOpen = true;
     var mine = state.settings, a = C.cleanSettings(acc).settings;
     var desc = function (s) { return esc((C.isDefaultLayout(s.layout) ? 'default request layout' : 'an edited request layout') + ', ' + plural(s.presets.length, 'column preset') + ', ' + (s.policy === 'notice' ? 'wait for notice' : 'apply on a match') + ', ' + (s.cridMode === 'short' ? 'short codes' : 'loan ids as record ids')); };
-    sheet('<h2>Your settings changed on another device</h2><p class="muted">The copy in your account is newer than the one this device last saw.</p><div class="note"><p style="margin:0"><b>This device:</b> ' + desc(mine) + '</p><p style="margin:6px 0 0"><b>Your account:</b> ' + desc(a) + '</p></div>' +
-      '<div class="btns" style="margin-top:12px"><button class="btn" type="button" id="cfMerge">Merge them</button><button class="btn ghost" type="button" id="cfTake">Use the account’s copy</button><button class="btn ghost" type="button" id="cfKeep">Keep this device’s</button></div><p class="small muted" style="margin-top:8px">Merging keeps every column preset from both; the newer copy wins everything else.</p>', function (root) {
+    sheet('<h2>Your settings changed on another device</h2><p class="muted">The copy in your account is newer than the one this device last saw.</p><div class="note"><p class="m0"><b>This device:</b> ' + desc(mine) + '</p><p class="m0 mt8"><b>Your account:</b> ' + desc(a) + '</p></div>' +
+      '<div class="btns mt12"><button class="btn" type="button" id="cfMerge">Merge them</button><button class="btn ghost" type="button" id="cfTake">Use the account’s copy</button><button class="btn ghost" type="button" id="cfKeep">Keep this device’s</button></div><p class="small muted mt8">Merging keeps every column preset from both; the newer copy wins everything else.</p>', function (root) {
       var done = function (s, msg) { state.conflictOpen = false; closeSheet(); adopt(s); toast(msg); };
       $('#cfMerge', root).addEventListener('click', function () { var m = C.mergeSettings(a, mine); done(m.settings, 'Merged' + (m.added ? ': ' + plural(m.added, 'preset') + ' added from the other copy.' : '.')); pushSettings(acc.updatedAt); });
       $('#cfTake', root).addEventListener('click', function () { done(a, 'Using the account’s copy.'); state.syncBase = acc.updatedAt; state.syncState = 'synced'; saveSyncBase(); drawSync(); });
@@ -237,7 +254,7 @@
     if (state.me && !state.me.sync) return '<span class="sync muted small">Saving to the account is unavailable right now - your settings are on this device.</span>';
     if (state.syncState === 'syncing') return '<span class="sync muted small">Saving your settings to your account…</span>';
     if (state.syncState === 'error') return '<span class="sync small err">Couldn’t save to your account' + (state.syncErr ? ': ' + esc(state.syncErr) : '') + ' <button class="link-btn" type="button" data-act="retrysync">Try again</button></span>';
-    return '<span class="sync small" style="color:var(--ok);font-weight:700">✓ Settings saved to your account - never a borrower</span>';
+    return '<span class="sync small oktext">✓ Settings saved to your account - never a borrower</span>';
   }
   function drawSync() { $$('[data-sync]').forEach(function (el) { el.innerHTML = syncLine(); }); }
 
@@ -262,7 +279,7 @@
       toast(err.message || 'That file could not be read.', 6000);
     });
   }
-  function closeBatch() { state.batch = null; state.results = null; state.audit = []; state.chain = null; state.match = null; state.decisions = null; state.work = null; state.res = null; state.open = {}; state.letter = { crid: '', tone: 'warm', text: '', edited: false, person: null, source: 'template' }; }
+  function closeBatch() { state.batch = null; state.results = null; state.audit = []; state.chain = null; state.match = null; state.decisions = null; state.work = null; state.res = null; state.open = {}; state.letter = { crid: '', tone: 'warm', text: '', edited: false, person: null, source: 'template', ai: null }; }
   function loadDemo() {
     state.demo = true; resetBuild(); closeBatch(); state.recheck = null; state.pendingId = D.BATCH;
     demoStore.clearAll();
@@ -529,9 +546,9 @@
     var saved = state.batches.filter(function (b) { return !b.demo; });
     return '<div class="stack">' +
       '<section class="hero">' +
-        '<p class="kicker">🎖️ SCRA servicemember checks</p>' +
-        '<h1>Find the servicemembers in your loan book - and apply the 6% cap with the paper trail.</h1>' +
-        '<p>Muster turns a portfolio export into DMDC’s fixed-width multiple-record request file, reads the results back against each loan, decides who is owed the 6% cap and estimates what - with a worklist and a hash-chained audit log an examiner can follow.</p>' +
+        '<p class="kicker">SCRA servicemember checks</p>' +
+        '<h1>Find the servicemembers in your loan book.</h1>' +
+        '<p>Apply the 6% cap with the paper trail. Muster builds DMDC’s request file from a portfolio export, reads the results back, decides who is owed the cap and estimates what - with a worklist and an audit log an examiner can follow.</p>' +
         '<div class="btns"><button class="btn big primary" type="button" data-act="demo">Try the example</button>' +
         '<label class="btn big ghost filepick">Check my portfolio<input type="file" data-file="portfolio" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></div>' +
         '<p class="caps">Read on this device. SSNs never leave it and are never saved. CSV or TSV - up to 25 MB and 250,000 loans.</p>' +
@@ -545,7 +562,7 @@
         '<div class="card"><span class="n">3</span><h2>Build the request file</h2><p>Fixed width, 119 characters a line, one record per borrower per loan, with a ruler to check every position against DMDC’s guide.</p></div>' +
         '<div class="card"><span class="n">4</span><h2>Decide, apply, prove it</h2><p>Results matched back to loans, each case decided with the rule it rests on, the 6% math, a worklist and an exam pack.</p></div>' +
       '</section>' +
-      '<section class="dropzone" data-drop><p style="margin:0"><b>Or drop a portfolio export here</b></p><p class="small muted" style="margin:0">It is read in this browser. Not a byte of it is uploaded.</p><label class="btn ghost filepick">Choose a file<input type="file" data-file="portfolio" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></section>' +
+      '<section class="dropzone" data-drop><p class="m0"><b>Or drop a portfolio export here</b></p><p class="small muted m0">It is read in this browser. Not a byte of it is uploaded.</p><label class="btn ghost filepick">Choose a file<input type="file" data-file="portfolio" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></section>' +
       '<section class="card"><h2>What it does</h2><ul class="chips">' + ['Column guessing with a confirm step', 'Co-borrowers checked too', 'Never-issued SSNs caught', 'Names folded and cut to fit', 'DMDC fixed-width request file', 'Editable layout, checked for overlaps', 'CSV or fixed-width results', 'A ruler to map any results layout', 'Eligible, check policy, watch', 'Mortgages: the one-year tail', 'Released in 367 days', 'Taken out during service', 'Fees counted as interest', 'The 6% math in cents', 'A worklist with steps', 'SHA-256-chained audit log', 'Exam pack: CSV, summary, log', 'Borrower letters'].map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></section>' +
       '<p class="privacy-line">🔒 <span><b>Nothing is uploaded.</b> The inputs are SSNs and dates of birth, so Muster reads them in this browser, keeps them in memory only while the page is open, and saves only the batch record - which customer record id is which loan - and your worklist. A free account keeps your layouts and preferences, never a borrower. ' + esc(C.NOT_ADVICE) + '</span></p>' +
     '</div>';
@@ -640,7 +657,7 @@
       q.types.map(function (t) {
         return '<tr><td>' + esc(t.raw) + (t.sure ? '' : ' <span class="sure sure-unsure">? Check this</span>') + '</td><td class="r">' + esc(groups(t.n)) + '</td><td><select class="input" data-ptype="' + esc(t.key) + '" aria-label="Loan type for ' + esc(t.raw) + '">' + C.LOAN_TYPES.map(function (x) { return '<option value="' + esc(x) + '"' + (state.pf.typeMap[t.key] === x ? ' selected' : '') + '>' + esc(C.TYPE_WORD[x]) + '</option>'; }).join('') + '</select></td></tr>';
       }).join('') + '</tbody></table></div>' +
-      (q.types.some(function (t) { return !t.sure && t.type === 'mortgage'; }) ? '<p class="small muted" style="margin:8px 0 0">A home-equity line is read as a mortgage here (secured by the home). Whether it counts as “a mortgage, trust deed or other security in the nature of a mortgage” is your policy’s call - change it if it does not.</p>' : '') +
+      (q.types.some(function (t) { return !t.sure && t.type === 'mortgage'; }) ? '<p class="small muted m0 mt8">A home-equity line is read as a mortgage here (secured by the home). Whether it counts as “a mortgage, trust deed or other security in the nature of a mortgage” is your policy’s call - change it if it does not.</p>' : '') +
       '</section>';
   }
   function portfolioHtml() {
@@ -649,10 +666,10 @@
     var allSure = placed.length && placed.every(function (k) { return pf.conf[k] === 'sure' || pf.conf[k] === 'preset'; }) && !C.mappingProblems(pf.map).length;
     var probs = C.mappingProblems(pf.map);
     var mapping = allSure && !state.showMap
-      ? '<section class="card"><p class="okline">✓ Every column recognised - ' + esc(plural(placed.length, 'field')) + (placed.some(function (k) { return /^b2/.test(k); }) ? ', co-borrowers included' : '') + '.</p>' + MAP_GROUPS.map(function (g) { var ks = g.keys.filter(function (k) { return placed.indexOf(k) >= 0; }); return ks.length ? '<p class="small muted" style="margin:6px 0 0"><b>' + esc(g.name.replace(/ - optional$/, '')) + ':</b> ' + esc(ks.map(function (k) { return C.pfield(k).label.replace(/^Borrower \d( \(co-borrower\))? /, '').replace(/ \(.*\)$/, ''); }).join(', ')) + '</p>' : ''; }).join('') + '<div class="btns" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="showmap">Check or change</button></div></section>'
+      ? '<section class="card"><p class="okline">✓ Every column recognised - ' + esc(plural(placed.length, 'field')) + (placed.some(function (k) { return /^b2/.test(k); }) ? ', co-borrowers included' : '') + '.</p>' + MAP_GROUPS.map(function (g) { var ks = g.keys.filter(function (k) { return placed.indexOf(k) >= 0; }); return ks.length ? '<p class="small muted m0 mt8"><b>' + esc(g.name.replace(/ - optional$/, '')) + ':</b> ' + esc(ks.map(function (k) { return C.pfield(k).label.replace(/^Borrower \d( \(co-borrower\))? /, '').replace(/ \(.*\)$/, ''); }).join(', ')) + '</p>' : ''; }).join('') + '<div class="btns mt12"><button class="btn small ghost" type="button" data-act="showmap">Check or change</button></div></section>'
       : '<section class="card"><div class="sec-head"><h2>Which column is which?</h2><span class="small muted">Guessed from the header names and what the values look like</span></div><div class="fgroups">' +
         MAP_GROUPS.map(function (g) { return '<div class="fgroup"><h3>' + esc(g.name) + '</h3><ul class="maplist">' + g.keys.map(mapRowHtml).join('') + '</ul></div>'; }).join('') +
-        '</div><div class="btns" style="margin-top:12px"><button class="btn small ghost" type="button" data-act="preset">Save these columns as a preset</button><span class="small muted">Keeps the header names only - never a value.</span></div></section>';
+        '</div><div class="btns mt12"><button class="btn small ghost" type="button" data-act="preset">Save these columns as a preset</button><span class="small muted">Keeps the header names only - never a value.</span></div></section>';
     return '<div class="stack">' + stepsBar('portfolio') + recheckStrip() +
       demoStrip('Step 1 of 5: the columns. Every one was recognised, co-borrowers included.') +
       fileStripHtml() + questionsHtml() + mapping + typesHtml() +
@@ -706,16 +723,16 @@
     return '<section class="card" id="layout-' + esc(where) + '"><div class="sec-head"><h2>Request layout - DMDC SCRA multiple record request</h2>' + (C.isDefaultLayout(lay) ? '<span class="pill p-info">Muster’s default</span>' : '<span class="pill p-warn">Edited</span>') + '</div>' +
       '<p class="small">Check these positions against the current DMDC SCRA User Guide (“Format of the Request File”) before your first upload. DMDC checks every file it receives, so a wrong layout is refused rather than misread.</p>' +
       '<div class="tablewrap tall" tabindex="0"><table class="plain layout"><thead><tr><th>Field</th><th>Starts at</th><th>Length</th><th class="r">Ends at</th><th>Holds</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
-      '<div class="row" style="margin-top:10px"><label class="field" style="max-width:200px"><span>Line length</span><input class="input num4" type="number" min="20" max="1000" inputmode="numeric" data-lay="lineLength" value="' + esc(String(lay.lineLength)) + '"></label><p class="small muted" style="margin:0;max-width:52ch">Spaces pad every field on the right; an empty optional field is all spaces. Dates are YYYYMMDD.</p></div>' +
-      (probs.length ? '<div class="note" role="alert" style="margin-top:10px">' + probs.map(function (p) { return '<p class="err" style="margin:0 0 4px">' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
-      '<div class="btns" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="resetlayout"' + (C.isDefaultLayout(lay) ? ' disabled' : '') + '>Reset to default</button><span class="small muted">' + (signedIn() ? 'Saved on this device and in your account.' : 'Saved on this device.') + '</span></div></section>';
+      '<div class="row mt12"><label class="field mw200"><span>Line length</span><input class="input num4" type="number" min="20" max="1000" inputmode="numeric" data-lay="lineLength" value="' + esc(String(lay.lineLength)) + '"></label><p class="small muted m0 mw52">Spaces pad every field on the right; an empty optional field is all spaces. Dates are YYYYMMDD.</p></div>' +
+      (probs.length ? '<div class="note mt12" role="alert">' + probs.map(function (p) { return '<p class="err m0 mb4">' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
+      '<div class="btns mt12"><button class="btn small ghost" type="button" data-act="resetlayout"' + (C.isDefaultLayout(lay) ? ' disabled' : '') + '>Reset to default</button><span class="small muted">' + (signedIn() ? 'Saved on this device and in your account.' : 'Saved on this device.') + '</span></div></section>';
   }
   /** A fixed-width block: ruler, lines and coloured bands behind each field. */
   function fwHtml(lines, spans, opts) {
     opts = opts || {};
     var width = opts.width || lines.reduce(function (m, l) { return Math.max(m, l.length); }, 0);
     var rl = C.rulerLines(width);
-    var bands = spans.map(function (s) { return '<i class="band b-' + esc(s.k) + '" style="left:' + (s.start - 1) + 'ch;width:' + s.len + 'ch" title="' + esc(s.label + ': positions ' + s.start + '-' + (s.start + s.len - 1)) + '"></i>'; }).join('');
+    var bands = spans.map(function (s) { return '<i class="band b-' + esc(s.k) + '" data-l="' + (s.start - 1) + 'ch" data-w="' + s.len + 'ch" title="' + esc(s.label + ': positions ' + s.start + '-' + (s.start + s.len - 1)) + '"></i>'; }).join('');
     return '<div class="fw" tabindex="0" role="region" aria-label="' + esc(opts.label || 'Preview') + '"><div class="fw-in">' +
       '<div class="rlwrap" aria-hidden="true"><span class="rl">' + esc(rl[0]) + '</span><span class="rl">' + esc(rl[1]) + '</span></div>' +
       lines.map(function (l) { return '<span class="ln">' + bands + '<span class="t">' + esc(l) + '</span></span>'; }).join('') +
@@ -744,8 +761,8 @@
       var shown = previewLines();
       built = '<section class="card"><div class="sec-head"><h2>' + esc(plural(b.batch.count, 'record')) + ' ready</h2><span class="small muted">Batch ' + esc(b.batch.id) + ' · status date ' + esc(nice(b.batch.statusDate)) + '</span></div>' +
         (b.allExact ? '<p class="okline">✓ Every line is exactly ' + esc(String(b.lineLength)) + ' characters</p>' : '<p class="err">Some lines are not ' + esc(String(b.lineLength)) + ' characters - check the layout.</p>') +
-        '<ul class="batchlist" style="margin-top:10px">' + b.files.map(function (f, i) { return '<li><div><div class="bn anywhere">' + esc(f.name) + '</div><div class="bm">' + esc(plural(f.records, 'record') + ' · ' + (b.batch.lineEnding === 'lf' ? 'LF' : 'CRLF') + ' · SHA-256 ' + f.sha256.slice(0, 16) + '…') + '</div></div><button class="btn small" type="button" data-act="dlfile" data-i="' + i + '">Download</button></li>'; }).join('') + '</ul>' +
-        '<h3 style="margin:14px 0 6px">Preview with a ruler</h3><ul class="legend">' + C.layoutSpans(s.layout).map(function (x) { return '<li><span class="sw b-' + x.k + '" aria-hidden="true"></span>' + esc(x.label + ' ' + x.start + '-' + (x.start + x.len - 1)) + '</li>'; }).join('') + '</ul>' +
+        '<ul class="batchlist mt12">' + b.files.map(function (f, i) { return '<li><div><div class="bn anywhere">' + esc(f.name) + '</div><div class="bm">' + esc(plural(f.records, 'record') + ' · ' + (b.batch.lineEnding === 'lf' ? 'LF' : 'CRLF') + ' · SHA-256 ' + f.sha256.slice(0, 16) + '…') + '</div></div><button class="btn small" type="button" data-act="dlfile" data-i="' + i + '">Download</button></li>'; }).join('') + '</ul>' +
+        '<h3 class="mt16 mb8">Preview with a ruler</h3><ul class="legend">' + C.layoutSpans(s.layout).map(function (x) { return '<li><span class="sw b-' + x.k + '" aria-hidden="true"></span>' + esc(x.label + ' ' + x.start + '-' + (x.start + x.len - 1)) + '</li>'; }).join('') + '</ul>' +
         fwHtml(shown, C.layoutSpans(s.layout), { width: b.lineLength, label: 'The first lines of the request file' }) +
         '<label class="check"><input type="checkbox" data-set="showSsn"' + (state.showSsn ? ' checked' : '') + '>Show SSNs and dates of birth in the preview</label>' +
         '<p class="quiet">' + (state.demo ? 'The example is never saved.' : 'Saved as batch ' + esc(b.batch.id) + ' on this device: which customer record id is which loan, and what a decision needs. It holds no SSN, date of birth or name - those stay in this page’s memory and are gone when it closes.') + '</p></section>';
@@ -757,7 +774,7 @@
     return '<div class="stack">' + stepsBar('file') + recheckStrip() +
       demoStrip('Step 3 of 5: the fixed-width request file - every line 119 characters, the fields coloured on a ruler.') +
       (state.demo ? '<div class="example-banner" role="note">⚠️ <p><b>EXAMPLE - do not upload this file.</b> Its name starts EXAMPLE-, every SSN in it is in the 900-999 area that is never issued, and every person is made up.</p></div>' : '') +
-      (stale ? '<div class="note"><p style="margin:0">The options changed since this file was built. <button class="link-btn" type="button" data-act="build">Build it again</button></p></div>' : '') +
+      (stale ? '<div class="note"><p class="m0">The options changed since this file was built. <button class="link-btn" type="button" data-act="build">Build it again</button></p></div>' : '') +
       built + opts + layoutTableHtml('file') + next + '</div>';
   }
 
@@ -791,7 +808,7 @@
       (ign.length ? '<p class="privacy-line">🔒 <span><b>Ignored and never kept:</b> ' + esc(ign.join(', ')) + '. Muster reads only statuses, dates and the customer record id from a results file.</span></p>' : '') +
       '<section class="card"><div class="sec-head"><h2>Which column is which?</h2><span class="small muted">Yes/No, Y/N, True/False and 1/0 all read; dates as YYYYMMDD, YYYY-MM-DD or MM/DD/YYYY</span></div><div class="fgroups">' +
       RES_GROUPS.map(function (g) { return '<div class="fgroup"><h3>' + esc(g.name) + '</h3><ul class="maplist">' + g.keys.map(resMapRowHtml).join('') + '</ul></div>'; }).join('') +
-      '</div><div class="btns" style="margin-top:12px"><button class="btn small ghost" type="button" data-act="rpreset">Save these columns as a preset</button></div></section>';
+      '</div><div class="btns mt12"><button class="btn small ghost" type="button" data-act="rpreset">Save these columns as a preset</button></div></section>';
   }
   function fixedMapperHtml() {
     var r = state.res;
@@ -807,7 +824,7 @@
       var on = sel && p >= Math.min(sel.a, sel.b) && p <= Math.max(sel.a, sel.b);
       cells += '<span class="rc' + (on ? ' on' : '') + (mapped[p] ? ' mapped' : '') + '" data-pos="' + p + '"><span>' + (p % 10 === 0 ? (p / 10) % 10 : '·') + '</span><span>' + (p % 10) + '</span></span>';
     }
-    var bands = all.map(function (s) { return '<i class="band b-' + esc(s.k) + '" style="left:' + (s.start - 1) + 'ch;width:' + s.len + 'ch" title="' + esc(s.label + ': ' + s.start + '-' + (s.start + s.len - 1)) + '"></i>'; }).join('');
+    var bands = all.map(function (s) { return '<i class="band b-' + esc(s.k) + '" data-l="' + (s.start - 1) + 'ch" data-w="' + s.len + 'ch" title="' + esc(s.label + ': ' + s.start + '-' + (s.start + s.len - 1)) + '"></i>'; }).join('');
     var a = sel ? Math.min(sel.a, sel.b) : '', len = sel ? Math.abs(sel.b - sel.a) + 1 : '';
     var used = {};
     r.spans.forEach(function (s) { used[s.field] = 1; });
@@ -823,9 +840,9 @@
         '<label class="field"><span>Length</span><input class="input num4" type="number" min="1" max="400" data-sel="len" value="' + esc(String(len)) + '"></label>' +
         '<label class="field"><span>This span holds</span><select class="input" data-sel="field">' + C.RFIELDS.map(function (f) { return '<option value="' + esc(f.key) + '"' + (r.selField === f.key ? ' selected' : '') + (used[f.key] ? ' disabled' : '') + '>' + esc(f.label + (used[f.key] ? ' (marked)' : '')) + '</option>'; }).join('') + '</select></label>' +
         '<button class="btn" type="button" data-act="addspan"' + (sel ? '' : ' disabled') + '>Add</button></div>' +
-      '<p class="small muted" style="margin:8px 0 0">' + (sel ? esc('Positions ' + a + '-' + (a + len - 1) + ' (' + plural(len, 'character') + ').') : 'Nothing selected yet.') + '</p>' +
-      (r.spans.length ? '<h3 style="margin:14px 0 6px">Marked</h3><ul class="spanlist">' + r.spans.slice().sort(function (x, y) { return x.start - y.start; }).map(function (s) { return '<li><span><b>' + esc(rfield(s.field).label) + '</b> · positions ' + esc(s.start + '-' + (s.start + s.len - 1)) + '</span><button class="btn small ghost" type="button" data-act="rmspan" data-field="' + esc(s.field) + '">Remove</button></li>'; }).join('') + '</ul>' : '') +
-      '<label class="field" style="max-width:260px;margin-top:12px"><span>Header lines to skip</span><input class="input num4" type="number" min="0" max="5" data-set="skip" value="' + esc(String(r.skip)) + '"></label>' +
+      '<p class="small muted m0 mt8">' + (sel ? esc('Positions ' + a + '-' + (a + len - 1) + ' (' + plural(len, 'character') + ').') : 'Nothing selected yet.') + '</p>' +
+      (r.spans.length ? '<h3 class="mt16 mb8">Marked</h3><ul class="spanlist">' + r.spans.slice().sort(function (x, y) { return x.start - y.start; }).map(function (s) { return '<li><span><b>' + esc(rfield(s.field).label) + '</b> · positions ' + esc(s.start + '-' + (s.start + s.len - 1)) + '</span><button class="btn small ghost" type="button" data-act="rmspan" data-field="' + esc(s.field) + '">Remove</button></li>'; }).join('') + '</ul>' : '') +
+      '<label class="field mw280 mt12"><span>Header lines to skip</span><input class="input num4" type="number" min="0" max="5" data-set="skip" value="' + esc(String(r.skip)) + '"></label>' +
       (probs.length && r.spans.length ? '<p class="err">' + esc(probs[0]) + '</p>' : '') +
       '</section>';
   }
@@ -842,13 +859,13 @@
     if (state.results && m) {
       done = '<section class="card"><div class="sec-head"><h2>Read and matched</h2><span class="small muted">' + esc(stamp(state.results.at)) + '</span></div>' +
         '<section class="kpis four"><div class="kpi hi"><span class="k">Matched</span><span class="v">' + esc(groups(m.matched.length)) + '</span><span class="s">of ' + esc(plural(b.count, 'record')) + '</span></div><div class="kpi"><span class="k">Lines not in the batch</span><span class="v">' + esc(groups(m.unmatchedCount)) + '</span></div><div class="kpi"><span class="k">Records with no line</span><span class="v">' + esc(groups(m.missing.length)) + '</span><span class="s">' + esc(m.missing.length ? 'decided “Check by hand”' : 'none') + '</span></div><div class="kpi"><span class="k">Repeated lines</span><span class="v">' + esc(groups(m.duplicates)) + '</span><span class="s">the first one counts</span></div></section>' +
-        (m.unmatched.length ? '<h3 style="margin:12px 0 6px">Lines that match no record in this batch</h3><div class="tablewrap" tabindex="0"><table class="plain"><thead><tr><th class="r">Line</th><th>Customer record id</th></tr></thead><tbody>' + m.unmatched.slice(0, 200).map(function (u) { return '<tr><td class="r">' + esc(groups(u.line)) + '</td><td class="mono">' + esc(u.crid || '(blank)') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '') +
-        (m.missing.length ? '<h3 style="margin:12px 0 6px">Records with no line in the file</h3><p class="small mono anywhere">' + esc(m.missing.slice(0, 60).join(' · ') + (m.missing.length > 60 ? ' …' : '')) + '</p>' : '') +
-        '<div class="btns" style="margin-top:12px"><button class="btn" type="button" data-act="tab" data-tab="decisions">See the decisions →</button></div></section>';
+        (m.unmatched.length ? '<h3 class="mt16 mb8">Lines that match no record in this batch</h3><div class="tablewrap" tabindex="0"><table class="plain"><thead><tr><th class="r">Line</th><th>Customer record id</th></tr></thead><tbody>' + m.unmatched.slice(0, 200).map(function (u) { return '<tr><td class="r">' + esc(groups(u.line)) + '</td><td class="mono">' + esc(u.crid || '(blank)') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '') +
+        (m.missing.length ? '<h3 class="mt16 mb8">Records with no line in the file</h3><p class="small mono anywhere">' + esc(m.missing.slice(0, 60).join(' · ') + (m.missing.length > 60 ? ' …' : '')) + '</p>' : '') +
+        '<div class="btns mt12"><button class="btn" type="button" data-act="tab" data-tab="decisions">See the decisions →</button></div></section>';
     }
     return head + done +
       (state.demo && !state.results ? '<section class="card"><h2>Pretend DMDC answered</h2><p>Muster makes up a results file for the example’s 68 records - <b>Example results (made-up layout for this demo)</b> - and reads it the way it reads yours.</p><div class="btns"><button class="btn big" type="button" data-act="pretend">Pretend DMDC answered</button></div></section>' : '') +
-      '<section class="dropzone" data-drop="results"><p style="margin:0"><b>' + (state.results ? 'Read another results file for batch ' + esc(b.id) : 'Drop the results file for batch ' + esc(b.id)) + '</b></p><p class="small muted" style="margin:0">A CSV with headers, or a fixed-width file you map with a ruler. Any SSN, date-of-birth or name column is ignored and never kept.</p><label class="btn ghost filepick">Choose the results file<input type="file" data-file="results" accept=".csv,.tsv,.txt,.dat,text/csv,text/plain"></label></section>' +
+      '<section class="dropzone" data-drop="results"><p class="m0"><b>' + (state.results ? 'Read another results file for batch ' + esc(b.id) : 'Drop the results file for batch ' + esc(b.id)) + '</b></p><p class="small muted m0">A CSV with headers, or a fixed-width file you map with a ruler. Any SSN, date-of-birth or name column is ignored and never kept.</p><label class="btn ghost filepick">Choose the results file<input type="file" data-file="results" accept=".csv,.tsv,.txt,.dat,text/csv,text/plain"></label></section>' +
       (other.length ? '<section class="card"><h2>Other batches on this device</h2><ul class="batchlist">' + other.slice(0, 8).map(batchRowHtml).join('') + '</ul></section>' : '') +
       '</div>';
   }
@@ -867,7 +884,7 @@
     if (d.open) span = Math.round(span * 1.12);
     var at = function (iso) { return (100 * C.daysBetween(lo, iso) / span).toFixed(2) + '%'; };
     var out = '<div class="timeline" aria-hidden="true"><span class="track"></span>';
-    if (d.capStart) { var end = d.capEnd || null; out += '<span class="cap' + (end ? '' : ' open') + '" style="left:' + at(d.capStart) + ';width:' + (end ? (100 * C.daysBetween(d.capStart, end) / span).toFixed(2) + '%' : 'calc(100% - ' + at(d.capStart) + ')') + '"></span>'; }
+    if (d.capStart) { var end = d.capEnd || null; out += '<span class="cap' + (end ? '' : ' open') + '" data-l="' + at(d.capStart) + '" data-w="' + (end ? (100 * C.daysBetween(d.capStart, end) / span).toFixed(2) + '%' : 'calc(100% - ' + at(d.capStart) + ')') + '"></span>'; }
     var ticks = [[d.orig, 'Opened'], [d.S || d.Rs, 'Service'], [t, 'Today'], [d.R || null, 'Left'], [d.capEnd && d.capEnd !== d.R ? d.capEnd : null, 'Cap ends'], [d.C, 'Call-up']].filter(function (x) { return C.isDay(x[0]); });
     // Labels take up to three rows, spaced by how wide the track really is (about 70px a label).
     var main = $('#main'), trackPx = Math.max(240, (main ? main.clientWidth : 800) - 70);
@@ -879,7 +896,7 @@
       var r = 0;
       while (r < 2 && pct - rows[r] < gap) r++;
       rows[r] = pct;
-      out += '<span class="tick' + (x[1] === 'Today' ? ' today' : '') + '" style="left:' + at(x[0]) + '"></span><span class="tl' + edge + (r ? ' r' + r : '') + '" style="left:' + at(x[0]) + '">' + esc(x[1]) + '</span>';
+      out += '<span class="tick' + (x[1] === 'Today' ? ' today' : '') + '" data-l="' + at(x[0]) + '"></span><span class="tl' + edge + (r ? ' r' + r : '') + '" data-l="' + at(x[0]) + '">' + esc(x[1]) + '</span>';
     });
     return out + '</div>';
   }
@@ -959,7 +976,7 @@
     var showSteps = !needsOutcome || c.outcome === 'apply';
     var lead = d.code === 'watch' ? 'Check again ' + (d.C ? 'on ' + nice(d.C) : 'when the orders start') + ' - it is on the re-check list.' : d.code === 'applied' ? 'Confirm the dates against the orders, then mark it done.' : d.code === 'notice' ? 'Send the letter inviting notice and orders; apply the cap when they arrive.' : d.code === 'hand' ? 'Look this borrower up by hand on DMDC’s SCRA website, then decide.' : d.code === 'policy' ? 'The statute does not require this one - decide under your policy.' : 'Reduce the rate, credit what is owed, send the letter.';
     if (c.done && !state.open['w-' + d.crid]) return '<li class="case c-' + d.code + '" id="w-' + esc(d.crid) + '"><button class="chead" type="button" data-act="toggle" data-key="w-' + esc(d.crid) + '" aria-expanded="false"><span class="ct">' + pill(d.code) + '<b>' + esc(d.loan) + '</b><span class="pill p-ok">✓ Done</span></span><span class="amt">' + (c.refundCents ? esc(money(c.refundCents)) + ' credited' : '') + '</span><span class="cm">' + esc('B' + d.b + ' · ' + C.TYPE_WORD[d.type] + (c.rate ? ' · rate reduced ' + nice(c.rate) : '') + (c.letter ? ' · letter ' + nice(c.letter) : '') + (c.by ? ' · by ' + c.by : '')) + '</span></button></li>';
-    return '<li class="case c-' + d.code + '" id="w-' + esc(d.crid) + '"><div class="chead" style="cursor:default"><span class="ct">' + pill(d.code) + '<b>' + esc(d.loan) + '</b>' + (c.done ? '<span class="pill p-ok">Done</span>' : '') + '</span><span class="amt">' + (d.est && d.est.owed ? 'est. ' + esc(money(d.est.owed)) : '') + '</span><span class="cm">' + esc('B' + d.b + ' · ' + C.TYPE_WORD[d.type] + (d.rateU !== null ? ' · ' + C.rateText(d.rateU) : '') + ' · ' + lead) + '</span></div>' +
+    return '<li class="case c-' + d.code + '" id="w-' + esc(d.crid) + '"><div class="chead nocursor"><span class="ct">' + pill(d.code) + '<b>' + esc(d.loan) + '</b>' + (c.done ? '<span class="pill p-ok">Done</span>' : '') + '</span><span class="amt">' + (d.est && d.est.owed ? 'est. ' + esc(money(d.est.owed)) : '') + '</span><span class="cm">' + esc('B' + d.b + ' · ' + C.TYPE_WORD[d.type] + (d.rateU !== null ? ' · ' + C.rateText(d.rateU) : '') + ' · ' + lead) + '</span></div>' +
       '<div class="cbody">' +
       (needsOutcome ? '<label class="field"><span>Outcome</span><select class="input" data-outcome="' + esc(d.crid) + '"><option value="">Choose…</option>' + Object.keys(C.OUTCOMES).map(function (k) { return '<option value="' + k + '"' + (c.outcome === k ? ' selected' : '') + '>' + esc(C.OUTCOMES[k]) + '</option>'; }).join('') + '</select></label>' : '') +
       (showSteps ? '<ul class="steplist">' + steps.map(function (s) { return stepRowHtml(d, c, s); }).join('') + '</ul>' : (c.outcome === 'skip' ? '<ul class="steplist">' + stepRowHtml(d, c, C.STEPS[3]) + '</ul>' : '')) +
@@ -970,7 +987,7 @@
   }
   function chainHtml() {
     var ch = state.chain;
-    if (!ch) return '<div class="verified" style="background:var(--card2);color:var(--muted)">Checking the chain…</div>';
+    if (!ch) return '<div class="verified p-quiet">Checking the chain…</div>';
     if (ch.ok) return '<div class="verified" role="status">✓ Log verified - ' + esc(plural(ch.n, 'event')) + ', each SHA-256-chained to the one before</div>';
     return '<div class="verified bad" role="alert">✗ Broken: ' + esc(ch.broken && ch.broken.why) + ' The ' + esc(plural(ch.verified || 0, 'event')) + ' before it check out.</div>';
   }
@@ -984,14 +1001,14 @@
     var done = list.filter(function (w) { return w.c.done; }).length;
     var rc = C.recheckList(state.decisions);
     return '<div class="stack">' + demoStrip('The worklist: tick each step as it happens - every change is appended to a SHA-256-chained audit log.') + batchStrip() +
-      '<section class="card"><div class="sec-head"><h2>' + esc(plural(list.length, 'case')) + ' need a person</h2><span class="small muted">' + esc(groups(done) + ' done') + '</span></div><div class="progress" aria-hidden="true"><i style="width:' + (list.length ? Math.round(100 * done / list.length) : 0) + '%"></i></div>' +
-      '<label class="field" style="max-width:280px;margin-top:12px"><span>Your initials</span><input class="input" type="text" maxlength="' + C.LIMITS.initialsChars + '" autocomplete="off" data-set="initials" value="' + esc(state.device.initials) + '" placeholder="e.g. EM"><small>Kept on this device; every change carries them.</small></label></section>' +
+      '<section class="card"><div class="sec-head"><h2>' + esc(plural(list.length, 'case')) + ' need a person</h2><span class="small muted">' + esc(groups(done) + ' done') + '</span></div><div class="progress" aria-hidden="true"><i data-w="' + (list.length ? Math.round(100 * done / list.length) : 0) + '%"></i></div>' +
+      '<label class="field mw280 mt12"><span>Your initials</span><input class="input" type="text" maxlength="' + C.LIMITS.initialsChars + '" autocomplete="off" data-set="initials" value="' + esc(state.device.initials) + '" placeholder="e.g. EM"><small>Kept on this device; every change carries them.</small></label></section>' +
       (list.length ? '<ul class="cases">' + list.map(function (w, i) { return workCardHtml(w, i, list); }).join('') + '</ul>' : '<section class="card"><p class="okline">✓ Nothing needs a person in this batch.</p></section>') +
       '<section class="card"><div class="sec-head"><h2>Audit log</h2><span class="small muted">Append-only · nothing in it is an SSN, a date of birth or a name</span></div><div data-chain>' + chainHtml() + '</div>' + eventsHtml(30) +
-        '<div class="btns" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="dlaudit">Download the audit log (JSON)</button><button class="btn small ghost" type="button" data-act="verify">Check the chain again</button></div></section>' +
+        '<div class="btns mt12"><button class="btn small ghost" type="button" data-act="dlaudit">Download the audit log (JSON)</button><button class="btn small ghost" type="button" data-act="verify">Check the chain again</button></div></section>' +
       '<section class="card"><div class="sec-head"><h2>Re-check list</h2><span class="small muted">Future call-ups, recent releases and open-ended caps</span></div>' +
         (rc.length ? '<div class="tablewrap" tabindex="0"><table class="plain"><thead><tr><th>Loan</th><th>Borrower</th><th>Why</th></tr></thead><tbody>' + rc.map(function (x) { return '<tr><td>' + esc(x.loan) + '</td><td>B' + esc(String(x.b)) + '</td><td>' + esc(x.why) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
-          '<p class="small muted" style="margin:8px 0">A re-check file needs the portfolio export again - Muster never saved the SSNs.</p><div class="btns"><button class="btn small" type="button" data-act="recheck">Build a re-check file</button></div>' : '<p class="muted" style="margin:0">Nothing to check again.</p>') +
+          '<p class="small muted my8">A re-check file needs the portfolio export again - Muster never saved the SSNs.</p><div class="btns"><button class="btn small" type="button" data-act="recheck">Build a re-check file</button></div>' : '<p class="muted m0">Nothing to check again.</p>') +
       '</section></div>';
   }
 
@@ -1006,10 +1023,20 @@
   function pickLetter(crid) {
     var d = decisionOf(crid) || letterCases()[0];
     if (!d) return Promise.resolve();
-    state.letter.crid = d.crid; state.letter.edited = false; state.letter.source = 'template'; state.letter.person = null;
+    state.letter.crid = d.crid; state.letter.edited = false; state.letter.source = 'template'; state.letter.ai = null; state.letter.person = null;
     return engine.run('person', { loan: d.loan, b: d.b }).then(function (p) { state.letter.person = p; }, function () { state.letter.person = null; }).then(function () {
       state.letter.text = fillTemplate(d).text;
     });
+  }
+  /** Above an AI draft: the review note, what the draft says in short (the
+   *  model's lines, each checked by the server) and the facts it was given
+   *  (the server's list, from the checked request). Kept in this page only. */
+  function draftNoteHtml() {
+    var a = state.letter.source === 'ai' ? state.letter.ai : null;
+    if (!a) return '';
+    var pointsHtml = a.points.length ? '<div><p class="lab">In short, this draft</p><ul class="rules">' + a.points.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>' : '';
+    var factsHtml = a.facts.length ? '<details class="why"><summary>The facts it was given (' + esc(String(a.facts.length)) + ')</summary><dl class="dates">' + a.facts.map(function (x) { return '<dt>' + esc(x.label) + '</dt><dd>' + esc(x.value) + '</dd>'; }).join('') + '</dl><p class="small muted m0 mt8">Every number and date in the draft is one of these (or 6%). The name, loan number, servicer and contact line were filled in on this device and were never sent.</p></details>' : '';
+    return '<div class="draftnote mt12" role="note"><p class="draft-h"><span class="pill p-warn">Draft</span><b>' + esc(a.note) + '</b></p><p class="small muted m0">Written by AI from this case’s decision, dates and estimated amounts only. Read it, edit it below, and check it against your policy - nothing is sent or saved anywhere by Muster.</p>' + pointsHtml + factsHtml + '</div>';
   }
   function summaryHtml() {
     var t = C.totals(state.batch, state.decisions);
@@ -1029,14 +1056,15 @@
       '<div class="formgrid"><label class="field"><span>For</span><select class="input" data-letter="crid">' + lc.map(function (x) { return '<option value="' + esc(x.crid) + '"' + (d && x.crid === d.crid ? ' selected' : '') + '>' + esc(x.loan + ' · B' + x.b + ' · ' + C.DECISION_WORD[x.code]) + '</option>'; }).join('') + '</select></label>' +
       '<label class="field"><span>Servicer name</span><input class="input" type="text" maxlength="' + C.LIMITS.servicerChars + '" data-letterset="servicer" value="' + esc(L.servicer) + '" placeholder="' + esc(state.demo ? D.LENDER : 'Your institution') + '"></label>' +
       '<label class="field"><span>Contact line</span><input class="input" type="text" maxlength="' + C.LIMITS.contactChars + '" data-letterset="contact" value="' + esc(L.contact) + '" placeholder="' + esc(state.demo ? D.CONTACT : 'Member Services, the phone number, the hours') + '"><small>A phone number or a desk, not an email address (settings never hold an @).</small></label>' +
-      '<div class="field"><span>Name and loan number</span><p class="small muted" style="margin:0">' + (state.letter.person ? '✓ Filled from the portfolio still open in this page - never saved.' : 'Loan number from the batch. The name stays a placeholder: the portfolio is not open in this page (load it again to fill it).') + '</p></div></div>' +
-      '<label class="field" style="margin-top:12px"><span>The letter' + (state.letter.source === 'ai' ? ' - AI draft, filled on this device' : '') + '</span><textarea class="input letterbox" data-letter="text" rows="16">' + esc(state.letter.text) + '</textarea></label>' +
-      '<div class="btns" style="margin-top:10px"><button class="btn" type="button" data-act="printletter">Print</button><button class="btn ghost" type="button" data-act="copyletter">Copy</button><button class="btn ghost" type="button" data-act="refill">Fill from the template again</button><button class="btn ghost" type="button" data-act="ailetter">✨ Draft it in plain words</button></div>' +
-      '<p class="quiet" style="margin-top:8px">The template is in Settings. ' + esc(C.NOT_ADVICE) + '</p></section>' : '';
+      '<div class="field"><span>Name and loan number</span><p class="small muted m0">' + (state.letter.person ? '✓ Filled from the portfolio still open in this page - never saved.' : 'Loan number from the batch. The name stays a placeholder: the portfolio is not open in this page (load it again to fill it).') + '</p></div></div>' +
+      draftNoteHtml() +
+      '<label class="field mt12"><span>The letter' + (state.letter.source === 'ai' ? ' - AI draft, filled on this device' : '') + '</span><textarea class="input letterbox" data-letter="text" rows="16">' + esc(state.letter.text) + '</textarea></label>' +
+      '<div class="btns mt12"><button class="btn" type="button" data-act="printletter">Print</button><button class="btn ghost" type="button" data-act="copyletter">Copy</button><button class="btn ghost" type="button" data-act="refill">Fill from the template again</button><button class="btn ghost" type="button" data-act="ailetter">Draft it in plain words</button></div>' +
+      '<p class="quiet mt8">The template is in Settings. ' + esc(C.NOT_ADVICE) + '</p></section>' : '';
     return '<div class="stack">' + demoStrip('The exam pack: everything an examiner asks for, made on this device.') + batchStrip() +
       '<section class="card"><div class="sec-head"><h2>Summary</h2><div data-chain>' + chainHtml() + '</div></div>' + summaryHtml() +
-        '<div class="btns" style="margin-top:12px"><button class="btn" type="button" data-act="dlsummary">Download the summary (Markdown)</button><button class="btn ghost" type="button" data-act="copysummary">Copy</button></div></section>' +
-      '<section class="grid4" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))">' +
+        '<div class="btns mt12"><button class="btn" type="button" data-act="dlsummary">Download the summary (Markdown)</button><button class="btn ghost" type="button" data-act="copysummary">Copy</button></div></section>' +
+      '<section class="grid4 grid-auto">' +
         '<div class="card excard"><h2>Every loan and result</h2><p class="small muted">One row per loan per result - the decision, the rule, the dates, the estimate and every step. Formula-safe CSV.</p><label class="check"><input type="checkbox" data-set="exportMask"' + (state.exportMask ? ' checked' : '') + '>Mask loan ids (••••0112)</label><button class="btn" type="button" data-act="dlcsv">Download the CSV</button></div>' +
         '<div class="card excard"><h2>The audit log</h2><p class="small muted">Every event with its SHA-256 and the hash it points back to, and how to check them.</p><button class="btn" type="button" data-act="dlaudit">Download the log (JSON)</button></div>' +
         '<div class="card excard"><h2>The batch record</h2><p class="small muted">To carry this batch to another device: the record, the results and the log. No SSN, date of birth or name.</p><button class="btn" type="button" data-act="dlbatch">Download the batch</button></div>' +
@@ -1049,7 +1077,7 @@
   function settingsHtml() {
     var s = state.settings;
     var rp = s.presets;
-    return '<div class="stack"><section class="card"><h1 style="font-size:1.5rem">Settings</h1><p class="small" data-sync>' + syncLine() + '</p></section>' +
+    return '<div class="stack"><section class="card"><h1 class="big-ico">Settings</h1><p class="small" data-sync>' + syncLine() + '</p></section>' +
       '<section class="card"><h2>Policy</h2>' +
         '<label class="radio"><input type="radio" name="spolicy" data-set="policy" value="proactive"' + (s.policy !== 'notice' ? ' checked' : '') + '><span><b>Apply on a DMDC match without waiting for the borrower’s request</b><small>The default</small></span></label>' +
         '<label class="radio"><input type="radio" name="spolicy" data-set="policy" value="notice"' + (s.policy === 'notice' ? ' checked' : '') + '><span><b>Wait for written notice and orders</b><small>Eligible loans show “Tell the borrower - awaiting notice”</small></span></label></section>' +
@@ -1058,16 +1086,16 @@
         '<div class="field"><span>Line endings</span><div class="seg" role="group" aria-label="Line endings"><button type="button" data-act="set" data-key="lineEnding" data-val="crlf" aria-pressed="' + (s.lineEnding !== 'lf') + '">CRLF</button><button type="button" data-act="set" data-key="lineEnding" data-val="lf" aria-pressed="' + (s.lineEnding === 'lf') + '">LF</button></div></div>' +
         '<label class="field"><span>Records per file</span><select class="input" data-set="split">' + [0, 1000, 5000, 10000, 25000, 50000].map(function (n) { return '<option value="' + n + '"' + (Number(s.split) === n ? ' selected' : '') + '>' + (n ? 'Split every ' + groups(n) : 'One file') + '</option>'; }).join('') + '</select></label></div></section>' +
       layoutTableHtml('settings') +
-      '<section class="card"><h2>My results layout</h2>' + (s.resultsSpans.length ? '<ul class="spanlist">' + s.resultsSpans.map(function (x) { return '<li><span><b>' + esc(rfield(x.field).label) + '</b> · positions ' + esc(x.start + '-' + (x.start + x.len - 1)) + '</span></li>'; }).join('') + '</ul><div class="btns" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="clearspans">Clear it</button></div>' : '<p class="muted" style="margin:0">None yet - it is saved the first time you map a fixed-width results file with the ruler.</p>') + '</section>' +
-      '<section class="card"><h2>Column presets</h2>' + (rp.length ? '<ul class="spanlist">' + rp.map(function (p, i) { return '<li><span><b>' + esc(p.name) + '</b> · ' + esc((p.kind === 'portfolio' ? 'portfolio' : 'results') + ' · ' + plural(Object.keys(p.map).length, 'column')) + '</span><button class="btn small ghost" type="button" data-act="rmpreset" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul>' : '<p class="muted" style="margin:0">None yet. A preset keeps the header names a team’s export uses - never a value - so the next file maps at once.</p>') + '</section>' +
+      '<section class="card"><h2>My results layout</h2>' + (s.resultsSpans.length ? '<ul class="spanlist">' + s.resultsSpans.map(function (x) { return '<li><span><b>' + esc(rfield(x.field).label) + '</b> · positions ' + esc(x.start + '-' + (x.start + x.len - 1)) + '</span></li>'; }).join('') + '</ul><div class="btns mt12"><button class="btn small ghost" type="button" data-act="clearspans">Clear it</button></div>' : '<p class="muted m0">None yet - it is saved the first time you map a fixed-width results file with the ruler.</p>') + '</section>' +
+      '<section class="card"><h2>Column presets</h2>' + (rp.length ? '<ul class="spanlist">' + rp.map(function (p, i) { return '<li><span><b>' + esc(p.name) + '</b> · ' + esc((p.kind === 'portfolio' ? 'portfolio' : 'results') + ' · ' + plural(Object.keys(p.map).length, 'column')) + '</span><button class="btn small ghost" type="button" data-act="rmpreset" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul>' : '<p class="muted m0">None yet. A preset keeps the header names a team’s export uses - never a value - so the next file maps at once.</p>') + '</section>' +
       '<section class="card"><h2>The borrower letter</h2><div class="formgrid">' +
         '<label class="field"><span>Servicer name</span><input class="input" type="text" maxlength="' + C.LIMITS.servicerChars + '" data-letterset="servicer" value="' + esc(s.letter.servicer) + '"></label>' +
         '<label class="field"><span>Contact line</span><input class="input" type="text" maxlength="' + C.LIMITS.contactChars + '" data-letterset="contact" value="' + esc(s.letter.contact) + '"><small>No email address - settings never hold an @.</small></label></div>' +
-        '<label class="field" style="margin-top:12px"><span>Template</span><textarea class="input mono" rows="14" maxlength="' + C.LIMITS.templateChars + '" data-letterset="template">' + esc(s.letter.template) + '</textarea><small>Filled on the device: ' + esc(C.PEOPLE_PLACEHOLDERS.concat(C.FACT_PLACEHOLDERS).map(function (p) { return '{{' + p + '}}'; }).join(' ')) + '</small></label>' +
-        '<div class="btns" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="resettemplate">Reset the template</button></div></section>' +
+        '<label class="field mt12"><span>Template</span><textarea class="input mono" rows="14" maxlength="' + C.LIMITS.templateChars + '" data-letterset="template">' + esc(s.letter.template) + '</textarea><small>Filled on the device: ' + esc(C.PEOPLE_PLACEHOLDERS.concat(C.FACT_PLACEHOLDERS).map(function (p) { return '{{' + p + '}}'; }).join(' ')) + '</small></label>' +
+        '<div class="btns mt12"><button class="btn small ghost" type="button" data-act="resettemplate">Reset the template</button></div></section>' +
       '<section class="card"><h2>On this device</h2><p class="small muted">' + esc(real.persistent() ? 'Batches, results and audit logs are kept in this browser’s storage - never an SSN, a date of birth or a name.' : 'This browser will not keep anything (a private window?) - download each batch to keep it.') + '</p>' +
         (state.batches.filter(function (b) { return !b.demo; }).length ? '<ul class="batchlist">' + state.batches.filter(function (b) { return !b.demo; }).map(function (b) { return '<li><div><div class="bn">Batch ' + esc(b.id) + ' · ' + esc(nice(b.statusDate)) + '</div><div class="bm">' + esc(plural(b.count, 'record') + ' · built ' + stamp(b.createdAt)) + '</div></div><span class="btns"><button class="btn small ghost" type="button" data-act="openbatch" data-id="' + esc(b.id) + '">Open</button><button class="btn small danger" type="button" data-act="delbatch" data-id="' + esc(b.id) + '">Delete</button></span></li>'; }).join('') + '</ul>' : '<p class="muted">No saved batches.</p>') +
-        '<div class="btns" style="margin-top:10px"><label class="btn small ghost filepick">Load a batch file<input type="file" data-file="batch" accept=".json,application/json"></label><button class="btn small danger" type="button" data-act="clearall">Clear everything Muster keeps here</button></div></section>' +
+        '<div class="btns mt12"><label class="btn small ghost filepick">Load a batch file<input type="file" data-file="batch" accept=".json,application/json"></label><button class="btn small danger" type="button" data-act="clearall">Clear everything Muster keeps here</button></div></section>' +
       '</div>';
   }
 
@@ -1105,7 +1133,7 @@
     sheet('<h2>Save these columns as a preset</h2><p class="muted small">Keeps the header NAMES - never a value - so the next file with the same headers is mapped at once. ' + (signedIn() ? 'It follows your account.' : 'Sign in and it follows your account too.') + '</p>' +
       '<label class="field"><span>Name</span><input class="input" id="presetName" maxlength="40" placeholder="' + (kind === 'portfolio' ? 'Core loan export' : 'DMDC results') + '" autocomplete="off"></label>' +
       (skipped ? '<p class="small">' + esc(plural(skipped, 'header') + ' looked like a value and will not be saved.') + '</p>' : '') +
-      '<div id="presetErr"></div><div class="btns" style="margin-top:10px"><button class="btn" type="button" id="presetSave">Save the preset</button></div>', function (root) {
+      '<div id="presetErr"></div><div class="btns mt12"><button class="btn" type="button" id="presetSave">Save the preset</button></div>', function (root) {
       $('#presetSave', root).addEventListener('click', function () {
         var name = C.line($('#presetName', root).value, 40);
         var chk = C.cleanSettings({ presets: [{ name: name, kind: kind, map: map }] }, true);
@@ -1125,19 +1153,19 @@
     if (!d) return;
     var tone = state.letter.tone;
     var payload = C.letterPayload(d, tone);
-    sheet('<h2>✨ Draft the letter in plain words</h2><p class="muted small">For ' + esc(d.loan + ' (' + C.DECISION_WORD[d.code] + ')') + '. Only the decision code, the loan type, the tone, the dates and the estimated amounts are sent - <b>never a name, a loan id, an SSN, a date of birth or anything you typed</b>. The draft comes back with placeholders, and this device fills them.</p>' +
-      '<div class="field" style="margin:10px 0"><span>Tone</span><div class="seg" role="group" aria-label="Tone">' + Object.keys(C.TONES).map(function (k) { return '<button type="button" data-tone="' + k + '" aria-pressed="' + (k === tone) + '">' + esc(C.TONES[k]) + '</button>'; }).join('') + '</div></div>' +
+    sheet('<h2>Draft the letter in plain words</h2><p class="muted small">For ' + esc(d.loan + ' (' + C.DECISION_WORD[d.code] + ')') + '. Only the decision code, the loan type, the tone, the dates and the estimated amounts are sent - <b>never a name, a loan id, an SSN, a date of birth or anything you typed</b>. The draft comes back with placeholders, and this device fills them.</p>' +
+      '<div class="field my12"><span>Tone</span><div class="seg" role="group" aria-label="Tone">' + Object.keys(C.TONES).map(function (k) { return '<button type="button" data-tone="' + k + '" aria-pressed="' + (k === tone) + '">' + esc(C.TONES[k]) + '</button>'; }).join('') + '</div></div>' +
       '<p class="lab">Exactly what will be sent</p><pre class="sent-pre" tabindex="0" id="aiSent">' + esc(JSON.stringify(payload, null, 1)) + '</pre>' +
-      '<p class="small muted" style="margin:8px 0 0">Muster refuses the draft if it leaves out a placeholder, adds a web address or an email, uses a number or a date that was not sent, or names any law but the Servicemembers Civil Relief Act.</p>' +
-      '<div id="aiErr"></div><div class="btns" id="aiActs" style="margin-top:10px"></div>', function (root) {
+      '<p class="small muted m0 mt8">Muster refuses the draft if it leaves out a placeholder, adds a web address or an email, uses a number or a date that was not sent, or names any law but the Servicemembers Civil Relief Act.</p>' +
+      '<div id="aiErr"></div><div class="btns mt12" id="aiActs"></div>', function (root) {
       $$('[data-tone]', root).forEach(function (b) { b.addEventListener('click', function () { state.letter.tone = b.getAttribute('data-tone'); openAiLetter(); }); });
       var acts = $('#aiActs', root);
       if (!signedIn()) {
-        acts.innerHTML = '<p class="small muted" style="width:100%;margin:0">It uses about a cent of AI credit, so it needs a free account - which comes with $2 and works across every app on this site. The template letter is free.</p><button class="btn" type="button" id="aiSignin">Create a free account</button><button class="btn ghost" type="button" data-act="closesheet">Not now</button>';
+        acts.innerHTML = '<p class="small muted m0 w100">It uses about a cent of AI credit, so it needs a free account - which comes with $2 and works across every app on this site. The template letter is free.</p><button class="btn" type="button" id="aiSignin">Create a free account</button><button class="btn ghost" type="button" data-act="closesheet">Not now</button>';
         $('#aiSignin', root).addEventListener('click', function () { openAccount('The letter helper uses about a cent of AI credit; a free account comes with $2.', openAiLetter); });
         return;
       }
-      acts.innerHTML = '<button class="btn" type="button" id="aiSend">Send these facts</button><span class="small muted">About a cent' + (state.me.tier === 'paid' ? ' (member model)' : '') + '. You read and edit the draft before it goes anywhere.</span>';
+      acts.innerHTML = '<button class="btn" type="button" id="aiSend">Send these facts</button><span class="small muted">About a cent' + (state.me.tier === 'paid' ? ' (member model)' : '') + '. It comes back as a draft for your compliance team to review and edit.</span>';
       $('#aiSend', root).addEventListener('click', function () {
         var b = $('#aiSend', root);
         b.disabled = true; b.textContent = 'Drafting…';
@@ -1145,9 +1173,10 @@
         api('POST', 'api/ai/letter', payload).then(function (res) {
           var filled = C.fillLetter((res.subject ? 'Subject: ' + res.subject + '\n\n' : '') + res.letter, C.letterFacts(d, today()), letterPeople(d));
           state.letter.text = filled.text; state.letter.source = 'ai'; state.letter.edited = false;
+          state.letter.ai = { note: res.note || C.DRAFT_NOTE, points: Array.isArray(res.points) ? res.points.slice(0, C.LIMITS.pointCount) : [], facts: Array.isArray(res.facts) ? res.facts.slice(0, 12) : [] };
           closeSheet();
           if (state.view !== 'pack') go('pack'); else keepPlace(draw);
-          toast('Drafted - read it before you send it.', 3600);
+          toast('Draft ready - have your compliance team review it.', 3600);
           loadMe();
         }).catch(function (err) { b.disabled = false; b.textContent = 'Send these facts'; meteredError(err, $('#aiErr', root), openAiLetter, 'The letter helper uses about a cent of AI credit, so it needs a free account (it comes with $2).'); });
       });
@@ -1179,12 +1208,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my12"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my12"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1206,11 +1235,11 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">The letter helper costs about a cent. Reading portfolios, the request file, results, decisions, the worklist and the exam pack are free and never leave this device.</p><div id="billing"></div></div>' +
-      '<p class="small" style="margin-top:14px" data-sync>' + syncLine() + '</p>' +
-      '<button class="btn ghost block" id="forget" type="button" style="margin-top:6px">Remove my settings from the account</button>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted m0 mt8">The letter helper costs about a cent. Reading portfolios, the request file, results, decisions, the worklist and the exam pack are free and never leave this device.</p><div id="billing"></div></div>' +
+      '<p class="small mt16" data-sync>' + syncLine() + '</p>' +
+      '<button class="btn ghost block mt8" id="forget" type="button">Remove my settings from the account</button>' +
+      (pkOk() ? '<button class="btn ghost block mt12" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); keepPlace(draw); }); });
@@ -1325,7 +1354,7 @@
       case 'towork': state.open['w-' + crid] = true; go('work'); setTimeout(function () { var w = document.getElementById('w-' + crid); if (w) w.scrollIntoView({ block: 'start' }); }, 30); break;
       case 'seecase': state.filter = 'all'; state.open['c-' + crid] = true; go('decisions'); setTimeout(function () { var c = document.getElementById('c-' + crid); if (c) c.scrollIntoView({ block: 'start' }); }, 30); break;
       case 'letterfor': pickLetter(crid).then(function () { go('pack'); setTimeout(function () { var l = document.getElementById('letter'); if (l) l.scrollIntoView({ block: 'start' }); }, 30); }); break;
-      case 'refill': { var d0 = decisionOf(state.letter.crid); if (d0) { state.letter.text = fillTemplate(d0).text; state.letter.source = 'template'; keepPlace(draw); } break; }
+      case 'refill': { var d0 = decisionOf(state.letter.crid); if (d0) { state.letter.text = fillTemplate(d0).text; state.letter.source = 'template'; state.letter.ai = null; keepPlace(draw); } break; }
       case 'ailetter': openAiLetter(); break;
       case 'printletter': {
         var lp = $('#letterPrint'); lp.textContent = state.letter.text; lp.setAttribute('aria-hidden', 'false');

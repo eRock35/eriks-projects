@@ -925,13 +925,22 @@ test('every text colour holds 4.5:1 on its surface in both themes - the request 
     for (const k of ['tone-critical', 'tone-high', 'tone-medium', 'tone-low', 'tone-info', 'tone-ok', 'accent']) ok(k, 'card', 3);
     ok('bg', 'text');
   }
-  for (const bg of ['#2f3a12', '#3e4c19', '#1c3d78']) for (const fg of ['#ffffff', '#eef2e6', '#f2dc8a']) assert.ok(ratio(fg, bg) >= 4.5, `hero ${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
-  for (const [fg, bg] of [['#1d2408', '#f2dc8a'], ['#14181f', '#fbfcf8'], ['#4a5260', '#fbfcf8'], ['#166534', '#dcf5e3'], ['#6b5300', '#fbf1c7'], ['#1d4f91', '#e3edfb'], ['#14181f', '#e9ece4']]) assert.ok(ratio(fg, bg) >= 4.5, `${fg} on ${bg}`);
+  // The house style: a pure white page (true black in the dark theme), the lab card's navy as the one accent,
+  // no gradient or texture anywhere, and the hero and its mock drawn from the tokens checked above.
+  assert.deepStrictEqual([light.bg, light.card, dark.bg, dark.card, light.accent], ['#ffffff', '#ffffff', '#000000', '#000000', '#1c3d78']);
+  assert.ok(!/gradient\(|url\(/.test(css), 'no gradient, no image');
+  const heroCss = css.split('\n').filter((l) => /^\.(hero|mock)\b/.test(l)).join('\n');
+  assert.ok(heroCss.length > 400 && !/#[0-9a-f]{3,8}\b/i.test(heroCss), 'the hero and the mock use tokens only');
+  for (const t of [light, dark]) { for (const fg of ['text', 'muted', 'link']) assert.ok(ratio(t[fg], t.sheet) >= 4.5, `${fg} on the sheet`); }
+  assert.ok(!/@import|@font-face/.test(css), 'the system font stack only');
+  assert.ok(!/style=/.test(read('public/app.js')) && !/\sstyle=/.test(read('public/index.html')), 'no style attribute in the page or written by script');
+  const motion = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/, '');
+  assert.ok(!/\banimation(-name)?:|\btransition:/.test(motion.replace(/@media \(prefers-reduced-motion: reduce\)[^\n]*/, '')), 'motion only inside prefers-reduced-motion: no-preference');
   const lab = require('../../../lab').get('muster');
   assert.ok(lab, 'Muster is in lab.js');
   assert.ok(ratio('#ffffff', lab.color) >= 4.5 && ratio('#ffffff', lab.color2) >= 4.5, 'the lab card colours hold white text');
   for (const sel of ['.btn', '.link-btn', '.seg button', '.input, textarea.input, select.input', '.check', '.ghead', '.chead', '.radio', '.steps button', '.filters button']) assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*min-height: (4[4-9]|5\\d|60)px').test(css), `${sel}: 44px`);
-  assert.ok(/details\.why > summary \{[^}]*min-height: 44px/.test(css) && /\.tabbar button \{[^}]*min-height: 60px/.test(css));
+  assert.ok(/details\.why > summary \{[^}]*min-height: 44px/.test(css) && /\.tabbar button \{[^}]*min-height: 48px/.test(css) && /\.btn \{[^}]*min-height: 48px/.test(css));
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
   assert.ok(/\.tablewrap \{[^}]*overflow: auto/.test(css) && /\.fw \{[^}]*overflow: auto/.test(css) && /\.out \{[^}]*overflow: auto/.test(css) && /\.sent-pre \{[^}]*overflow: auto/.test(css), 'tables, the preview, the ruler and code scroll in their own box');
   assert.ok(/\.ruler \{[^}]*touch-action: none/.test(css), 'dragging the ruler on a phone does not scroll the page');
@@ -1161,6 +1170,17 @@ test('the AI letter over HTTP: codes, dates and amounts only; a name, a loan id,
   assert.match(sent.messages[0].content[0].text, /<<<FACTS\nDecision: eligible/);
   assert.ok(['{{borrower_name}}', '{{loan_number}}', '{{servicer_name}}', '{{contact_line}}'].every((p) => r.data.letter.includes(p)));
   assert.match(r.data.letter, /\$241\.43/);
+  // A draft, labelled by the server; the facts list is the server's, from the checked request; the model's "in short" lines are checked.
+  assert.deepStrictEqual([r.data.draft, r.data.note], [true, 'Draft - have your compliance team review it before it goes to a borrower.']);
+  assert.deepStrictEqual(r.data.facts, C.letterFactList(C.letterRequest(good).req));
+  assert.ok(r.data.facts.some((x) => x.value === '6%') && r.data.facts.some((x) => x.value === '$241.43') && r.data.facts.every((x) => Object.keys(x).join() === 'label,value'));
+  assert.ok(r.data.points.length >= 2 && r.data.points.length <= 4 && r.data.points.every((p) => typeof p === 'string' && p.length <= 180 && !/[{}<>]/.test(p)), JSON.stringify(r.data.points));
+  assert.deepStrictEqual(Object.keys(r.data).sort(), ['draft', 'facts', 'letter', 'note', 'points', 'subject']);
+  assert.deepStrictEqual(sent.tools[0].input_schema.required, ['subject', 'letter', 'points']);
+  fakeClient.mode = 'badpoints';
+  const bp = await ana('POST', '/api/ai/letter', good);
+  assert.strictEqual(bp.status, 200, bp.text);
+  assert.deepStrictEqual(bp.data.points, ['Thanks the borrower for their service, in plain words.'], 'a line with a number not sent, another law, a web address, a placeholder, a non-string or a stub is dropped - never repaired');
   assert.ok(!store._dump().includes('241.43'), 'nothing stored');
   for (const [mode, code] of [['badnumber', 'number'], ['url', 'link'], ['law', 'law'], ['placeholder', 'placeholder'], ['blank', 'short']]) {
     fakeClient.mode = mode;
@@ -1212,6 +1232,77 @@ test('the gates: an unconfirmed free account 403, out of credit 402, the day’s
     await settle();
     assert.strictEqual(await modelCalls(), calls);
   } finally { await identityStore.remove('control', `free-spend-muster-${day}`); }
+});
+
+test('the lab’s AI guard, when the host has loaded one: asked after the gates and the body check, before the model call, and told what the call cost after; a no is its friendly message with no model call; without it the app runs on its own gates', async () => {
+  const bo = await register('bo.guard');
+  const good = await letterPayload();
+  assert.strictEqual(global.LAB_AI_GUARD, undefined);
+  assert.strictEqual((await bo('POST', '/api/ai/letter', good)).status, 200, 'no guard loaded: the identity gates stand alone');
+  const seen = { allow: [], record: [], price: [] };
+  let verdict = { ok: true };
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.allow.push({ provider: a.provider, app: a.app, user: Boolean(a.req && a.req.user && a.req.user.id) }); return verdict; },
+    priceUsd: (a) => { seen.price.push(a); return 0.0123; },
+    record: async (a) => { seen.record.push(a); return true; },
+  };
+  try {
+    const anon = client();
+    assert.strictEqual((await anon('POST', '/api/ai/letter', good)).status, 401);
+    assert.strictEqual((await bo('POST', '/api/ai/letter', Object.assign({}, good, { name: 'Tamsin Quarrie' }))).status, 400);
+    assert.deepStrictEqual(seen.allow, [], 'a stranger or a bad request never reaches the guard');
+    let n = fakeClient.calls.length;
+    const ok = await bo('POST', '/api/ai/letter', good);
+    assert.strictEqual(ok.status, 200, ok.text);
+    assert.deepStrictEqual(seen.allow, [{ provider: 'claude', app: 'muster', user: true }]);
+    assert.strictEqual(fakeClient.calls.length, n + 1);
+    assert.deepStrictEqual(seen.price, [{ provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 700, outputTokens: 420 }]);
+    assert.deepStrictEqual(seen.record, [{ provider: 'claude', app: 'muster', usd: 0.0123 }]);
+    // a draft the checks refuse was still paid for
+    fakeClient.mode = 'law';
+    assert.strictEqual((await bo('POST', '/api/ai/letter', good)).status, 422);
+    assert.strictEqual(seen.record.length, 2, 'recorded although refused');
+    // a call that never came back cost nothing
+    fakeClient.mode = 'upstream529';
+    assert.strictEqual((await bo('POST', '/api/ai/letter', good)).status, 503);
+    assert.strictEqual(seen.record.length, 2);
+    // the guard says no
+    n = fakeClient.calls.length;
+    verdict = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    const no = await bo('POST', '/api/ai/letter', good);
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works. The template letter is free.']);
+    verdict = { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' };
+    assert.strictEqual((await bo('POST', '/api/ai/letter', good)).status, 429);
+    assert.strictEqual(fakeClient.calls.length, n, 'no model call when the guard says no');
+    assert.strictEqual(seen.record.length, 2);
+    // a guard whose record throws never loses the answer
+    verdict = { ok: true };
+    global.LAB_AI_GUARD.record = async () => { throw new Error('store down'); };
+    assert.strictEqual((await bo('POST', '/api/ai/letter', good)).status, 200);
+  } finally { delete global.LAB_AI_GUARD; }
+  const src = read('server.js');
+  assert.match(src, /const PROVIDER = 'claude';/, 'the provider is Claude, through the lab’s existing client - no switch, no federation');
+  assert.ok(!/gemini|vertex|aiplatform|metadata\.google/i.test(src + read('lib/ai.js')), 'no other provider is wired');
+  assert.match(read('public/app.js'), /function meteredError\(err, box, retry, why\) \{[\s\S]{0,400}showError\(err, box\);/, 'the page shows the guard’s message where the button is');
+});
+
+test('the AI draft on the page: labelled a draft for compliance review above the letter, with the checked "in short" lines and the facts it was given; kept in the page only; the template clears it', () => {
+  const js = read('public/app.js');
+  assert.match(js, /function draftNoteHtml\(\) \{\s+var a = state\.letter\.source === 'ai' \? state\.letter\.ai : null;\s+if \(!a\) return '';/);
+  assert.match(js, /draftNoteHtml\(\) \+\s+'<label class="field mt12"><span>The letter/);
+  assert.match(js, /a\.points\.map\(function \(p\) \{ return '<li>' \+ esc\(p\) \+ '<\/li>'; \}\)/, 'the model’s lines are escaped');
+  assert.match(js, /esc\(x\.label\) \+ '<\/dt><dd>' \+ esc\(x\.value\)/);
+  assert.match(js, /esc\(a\.note\)/);
+  assert.ok(js.includes('never a name, a loan id, an SSN, a date of birth or anything you typed'), 'the sheet still says what is never sent');
+  assert.ok(js.includes('nothing is sent or saved anywhere by Muster'));
+  assert.strictEqual((js.match(/state\.letter\.ai = null/g) || []).length, 2, 'picking another case or filling from the template clears the draft note');
+  assert.strictEqual(C.DRAFT_NOTE, 'Draft - have your compliance team review it before it goes to a borrower.');
+  // the checks themselves
+  const req = { code: 'eligible', loanType: 'auto', tone: 'warm', newRate: 6, dates: { capStart: '2026-06-02' }, amounts: { owedCents: 24143 } };
+  assert.deepStrictEqual(C.cleanAiPoints(['Says the rate goes down to 6% from June 2, 2026.', 'Says about $241.43 comes back, as an estimate.', 'Promises 12 months of relief.', 'x', null, { a: 1 }], req), ['Says the rate goes down to 6% from June 2, 2026.', 'Says about $241.43 comes back, as an estimate.']);
+  assert.deepStrictEqual(C.cleanAiPoints('Says the rate goes down.', req), []);
+  assert.strictEqual(C.cleanAiPoints(['One plain line number one.', 'One plain line number two.', 'One plain line number three.', 'One plain line number four.', 'One plain line number five.'].map((x) => x.replace(/number (one|two|three|four|five)/, 'here $1')), req).length, 4);
+  assert.deepStrictEqual(C.letterFactList(req).map((x) => x.label), ['Decision', 'Loan type', 'New rate', 'The 6% cap starts', 'Est. interest above 6% so far']);
 });
 
 /* ---------------- run ---------------- */
