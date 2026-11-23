@@ -625,7 +625,7 @@ async function askGemini(req, request, route) {
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents, generationConfig: { ...r.generationConfig, responseSchema: r.responseSchema } }), usage: { inputTokens: 800, outputTokens: 400 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, gemini: 'no-helper' });
   let usage = null;
   try {
     const out = await generate({ ...request, ...(fake ? { fake } : {}) });
@@ -633,7 +633,7 @@ async function askGemini(req, request, route) {
     return out && out.json;
   } catch (err) {
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), gemini: (err && err.code) || 'error' });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -655,6 +655,27 @@ async function chargeGemini(req, usage, route) {
   } catch (e) { console.error('usage: gemini charge failed'); }
 }
 
+/** Gemini first, for a feature Claude also has. If the Gemini step fails for
+ *  any reason but a burst refusal - a thrown call, output the validator
+ *  rejects (a 422, or `viaGemini()` resolving falsy), the month's Gemini cap,
+ *  no helper - Claude's own path answers the same request, unchanged (its own
+ *  guard, gates and meter). A burst is per person across both providers: its
+ *  refusal goes out as it is. One log line, no user data. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function geminiElseClaude(viaGemini, viaClaude) {
+  let code;
+  try {
+    const out = await viaGemini();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.gemini || (err.status === 422 ? 'unusable' : err.code))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[receipt] gemini failed (${code}); used claude`);
+  return viaClaude();
+}
+
 /**
  * A vague invite in, a timeboxed agenda out - with an honest verdict on
  * whether it could be an email, and the written update if so. A proposal
@@ -667,10 +688,10 @@ app.post('/api/meetings/:id/sharpen', ...spend, async (req, res) => {
     const b = req.body || {};
     const ctx = ai.sharpenContext(m, b.invite !== undefined ? b.invite : m.invite);
     if (!ctx.invite && m.title.length < 4) throw httpError(400, 'Paste the invite first.', { field: 'invite' });
-    const raw = providerNow() === 'gemini'
-      ? await askGemini(req, gemini.sharpenRequest(ctx), 'sharpen')
-      : await withClaude(req, (client, model, onUsage) => ai.sharpen(client, model, ctx, onUsage));
-    const p = ai.validateSharpen(raw, ctx);
+    const viaClaude = async () => ai.validateSharpen(await withClaude(req, (client, model, onUsage) => ai.sharpen(client, model, ctx, onUsage)), ctx);
+    const p = providerNow() === 'gemini'
+      ? await geminiElseClaude(async () => ai.validateSharpen(await askGemini(req, gemini.sharpenRequest(ctx), 'sharpen'), ctx), viaClaude)
+      : await viaClaude();
     if (!p) throw httpError(422, 'Nothing usable came back. Try again - or start from a template.');
     res.json({ invite: ctx.invite, proposal: p });
   } catch (err) { fail(res, err, 'Could not sharpen that. Try again, or start from a template.'); }
@@ -694,10 +715,11 @@ app.post('/api/meetings/:id/recap', ...spend, ownerOnly, bigJson, async (req, re
     const log = await loadLog(req.user.id, m.id);
     if (!log.length && !notes && !image) throw httpError(400, 'Log a decision or an action, or paste your notes, first.', { field: 'notes' });
     const ctx = ai.recapContext(m, log, notes, Boolean(image));
-    const raw = providerNow() === 'gemini'
-      ? await askGemini(req, gemini.recapRequest(ctx, image), 'recap')
-      : await withClaude(req, (client, model, onUsage) => ai.recap(client, model, ctx, image, onUsage));
-    const rec = ai.validateRecap(raw, ctx);
+    let raw;
+    const viaClaude = async () => ai.validateRecap(raw = await withClaude(req, (client, model, onUsage) => ai.recap(client, model, ctx, image, onUsage)), ctx);
+    const rec = providerNow() === 'gemini'
+      ? await geminiElseClaude(async () => ai.validateRecap(raw = await askGemini(req, gemini.recapRequest(ctx, image), 'recap'), ctx), viaClaude)
+      : await viaClaude();
     if (!rec) {
       throw httpError(422, image && raw && raw.readable === false
         ? 'We couldn’t read that whiteboard. Try a closer, straighter photo - or type the notes in.'

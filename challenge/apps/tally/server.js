@@ -320,7 +320,7 @@ async function snapWithGemini(req, input, today) {
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1900, outputTokens: 260 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, gemini: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -330,7 +330,7 @@ async function snapWithGemini(req, input, today) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), gemini: (err && err.code) || 'error' });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
@@ -355,6 +355,27 @@ async function chargeGemini(req, usage) {
   } catch (e) { console.error('usage: gemini charge failed'); }
 }
 
+/** Gemini first, for a feature Claude also has. If the Gemini step fails for
+ *  any reason but a burst refusal - a thrown call, output the validator
+ *  rejects (a 422, or `viaGemini()` resolving falsy), the month's Gemini cap,
+ *  no helper - Claude's own path answers the same request, unchanged (its own
+ *  guard, gates and meter). A burst is per person across both providers: its
+ *  refusal goes out as it is. One log line, no user data. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function geminiElseClaude(viaGemini, viaClaude) {
+  let code;
+  try {
+    const out = await viaGemini();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.gemini || (err.status === 422 ? 'unusable' : err.code))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tally] gemini failed (${code}); used claude`);
+  return viaClaude();
+}
+
 app.post('/api/days/snap', ...spend, snapJson, async (req, res) => {
   try {
     const b = req.body || {};
@@ -370,8 +391,12 @@ app.post('/api/days/snap', ...spend, snapJson, async (req, res) => {
     } else {
       input = { image: photo.validate(b.image) };
     }
-    await guardAllow(viaGemini ? 'gemini' : 'claude', req);
-    res.json(viaGemini ? await snapWithGemini(req, input, today) : await snapWithClaude(req, input.image, today));
+    const viaClaude = async () => { await guardAllow('claude', req); return snapWithClaude(req, input.image, today); };
+    if (!viaGemini) return res.json(await viaClaude());
+    const viaGeminiNow = async () => { await guardAllow('gemini', req); return snapWithGemini(req, input, today); };
+    // Pasted text is Gemini's alone: no Claude path to fall back to. A photo
+    // falls back to the Z-report reader, and says so (`reader: 'zreport'`).
+    res.json(input.text !== undefined ? await viaGeminiNow() : await geminiElseClaude(viaGeminiNow, async () => ({ reader: 'zreport', ...(await viaClaude()) })));
   } catch (err) { fail(res, err, SNAP_FALLBACK); }
 });
 

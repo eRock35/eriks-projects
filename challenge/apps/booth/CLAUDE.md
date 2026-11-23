@@ -259,6 +259,12 @@ Claude exactly as before (`providerNow()` in `server.js`, read per request).
   `responseSchema` instead of a forced tool) are Gemini's too. **With it off**
   both are Claude's as ever, now asked of the guard first and recorded after
   (not for a member's own key), and `/scan` is a 404.
+- **Claude is the fallback (2026-11-23).** With the switch on, if Gemini's
+  `/read` or `/draft` fails for any reason but a burst refusal (a thrown call,
+  output the validator rejects, the Gemini `monthly-cap`, no helper), the old
+  Claude path answers the same request unchanged (`geminiElseClaude`; log
+  `[booth] gemini failed (<code>); used claude`). Bursts go out as they are.
+  `/scan` has no Claude path: its failure is its own friendly error.
 - `GET /api/me` adds `ai` (`claude | gemini`), `scan` (boolean) and
   `limits.memoSeconds`, signed in or not; the page offers the scan only when
   `scan` is true.

@@ -665,13 +665,14 @@ test('report reader over HTTP: gates, guard, one schema’d call, charged, nothi
     assert.ok(messy.status === 200 && !/<|4111|verdict|Ignore/.test(JSON.stringify(messy.data)));
 
     // A provider failure: a status and the app's own words; what it billed is still recorded.
+    // (Since 2026-11-23 a failed Gemini read falls back to Claude, so the photo fails Claude's stand-in too.)
     const before = g.recorded.length;
     g.gemini.generate = async () => { throw Object.assign(new Error('Gemini answered 401. secret provider words'), { name: 'VertexError', code: 'http', status: 401, usage: { inputTokens: 1000, outputTokens: 0 } }); };
-    const up = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('X') } });
+    const up = await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM401') } });
     assert.deepStrictEqual([up.status, up.data.error], [502, 'Could not read that photo. Try again, or type the numbers in.']);
     assert.strictEqual(g.recorded.length, before + 1);
     g.gemini.generate = async () => { throw Object.assign(new Error('slow'), { name: 'VertexError', code: 'timeout' }); };
-    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('X') } })).status, 503);
+    assert.strictEqual((await maya('POST', '/api/days/snap', { image: { type: 'image/jpeg', data: jpeg('UPSTREAM503') } })).status, 503);
 
     // The guard says no: its friendly message, its status, and no model call.
     const deny = global.LAB_AI_GUARD = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
@@ -695,6 +696,36 @@ test('report reader over HTTP: gates, guard, one schema’d call, charged, nothi
     delete global.LAB_AI_GUARD;
     delete process.env.TALLY_AI_PROVIDER;
   }
+});
+
+test('Gemini fails, Claude answers a photo (reader "zreport"): a thrown call, unusable output, the Gemini cap - not a burst, and never pasted text', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const snap = async (over, body = { image: { type: 'image/jpeg', data: jpeg('ZREPORT') } }) => {
+    const g = global.LAB_AI_GUARD = fakeGuard(over);
+    if (over.denyGemini) g.allow = async (a) => { g.allowed.push([a.provider, a.app, true]); return a.provider === 'gemini' ? over.denyGemini : { ok: true }; };
+    if (over.json !== undefined) g.gemini.generate = async (r) => { g.sent.push(r); return { json: over.json, usage: { inputTokens: 10, outputTokens: 1 } }; };
+    try { return { r: await maya('POST', '/api/days/snap', body), g }; } finally { delete global.LAB_AI_GUARD; }
+  };
+  process.env.TALLY_AI_PROVIDER = 'gemini';
+  try {
+    let { r, g } = await snap({ fail: Object.assign(new Error('Gemini answered 500. SECRET'), { name: 'VertexError', code: 'http', status: 500, usage: { inputTokens: 900, outputTokens: 0 } }) });
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.gross, g.allowed.map((a) => a[0]), g.recorded.map((x) => x.provider)], [200, 'zreport', '1284.50', ['gemini', 'claude'], ['gemini', 'claude']], JSON.stringify(r.data));
+    assert.ok(!/SECRET/.test(JSON.stringify(r.data)));
+    ({ r, g } = await snap({ json: { reportType: 'not_a_report' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0])], [200, 'zreport', ['gemini', 'claude']]);
+    ({ r, g } = await snap({ denyGemini: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.sent.length], [200, 'zreport', ['gemini', 'claude'], 0]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, g } = await snap({ denyGemini: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, g.allowed.map((a) => a[0]), g.recorded.length], [429, code, ['gemini'], 0]);
+    }
+    // Pasted text has no Claude path: a failure is the app's own sentence.
+    ({ r, g } = await snap({ fail: Object.assign(new Error('x'), { name: 'VertexError', code: 'http', status: 500 }) }, { text: 'Card sales 1,284.50 count 96' }));
+    assert.deepStrictEqual([r.status, r.data.error, g.allowed.map((a) => a[0])], [502, 'Could not read that photo. Try again, or type the numbers in.', ['gemini']]);
+  } finally { delete process.env.TALLY_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[tally] gemini failed (http); used claude', '[tally] gemini failed (unusable); used claude', '[tally] gemini failed (monthly-cap); used claude']);
 });
 
 test('the sample carries a made-up reading (no model), in the live reading’s exact shape', async () => {

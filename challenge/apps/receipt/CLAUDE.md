@@ -59,6 +59,13 @@ the whiteboard for decisions, owners, dates." Built on the redesign branch,
   Haiku input tokens that cost the same, route `minutes:gemini-3.8-flash`),
   and one that failed after billing is still recorded. With no guard (the
   app on its own) only the stand-in can answer Gemini.
+- **Claude is the fallback for the sharpener and the recap (2026-11-23).**
+  With the switch on, if Gemini fails for any reason but a burst refusal (a
+  thrown call, output the validator rejects, the Gemini `monthly-cap`, no
+  helper), the old Claude path answers the same request unchanged
+  (`geminiElseClaude`; log `[receipt] gemini failed (<code>); used claude`).
+  Bursts go out as they are. "Record or snap" has no Claude path (the recap's
+  whiteboard read is a different request): its failure stays its own error.
 - **`POST /api/meetings/:id/minutes`**: `...spend, ownerOnly, minutesOn,
   mediaJson` - sign-in, budget, daily cap, the ownership 404, the switch, and
   only then the 12 MB parser. One recording **or** one whiteboard photo.

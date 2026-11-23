@@ -240,6 +240,12 @@ Gemini reader; unset or anything else is Claude, exactly as before
   the same; route `snap:gemini-3.8-flash`), so the $2 credit and the daily
   ceiling still hold. Run without the lab (no guard) only the stand-in can
   answer Gemini; a provider failure is a plain 502/503.
+- **Claude is the fallback (2026-11-23).** With the switch on, if the Gemini
+  read fails for any reason but a burst refusal (a thrown call, a reading
+  the validator rejects, the Gemini `monthly-cap`, no helper), the
+  three-totals Claude reader answers the same photo unchanged and the answer
+  says `reader: 'totals'` (`geminiElseClaude`; log `[tipout] gemini failed
+  (<code>); used claude`). Bursts go out as they are.
 - **Stand-in** (`lib/fakeai.js` `gemini`, `TIPOUT_FAKE_AI=1`): byte triggers
   `BLANK`, `NOTIPS` (422s), `SUMS` (no totals; lines add up), `MISMATCH`,
   `INJECT`, `UPSTREAMnnn`; anything else is The Copper Fox's Friday with a

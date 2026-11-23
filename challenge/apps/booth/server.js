@@ -634,7 +634,7 @@ async function askGemini(req, request, route) {
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents, generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 1400, outputTokens: 260 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, gemini: 'no-helper' });
   let usage = null;
   try {
     const out = await generate({ ...request, ...(fake ? { fake } : {}) });
@@ -642,13 +642,34 @@ async function askGemini(req, request, route) {
     return out && out.json;
   } catch (err) {
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), gemini: (err && err.code) || 'error' });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
       await chargeGemini(req, usage, route);
     }
   }
+}
+
+/** Gemini first, for a feature Claude also has. If the Gemini step fails for
+ *  any reason but a burst refusal - a thrown call, output the validator
+ *  rejects (`gemini()` resolves falsy), the month's Gemini cap, no helper -
+ *  Claude's own path answers the same request, unchanged (its own guard,
+ *  gates and meter). A burst is per person across both providers: its
+ *  refusal goes out as it is. One log line, no user data. */
+const BURSTS = new Set(['burst-minute', 'burst-day']);
+async function geminiElseClaude(gemini_, claude) {
+  let code;
+  try {
+    const out = await gemini_();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.gemini || err.code)) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[booth] gemini failed (${code}); used claude`);
+  return claude();
 }
 
 /** The person's own ledger (their credit, and the free tier's daily
@@ -692,10 +713,10 @@ app.post('/api/events/:id/leads/:lid/draft', ...spend, async (req, res) => {
     const l = await loadLead(ev, req);
     const src = ai.draftSource(ev, ev.me, l);
     const fallback = B.template(l, ev, ev.me).subject;
-    const raw = providerNow() === 'gemini'
-      ? await askGemini(req, gemini.draftRequest(src), 'draft')
-      : await askClaude(req, (client, model, onUsage) => ai.draft(client, model, src, onUsage));
-    const d = ai.validateDraft(raw, src, fallback);
+    const viaClaude = async () => ai.validateDraft(await askClaude(req, (client, model, onUsage) => ai.draft(client, model, src, onUsage)), src, fallback);
+    const d = providerNow() === 'gemini'
+      ? await geminiElseClaude(async () => ai.validateDraft(await askGemini(req, gemini.draftRequest(src), 'draft'), src, fallback), viaClaude)
+      : await viaClaude();
     if (!d) throw httpError(422, 'The draft came back empty. Try again - or use the free template.');
     res.json({ ...d, mailto: B.mailto(l.email, d.subject, d.body) });
   } catch (err) { fail(res, err, 'Could not draft that. Try again, or use the free template.'); }
@@ -709,12 +730,15 @@ app.post('/api/events/:id/leads/:lid/draft', ...spend, async (req, res) => {
 app.post('/api/events/:id/read', ...spend, memberOnly, bigJson, async (req, res) => {
   try {
     const image = photo.validate((req.body || {}).image);
+    const viaClaude = async () => ai.validateContact(await askClaude(req, (client, model, onUsage) => ai.readContact(client, model, image, onUsage)));
     let c;
     if (providerNow() === 'gemini') {
-      const s = ai.validateScan(await askGemini(req, gemini.scanRequest({ photo: image }), 'read'));
-      c = s && { kind: s.kind, name: s.fields.name.value || '', title: s.fields.title.value || '', company: s.fields.company.value || '', email: s.fields.email.value || '', phone: s.fields.phone.value || '', dropped: s.dropped, fields: s.fields, check: s.check };
+      c = await geminiElseClaude(async () => {
+        const s = ai.validateScan(await askGemini(req, gemini.scanRequest({ photo: image }), 'read'));
+        return s && { kind: s.kind, name: s.fields.name.value || '', title: s.fields.title.value || '', company: s.fields.company.value || '', email: s.fields.email.value || '', phone: s.fields.phone.value || '', dropped: s.dropped, fields: s.fields, check: s.check };
+      }, viaClaude);
     } else {
-      c = ai.validateContact(await askClaude(req, (client, model, onUsage) => ai.readContact(client, model, image, onUsage)));
+      c = await viaClaude();
     }
     if (!c) throw httpError(422, 'We couldn’t read a name, company, email or phone on that. Try a closer, flatter shot - or type it in.');
     res.set('Cache-Control', 'no-store');
