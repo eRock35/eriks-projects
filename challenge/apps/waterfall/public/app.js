@@ -95,7 +95,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else here stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else here stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     reveal(where);
     var b = $('#resend', where);
     b.addEventListener('click', function () {
@@ -217,8 +217,8 @@
     if (state.conflictOpen) return;
     state.conflictOpen = true;
     var mine = state.settings, a = C.cleanSettings(acc).settings;
-    sheet('<h2>Your settings changed on another device</h2><p class="muted">The copy in your account is newer than the one this device last saw.</p><div class="note"><p style="margin:0"><b>This device:</b> ' + esc(settingsSummary(mine)) + '</p><p style="margin:6px 0 0"><b>Your account:</b> ' + esc(settingsSummary(a)) + '</p></div>' +
-      '<div class="btns" style="margin-top:12px"><button class="btn" type="button" id="cfMerge">Merge them</button><button class="btn ghost" type="button" id="cfTake">Use the account’s copy</button><button class="btn ghost" type="button" id="cfKeep">Keep this device’s</button></div><p class="small muted" style="margin-top:8px">Merging keeps every product rule and preset from both; the account’s copy wins where both have the same product.</p>', function (root) {
+    sheet('<h2>Your settings changed on another device</h2><p class="muted">The copy in your account is newer than the one this device last saw.</p><div class="note"><p class="m0"><b>This device:</b> ' + esc(settingsSummary(mine)) + '</p><p class="m0 mt6"><b>Your account:</b> ' + esc(settingsSummary(a)) + '</p></div>' +
+      '<div class="btns mt12"><button class="btn" type="button" id="cfMerge">Merge them</button><button class="btn ghost" type="button" id="cfTake">Use the account’s copy</button><button class="btn ghost" type="button" id="cfKeep">Keep this device’s</button></div><p class="small muted mt8">Merging keeps every product rule and preset from both; the account’s copy wins where both have the same product.</p>', function (root) {
       var done = function (s, msg) { state.conflictOpen = false; closeSheet(); adopt(s); toast(msg); };
       $('#cfMerge', root).addEventListener('click', function () { done(C.mergeSettings(mine, a), 'Merged.'); pushSettings(acc.updatedAt); });
       $('#cfTake', root).addEventListener('click', function () { done(a, 'Using the account’s copy.'); state.syncBase = acc.updatedAt; state.syncState = 'synced'; saveSyncBase(); drawSync(); });
@@ -230,7 +230,7 @@
     if (state.me && !state.me.sync) return '<span class="sync muted small">Saving to the account is unavailable right now - your settings are on this device.</span>';
     if (state.syncState === 'syncing') return '<span class="sync muted small">Saving your settings to your account…</span>';
     if (state.syncState === 'error') return '<span class="sync small err">Couldn’t save to your account' + (state.syncErr ? ': ' + esc(state.syncErr) : '') + ' <button class="link-btn" type="button" data-act="retrysync">Try again</button></span>';
-    return '<span class="sync small" style="color:var(--ok);font-weight:700">✓ Settings saved to your account - never a customer</span>';
+    return '<span class="sync small oktext">✓ Settings saved to your account - never a customer</span>';
   }
   function drawSync() { $$('[data-sync]').forEach(function (el) { el.innerHTML = syncLine(); }); }
 
@@ -417,7 +417,7 @@
       (act ? '<button class="btn" type="button" data-act="' + esc(act) + '">' + esc(label) + '</button>' : '') + '</div>';
   }
   function demoNote() {
-    return state.demo ? '<p class="small muted" style="margin:0">This is a made-up company and made-up customers. <button class="link-btn" type="button" data-act="leavedemo">Leave the example</button></p>' : '';
+    return state.demo ? '<p class="small muted m0">This is a made-up company and made-up customers. <button class="link-btn" type="button" data-act="leavedemo">Leave the example</button></p>' : '';
   }
 
   /* ---------------- first run ---------------- */
@@ -426,7 +426,7 @@
     var rows = [['Aug', ['1.4k', '1.1k', '', '']], ['Sep', ['', '1.6k', '1.2k', '']], ['Oct', ['', '', '1.9k', '1.5k']]];
     return '<div class="mock" aria-hidden="true"><div class="mh"><span>Waterfall · USD</span><span class="mf">billed ↓ · revenue →</span></div><table><thead><tr><th></th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th></tr></thead><tbody>' +
       rows.map(function (r) { return '<tr><th>' + r[0] + '</th>' + r[1].map(function (v, i) { return '<td class="' + (v ? 'c' + (1 + ((i + rows.indexOf(r)) % 3)) : '') + '">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody></table><div class="mh" style="margin-top:8px"><span>Dashboard vs revenue, Oct</span><span class="mf">✓ to the cent</span></div><table><tbody><tr><th style="text-align:left">Annual plans billed in Oct</th><td>+$26.5k</td></tr><tr><th style="text-align:left">Usage billed in arrears</th><td>+$3.3k</td></tr><tr><th style="text-align:left">Void invoice counted</th><td>+$599</td></tr></tbody></table></div>';
+      '</tbody></table><div class="mh mt8"><span>Dashboard vs revenue, Oct</span><span class="mf">✓ to the cent</span></div><table><tbody><tr><th class="ta-l">Annual plans billed in Oct</th><td>+$26.5k</td></tr><tr><th class="ta-l">Usage billed in arrears</th><td>+$3.3k</td></tr><tr><th class="ta-l">Void invoice counted</th><td>+$599</td></tr></tbody></table></div>';
   }
   function startHtml() {
     return '<div class="stack">' +
@@ -437,11 +437,11 @@
       '<label class="btn big ghost filepick">Load my billing export<input type="file" data-file="export" accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"></label></div>' +
       '<p class="caps">CSV or TSV - a Stripe invoice line-item export, or any billing system’s - up to 25 MB and 250,000 lines.<span class="stays">Read on this device, never uploaded.</span></p></div>' + mockHtml() + '</section>' +
       '<section class="grid3 how">' +
-      '<div class="card"><h3>Load and confirm</h3><p class="small muted" style="margin:0">Waterfall guesses every column - invoice, customer, amount, discount, tax, currency, service period, line type, status - and asks once about anything that reads two ways, like whether a period ends on its last day or the next period’s first.</p></div>' +
-      '<div class="card"><h3>Choose a rule per product</h3><p class="small muted" style="margin:0">Over the service period by day, on the invoice date, over N months, or exclude. Void invoices are left out, uncollectible ones listed apart, tax is never revenue - and every line’s months add up to it exactly, to the cent.</p></div>' +
-      '<div class="card"><h3>Schedule, waterfall, tie-out</h3><p class="small muted" style="margin:0">Recognised revenue by month, the waterfall triangle, the deferred revenue roll-forward, journal entries, a customer drill-down, and the buckets that explain why your dashboard and your ledger disagree.</p></div>' +
+      '<div class="card"><h3>Load and confirm</h3><p class="small muted m0">Waterfall guesses every column - invoice, customer, amount, discount, tax, currency, service period, line type, status - and asks once about anything that reads two ways, like whether a period ends on its last day or the next period’s first.</p></div>' +
+      '<div class="card"><h3>Choose a rule per product</h3><p class="small muted m0">Over the service period by day, on the invoice date, over N months, or exclude. Void invoices are left out, uncollectible ones listed apart, tax is never revenue - and every line’s months add up to it exactly, to the cent.</p></div>' +
+      '<div class="card"><h3>Schedule, waterfall, tie-out</h3><p class="small muted m0">Recognised revenue by month, the waterfall triangle, the deferred revenue roll-forward, journal entries, a customer drill-down, and the buckets that explain why your dashboard and your ledger disagree.</p></div>' +
       '</section>' +
-      '<section class="card"><h2>What stays on this device</h2><p class="muted" style="margin:0">Billing exports carry customer names and amounts, so Waterfall reads them in this browser and never sends them anywhere - not the file, not a line, not a figure you type. A free account keeps only your settings: column presets by header name, the rules table by product name and your account names. ' + esc(C.NOT_POLICY) + '</p></section>' +
+      '<section class="card"><h2>What stays on this device</h2><p class="muted m0">Billing exports carry customer names and amounts, so Waterfall reads them in this browser and never sends them anywhere - not the file, not a line, not a figure you type. A free account keeps only your settings: column presets by header name, the rules table by product name and your account names. ' + esc(C.NOT_POLICY) + '</p></section>' +
       '<p class="foot">A trial app in the <a href="../">Challenge Lab</a>. Subscription revenue is commonly recognised over the service period; Waterfall does the arithmetic for the rule you choose.</p>' +
       '</div>';
   }
@@ -496,7 +496,7 @@
       if (list.indexOf(a.currency) < 0) list.unshift(a.currency);
       out.push('<div class="q"><h3>' + (q.currency.blanks ? 'Lines with no currency' : 'Which currency?') + '</h3><p class="evid">' + esc(q.currency.why) + '</p><label class="field"><span>Currency</span><select class="input" data-ans="currency">' + list.map(function (c) { return '<option' + (c === a.currency ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label></div>');
     }
-    if (!out.length) return '<p class="muted" style="margin:0">Nothing to ask - every date and amount reads one way.</p>';
+    if (!out.length) return '<p class="muted m0">Nothing to ask - every date and amount reads one way.</p>';
     return out.join('');
   }
   function fileNotesHtml(f) {
@@ -509,7 +509,7 @@
     if (f.cut) n.push(plural(f.cut, 'cell') + ' over ' + C.LIMITS.cell + ' characters were cut.');
     if (f.wide) n.push(plural(f.wide, 'column') + ' past the first ' + C.LIMITS.columns + ' were left out.');
     if (f.openQuote) n.push('A quote was never closed; the rest of the file was read as one cell.');
-    return n.length ? '<div class="note"><p class="lab">About this file</p><ul class="small" style="margin:0;padding-left:18px">' + n.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' : '';
+    return n.length ? '<div class="note"><p class="lab">About this file</p><ul class="small m0 pl18">' + n.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' : '';
   }
   function columnsHtml() {
     var f = state.file;
@@ -518,14 +518,14 @@
     var head = state.file.headers.map(function (h, i) { var tag = C.FKEYS.filter(function (k) { return state.map[k] === i; })[0]; return '<th><span class="fieldtag">' + esc(tag ? C.field(tag).label : 'not used') + '</span>' + esc(h) + '</th>'; }).join('');
     var body = f.sample.map(function (r) { return '<tr>' + r.map(function (v) { return '<td>' + esc(C.clip(v, 60)) + '</td>'; }).join('') + '</tr>'; }).join('');
     return '<div class="stack">' +
-      '<div class="sec-head"><div><p class="lab">Columns</p><h1 class="anywhere">' + esc(f.name) + '</h1><p class="small muted" style="margin:0">' + esc(plural(f.kept, 'line') + ' · ' + (f.delimiterName || 'comma') + '-separated · ' + plural(mapped.length, 'column') + ' placed' + (f.preset ? ' from your preset “' + f.preset + '”' : '')) + '</p></div>' +
+      '<div class="sec-head"><div><p class="lab">Columns</p><h1 class="anywhere">' + esc(f.name) + '</h1><p class="small muted m0">' + esc(plural(f.kept, 'line') + ' · ' + (f.delimiterName || 'comma') + '-separated · ' + plural(mapped.length, 'column') + ' placed' + (f.preset ? ' from your preset “' + f.preset + '”' : '')) + '</p></div>' +
       '<div class="btns"><label class="btn small ghost filepick">Choose another file<input type="file" data-file="export" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></div></div>' +
       guideHtml(1, 'Every column recognised: ' + sure + ' of ' + mapped.length + '.', 'Brightwell’s export writes a period’s end the way Stripe does - the first day of the next period - and Waterfall found that in the file. Nothing to change here.', 'read', 'Read the lines →') +
       demoNote() + fileNotesHtml(f) +
       '<div class="split2"><section class="card"><div class="sec-head"><h2>Which column is which</h2><button class="btn small ghost" type="button" data-act="preset">Save as a preset</button></div><div class="maplist">' + C.FIELDS.map(mapItemHtml).join('') + '</div></section>' +
       '<div class="stack"><section class="card"><h2>A few questions</h2>' + questionsHtml() + '</section>' +
-      '<section class="card">' + (state.problems.length ? '<ul class="small err" style="margin:0 0 10px;padding-left:18px">' + state.problems.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p class="okline" style="margin-bottom:10px">✓ Ready to read every line</p>') +
-      '<button class="btn block big" type="button" data-act="read"' + (state.problems.length ? ' disabled' : '') + '>Read ' + esc(plural(f.kept, 'line')) + ' →</button><p class="small muted" style="margin:8px 0 0">On this device. Nothing is uploaded.</p></section></div></div>' +
+      '<section class="card">' + (state.problems.length ? '<ul class="small err m0 mb10 pl18">' + state.problems.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p class="okline mb10">✓ Ready to read every line</p>') +
+      '<button class="btn block big" type="button" data-act="read"' + (state.problems.length ? ' disabled' : '') + '>Read ' + esc(plural(f.kept, 'line')) + ' →</button><p class="small muted m0 mt8">On this device. Nothing is uploaded.</p></section></div></div>' +
       '<section class="card"><h2>The first lines</h2><div class="tablewrap"><table class="t"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div></section>' +
       '</div>';
   }
@@ -535,7 +535,7 @@
     sheet('<h2>Save these columns as a preset</h2><p class="muted small">Keeps the header NAMES - never a value - so the next export with the same headers is mapped at once. ' + (signedIn() ? 'It follows your account.' : 'Sign in and it follows your account too.') + '</p>' +
       '<label class="field"><span>Name</span><input class="input" id="presetName" maxlength="40" placeholder="Monthly billing export" autocomplete="off"></label>' +
       (skipped ? '<p class="small">' + esc(plural(skipped, 'header') + ' looked like a value and will not be saved.') + '</p>' : '') +
-      '<div id="presetErr"></div><div class="btns" style="margin-top:10px"><button class="btn" type="button" id="presetSave">Save the preset</button></div>', function (root) {
+      '<div id="presetErr"></div><div class="btns mt10"><button class="btn" type="button" id="presetSave">Save the preset</button></div>', function (root) {
       $('#presetSave', root).addEventListener('click', function () {
         var name = C.line($('#presetName', root).value, 40);
         var chk = C.cleanSettings({ presets: [{ name: name, map: map }] }, true);
@@ -563,7 +563,7 @@
     if (st.void) parts.push('<li><span class="pill">Void</span><span>' + esc(plural(st.void, 'line') + ' on void invoices - not revenue, left out of the schedule') + '</span></li>');
     if (st.draft) parts.push('<li><span class="pill">Draft</span><span>' + esc(plural(st.draft, 'line') + ' on draft invoices - not issued yet, left out') + '</span></li>');
     if (st.uncollectible) parts.push('<li><span class="pill warn">Uncollectible</span><span>' + esc(plural(st.uncollectible, 'line') + ' on uncollectible invoices - kept in revenue and listed apart: a write-off is not less revenue') + '</span></li>');
-    var detail = rows.length ? '<details style="margin-top:8px"' + (state.showChecks ? ' open' : '') + '><summary class="link-btn" style="display:inline-flex;align-items:center">See every row check</summary><ul class="checks">' + rows.map(function (k) {
+    var detail = rows.length ? '<details class="mt8"' + (state.showChecks ? ' open' : '') + '><summary class="link-btn iflex">See every row check</summary><ul class="checks">' + rows.map(function (k) {
       var x = p.checks[k];
       return '<li><span class="pill ' + (C.CHECKS[k].out ? 'bad' : 'warn') + '">' + (C.CHECKS[k].out ? 'left out' : 'kept') + '</span><span>' + esc(C.CHECKS[k].label + ': ' + plural(x.n, 'line') + ' - file line' + (x.rows.length > 1 ? 's ' : ' ') + x.rows.slice(0, 20).join(', ') + (x.n > 20 ? ' and ' + groups(x.n - 20) + ' more' : '')) + '</span></li>';
     }).join('') + '</ul></details>' : '';
@@ -573,7 +573,7 @@
   function ruleRowHtml(pr, i) {
     var r = ruleFor(pr.key);
     var sel = '<select class="input" data-rule="' + i + '" aria-label="Rule for ' + esc(pr.key) + '">' + C.RULES.map(function (k) { return '<option value="' + k + '"' + (r.rule === k ? ' selected' : '') + '>' + esc(RULE_SHORT[k]) + '</option>'; }).join('') + '</select>';
-    var months = r.rule === 'months' ? '<label class="row" style="gap:6px"><input class="input n2" type="number" min="1" max="60" step="1" inputmode="numeric" data-months="' + i + '" value="' + esc(r.months) + '" aria-label="Months"><span class="small">months</span></label>' : '';
+    var months = r.rule === 'months' ? '<label class="row gap6"><input class="input n2" type="number" min="1" max="60" step="1" inputmode="numeric" data-months="' + i + '" value="' + esc(r.months) + '" aria-label="Months"><span class="small">months</span></label>' : '';
     var fall = r.rule === 'period' && pr.periodShare < 100 ? '<span class="small muted">' + (pr.periodShare ? esc(groups(pr.n - Math.round(pr.n * pr.periodShare / 100))) + ' with no period' : 'no period') + ': on the invoice date</span>' : '';
     return '<div class="rule-row' + (r.rule !== 'period' ? ' changed' : '') + '"><div><div class="pn">' + esc(pr.key) + '</div><div class="typechips">' + pr.types.map(function (t) { return '<span class="pill">' + esc(C.TYPE_WORD[t]) + '</span>'; }).join('') + '</div></div>' +
       '<div class="ps">' + esc(plural(pr.n, 'line') + ' · ' + pr.periodShare + '% with a period · ' + C.LEN_WORD[pr.len]) + '<br>' + totalsHtml(pr.totals) + '</div>' +
@@ -583,14 +583,14 @@
     var p = state.prep;
     var changed = p.products.filter(function (x) { return ruleFor(x.key).rule !== 'period'; }).length;
     return '<div class="stack">' +
-      '<div class="sec-head"><div><p class="lab">Rules</p><h1>How each product is recognised</h1><p class="small muted" style="margin:0">' + esc(state.file.name + ' · ' + plural(p.products.length, 'product')) + '</p></div><div class="btns"><button class="btn small ghost" type="button" data-act="tocolumns">Change columns</button></div></div>' +
+      '<div class="sec-head"><div><p class="lab">Rules</p><h1>How each product is recognised</h1><p class="small muted m0">' + esc(state.file.name + ' · ' + plural(p.products.length, 'product')) + '</p></div><div class="btns"><button class="btn small ghost" type="button" data-act="tocolumns">Change columns</button></div></div>' +
       guideHtml(2, plural(p.products.length, 'product') + ', one rule each.', 'Brightwell’s accountant spreads onboarding fees over 12 months - set below. Everything else follows its own service period, by day; a credit or fee with no period lands on its invoice date.', 'toschedule', 'See the schedule →') +
       demoNote() + checksHtml(p) +
       '<section class="card"><div class="sec-head"><h2>Rules by product</h2><button class="btn small ghost" type="button" data-act="ai">✨ Suggest rules for my products</button></div>' +
-      '<p class="small" style="margin:0 0 4px">Every product starts on <b>over its service period, by day</b> (a line with no period: on its invoice date). Negative lines - credits and proration credits - follow the same rule over their own period. ' + esc(C.SETUP_LINE) + '</p>' +
+      '<p class="small m0 mb4">Every product starts on <b>over its service period, by day</b> (a line with no period: on its invoice date). Negative lines - credits and proration credits - follow the same rule over their own period. ' + esc(C.SETUP_LINE) + '</p>' +
       '<p class="small muted">' + esc(C.NOT_POLICY) + (changed ? ' ' + plural(changed, 'product') + ' changed from the default.' : '') + (state.demo ? ' The example’s rules are never saved.' : signedIn() ? ' Rules follow your account by product name.' : ' Rules are kept on this device by product name.') + '</p>' +
       '<div class="rules">' + p.products.map(ruleRowHtml).join('') + '</div>' +
-      '<div class="btns" style="margin-top:14px"><button class="btn big" type="button" data-act="toschedule">See the schedule →</button></div></section>' +
+      '<div class="btns mt14"><button class="btn big" type="button" data-act="toschedule">See the schedule →</button></div></section>' +
       '</div>';
   }
 
@@ -634,17 +634,17 @@
       if (c.billed[i]) { var by = y(c.billed[i]), cx = x + bw / 2; out.push('<path class="billed" d="M' + cx + ' ' + (by - 6) + 'L' + (cx + 6) + ' ' + by + 'L' + cx + ' ' + (by + 6) + 'L' + (cx - 6) + ' ' + by + 'Z"><title>' + esc(C.monthLong(mi) + ': billed ' + money(c.billed[i], c.ccy)) + '</title></path>'); }
       if (i % every === 0 || mi % 12 === 0) out.push('<text x="' + (x + bw / 2) + '" y="' + (H - pb + 15) + '" text-anchor="middle">' + esc(C.monthLabel(mi).slice(0, 3)) + '</text>' + (mi % 12 === 0 || i === 0 ? '<text x="' + (x + bw / 2) + '" y="' + (H - pb + 29) + '" text-anchor="middle">' + esc(String(Math.floor(mi / 12))) + '</text>' : ''));
     }
-    out.push('<line class="ax" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '" style="stroke:var(--muted)"/></svg>');
+    out.push('<line class="ax ax-zero" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '"/></svg>');
     return '<div class="chart">' + out.join('') + '</div><ul class="legend"><li><span class="sw rec"></span>Recognised in the month</li><li><span class="sw sched"></span>Scheduled - billed already, earned after the export</li><li><span class="sw billed"></span>Billed in the month</li></ul>';
   }
   function scheduleHtml() {
     var c = cur(), mk = state.selMonth && c.months.indexOf(state.selMonth) >= 0 ? state.selMonth : c.months[c.n - 1];
     var i = c.months.indexOf(mk), r = c.roll[i], mi = c.m0 + i;
-    var monthSel = '<label class="row" style="gap:8px"><span class="small"><b>Month</b></span><select class="input" style="width:auto" data-sel="month">' + c.months.map(function (k, j) { return '<option value="' + esc(k) + '"' + (k === mk ? ' selected' : '') + '>' + esc(C.monthLong(c.m0 + j)) + '</option>'; }).join('') + '</select></label>';
+    var monthSel = '<label class="row gap8"><span class="small"><b>Month</b></span><select class="input w-auto" data-sel="month">' + c.months.map(function (k, j) { return '<option value="' + esc(k) + '"' + (k === mk ? ' selected' : '') + '>' + esc(C.monthLong(c.m0 + j)) + '</option>'; }).join('') + '</select></label>';
     var lb = lastBilledMi();
     var rollRows = c.roll.map(function (x, j) {
       var ok = x.ok && (j === 0 ? x.opening === 0 : x.opening === c.roll[j - 1].closing);
-      return '<tr' + (x.key === mk ? ' style="outline:2px solid var(--accent);outline-offset:-2px"' : '') + '><td>' + esc(C.monthLabel(x.mi)) + (lb !== null && x.mi > lb ? ' <span class="small muted">sched.</span>' : '') + '</td><td class="r">' + esc(money(x.opening, c.ccy)) + '</td><td class="r">' + esc(money(x.billed, c.ccy)) + '</td><td class="r">' + esc(money(x.rec, c.ccy)) + '</td><td class="r"><b>' + esc(money(x.closing, c.ccy)) + '</b></td><td class="r">' + esc(money(x.ahead, c.ccy)) + '</td><td class="r">' + esc(x.unbilled ? money(x.unbilled, c.ccy) : '-') + '</td><td>' + (ok ? '<span class="tick" title="Opening is last month’s closing, and closing = billed ahead less earned ahead of billing">✓</span>' : '<span class="cross">!</span>') + '</td></tr>';
+      return '<tr' + (x.key === mk ? ' class="selrow"' : '') + '><td>' + esc(C.monthLabel(x.mi)) + (lb !== null && x.mi > lb ? ' <span class="small muted">sched.</span>' : '') + '</td><td class="r">' + esc(money(x.opening, c.ccy)) + '</td><td class="r">' + esc(money(x.billed, c.ccy)) + '</td><td class="r">' + esc(money(x.rec, c.ccy)) + '</td><td class="r"><b>' + esc(money(x.closing, c.ccy)) + '</b></td><td class="r">' + esc(money(x.ahead, c.ccy)) + '</td><td class="r">' + esc(x.unbilled ? money(x.unbilled, c.ccy) : '-') + '</td><td>' + (ok ? '<span class="tick" title="Opening is last month’s closing, and closing = billed ahead less earned ahead of billing">✓</span>' : '<span class="cross">!</span>') + '</td></tr>';
     }).join('');
     var chk = c.checks;
     return '<div class="stack">' +
@@ -657,12 +657,12 @@
       '<div class="tile"><div class="tl">All lines in ' + esc(state.ccy) + '</div><div class="tv">' + esc(money(c.totals.billed, c.ccy)) + '</div><div class="ts">' + esc(plural(c.totals.lines, 'revenue line') + ', ' + C.monthLabel(c.m0) + ' to ' + C.monthLabel(c.m0 + c.n - 1)) + '</div></div></div>' +
       '<section class="card"><div class="sec-head"><h2>Recognised and billed</h2><span class="small muted">Tap a bar to pick its month</span></div>' + scheduleChart(c, { sel: mk, lastBilled: lb }) + '</section>' +
       '<section class="card"><div class="sec-head"><h2>Deferred revenue roll-forward</h2><button class="btn small ghost" type="button" data-act="exp" data-kind="roll">Download CSV</button></div>' +
-      '<ul class="checks" style="margin:0 0 10px">' +
+      '<ul class="checks m0 mb10">' +
       '<li>' + (chk.continuity ? '<span class="tick">✓</span>' : '<span class="cross">!</span>') + '<span>Each month’s closing is the next month’s opening: opening + billed - recognised = closing</span></li>' +
       '<li>' + (chk.grand ? '<span class="tick">✓</span>' : '<span class="cross">!</span>') + '<span>' + esc('Everything billed less everything recognised is the closing balance: ' + money(c.totals.billed, c.ccy) + ' - ' + money(c.totals.rec, c.ccy) + ' = ' + money(c.totals.closing, c.ccy) + ' at ' + C.monthLabel(c.m0 + c.n - 1)) + '</span></li>' +
       '<li>' + (chk.rows && chk.split ? '<span class="tick">✓</span>' : '<span class="cross">!</span>') + '<span>Every line’s months add up to exactly its amount, and each closing splits into billed ahead and earned before billing</span></li></ul>' +
       '<div class="tablewrap tall"><table class="t"><thead><tr><th>Month</th><th class="r">Opening</th><th class="r">+ Billed</th><th class="r">- Recognised</th><th class="r">= Closing</th><th class="r">Billed ahead</th><th class="r">- Earned before billing</th><th><span class="sr">Check</span></th></tr></thead><tbody>' + rollRows + '</tbody></table></div>' +
-      '<p class="small muted" style="margin:8px 0 0">Waterfall starts from the lines in this file: a plan billed before the export’s first invoice is not in the opening balance. “Earned before billing” is usage in arrears - earned in a month, invoiced after it.</p></section>' +
+      '<p class="small muted m0 mt8">Waterfall starts from the lines in this file: a plan billed before the export’s first invoice is not in the opening balance. “Earned before billing” is usage in arrears - earned in a month, invoiced after it.</p></section>' +
       '</div>';
   }
 
@@ -684,8 +684,8 @@
     return '<div class="stack">' +
       '<div class="sec-head"><div><p class="lab">Waterfall · ' + esc(state.ccy) + '</p><h1>Billed in one month, earned across many</h1></div><div class="btns"><label class="check small"><input type="checkbox" data-set="exact"' + (state.exact ? ' checked' : '') + '> Exact amounts</label><button class="btn small ghost" type="button" data-act="exp" data-kind="waterfall">Download CSV</button></div></div>' +
       ccySegHtml() +
-      '<p class="muted" style="margin:0">Each row is the month lines were billed; each column the month they are revenue. A monthly plan billed on the 1st sits on the outlined diagonal; one billed mid-month spills one column right; an annual plan runs right for twelve months; usage billed in arrears sits left of the diagonal.</p>' +
-      '<div class="heatkey" aria-hidden="true"><span>Smaller</span><i style="background:var(--heat-1)"></i><i style="background:var(--heat-2)"></i><i style="background:var(--heat-3)"></i><i style="background:var(--heat-4)"></i><i style="background:var(--heat-5)"></i><span>Larger</span><span>· italic = a negative amount</span></div>' +
+      '<p class="muted m0">Each row is the month lines were billed; each column the month they are revenue. A monthly plan billed on the 1st sits on the outlined diagonal; one billed mid-month spills one column right; an annual plan runs right for twelve months; usage billed in arrears sits left of the diagonal.</p>' +
+      '<div class="heatkey" aria-hidden="true"><span>Smaller</span><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><i class="h5"></i><span>Larger</span><span>· italic = a negative amount</span></div>' +
       '<div class="tri" tabindex="0" role="region" aria-label="The waterfall: billing months by revenue months"><table><thead>' + head + '</thead><tbody>' + body + foot + '</tbody></table></div>' +
       '<ul class="checks"><li>' + (c.checks.rows ? '<span class="tick">✓</span>' : '<span class="cross">!</span>') + '<span>' + esc('Every row adds up to what was billed that month - ' + money(c.totals.billed, c.ccy) + ' in all') + '</span></li>' +
       '<li>' + (c.checks.cols ? '<span class="tick">✓</span>' : '<span class="cross">!</span>') + '<span>' + esc('Every column adds up to that month’s recognised revenue - ' + money(c.totals.rec, c.ccy) + ' in all') + '</span></li></ul>' +
@@ -735,12 +735,12 @@
     return '<div class="bridge" role="img" aria-label="' + esc('From ' + startLabel + ' (' + money(x.ours, ccy) + ') to ' + endLabel + ' (' + money(x.typed, ccy) + '), bucket by bucket') + '">' + items.map(function (it) {
       var left = pct(Math.min(it.from, it.to)), width = Math.max(0.6, pct(Math.max(it.from, it.to)) - left);
       var sign = it.kind === 'base' || it.kind === 'typed' ? '' : it.v > 0 ? '+' : '';
-      return '<div class="br ' + it.kind + '" aria-hidden="true"><span class="bl">' + esc(it.label) + '</span><span class="bv">' + esc(sign + money(it.v, ccy)) + '</span><span class="track"><i style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%"></i></span></div>';
+      return '<div class="br ' + it.kind + '" aria-hidden="true"><span class="bl">' + esc(it.label) + '</span><span class="bv">' + esc(sign + money(it.v, ccy)) + '</span><svg class="track" viewBox="0 0 100 14" preserveAspectRatio="none" focusable="false"><rect x="' + left.toFixed(2) + '" y="0" width="' + width.toFixed(2) + '" height="14"/></svg></div>';
     }).join('') + '</div>';
   }
   function linesTableHtml(lines, ccy, valueLabel) {
     if (!lines.length) return '';
-    return '<div class="tablewrap" style="max-height:420px"><table class="t"><thead><tr><th>Customer</th>' + (valueLabel ? '<th class="r">' + esc(valueLabel) + '</th>' : '') + '<th class="r">Line amount</th><th>Invoice date</th><th>Description</th><th>Type</th><th>Service</th><th>Invoice</th></tr></thead><tbody>' +
+    return '<div class="tablewrap mh420"><table class="t"><thead><tr><th>Customer</th>' + (valueLabel ? '<th class="r">' + esc(valueLabel) + '</th>' : '') + '<th class="r">Line amount</th><th>Invoice date</th><th>Description</th><th>Type</th><th>Service</th><th>Invoice</th></tr></thead><tbody>' +
       lines.map(function (l) {
         return '<tr><td class="wrap">' + esc(l.cust) + '</td>' + (valueLabel ? '<td class="r"><b>' + esc(l.v === null ? '' : C.money(l.v, l.ccy)) + '</b></td>' : '') + '<td class="r">' + esc(C.money(l.amt, l.ccy)) + '</td><td>' + esc(l.bill) + '</td><td class="wrap">' + esc(l.desc || l.prod) + '</td><td>' + esc(C.TYPE_WORD[l.type] + (l.st !== 'billed' ? ' · ' + C.STATUS_WORD[l.st] : '')) + '</td><td>' + esc(l.start ? l.start + ' - ' + l.last : 'none') + '</td><td>' + esc(l.inv || '-') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
@@ -751,22 +751,22 @@
     return '<details class="bucket' + (hinted ? ' hinted' : '') + (b.kind === 'residual' ? ' resid' : '') + '" data-open="' + esc(key) + '"' + (open ? ' open' : '') + '><summary>' +
       '<span class="bl">' + (hinted ? '<span class="hint">Start here</span> ' : '') + esc(b.label) + (b.n ? ' <span class="bn">' + esc(plural(b.n, 'line')) + '</span>' : '') + '</span><span class="bv">' + esc(sign + money(b.cents, ccy)) + '</span>' +
       '<span class="bs">' + esc(b.sentence) + '</span></summary><div class="bbody">' +
-      (b.lines.length ? linesTableHtml(b.lines, ccy, 'In this bucket') + (b.n > b.lines.length ? '<p class="small muted" style="margin:6px 0 0">' + esc('The ' + b.lines.length + ' biggest of ' + groups(b.n) + ' lines.') + '</p>' : '') : '<p class="small muted" style="margin:0">' + (b.kind === 'residual' ? 'No line in the file accounts for this.' : 'A total, not a list of lines.') + '</p>') +
-      (hinted && !state.demo ? '<div class="btns" style="margin-top:10px"><button class="btn small ghost" type="button" data-act="hintok">Got it</button></div>' : '') +
+      (b.lines.length ? linesTableHtml(b.lines, ccy, 'In this bucket') + (b.n > b.lines.length ? '<p class="small muted m0 mt6">' + esc('The ' + b.lines.length + ' biggest of ' + groups(b.n) + ' lines.') + '</p>' : '') : '<p class="small muted m0">' + (b.kind === 'residual' ? 'No line in the file accounts for this.' : 'A total, not a list of lines.') + '</p>') +
+      (hinted && !state.demo ? '<div class="btns mt10"><button class="btn small ghost" type="button" data-act="hintok">Got it</button></div>' : '') +
       '</div></details>';
   }
   var READINGS = [['disc', 'Shows amounts before discounts'], ['tax', 'Counts tax'], ['void', 'Counts void invoices'], ['uncoll', 'Leaves out uncollectible invoices']];
   function readingHtml(x) {
     var ks = x.kind === 'mrr' ? READINGS.filter(function (r) { return r[0] === 'disc' || r[0] === 'uncoll'; }) : READINGS;
-    return '<div class="note" style="margin:10px 0"><p class="lab">How your dashboard counts</p><div class="readings">' + ks.map(function (r) {
+    return '<div class="note my10"><p class="lab">How your dashboard counts</p><div class="readings">' + ks.map(function (r) {
       return '<label class="check small"><input type="checkbox" data-read="' + r[0] + '"' + (x.reading[r[0]] ? ' checked' : '') + '> ' + esc(r[1]) + '</label>';
-    }).join('') + '</div><p class="small muted" style="margin:4px 0 0">' + (x.auto ? '✓ Waterfall tried every reading and kept the smallest one that ties to the cent.' : state.tie.reading ? 'Set by hand. <button class="link-btn" type="button" data-act="autoread">Find the reading that ties</button>' : 'No reading ties to the cent - tick what your dashboard does, or check the residual.') + '</p></div>';
+    }).join('') + '</div><p class="small muted m0 mt4">' + (x.auto ? '✓ Waterfall tried every reading and kept the smallest one that ties to the cent.' : state.tie.reading ? 'Set by hand. <button class="link-btn" type="button" data-act="autoread">Find the reading that ties</button>' : 'No reading ties to the cent - tick what your dashboard does, or check the residual.') + '</p></div>';
   }
   function candHtml(sec, x, ccy) {
     if (!x.candidates.length) return '';
-    return '<div class="note" style="margin:10px 0"><p class="lab">What could explain it</p>' + x.candidates.map(function (c) {
+    return '<div class="note my10"><p class="lab">What could explain it</p>' + x.candidates.map(function (c) {
       return '<label class="cand"><input type="checkbox" data-cand="' + esc(sec) + '" value="' + esc(c.key) + '"' + (c.chosen ? ' checked' : '') + '><span class="small">' + esc(c.label) + '</span><span class="cv small">' + esc((c.cents > 0 ? '+' : '') + money(c.cents, ccy)) + '</span></label>';
-    }).join('') + '<p class="small muted" style="margin:4px 0 0">' + (x.auto ? '✓ The smallest set that ties to the cent is ticked.' : (sec === 'rev' ? state.tie.ledgerPick : state.tie.deferredPick) ? 'Set by hand. <button class="link-btn" type="button" data-act="autopick" data-sec="' + esc(sec) + '">Find the set that ties</button>' : 'No set of these ties to the cent - tick the ones that apply, and the rest is the residual.') + '</p></div>';
+    }).join('') + '<p class="small muted m0 mt4">' + (x.auto ? '✓ The smallest set that ties to the cent is ticked.' : (sec === 'rev' ? state.tie.ledgerPick : state.tie.deferredPick) ? 'Set by hand. <button class="link-btn" type="button" data-act="autopick" data-sec="' + esc(sec) + '">Find the set that ties</button>' : 'No set of these ties to the cent - tick the ones that apply, and the rest is the residual.') + '</p></div>';
   }
   function sectionHtml(sec, title, x, ccy, ourLabel, typedLabel, extra) {
     var hintKey = sec === 'dash' && (state.demo || !state.device.hint) ? x.biggest : null;
@@ -774,7 +774,7 @@
       '<div class="gaphead"><span>' + esc(typedLabel) + ': <b class="num">' + esc(money(x.typed, ccy)) + '</b></span><span>' + esc(ourLabel) + ': <b class="num">' + esc(money(x.ours, ccy)) + '</b></span><span>Gap <span class="gv">' + esc((x.gap > 0 ? '+' : '') + money(x.gap, ccy)) + '</span></span></div>' +
       bridgeChart(x, ccy, ourLabel, typedLabel) + (extra || '') +
       '<div class="buckets">' + x.buckets.map(function (b) { return bucketHtml(sec, b, ccy, b.key === hintKey && b.cents !== 0); }).join('') + '</div>' +
-      '<p class="small muted" style="margin:10px 0 0">' + esc('The buckets add up to the gap exactly: ' + money(x.sum, ccy) + '.') + '</p></section>';
+      '<p class="small muted m0 mt10">' + esc('The buckets add up to the gap exactly: ' + money(x.sum, ccy) + '.') + '</p></section>';
   }
   function tieHtml() {
     var t = state.tie, s = state.sched, ccy = t.ccy || homeCcy(), c = s.by[ccy] || cur();
@@ -790,7 +790,7 @@
       '<label class="field"><span>Ledger: deferred revenue at month end</span><input class="input money" inputmode="decimal" autocomplete="off" data-tie="ldef" value="' + esc(t.ldef) + '" placeholder="from your balance sheet"></label>' +
       others.map(function (k) { return '<label class="field"><span>' + esc('1 ' + k + ' = ? ' + ccy + ' (the rate your dashboard and ledger use)') + '</span><input class="input money" inputmode="decimal" autocomplete="off" data-fx="' + esc(k) + '" value="' + esc(t.fx[k] || '') + '" placeholder="e.g. 1.08"></label>'; }).join('') +
       '</div>' + (t.err ? '<p class="err" role="alert">' + esc(t.err) + '</p>' : '') +
-      '<div class="btns" style="margin-top:12px"><button class="btn" type="button" data-act="tie">Explain the gaps</button><span class="small muted">The figures you type stay in this tab - never saved, never sent.</span></div></section>';
+      '<div class="btns mt12"><button class="btn" type="button" data-act="tie">Explain the gaps</button><span class="small muted">The figures you type stay in this tab - never saved, never sent.</span></div></section>';
     var res = '';
     if (r) {
       var ml = r.monthLabel;
@@ -821,7 +821,7 @@
     }).catch(function (e) { toast(e.message); });
   }
   function custDetailHtml(d) {
-    if (!d) return '<section class="card"><h2>Pick a customer</h2><p class="muted" style="margin:0">Their lines, the rule each follows, how each splits across months, and their deferred revenue at any month end.</p></section>';
+    if (!d) return '<section class="card"><h2>Pick a customer</h2><p class="muted m0">Their lines, the rule each follows, how each splits across months, and their deferred revenue at any month end.</p></section>';
     var k = state.cust.ccy, b = d.by[k];
     var m0 = C.monthFromKey(b.months[0]), c = { ccy: k, n: b.months.length, m0: m0, months: b.months, rec: b.rec, billed: b.billed };
     var mk = b.months.indexOf(state.cust.month) >= 0 ? state.cust.month : b.months[b.months.length - 1];
@@ -830,12 +830,12 @@
       var parts = l.parts.slice(0, 4).map(function (p) { return C.monthLabel(C.monthFromKey(p[0])) + ' ' + C.money(p[1], l.ccy); }).join(' · ') + (l.parts.length > 4 ? ' · … ' + plural(l.parts.length - 4, 'more month') : '');
       return '<tr><td>' + esc(l.inv || '-') + '</td><td>' + esc(l.bill) + '</td><td class="wrap">' + esc(l.desc || l.prod) + '</td><td>' + esc(C.TYPE_WORD[l.type] + (l.st !== 'billed' ? ' · ' + C.STATUS_WORD[l.st] : '')) + '</td><td class="r">' + esc(C.money(l.amt, l.ccy)) + '</td><td>' + esc(l.start ? l.start + ' - ' + l.last + ' (' + l.days + ' days)' : 'none') + '</td><td class="wrap wide">' + esc(l.rule) + '<br><span class="small muted">' + esc(parts) + '</span></td></tr>';
     }).join('');
-    return '<section class="card" id="custDetail"><div class="sec-head"><div><h2 class="anywhere">' + esc(d.name) + '</h2><p class="small muted" style="margin:0">' + esc((d.id && d.id !== d.name ? d.id + ' · ' : '') + plural(d.n, 'line')) + '</p></div>' +
+    return '<section class="card" id="custDetail"><div class="sec-head"><div><h2 class="anywhere">' + esc(d.name) + '</h2><p class="small muted m0">' + esc((d.id && d.id !== d.name ? d.id + ' · ' : '') + plural(d.n, 'line')) + '</p></div>' +
       (d.currencies.length > 1 ? '<div class="seg" role="group" aria-label="Currency">' + d.currencies.map(function (x) { return '<button type="button" data-act="custccy" data-ccy="' + esc(x) + '" aria-pressed="' + (x === k) + '">' + esc(x) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
-      '<div class="tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="tile"><div class="tl">Deferred at</div><select class="input" data-sel="custmonth" aria-label="Month end">' + b.months.map(function (x) { return '<option value="' + esc(x) + '"' + (x === mk ? ' selected' : '') + '>' + esc(C.niceDay(C.monthEnd(C.monthFromKey(x)))) + '</option>'; }).join('') + '</select><div class="tv" style="margin-top:6px">' + esc(C.money(b.closing[i], k)) + '</div></div>' +
+      '<div class="tiles cols-2"><div class="tile"><div class="tl">Deferred at</div><select class="input" data-sel="custmonth" aria-label="Month end">' + b.months.map(function (x) { return '<option value="' + esc(x) + '"' + (x === mk ? ' selected' : '') + '>' + esc(C.niceDay(C.monthEnd(C.monthFromKey(x)))) + '</option>'; }).join('') + '</select><div class="tv mt6">' + esc(C.money(b.closing[i], k)) + '</div></div>' +
       '<div class="tile"><div class="tl">' + esc('In ' + C.monthLabel(m0 + i)) + '</div><div class="tv">' + esc(C.money(b.rec[i], k)) + '</div><div class="ts">' + esc('recognised; ' + C.money(b.billed[i], k) + ' billed. ' + C.money(b.totals.billed, k) + ' billed in all.') + '</div></div></div>' +
       scheduleChart(c, { sel: mk, lastBilled: lastBilledMi(), h: 200, label: 'Revenue by month for this customer' }) +
-      '<h3 style="margin-top:14px">Lines</h3><div class="tablewrap" style="max-height:480px"><table class="t"><thead><tr><th>Invoice</th><th>Date</th><th>Description</th><th>Type</th><th class="r">Amount</th><th>Service</th><th>Rule and split</th></tr></thead><tbody>' + lines + '</tbody></table></div>' +
+      '<h3 class="mt14">Lines</h3><div class="tablewrap mh480"><table class="t"><thead><tr><th>Invoice</th><th>Date</th><th>Description</th><th>Type</th><th class="r">Amount</th><th>Service</th><th>Rule and split</th></tr></thead><tbody>' + lines + '</tbody></table></div>' +
       (d.n > d.lines.length ? '<p class="small muted">' + esc('The first ' + d.lines.length + ' of ' + groups(d.n) + ' lines.') + '</p>' : '') + '</section>';
   }
   function customersHtml() {
@@ -847,8 +847,8 @@
       '<div class="sec-head"><div><p class="lab">Customers</p><h1>One customer, line by line</h1></div></div>' +
       (state.demo ? guideHtml(0, 'Pick a customer to see their schedule.', 'Quorvane Robotics renewed a Business annual plan on 7 Oct 2026: $5,990.00 billed, 25 days of it October revenue, the rest deferred and earned through 6 Oct 2027.', 'toclose', 'Last: the journal and memo →') : '') +
       '<div class="split-cust"><section class="card"><label class="field"><span>Find a customer</span><input class="input" type="search" data-search="cust" value="' + esc(state.cust.q) + '" placeholder="Name or id" autocomplete="off"></label>' +
-      '<p class="small muted" style="margin:8px 0">' + esc(l ? plural(l.matched, 'customer') + (l.matched > l.shown.length ? ', the ' + l.shown.length + ' biggest shown' : '') + ' · by amount billed' : '') + '</p>' +
-      '<div class="custlist" style="max-height:70vh;overflow:auto">' + rows + '</div></section>' + custDetailHtml(state.cust.detail) + '</div></div>';
+      '<p class="small muted my8">' + esc(l ? plural(l.matched, 'customer') + (l.matched > l.shown.length ? ', the ' + l.shown.length + ' biggest shown' : '') + ' · by amount billed' : '') + '</p>' +
+      '<div class="custlist scroll70">' + rows + '</div></section>' + custDetailHtml(state.cust.detail) + '</div></div>';
   }
 
   /* ---------------- close: the journal, the exports, the memo ---------------- */
@@ -860,13 +860,13 @@
       if (!j) return;
       out.push('<div class="je"><h3>' + esc(k + ' · ' + C.niceDay(C.dayFromIso(j.date))) + ' ' + (j.balanced ? '<span class="pill ok">✓ Debits = credits</span>' : '<span class="pill bad">Does not balance</span>') + '</h3>' + j.entries.map(function (e) {
         return '<div class="tablewrap"><table class="t"><thead><tr><th>' + esc(e.name) + '</th><th class="r">Debit</th><th class="r">Credit</th></tr></thead><tbody>' + e.rows.map(function (r) { return '<tr><td>' + esc(r.account) + '</td><td class="r">' + esc(r.dr ? C.money(r.dr, k) : '') + '</td><td class="r">' + esc(r.cr ? C.money(r.cr, k) : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-      }).join('') + '<p class="small muted" style="margin:0">' + esc('Total ' + C.money(j.dr, k) + ' debit, ' + C.money(j.cr, k) + ' credit.') + '</p></div>');
+      }).join('') + '<p class="small muted m0">' + esc('Total ' + C.money(j.dr, k) + ' debit, ' + C.money(j.cr, k) + ' credit.') + '</p></div>');
     });
     return out.length ? out.join('') : '<p class="muted">No entries this month.</p>';
   }
   function accountsHtml() {
     var a = state.settings.accounts;
-    return '<div class="formrow" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">' + C.ACCOUNT_KEYS.map(function (k) {
+    return '<div class="formrow cols-fit">' + C.ACCOUNT_KEYS.map(function (k) {
       return '<label class="field"><span>' + esc({ ar: 'Receivable', deferred: 'Deferred revenue', revenue: 'Revenue', tax: 'Tax payable' }[k]) + '</span><input class="input" maxlength="' + C.LIMITS.accountChars + '" data-acct="' + k + '" value="' + esc(a[k]) + '"></label>';
     }).join('') + '</div>';
   }
@@ -878,7 +878,7 @@
     var mask = state.settings.mask;
     var exp = function (kind, title, sub) { return '<div class="exp"><b>' + esc(title) + '</b><p>' + esc(sub) + '</p><div class="btns"><button class="btn small" type="button" data-act="exp" data-kind="' + kind + '">Download</button></div></div>'; };
     return '<div class="stack">' +
-      '<div class="sec-head"><div><p class="lab">Close</p><h1>Journal entries and the close pack</h1></div><label class="row" style="gap:8px"><span class="small"><b>Month</b></span><select class="input" style="width:auto" data-sel="closemonth">' + months.map(function (k) { return '<option value="' + esc(k) + '"' + (k === m ? ' selected' : '') + '>' + esc(C.monthLong(C.monthFromKey(k))) + '</option>'; }).join('') + '</select></label></div>' +
+      '<div class="sec-head"><div><p class="lab">Close</p><h1>Journal entries and the close pack</h1></div><label class="row gap8"><span class="small"><b>Month</b></span><select class="input w-auto" data-sel="closemonth">' + months.map(function (k) { return '<option value="' + esc(k) + '"' + (k === m ? ' selected' : '') + '>' + esc(C.monthLong(C.monthFromKey(k))) + '</option>'; }).join('') + '</select></label></div>' +
       demoNote() +
       '<div class="split2"><section class="card"><h2>' + esc('Journal entries - ' + ml) + '</h2><p class="small muted">Billing: receivable against deferred revenue - or straight to revenue for a line recognised on its invoice date - and tax payable. Recognition: deferred revenue to revenue for the month’s share. ' + esc(C.NO_FX) + '</p>' + journalHtml(m) + '</section>' +
       '<div class="stack"><section class="card"><h2>Account names</h2><p class="small muted">Used in the journal and its CSV. ' + (signedIn() ? 'They follow your account.' : 'Kept on this device.') + '</p>' + accountsHtml() + '</section>' +
@@ -888,7 +888,7 @@
       exp('schedule', 'The schedule, line by line', 'Every revenue line with its rule and its share of each month.') +
       exp('waterfall', 'The waterfall - ' + state.ccy, 'Billing month by recognition month, with totals.') +
       exp('roll', 'The roll-forward - ' + state.ccy, 'Opening, billed, recognised, closing for every month.') +
-      '</div><p class="small muted" style="margin:8px 0 0">Made on this device. A cell that starts like a formula gets a leading quote, so no spreadsheet runs it.</p></section>' +
+      '</div><p class="small muted m0 mt8">Made on this device. A cell that starts like a formula gets a leading quote, so no spreadsheet runs it.</p></section>' +
       '<section class="card"><div class="sec-head"><h2>' + esc('Close memo - ' + ml) + '</h2><div class="btns"><button class="btn small" type="button" data-act="memo">' + (state.close.memo ? 'Refresh' : 'Write the memo') + '</button>' + (state.close.memo ? '<button class="btn small ghost" type="button" data-act="dlmemo">Download .md</button><button class="btn small ghost" type="button" data-act="copymemo">Copy</button>' : '') + '</div></div>' +
       '<p class="small muted">One page in Markdown: the month’s totals, the roll-forward, ' + (state.tie.ran ? 'the tie-out buckets, ' : '') + 'the rules used and what was left out. Customer names ' + (mask ? 'masked' : 'shown') + '.</p>' +
       (state.close.memo ? '<p class="small muted">' + esc('Written ' + state.close.at + ' on this device.') + '</p><pre class="out" tabindex="0">' + esc(state.close.memo) + '</pre>' : '') + '</section>' +
@@ -907,9 +907,9 @@
   function settingsHtml() {
     var s = state.settings;
     return '<div class="stack"><div class="sec-head"><div><p class="lab">Settings</p><h1>What Waterfall keeps</h1></div></div>' +
-      '<p data-sync style="margin:0"></p>' +
-      '<div class="grid2"><section class="card"><h2>Rules by product</h2>' + (s.rules.length ? '<ul class="checks">' + s.rules.map(function (r, i) { return '<li style="justify-content:space-between"><span><b>' + esc(r.d) + '</b> · ' + esc(C.ruleText(r.r === 'months' ? { rule: 'months', months: r.n } : { rule: r.r })) + '</span><button class="btn small ghost" type="button" data-act="rmrule" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul><div class="btns" style="margin-top:8px"><button class="btn small danger" type="button" data-act="clearrules">Clear every rule</button></div>' : '<p class="muted" style="margin:0">None yet - every product follows its service period, by day. Rules you choose are kept here by product name, never by customer.</p>') + '</section>' +
-      '<section class="card"><h2>Column presets</h2>' + (s.presets.length ? '<ul class="checks">' + s.presets.map(function (p, i) { return '<li style="justify-content:space-between"><span><b>' + esc(p.name) + '</b> · ' + esc(plural(Object.keys(p.map).length, 'column')) + '</span><button class="btn small ghost" type="button" data-act="rmpreset" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul>' : '<p class="muted" style="margin:0">None yet. A preset keeps the header names an export uses - never a value - so the next file maps at once.</p>') + '</section>' +
+      '<p data-sync class="m0"></p>' +
+      '<div class="grid2"><section class="card"><h2>Rules by product</h2>' + (s.rules.length ? '<ul class="checks">' + s.rules.map(function (r, i) { return '<li class="spread"><span><b>' + esc(r.d) + '</b> · ' + esc(C.ruleText(r.r === 'months' ? { rule: 'months', months: r.n } : { rule: r.r })) + '</span><button class="btn small ghost" type="button" data-act="rmrule" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul><div class="btns mt8"><button class="btn small danger" type="button" data-act="clearrules">Clear every rule</button></div>' : '<p class="muted m0">None yet - every product follows its service period, by day. Rules you choose are kept here by product name, never by customer.</p>') + '</section>' +
+      '<section class="card"><h2>Column presets</h2>' + (s.presets.length ? '<ul class="checks">' + s.presets.map(function (p, i) { return '<li class="spread"><span><b>' + esc(p.name) + '</b> · ' + esc(plural(Object.keys(p.map).length, 'column')) + '</span><button class="btn small ghost" type="button" data-act="rmpreset" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul>' : '<p class="muted m0">None yet. A preset keeps the header names an export uses - never a value - so the next file maps at once.</p>') + '</section>' +
       '<section class="card"><h2>Journal account names</h2>' + accountsHtml() + '</section>' +
       '<section class="card"><h2>Defaults</h2><p class="small"><b>When a file shows no evidence, a period’s end is</b></p>' +
       radio('periodEndDefault', '', s.periodEnd, 'Ask me each time', '') + radio('periodEndDefault', 'exclusive', s.periodEnd, 'The next period’s first day (exclusive)', 'The way Stripe writes it') + radio('periodEndDefault', 'inclusive', s.periodEnd, 'Its own last day (inclusive)', '') +
@@ -956,12 +956,12 @@
       sheet('<h2>✨ Suggest rules for my products</h2><p class="muted small">Only the product descriptions are sent - ' + esc(plural(pl.products.length, 'description')) + ', each cut to 120 characters, with the share of its lines that have a service period, the line types seen and the usual period length, worked out on this device. <b>Never a customer, an invoice id, an amount or a date.</b> You read every suggestion and choose which to apply.</p>' +
         (pl.held ? '<p class="small note">' + esc(plural(pl.held, 'description') + ' held back - each names a customer or an invoice from your file, or is past the first 200.') + '</p>' : '') +
         '<p class="lab">Exactly what will be sent</p><pre class="sent-pre" tabindex="0" id="aiSent">' + esc(sentText(body)) + '</pre>' +
-        '<p class="small muted" style="margin:8px 0 0">' + esc(C.NOT_POLICY) + ' The answer can only use the rules on the list; anything else is dropped.</p>' +
-        '<div id="aiErr"></div><div class="btns" id="aiActs" style="margin-top:10px"></div>', function (root) {
+        '<p class="small muted m0 mt8">' + esc(C.NOT_POLICY) + ' The answer can only use the rules on the list; anything else is dropped.</p>' +
+        '<div id="aiErr"></div><div class="btns mt10" id="aiActs"></div>', function (root) {
         var acts = $('#aiActs', root);
         if (!pl.products.length) { acts.innerHTML = '<p class="small muted">Nothing to send - every description names a customer or an invoice.</p>'; return; }
         if (!signedIn()) {
-          acts.innerHTML = '<p class="small muted" style="width:100%;margin:0">It uses about a cent of AI credit, so it needs a free account - which comes with $2 and works across every app on this site. Choosing rules by hand is free.</p><button class="btn" type="button" id="aiSignin">Create a free account</button><button class="btn ghost" type="button" data-act="closesheet">Not now</button>';
+          acts.innerHTML = '<p class="small muted w100 m0">It uses about a cent of AI credit, so it needs a free account - which comes with $2 and works across every app on this site. Choosing rules by hand is free.</p><button class="btn" type="button" id="aiSignin">Create a free account</button><button class="btn ghost" type="button" data-act="closesheet">Not now</button>';
           $('#aiSignin', root).addEventListener('click', function () { openAccount(WHY_AI, openAi); });
           return;
         }
@@ -989,7 +989,7 @@
       list.map(function (x, i) {
         var rt = x.s.rule === 'unsure' ? 'Unsure - choose by hand' : C.ruleText(x.s.rule === 'months' ? { rule: 'months', months: x.s.months } : { rule: x.s.rule });
         return '<div class="sg"><input type="checkbox" id="sg' + i + '" data-sg="' + i + '"' + (x.can ? ' checked' : ' disabled') + '><label for="sg' + i + '"><span class="sd">' + esc(x.key) + '</span><span class="sr2"><b>' + esc(rt) + '</b>' + (x.same ? ' <span class="pill ok">already set</span>' : '<span class="sy"> - now ' + esc(C.ruleText(x.now).toLowerCase()) + '</span>') + '</span><span class="sy">' + esc(x.s.reason) + '</span></label></div>';
-      }).join('') + '</div><div class="btns" style="margin-top:12px"><button class="btn" type="button" id="sgApply"' + (n ? '' : ' disabled') + '>Apply the ticked ones</button><button class="btn ghost" type="button" data-act="closesheet">Keep mine</button></div>', function (root) {
+      }).join('') + '</div><div class="btns mt12"><button class="btn" type="button" id="sgApply"' + (n ? '' : ' disabled') + '>Apply the ticked ones</button><button class="btn ghost" type="button" data-act="closesheet">Keep mine</button></div>', function (root) {
       $('#sgApply', root).addEventListener('click', function () {
         var done = 0;
         $$('[data-sg]', root).forEach(function (cb) {
@@ -1018,12 +1018,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my10"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my10"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt10" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1045,11 +1045,11 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Rule suggestions cost about a cent. Reading exports, the schedule, the waterfall, the tie-out, the journal and every export are free and never leave this device.</p><div id="billing"></div></div>' +
-      '<p class="small" style="margin-top:14px" data-sync>' + syncLine() + '</p>' +
-      '<button class="btn ghost block" id="forget" type="button" style="margin-top:6px">Remove my settings from the account</button>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted m0 mt6">Rule suggestions cost about a cent. Reading exports, the schedule, the waterfall, the tie-out, the journal and every export are free and never leave this device.</p><div id="billing"></div></div>' +
+      '<p class="small mt14" data-sync>' + syncLine() + '</p>' +
+      '<button class="btn ghost block mt6" id="forget" type="button">Remove my settings from the account</button>' +
+      (pkOk() ? '<button class="btn ghost block mt10" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt10" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); keepPlace(draw); }); });

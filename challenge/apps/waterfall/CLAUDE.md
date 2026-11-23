@@ -268,6 +268,40 @@ The shared files (`lib/identity.js`, `identity-store.js`, `byok.js`,
 `verify-banner.js`) are synced copies - edit them in `eriks-projects/shared/`
 (and `eriks-projects/lib/` for `identity-store.js`).
 
+## Visual redesign (2026-11-23)
+
+A presentation-only pass to the lab's house style (the HOA Desk language):
+no feature, flow, route, API, data shape or test changed.
+
+- **Look**: iOS-style grouped background (`#f2f2f7` / black), borderless
+  white / `#1c1c1e` cards (22 px radius, soft layered shadow), the system
+  font stack only, heavy headlines under a small uppercase eyebrow, pill
+  buttons, filled inputs, an iOS segmented control, a translucent sticky
+  header and phone tab bar (blur inside `@supports`, solid fallback), the
+  customer list as one grouped list with inset hairlines, the hero as the
+  one gradient feature card (its gradient is pinned by the test).
+- **One accent**: the lab card's cyan `#036a7f` (dark theme `#6fd3e6`).
+  The card's plum survives only in the hero gradient, the brand tile and as
+  the chart's "billed" / bridge "up" data marks. Status colours are for
+  status only.
+- **Numbers stay crisp**: every table, tile, bridge value and money input
+  keeps `tabular-nums`; tables, the triangle, the chart and code still
+  scroll inside their own box on a phone.
+- **No `style=""` anywhere**: `app.js` used to write about 95 style
+  attributes; they are now utility classes at the end of `app.css` (`.m0`,
+  `.mt8`, `.selrow`, `.cols-fit`...), and the tie-out bridge's bars are an
+  inline SVG `<rect>` (x / width attributes) instead of a positioned `<i>`.
+  Keep it that way. (`sheet()` still sets a max-height through the CSSOM.)
+- **Motion** (press states, the sheet rising, the spinner, the "Start here"
+  pulse) lives only inside `prefers-reduced-motion: no-preference`.
+- **Desktop**: the shared `desktop.css` rail is restyled from `app.css`
+  only (selected tab as an accent-soft pill, 44 px rows); it reads the
+  `--sep`, `--fill`, `--tint` and `--bar-bg` tokens defined here.
+- Measured in headless Chrome at 320, 390, 768, 1280 and 1600 px, light and
+  dark, through the demo, every tab, the AI and account sheets and
+  settings: lowest text contrast 4.83:1 in both themes, no sideways scroll,
+  no target under 44 px, no console error or CSP violation.
+
 ## Routes
 
 Public: `GET /api/health`, `/api/meta`, `/api/me`, the page, the worker, the
