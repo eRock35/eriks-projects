@@ -874,6 +874,25 @@ test('the Claude path is unchanged: models by plan, one forced tool, no provider
   assert.ok(/app\.post\('\/api\/invoices\/read', \.\.\.spend, bigJson, async/.test(src), 'and in front of the snap route’s parser');
 });
 
+test('the page: no inline style or script, system type, motion only where it is welcome, the voice sample kept on the device', () => {
+  const fs = require('fs'); const path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+  const html = read('index.html'); const js = read('app.js'); const css = read('app.css');
+  assert.ok(!/\sstyle=|<style|\son[a-z]+=/i.test(html), 'index.html carries no style attribute, style block or inline handler');
+  assert.ok(!/<script(?![^>]*\ssrc=)/i.test(html), 'and no inline script');
+  assert.ok(!/style="|\.style\.|\.cssText|setAttribute\('style'/.test(js), 'the script writes no style attribute');
+  assert.ok(!/desktop\.css/.test(html), 'the rail stylesheet is no longer loaded');
+  assert.ok(/<script src="verify-banner\.js" data-mount="api\/auth" defer>/.test(html));
+  assert.ok(!/@font-face|@import|url\(/.test(css), 'system fonts only, nothing fetched');
+  const calm = css.slice(0, css.indexOf('@media (prefers-reduced-motion: no-preference)'));
+  assert.ok(css.includes('@media (prefers-reduced-motion: no-preference)') && !/\b(?:animation|transition)\s*:/.test(calm), 'every animation and transition sits inside no-preference');
+  assert.ok(/--bg: #ffffff;/.test(css) && /--bg: #000000;/.test(css), 'a white page, true black in the dark');
+  assert.ok(!/gradient\(/.test(css), 'no gradients');
+  for (const nav of ['today', 'invoices', 'add', 'clients', 'wins']) assert.strictEqual((html.match(new RegExp(`data-nav="${nav}"`, 'g')) || []).length, 2, `${nav} is in the bar and the top nav`);
+  assert.ok(/localStorage\.setItem\(VOICE_KEY/.test(js) && /body\.voice = voiceSample\(\)/.test(js), 'the sample lives in this browser and rides in the draft request');
+  assert.ok(!/voice/.test(JSON.stringify(Object.keys(B.SETTINGS_DEFAULTS))) || !('voiceSample' in B.SETTINGS_DEFAULTS), 'settings gained no sample field');
+});
+
 /* ---------------- run ---------------- */
 
 (async () => {
