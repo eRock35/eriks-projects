@@ -3,8 +3,8 @@
  "companies": 81,
  "figures": 6996,
  "edges": {
-  "curated": 131,
-  "kept": 130,
+  "curated": 512,
+  "kept": 511,
   "dropped": [
    {
     "by": "MSFT",
@@ -22,7 +22,7 @@
  },
  "notes": [],
  "sizes": {
-  "index": 225146,
+  "index": 402931,
   "patterns": 308226,
   "largestCompany": {
    "id": "ZBRA",

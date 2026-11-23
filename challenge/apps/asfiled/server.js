@@ -70,6 +70,22 @@ app.get('/api/meta', (_req, res) => {
   res.json(summary);
 });
 
+// The data files are JSON that compresses about four to one, and the lab
+// host does not compress: send them gzipped (node's own zlib, read once).
+const zlib = require('zlib');
+const gz = new Map();
+app.get(/^\/data\/(index|patterns|c\/[A-Z]{1,6})\.json$/, (req, res, next) => {
+  if (!/\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) return next();
+  const file = path.join(__dirname, 'public', req.path);
+  let body = gz.get(file);
+  if (!body) {
+    try { body = zlib.gzipSync(fs.readFileSync(file), { level: 9 }); } catch (e) { return next(); }
+    gz.set(file, body);
+  }
+  res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding', 'Cache-Control': 'public, max-age=300' });
+  res.send(body);
+});
+
 const INDEX = path.join(__dirname, 'public', 'index.html');
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
 app.get('*', (req, res, next) => {

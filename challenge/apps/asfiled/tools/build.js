@@ -280,6 +280,8 @@ function main() {
     for (const id of [e.from, e.to]) if (!byId[id].cik) usedOthers.add(id);
   }
   report.edges.kept = data.edges.length;
+  // A report's XBRL labels are a source only where an edge quotes them.
+  for (const [id, src] of Object.entries(data.sources)) if (src.kind === 'xbrl' && !data.edges.some((e) => e.source === id)) delete data.sources[id];
   // A company outside the set is on the map only because an edge names it.
   data.others = OTHERS.filter((o) => usedOthers.has(o.id)).map((o) => ({ id: o.id, name: o.name, layer: o.layer, filer: false }));
 

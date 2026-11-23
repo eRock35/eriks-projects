@@ -22,7 +22,7 @@ const data = Dataset.load();
 const DATA = path.join(ROOT, 'public', 'data');
 const readPart = (rel) => JSON.parse(fs.readFileSync(path.join(DATA, rel), 'utf8'));
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const INDEX_MAX = 500 * 1024;          // the phone's first data load
+const INDEX_MAX = 450 * 1024;          // the phone's first data load (about a sixth of that over the wire, gzipped)
 let n = 0;
 const ok = (m) => { n += 1; console.log(`  ok ${n} - ${m}`); };
 
@@ -256,6 +256,14 @@ function walk(dir, out = []) {
     ok('the page script builds with textContent only, writes no style, and requests only its own data parts');
     for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
     assert.strictEqual((await fetch(`${base}/asfiled/data/dataset.json`)).headers.get('content-type').startsWith('text/html'), true, 'the old single file is gone');
+    {
+      const http = require('http');
+      const raw = await new Promise((res, rej) => http.get(`${base}/asfiled/data/index.json`, { headers: { 'Accept-Encoding': 'gzip' } }, (r) => { const b = []; r.on('data', (x) => b.push(x)); r.on('end', () => res({ r, body: Buffer.concat(b) })); }).on('error', rej));
+      assert.strictEqual(raw.r.headers['content-encoding'], 'gzip');
+      assert.ok(raw.body.length < 110 * 1024, `index.json is ${raw.body.length} bytes over the wire`);
+      assert.deepStrictEqual(JSON.parse(require('zlib').gunzipSync(raw.body)), index);
+      ok(`the data files are sent gzipped: index.json is ${(raw.body.length / 1024).toFixed(0)} KB over the wire`);
+    }
     r = await fetch(`${base}/asfiled/api/meta`);
     const meta = await r.json();
     assert.deepStrictEqual([meta.companies, meta.edges, meta.figures, meta.integrity], [81, data.edges.length, Object.keys(data.figures).length, data.integrity]);

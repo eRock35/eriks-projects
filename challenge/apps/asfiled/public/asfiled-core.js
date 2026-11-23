@@ -360,7 +360,10 @@
         o.spark = c.years.map(function (fy) { var f = fig(data, c.id, 'revenue', fy); return f ? f.v : null; });
         return o;
       }),
-      others: data.others, sources: data.sources, edges: data.edges,
+      // An edge's link is its source's link: not repeated per edge here
+      // (start() puts it back).
+      others: data.others, sources: data.sources,
+      edges: data.edges.map(function (e) { var o = {}; Object.keys(e).forEach(function (k) { if (k !== 'url') o[k] = e[k]; }); return o; }),
       figures: hp.figures, filings: hp.filings,
       counts: { figures: Object.keys(data.figures).length, filings: Object.keys(data.filings).length, sources: Object.keys(data.sources).length },
       integrity: data.integrity,
@@ -383,6 +386,7 @@
     var d = {};
     Object.keys(index).forEach(function (k) { d[k] = index[k]; });
     d.figures = Object.assign({}, index.figures); d.filings = Object.assign({}, index.filings);
+    d.edges = index.edges.map(function (e) { var o = {}; Object.keys(e).forEach(function (k) { o[k] = e[k]; }); o.url = index.sources[e.source].url; return o; });
     d.mixes = {}; d.concentration = {}; d.insights = {}; d.patterns = d.patterns || null;
     return d;
   }
