@@ -12,8 +12,9 @@
  * figures typed into the tie-out are never stored either.
  *
  * The requests this page makes: sign-in, the account's settings (never a
- * customer), and the one optional AI suggestion, whose payload - product
- * descriptions and their shapes - is shown in full before it is sent.
+ * customer), and the two optional AI suggestions - product descriptions
+ * the person typed, or the file's product descriptions and their shapes -
+ * each payload shown in full before it is sent.
  *
  * Every string a file held, a person typed, the server sent or a model wrote
  * is escaped before it is drawn, and no handler is written into markup:
@@ -49,7 +50,9 @@
     prep: null, demoRules: [], sched: null, ccy: '', selMonth: '',
     tie: blankTie(), cust: { q: '', list: null, ci: null, detail: null, month: '', ccy: '' },
     close: { month: '', memo: '' }, open: {}, exact: false, showChecks: false,
+    sg: blankSuggest(),
   };
+  function blankSuggest() { return { text: '', busy: false, items: null, lines: 0, dropped: 0, amount: '12,000.00', date: '', saved: null }; }
   function blankTie() { return { month: '', ccy: '', kind: 'billings', dash: '', lrev: '', ldef: '', fx: {}, reading: null, ledgerPick: null, deferredPick: null, result: null, err: '', ran: false }; }
 
   /* ---------------- plumbing ---------------- */
@@ -360,7 +363,7 @@
 
   /* ---------------- navigation ---------------- */
 
-  var VIEWS = ['start', 'columns', 'rules', 'schedule', 'waterfall', 'tieout', 'customers', 'close', 'settings'];
+  var VIEWS = ['start', 'suggest', 'columns', 'rules', 'schedule', 'waterfall', 'tieout', 'customers', 'close', 'settings'];
   function go(view) {
     history.pushState(null, '', BASE + '#' + view);
     route(); scrollTo(0, 0);
@@ -388,6 +391,7 @@
     var html;
     if (state.busy) html = '<div class="card busy" role="status"><div class="spinner" aria-hidden="true"></div><p><b>' + esc(state.busy) + '</b></p><p class="small muted">On this device - nothing is uploaded.</p></div>';
     else if (state.view === 'settings') html = settingsHtml();
+    else if (state.view === 'suggest') html = suggestHtml();
     else if (state.view === 'columns') html = columnsHtml();
     else if (state.view === 'rules') html = rulesHtml();
     else if (state.view === 'schedule') html = scheduleHtml();
@@ -428,22 +432,144 @@
       rows.map(function (r) { return '<tr><th>' + r[0] + '</th>' + r[1].map(function (v, i) { return '<td class="' + (v ? 'c' + (1 + ((i + rows.indexOf(r)) % 3)) : '') + '">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
       '</tbody></table><div class="mh mt8"><span>Dashboard vs revenue, Oct</span><span class="mf">✓ to the cent</span></div><table><tbody><tr><th class="ta-l">Annual plans billed in Oct</th><td>+$26.5k</td></tr><tr><th class="ta-l">Usage billed in arrears</th><td>+$3.3k</td></tr><tr><th class="ta-l">Void invoice counted</th><td>+$599</td></tr></tbody></table></div>';
   }
+  var SG_EXAMPLES = ['Annual SaaS subscription with onboarding fee', '3-year support plan prepaid', 'Implementation project billed at go-live milestones'];
   function startHtml() {
-    return '<div class="stack">' +
-      '<section class="hero"><div class="copy"><div class="kicker"><span aria-hidden="true">🌊</span> Revenue recognition, on your device</div>' +
+    return '<div class="stack home">' +
+      '<section class="hero"><p class="kicker">Revenue recognition, on your device</p>' +
       '<h1>Billings in, revenue out.</h1>' +
-      '<p>Your billing dashboard shows MRR and cash; your books need recognised and deferred revenue. Waterfall splits every invoice line across the months it is earned, and shows line by line why the two never tie at month end.</p>' +
+      '<p class="lede">The deferred revenue schedule that ties to your ledger - and shows, line by line, why the dashboard and the books disagree.</p>' +
       '<div class="btns"><button class="btn big primary" type="button" data-act="demo">Try the demo</button>' +
       '<label class="btn big ghost filepick">Load my billing export<input type="file" data-file="export" accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"></label></div>' +
-      '<p class="caps">CSV or TSV - a Stripe invoice line-item export, or any billing system’s - up to 25 MB and 250,000 lines.<span class="stays">Read on this device, never uploaded.</span></p></div>' + mockHtml() + '</section>' +
-      '<section class="grid3 how">' +
-      '<div class="card"><h3>Load and confirm</h3><p class="small muted m0">Waterfall guesses every column - invoice, customer, amount, discount, tax, currency, service period, line type, status - and asks once about anything that reads two ways, like whether a period ends on its last day or the next period’s first.</p></div>' +
-      '<div class="card"><h3>Choose a rule per product</h3><p class="small muted m0">Over the service period by day, on the invoice date, over N months, or exclude. Void invoices are left out, uncollectible ones listed apart, tax is never revenue - and every line’s months add up to it exactly, to the cent.</p></div>' +
-      '<div class="card"><h3>Schedule, waterfall, tie-out</h3><p class="small muted m0">Recognised revenue by month, the waterfall triangle, the deferred revenue roll-forward, journal entries, a customer drill-down, and the buckets that explain why your dashboard and your ledger disagree.</p></div>' +
-      '</section>' +
-      '<section class="card"><h2>What stays on this device</h2><p class="muted m0">Billing exports carry customer names and amounts, so Waterfall reads them in this browser and never sends them anywhere - not the file, not a line, not a figure you type. A free account keeps only your settings: column presets by header name, the rules table by product name and your account names. ' + esc(C.NOT_POLICY) + '</p></section>' +
+      '<p class="caps">CSV or TSV - a Stripe invoice line-item export, or any billing system’s - up to 25 MB and 250,000 lines.<span class="stays">Read on this device, never uploaded.</span></p>' + mockHtml() + '</section>' +
+      '<section class="ask"><p class="lab">New</p><h2>Describe a product. Get its rule.</h2>' +
+      '<p class="muted">Type a product or contract line the way it reads on the invoice. Waterfall proposes how it is usually recognised - ratable, point in time or by milestone - with what starts and ends it and why. You edit and confirm every rule.</p>' +
+      '<div class="chips">' + SG_EXAMPLES.map(function (x, i) { return '<button class="chip" type="button" data-act="sgexample" data-i="' + i + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<div class="btns"><button class="btn" type="button" data-act="tosuggest">Suggest rules from descriptions</button></div></section>' +
+      '<section><h2>How it works</h2><ol class="how">' +
+      '<li><h3>Load and confirm</h3><p class="small muted m0">Waterfall guesses every column - invoice, customer, amount, discount, tax, currency, service period, line type, status - and asks once about anything that reads two ways, like whether a period ends on its last day or the next period’s first.</p></li>' +
+      '<li><h3>Choose a rule per product</h3><p class="small muted m0">Over the service period by day, on the invoice date, over N months, or exclude. Void invoices are left out, uncollectible ones listed apart, tax is never revenue - and every line’s months add up to it exactly, to the cent.</p></li>' +
+      '<li><h3>Schedule, waterfall, tie-out</h3><p class="small muted m0">Recognised revenue by month, the waterfall triangle, the deferred revenue roll-forward, journal entries, a customer drill-down, and the buckets that explain why your dashboard and your ledger disagree.</p></li>' +
+      '</ol></section>' +
+      '<section><h2>What stays on this device</h2><p class="muted m0 measure">Billing exports carry customer names and amounts, so Waterfall reads them in this browser and never sends them anywhere - not the file, not a line, not a figure you type. A free account keeps only your settings: column presets by header name, the rules table by product name and your account names. ' + esc(C.NOT_POLICY) + '</p></section>' +
       '<p class="foot">A trial app in the <a href="../">Challenge Lab</a>. Subscription revenue is commonly recognised over the service period; Waterfall does the arithmetic for the rule you choose.</p>' +
       '</div>';
+  }
+
+  /* ---------------- describe your products: suggested rules ---------------- */
+
+  var WHY_DESCRIBE = 'Suggesting rules uses about a cent of AI credit, so it needs a free account (it comes with $2).';
+  /** The body as JSON, one description a line - the same object api() sends. */
+  function describeSent(body) { return body.lines.length ? '{"lines": [\n' + body.lines.map(function (d) { return '  ' + JSON.stringify(d); }).join(',\n') + '\n]}' : 'Nothing yet - type a description above.'; }
+  function describeBody() { return { lines: C.describeLines(state.sg.text).lines }; }
+  function sgCcy() { return state.ccy || state.device.home || 'USD'; }
+  function sgDate() {
+    if (!state.sg.date) { var d = new Date(); state.sg.date = C.isoDay(C.dayOf(d.getFullYear(), d.getMonth() + 1, 1)); }
+    return state.sg.date;
+  }
+  function sgActsHtml() {
+    var n = describeBody().lines.length;
+    if (!signedIn()) return '<p class="small muted w100 m0">It uses about a cent of AI credit, so it needs a free account - which comes with $2 and works across every app on this site. Choosing rules by hand is free.</p><button class="btn big" type="button" data-act="sgsignin">Create a free account</button>';
+    return '<button class="btn big" type="button" data-act="sgsend"' + (n && !state.sg.busy ? '' : ' disabled') + '>' + (state.sg.busy ? 'Asking…' : 'Suggest rules') + '</button><span class="small muted">About a cent' + (state.me.tier === 'paid' ? ' (member model)' : '') + '. Sends only the lines shown above.</span>';
+  }
+  function sgPreviewHtml(it) {
+    var ccy = sgCcy(), amt = typedMoney(state.sg.amount, ccy), day = C.dayFromIso(sgDate());
+    if (!it.rule) return '';
+    if (it.rule === 'exclude') return '<p class="small muted m0">Left out of revenue - nothing is scheduled.</p>';
+    if (amt === null || day === null) return '<p class="small muted m0">Type an amount and a date above to see the months.</p>';
+    var pv = C.previewRule(amt, day, it.rule, it.months || it.part.ruleMonths || 12);
+    var head = pv.parts.map(function (x) { return '<th class="r">' + esc(C.monthLabel(x[0])) + '</th>'; }).join('');
+    var rows = pv.parts.map(function (x) { return '<td class="r">' + esc(money(x[1], ccy)) + '</td>'; }).join('');
+    return '<div class="tablewrap pv" tabindex="0" role="group" aria-label="' + esc('Preview for ' + it.name) + '"><table class="t"><thead><tr>' + head + '</tr></thead><tbody><tr>' + rows + '</tr></tbody></table></div>' +
+      '<p class="small muted m0 mt6"><span class="tick">✓</span> ' + esc(plural(pv.parts.length, 'month') + ' adding up to ' + money(pv.total, ccy) + ' exactly - worked out on this device, not by the AI.') + '</p>';
+  }
+  function sgPartHtml(it, i) {
+    var p = it.part;
+    var pat = C.PATTERN_WORD[p.pattern] + (p.pattern === 'ratable' && p.months ? ' · ' + plural(p.months, 'month') : '');
+    var sel = '<select class="input" data-sgrule="' + i + '" aria-label="' + esc('Rule for ' + it.name) + '">' + (it.rule ? '' : '<option value="" selected>Choose a rule…</option>') + C.RULES.map(function (k) { return '<option value="' + k + '"' + (it.rule === k ? ' selected' : '') + '>' + esc(RULE_SHORT[k]) + '</option>'; }).join('') + '</select>';
+    var months = it.rule === 'months' ? '<label class="row gap6"><input class="input n2" type="number" min="1" max="60" step="1" inputmode="numeric" data-sgmonths="' + i + '" value="' + esc(it.months || 12) + '" aria-label="Months"><span class="small">months</span></label>' : '';
+    return '<div class="pp' + (it.on ? ' on' : '') + '">' +
+      '<div class="pp-top"><span class="pill ' + (p.pattern === 'unsure' ? 'warn' : 'plum') + '">' + esc(pat) + '</span>' +
+      '<label class="check"><input type="checkbox" data-sgon="' + i + '"' + (it.on ? ' checked' : '') + (it.rule ? '' : ' disabled') + '> <span>Use this rule</span></label></div>' +
+      '<div class="pp-grid"><label class="field"><span>Product name in your export</span><input class="input" type="text" maxlength="120" data-sgname="' + i + '" value="' + esc(it.name) + '" list="sgProducts" autocomplete="off"></label>' +
+      '<div class="field"><span>Rule</span><div class="pc">' + sel + months + '</div></div></div>' +
+      (p.pattern === 'unsure' || p.pattern === 'exclude' ? '' : '<dl class="trig"><div><dt>Starts</dt><dd>' + esc(C.cap1(C.START_WORD[p.start])) + '</dd></div><div><dt>Ends</dt><dd>' + esc(C.cap1(C.END_WORD[p.end])) + '</dd></div></dl>') +
+      '<p class="why m0">' + esc(p.reason || C.PRINCIPLE_TEXT[p.principle]) + '</p>' +
+      '<p class="small muted m0 mt4">' + esc((p.reason ? p.principleText + ' ' : '') + p.note) + '</p>' +
+      '<div class="mt12">' + sgPreviewHtml(it) + '</div></div>';
+  }
+  function sgResultsHtml() {
+    var sg = state.sg, items = sg.items;
+    if (!items) return '';
+    var n = items.filter(function (x) { return x.on && x.rule; }).length, last = -1;
+    var opts = state.prep ? state.prep.products.slice(0, 200).map(function (x) { return '<option value="' + esc(x.key) + '"></option>'; }).join('') : '';
+    return '<section id="sgResults"><h2 tabindex="-1">Suggested rules</h2>' +
+      '<p class="small muted">' + esc(plural(items.length, 'promise') + ' found in ' + plural(sg.lines, 'description') + (sg.dropped ? ' (' + plural(sg.dropped, 'answer') + ' did not fit the lists and were dropped)' : '') + '. Nothing is saved until you say so. ' + C.NOT_POLICY) + '</p>' +
+      '<div class="formrow cols-fit pvset"><label class="field"><span>Preview with an invoice of</span><input class="input money" type="text" inputmode="decimal" data-sgpv="amount" value="' + esc(sg.amount) + '" aria-label="' + esc('Preview amount in ' + sgCcy()) + '"><small>' + esc(sgCcy() + ' - stays on this device') + '</small></label>' +
+      '<label class="field"><span>Billed and starting on</span><input class="input" type="date" data-sgpv="date" value="' + esc(sgDate()) + '"><small>Change either to see every preview move</small></label></div>' +
+      '<datalist id="sgProducts">' + opts + '</datalist>' +
+      '<div class="props">' + items.map(function (it, i) {
+        var head = it.li !== last ? '<h3 class="prop-d">' + esc('“' + it.d + '”') + '</h3>' : '';
+        last = it.li;
+        return head + sgPartHtml(it, i);
+      }).join('') + '</div>' +
+      (sg.saved !== null ? '<p class="okline mt12" role="status">' + esc(sg.saved ? '✓ Saved ' + plural(sg.saved, 'rule') + ' by product name.' + (state.demo ? ' The example’s rules are never kept.' : ' They apply whenever an export has these products.') : 'Nothing to save - "over the service period" is already every product’s default.') + '</p>' : '') +
+      '<div class="btns mt14"><button class="btn big" type="button" data-act="sgsave"' + (n ? '' : ' disabled') + '>' + esc(n ? 'Save ' + plural(n, 'rule') : 'Tick a rule to save') + '</button>' +
+      (state.prep && state.sched ? '<button class="btn big ghost" type="button" data-act="toschedule">See the schedule</button>' : '<button class="btn big ghost" type="button" data-act="settings">See saved rules</button>') +
+      '<button class="link-btn" type="button" data-act="sgclear">Start over</button></div></section>';
+  }
+  function suggestHtml() {
+    var sg = state.sg, body = describeBody();
+    return '<div class="stack">' +
+      '<div class="sec-head"><div><p class="lab">Suggest rules</p><h1>Describe a product. Get its rule.</h1><p class="muted m0 measure">One product or contract line per line, the way it reads on an invoice or an order form. Waterfall proposes how each promise in it is usually recognised, what starts and ends it, and why. You edit and confirm every rule.</p></div></div>' +
+      '<section class="sgform"><label class="field"><span>Product or contract lines</span>' +
+      '<textarea class="input" rows="5" maxlength="4000" data-sgtext spellcheck="true" placeholder="' + esc(SG_EXAMPLES[0] + '\n' + SG_EXAMPLES[1]) + '">' + esc(sg.text) + '</textarea>' +
+      '<small>' + esc('Up to ' + C.LIMITS.describeLines + ' lines. Leave out customer names - amounts, dates and ids are taken out before anything is sent.') + '</small></label>' +
+      '<div class="chips" role="group" aria-label="Add an example">' + SG_EXAMPLES.map(function (x, i) { return '<button class="chip" type="button" data-act="sgexample" data-i="' + i + '">+ ' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<p class="lab mt14">Exactly what will be sent</p><pre class="sent-pre" tabindex="0" id="sgSent">' + esc(describeSent(body)) + '</pre>' +
+      '<div id="sgErr"></div><div class="btns mt12" id="sgActs">' + sgActsHtml() + '</div></section>' +
+      sgResultsHtml() +
+      '<p class="small muted">' + esc(C.NOT_POLICY) + ' A suggestion can only use the patterns and rules on Waterfall’s lists; the months in every preview are split by the same arithmetic as the schedule.</p>' +
+      '</div>';
+  }
+  function sgSyncForm() {
+    var pre = $('#sgSent'), acts = $('#sgActs');
+    if (pre) pre.textContent = describeSent(describeBody());
+    if (acts) acts.innerHTML = sgActsHtml();
+  }
+  function sgSend() {
+    var body = describeBody(), box = $('#sgErr');
+    if (!body.lines.length || state.sg.busy) return;
+    state.sg.busy = true; sgSyncForm();
+    if (box) box.innerHTML = '';
+    api('POST', 'api/ai/describe', body).then(function (res) {
+      loadMe();
+      var items = [];
+      res.lines.forEach(function (l, li) {
+        l.parts.forEach(function (p) { items.push({ li: li, d: l.d, part: p, name: p.name, rule: p.rule || '', months: p.rule === 'months' ? p.ruleMonths : (p.ruleMonths || 12), on: Boolean(p.rule) }); });
+      });
+      state.sg.busy = false; state.sg.items = items; state.sg.lines = res.lines.length; state.sg.dropped = res.dropped || 0; state.sg.saved = null;
+      if (state.view !== 'suggest') return;
+      keepPlace(draw);
+      var h = $('#sgResults h2');
+      if (h) { reveal($('#sgResults')); try { h.focus({ preventScroll: true }); } catch (e) { /* fine */ } }
+    }).catch(function (err) {
+      state.sg.busy = false; sgSyncForm();
+      if ($('#sgErr')) meteredError(err, $('#sgErr'), function () { go('suggest'); }, WHY_DESCRIBE);
+    });
+  }
+  function sgSave() {
+    var done = 0, kept = 0, bad = '';
+    (state.sg.items || []).forEach(function (it) {
+      if (!it.on || !it.rule) return;
+      var key = C.line(it.name, C.LIMITS.descChars);
+      if (!key) { bad = 'Give every ticked rule a product name.'; return; }
+      if (it.rule === 'period') { if (setRule(key, 'period')) kept++; return; }
+      if (setRule(key, it.rule, it.months)) done++;
+    });
+    if (bad && !done && !kept) { toast(bad, 4200); return; }
+    state.sg.saved = done;
+    toast(done ? 'Saved ' + plural(done, 'rule') + '.' + (state.prep ? ' The schedule is redrawn.' : '') : 'Nothing to save - that is already the default.');
+    if (done && state.prep && state.sched) refreshSchedule(); else keepPlace(draw);
   }
 
   /* ---------------- 1. columns ---------------- */
@@ -586,7 +712,7 @@
       '<div class="sec-head"><div><p class="lab">Rules</p><h1>How each product is recognised</h1><p class="small muted m0">' + esc(state.file.name + ' · ' + plural(p.products.length, 'product')) + '</p></div><div class="btns"><button class="btn small ghost" type="button" data-act="tocolumns">Change columns</button></div></div>' +
       guideHtml(2, plural(p.products.length, 'product') + ', one rule each.', 'Brightwell’s accountant spreads onboarding fees over 12 months - set below. Everything else follows its own service period, by day; a credit or fee with no period lands on its invoice date.', 'toschedule', 'See the schedule →') +
       demoNote() + checksHtml(p) +
-      '<section class="card"><div class="sec-head"><h2>Rules by product</h2><button class="btn small ghost" type="button" data-act="ai">✨ Suggest rules for my products</button></div>' +
+      '<section class="card"><div class="sec-head"><h2>Rules by product</h2><div class="btns"><button class="btn small ghost" type="button" data-act="ai">Suggest rules for my products</button><button class="btn small ghost" type="button" data-act="tosuggest">Describe a product</button></div></div>' +
       '<p class="small m0 mb4">Every product starts on <b>over its service period, by day</b> (a line with no period: on its invoice date). Negative lines - credits and proration credits - follow the same rule over their own period. ' + esc(C.SETUP_LINE) + '</p>' +
       '<p class="small muted">' + esc(C.NOT_POLICY) + (changed ? ' ' + plural(changed, 'product') + ' changed from the default.' : '') + (state.demo ? ' The example’s rules are never saved.' : signedIn() ? ' Rules follow your account by product name.' : ' Rules are kept on this device by product name.') + '</p>' +
       '<div class="rules">' + p.products.map(ruleRowHtml).join('') + '</div>' +
@@ -953,7 +1079,7 @@
   function openAi() {
     engine.run('aiPayload').then(function (pl) {
       var body = { products: pl.products };
-      sheet('<h2>✨ Suggest rules for my products</h2><p class="muted small">Only the product descriptions are sent - ' + esc(plural(pl.products.length, 'description')) + ', each cut to 120 characters, with the share of its lines that have a service period, the line types seen and the usual period length, worked out on this device. <b>Never a customer, an invoice id, an amount or a date.</b> You read every suggestion and choose which to apply.</p>' +
+      sheet('<h2>Suggest rules for my products</h2><p class="muted small">Only the product descriptions are sent - ' + esc(plural(pl.products.length, 'description')) + ', each cut to 120 characters, with the share of its lines that have a service period, the line types seen and the usual period length, worked out on this device. <b>Never a customer, an invoice id, an amount or a date.</b> You read every suggestion and choose which to apply.</p>' +
         (pl.held ? '<p class="small note">' + esc(plural(pl.held, 'description') + ' held back - each names a customer or an invoice from your file, or is past the first 200.') + '</p>' : '') +
         '<p class="lab">Exactly what will be sent</p><pre class="sent-pre" tabindex="0" id="aiSent">' + esc(sentText(body)) + '</pre>' +
         '<p class="small muted m0 mt8">' + esc(C.NOT_POLICY) + ' The answer can only use the rules on the list; anything else is dropped.</p>' +
@@ -1114,6 +1240,12 @@
       case 'ccy': state.ccy = el.getAttribute('data-ccy'); state.device.home = state.ccy; if (!state.demo) deviceChanged(); keepPlace(draw); break;
       case 'selmonth': state.selMonth = el.getAttribute('data-m'); keepPlace(draw); break;
       case 'ai': openAi(); break;
+      case 'tosuggest': go('suggest'); break;
+      case 'sgexample': { var ex = SG_EXAMPLES[Number(el.getAttribute('data-i'))] || '', has = state.sg.text.split(/\r?\n/).some(function (l) { return l.trim() === ex; }); if (ex && !has) state.sg.text = (state.sg.text.replace(/\s+$/, '') ? state.sg.text.replace(/\s+$/, '') + '\n' : '') + ex; if (state.view === 'suggest') keepPlace(draw); else go('suggest'); break; }
+      case 'sgsignin': openAccount(WHY_DESCRIBE, function () { go('suggest'); }); break;
+      case 'sgsend': sgSend(); break;
+      case 'sgsave': sgSave(); break;
+      case 'sgclear': state.sg = blankSuggest(); go('suggest'); break;
       case 'kind': state.tie.kind = el.getAttribute('data-kind') === 'mrr' ? 'mrr' : 'billings'; state.tie.reading = null; if (state.tie.ran) runTie(); else keepPlace(draw); break;
       case 'tie': state.tie.reading = null; state.tie.ledgerPick = null; state.tie.deferredPick = null; state.hintPulsed = false; runTie(); break;
       case 'autoread': state.tie.reading = null; runTie(); break;
@@ -1161,6 +1293,18 @@
       if (ok) refreshSchedule(); else keepPlace(draw);
       return;
     }
+    if (t.hasAttribute('data-sgrule') || t.hasAttribute('data-sgmonths') || t.hasAttribute('data-sgon') || t.hasAttribute('data-sgname')) {
+      var it = (state.sg.items || [])[Number(t.getAttribute('data-sgrule') || t.getAttribute('data-sgmonths') || t.getAttribute('data-sgon') || t.getAttribute('data-sgname'))];
+      if (!it) return;
+      if (t.hasAttribute('data-sgname')) { it.name = t.value; return; }
+      if (t.hasAttribute('data-sgrule')) { it.rule = C.RULES.indexOf(t.value) >= 0 ? t.value : ''; it.on = Boolean(it.rule); }
+      if (t.hasAttribute('data-sgmonths')) it.months = Math.max(1, Math.min(60, Math.floor(Number(t.value)) || 12));
+      if (t.hasAttribute('data-sgon')) it.on = t.checked && Boolean(it.rule);
+      state.sg.saved = null;
+      keepPlace(draw);
+      return;
+    }
+    if (t.hasAttribute('data-sgpv')) { state.sg[t.getAttribute('data-sgpv') === 'date' ? 'date' : 'amount'] = t.value; keepPlace(draw); return; }
     if (t.hasAttribute('data-sel')) {
       var s = t.getAttribute('data-sel');
       if (s === 'month') state.selMonth = t.value;
@@ -1227,6 +1371,8 @@
     }
     if (t.hasAttribute('data-tie')) { state.tie[t.getAttribute('data-tie')] = t.value; return; }
     if (t.hasAttribute('data-fx')) { state.tie.fx[t.getAttribute('data-fx')] = t.value; }
+    if (t.hasAttribute('data-sgtext')) { state.sg.text = t.value; sgSyncForm(); return; }
+    if (t.hasAttribute('data-sgname')) { var sn = (state.sg.items || [])[Number(t.getAttribute('data-sgname'))]; if (sn) sn.name = t.value; }
   });
   document.addEventListener('toggle', function (e) {
     var d = e.target;
@@ -1264,7 +1410,7 @@
     if (r[1]) state.device = r[1];
     state.syncBase = r[2];
   }).catch(function () { /* fresh */ }).then(function () {
-    if (location.hash && location.hash !== '#start' && location.hash !== '#settings') history.replaceState(null, '', BASE);
+    if (location.hash && location.hash !== '#start' && location.hash !== '#settings' && location.hash !== '#suggest') history.replaceState(null, '', BASE);
     route();
     return loadMe();
   }).then(function () { if (signedIn()) syncIn(); });

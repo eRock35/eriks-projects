@@ -17,7 +17,10 @@
 //     preference - filed under an HMAC of the account id, and refuses
 //     settings that carry anything else (unknown fields, an @, 9+ digits in
 //     a row, more than 500 rules);
-//   - ONE metered, signed-in model call: "Suggest rules for my products",
+//   - metered, signed-in, through ONE model call site: "Describe your
+//     products" - product or contract line descriptions the person typed
+//     (never a customer, an amount or a date), answered with a recognition
+//     pattern for each promise in them - and "Suggest rules for my products",
 //     sent product descriptions and their shapes (the share of lines with a
 //     service period, the line types, the usual period length) - never a
 //     customer, an invoice id, an amount or a date - and refused before any
@@ -68,7 +71,7 @@ app.use((req, res, next) => {
 const settingsJson = express.json({ limit: '128kb' });
 const aiJson = express.json({ limit: '48kb' });
 const smallJson = express.json({ limit: '16kb' });
-const OWN_PARSER = /^\/api\/(settings|ai\/rules)$/;
+const OWN_PARSER = /^\/api\/(settings|ai\/(rules|describe))$/;
 app.use((req, res, next) => (OWN_PARSER.test(req.path) ? next() : smallJson(req, res, next)));
 
 /* ------------------------------------------------------------------ *
@@ -133,7 +136,7 @@ app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: 
 
 app.get('/api/meta', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  res.json({ limits: Core.LIMITS, fields: Core.FKEYS, rules: Core.RULES, aiRules: Core.AI_RULES, types: Core.TYPES, lens: Core.LENS, accounts: Core.DEFAULT_ACCOUNTS, buckets: Core.BUCKET_WORD, notPolicy: Core.NOT_POLICY });
+  res.json({ limits: Core.LIMITS, fields: Core.FKEYS, rules: Core.RULES, aiRules: Core.AI_RULES, patterns: Core.PATTERNS, types: Core.TYPES, lens: Core.LENS, accounts: Core.DEFAULT_ACCOUNTS, buckets: Core.BUCKET_WORD, notPolicy: Core.NOT_POLICY });
 });
 
 app.get('/api/me', (req, res) => {
@@ -218,12 +221,44 @@ app.delete('/api/settings', identity.requireUser, route('Could not remove them.'
  * here writes to the store, and nothing logged carries a word of it.
  * ------------------------------------------------------------------ */
 
-app.post('/api/ai/rules', ...spend, aiJson, route('Rule suggestions aren’t available right now. Choosing rules by hand is free.', async (req, res) => {
-  const brief = ai.brief(req.body);
-  const raw = await ai.ask(await clientFor(req), modelFor(req), brief);
-  res.set('Cache-Control', 'no-store');
-  res.json(ai.answer(raw, brief));
-}));
+// The lab's shared AI guard (cost caps and burst limits), when the host has
+// loaded one: asked before the model call, told what the call cost after.
+// Without it (local runs, the app on its own) the identity gates stand alone.
+const PROVIDER = 'claude';
+function metered(fallback, briefOf, answerOf) {
+  return route(fallback, async (req, res) => {
+    const brief = briefOf(req.body);
+    const g = global.LAB_AI_GUARD;
+    if (g) {
+      const a = await g.allow({ provider: PROVIDER, req, app: 'waterfall' });
+      if (!a || !a.ok) return res.status((a && a.status) || 429).json({ error: (a && a.message) || 'The AI is resting for now. Choosing rules by hand is free.', code: (a && a.code) || 'ai-guard' });
+    }
+    const model = modelFor(req);
+    let used = null;
+    try {
+      const raw = await ai.ask(await clientFor(req), model, brief, (u) => { used = u; });
+      res.set('Cache-Control', 'no-store');
+      res.json(answerOf(raw, brief));
+    } finally {
+      // A call that came back is paid for whether or not its answer was usable.
+      if (g && used) {
+        try { await g.record({ provider: PROVIDER, app: 'waterfall', usd: g.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+      }
+    }
+  });
+}
+
+app.post('/api/ai/rules', ...spend, aiJson, metered('Rule suggestions aren’t available right now. Choosing rules by hand is free.', ai.brief, ai.answer));
+
+/* ------------------------------------------------------------------ *
+ * Metered: "Describe your products" - typed product or contract lines in
+ * (never a customer, an amount or a date: refused before any call), the
+ * promises in each and how each is usually recognised out. Same gates, same
+ * call site, its own forced tool. The rule each pattern maps to, the words
+ * of each principle and the preview's figures are WaterfallCore's.
+ * ------------------------------------------------------------------ */
+
+app.post('/api/ai/describe', ...spend, aiJson, metered('Suggestions aren’t available right now. Choosing rules by hand is free.', ai.describeBrief, ai.describeAnswer));
 
 /* ------------------------------------------------------------------ *
  * The page
