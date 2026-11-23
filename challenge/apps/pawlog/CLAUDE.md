@@ -230,6 +230,12 @@ helper) sends the same request down the Claude path unchanged (its own
 used claude`; a burst refusal is sent as it is. The answer carries `reader`
 (who actually read) and the sheet follows that over `/api/me`'s.
 
+**Claude first (2026-11-23):** `PAWLOG_AI_PROVIDER=claude-first` runs Claude
+first, unchanged; if it throws, reads nothing or hits Claude's `monthly-cap`,
+the Gemini path reads the same request (`[pawlog] claude failed (<code>); used
+gemini`), answering `reader: 'gemini'` so the page draws the field-by-field
+review; a burst refusal is sent as it is. `/api/me` says `claude-first`.
+
 - **Guard order** (both providers): `requireUser, requireBudget,
   requireDailyCap` -> the 9 MB parser -> `ai.brief` (a 400 costs nothing and
   never reaches the guard) -> `LAB_AI_GUARD.allow` (its "no" is sent in its

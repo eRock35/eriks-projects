@@ -39,8 +39,9 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // transcribed field by field and confirmed by the person before it is
 // saved; anything else - unset included - is the provider Pawlog has always
 // used, so shipping this code changes nothing until the setting is made.
-// Read per request, never cached.
-const providerNow = () => (process.env.PAWLOG_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// PAWLOG_AI_PROVIDER=claude-first keeps Claude first and asks Gemini only
+// when Claude fails. Read per request, never cached.
+const providerNow = () => (process.env.PAWLOG_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.PAWLOG_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -569,6 +570,17 @@ async function chargeGemini(req, usage) {
  *  medicine comes back field by field with how sure the reader was
  *  (`meds`), for the person to check against the label - the page saves
  *  nothing until they have. Not streamed: one page reads in seconds. */
+/** Why a Claude read failed, as a fixed code for the log - or null for a
+ *  burst refusal, which is per person across both providers and is sent as
+ *  it is. Never the provider's own words. */
+function claudeFailure(err) {
+  if (!err) return 'error';
+  if (err.code === 'burst-minute' || err.code === 'burst-day') return null;
+  if (err.claudeFailed) return err.claudeFailed;
+  if (err.code === 'monthly-cap') return 'monthly-cap';
+  return Number.isInteger(err.status) ? 'http' : 'error';
+}
+
 app.post('/api/read-paperwork', ...spend, paperJson, route('The paperwork can’t be read right now. Try again in a minute - or add it by hand.', async (req, res) => {
   const b = ai.brief(req.body, photo);
   const today = Core.isDay(req.body && req.body.today) && Math.abs(Core.daysBetween(new Date().toISOString().slice(0, 10), req.body.today)) <= 1 ? req.body.today : new Date().toISOString().slice(0, 10);
@@ -586,6 +598,22 @@ app.post('/api/read-paperwork', ...spend, paperJson, route('The paperwork can’
       if (!err || !err.fallback) throw err;
       console.warn(`[pawlog] gemini failed (${err.fallback}); used claude`);
       proposal = null;
+    }
+  }
+  const NOTHING = 'Nothing about vaccinations, medicines, weight or a next visit could be read. Try a clearer photo, or paste the text.';
+  if (!proposal && providerNow() === 'claude-first') {
+    // Claude first; if it fails for any reason but a burst refusal, Gemini
+    // reads the same request down its own path (allow, call, record, charge).
+    try {
+      proposal = await readWithClaude(req, b, today);
+      if (empty(proposal)) throw Object.assign(new Error('unusable'), { claudeFailed: 'unusable' });
+    } catch (err) {
+      const why = claudeFailure(err);
+      if (!why) throw err;
+      console.warn(`[pawlog] claude failed (${why}); used gemini`);
+      proposal = await readWithGemini(req, b, today);
+      if (empty(proposal)) throw httpError(422, NOTHING);
+      reader = 'gemini';
     }
   }
   if (!proposal) {

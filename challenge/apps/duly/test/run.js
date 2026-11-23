@@ -837,6 +837,60 @@ test('Gemini fails, Claude answers: a thrown error, unusable output, a Gemini mo
   } finally { delete global.LAB_AI_GUARD; }
 });
 
+/* ---------------- claude-first (DULY_AI_PROVIDER=claude-first) ---------------- */
+
+async function withClaudeFirst(guard, fn) {
+  process.env.DULY_AI_PROVIDER = 'claude-first';
+  global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.DULY_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: Claude reads; it throws, reads nothing or is capped -> Gemini answers; a burst refusal is sent with no Gemini call; one log line', async () => {
+  const me = await register('cf.reader@example.com');
+  const anon = client();
+  await withClaudeFirst(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude-first', 'the sheet can say Claude, Gemini if Claude is busy'));
+  assert.ok(/who === 'claude-first' \? 'Claude \(or Google’s Gemini if Claude is busy\)'/.test(read('public/app.js')), 'the sheet stays truthful');
+  const GOOD = { json: { dueDate: T, amountDue: 84.2, minimumDue: 20, autopay: 'on' }, usage: { inputTokens: 100, outputTokens: 10 } };
+  const warn = console.warn;
+  const lines = [];
+  console.warn = (...a) => lines.push(a.join(' '));
+  try {
+    // Claude answers: no Gemini call
+    let g = fakeGuard({ provider: 'any' });
+    let r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'City Power\nAmount due $84.20\nDue date 2026-10-30', today: T }));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.payee, g.log.order], [200, 'claude', 'City Power', ['allow', 'record']]);
+    // Claude throws -> Gemini answers 200
+    g = fakeGuard({ provider: 'any', generate: async () => GOOD });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'UPSTREAM500 bill', today: T }));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.amount], [200, 'gemini', 8420], r.text);
+    assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+    assert.deepStrictEqual(g.log.order, ['allow', 'allow', 'generate', 'record']);
+    // Claude reads nothing -> Gemini; both calls recorded
+    g = fakeGuard({ provider: 'any', generate: async () => GOOD });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'BLANK bill text 12', today: T }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.record.map((x) => x.provider)], [200, 'gemini', ['claude', 'gemini']]);
+    // both read nothing: the 422
+    g = fakeGuard({ provider: 'any', generate: async () => ({ json: { dueDate: '', amountDue: null, minimumDue: null, autopay: 'not_stated' }, usage: { inputTokens: 1, outputTokens: 1 } }) });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'BLANK bill text 12', today: T }));
+    assert.strictEqual(r.status, 422);
+    // Claude's monthly cap -> Gemini
+    g = fakeGuard({ provider: 'any', generate: async () => GOOD, denyFor: { claude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'City Power $84.20 due 2026-10-30', today: T }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'gemini', ['allow', 'allow', 'generate', 'record']]);
+    // burst refusal: the guard's 429, no Gemini call
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = fakeGuard({ provider: 'any', denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+      r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'City Power $84.20 due 2026-10-30' }));
+      assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']]);
+    }
+    // both fail: the friendly error, no provider text
+    g = fakeGuard({ provider: 'any', generate: async () => { throw Object.assign(new Error('PROVIDER-TEXT'), { name: 'VertexError', code: 'http', status: 500 }); } });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read', { text: 'UPSTREAM500 bill' }));
+    assert.ok(r.status >= 500 && !/PROVIDER-TEXT|stand-in/.test(r.text), r.text);
+  } finally { console.warn = warn; }
+  assert.deepStrictEqual(lines, ['[duly] claude failed (http); used gemini', '[duly] claude failed (unusable); used gemini', '[duly] claude failed (unusable); used gemini', '[duly] claude failed (monthly-cap); used gemini', '[duly] claude failed (http); used gemini']);
+});
+
 test('on Claude the lab guard is asked first and told the cost after; a refusal makes no call; the gates still come before it', async () => {
   const me = await register('guarded.claude@example.com');
   const g = fakeGuard({ provider: 'claude' });

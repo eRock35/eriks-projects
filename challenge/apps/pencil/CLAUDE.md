@@ -247,6 +247,11 @@ answer `shape`/`cleanAiAnswer` rejects, Gemini's `monthly-cap`, no helper)
 sends the same photo down the Claude path unchanged (`allow('claude')`, meter,
 record), logging `[pencil] gemini failed (<code>); used claude`; a burst
 refusal is sent as it is.
+**Claude first (2026-11-23):** `PENCIL_AI_PROVIDER=claude-first` (read at
+startup) runs Claude first, unchanged; if it throws, its answer is refused
+(422/502) or Claude's `monthly-cap`, the Gemini path reads the same photo,
+logging `[pencil] claude failed (<code>); used gemini`; a burst refusal is
+sent as it is. `test/claude-first.js` (2 tests, in `npm test`) covers it.
 **No `maxItems` in the schema:** live Vertex answered 400 "invalid argument" to the
 row/column limits (60/12); they live in the descriptions and `shape()`/`cleanAiAnswer` cut to them.
 

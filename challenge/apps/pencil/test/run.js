@@ -897,7 +897,7 @@ test('the gates come before the reader\u2019s parser, in order; the pencil check
   assert.match(src, /identityLib\.planFor\(req\.user, MODELS\)/);
   // The provider switch: Claude unless PENCIL_AI_PROVIDER says gemini (test/gemini.js runs that side).
   assert.strictEqual(require('../server').PROVIDER, 'claude', 'the reader is Claude by default');
-  assert.match(src, /const PROVIDER = process\.env\.PENCIL_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude';/);
+  assert.match(src, /const PROVIDER = process\.env\.PENCIL_AI_PROVIDER === 'claude-first' \? 'claude-first' : process\.env\.PENCIL_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude';/);
   const rt = src.slice(src.indexOf("app.post('/api/ai/sheet'"));
   const at = (t) => { const i = rt.indexOf(t); assert.ok(i >= 0, t); return i; };
   assert.ok(at('const b = ai.brief(req.body);') < at("await guardAllow(req, 'gemini')") && at("await guardAllow(req, 'gemini')") < at('await readWithGemini(req, b)') && at('const b = ai.brief(req.body);') < at("await guardAllow(req, 'claude')") && at("await guardAllow(req, 'claude')") < at('await readWithClaude(req, b)'), 'a 400 costs nothing; the lab guard is asked before any model (Gemini, and Claude when it falls back)');

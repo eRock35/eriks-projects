@@ -37,8 +37,9 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // Which model reads a statement. DULY_AI_PROVIDER=gemini moves it to Gemini
 // on Vertex AI (through the lab's AI guard); anything else - unset included -
 // is the provider Duly has always used, so shipping this code changes
-// nothing until the setting is made. Read per request, never cached.
-const providerNow = () => (process.env.DULY_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// nothing until the setting is made. DULY_AI_PROVIDER=claude-first keeps
+// Claude first and asks Gemini only when Claude fails. Read per request.
+const providerNow = () => (process.env.DULY_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.DULY_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const LIMITS = {
   savesPerAccount: 240,            // bill-list writes per account...
@@ -356,6 +357,17 @@ async function chargeGemini(req, usage) {
   } catch (e) { console.error('usage: gemini charge failed'); }
 }
 
+/** Why a Claude read failed, as a fixed code for the log - or null for a
+ *  burst refusal, which is per person across both providers and is sent as
+ *  it is. Never the provider's own words. */
+function claudeFailure(err) {
+  if (!err) return 'error';
+  if (err.code === 'burst-minute' || err.code === 'burst-day') return null;
+  if (err.claudeFailed) return err.claudeFailed;
+  if (err.code === 'monthly-cap') return 'monthly-cap';
+  return Number.isInteger(err.status) ? 'http' : 'error';
+}
+
 app.post('/api/read', ...spend, readJson, route(READ_FALLBACK, async (req, res) => {
   const today = todayOf(req);
   const b = ai.brief(req.body, photo);
@@ -373,6 +385,21 @@ app.post('/api/read', ...spend, readJson, route(READ_FALLBACK, async (req, res) 
       if (!err || !err.fallback) throw err;
       console.warn(`[duly] gemini failed (${err.fallback}); used claude`);
       proposal = null;
+    }
+  }
+  if (!proposal && providerNow() === 'claude-first') {
+    // Claude first; if it fails for any reason but a burst refusal, Gemini
+    // reads the same request down its own path (allow, call, record, charge).
+    try {
+      proposal = await readWithClaude(req, b, today);
+      if (!proposal.payee && proposal.amount === null) throw Object.assign(new Error('unusable'), { claudeFailed: 'unusable' });
+    } catch (err) {
+      const why = claudeFailure(err);
+      if (!why) throw err;
+      console.warn(`[duly] claude failed (${why}); used gemini`);
+      proposal = await readWithGemini(req, b, today);
+      if (proposal.amount === null && proposal.dueDate === null) throw httpError(422, NOTHING);
+      reader = 'gemini';
     }
   }
   if (!proposal) {

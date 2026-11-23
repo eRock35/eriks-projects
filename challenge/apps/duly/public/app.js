@@ -685,7 +685,7 @@
     state.read = state.read || { mode: 'photo', text: '', photo: null, busy: false, proposal: null, pick: null };
     drawRead();
   }
-  function readerName() { var who = (state.read && state.read.reader) || (state.me && state.me.reader); return who === 'gemini' ? 'Google’s Gemini' : 'Claude'; }
+  function readerName() { var who = (state.read && state.read.reader) || (state.me && state.me.reader); return who === 'gemini' ? 'Google’s Gemini' : who === 'claude-first' ? 'Claude (or Google’s Gemini if Claude is busy)' : 'Claude'; }
   function drawRead() {
     var r = state.read;
     var gate = signedIn() ? '' : '<div class="note gate"><p>Reading a statement uses AI, so it needs a free account - it comes with $2 of AI credit (each read is about a cent). Adding a bill by hand is free and always will be.</p><div class="row"><button class="btn small" type="button" data-act="signup">Create a free account</button><button class="btn small ghost" type="button" data-act="signin">Sign in</button><button class="btn small ghost" type="button" data-act="add">Add it by hand</button></div></div>';

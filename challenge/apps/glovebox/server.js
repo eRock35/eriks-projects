@@ -40,8 +40,12 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // reads to Gemini on Vertex AI (through the lab's AI guard) and switches on
 // "Light or noise?", which needs a model that can hear. Anything else -
 // unset included - is Claude, exactly as before, with "Light or noise?" off.
+// GLOVEBOX_AI_PROVIDER=claude-first keeps the photo reads on Claude, with
+// Gemini only when Claude fails, and switches "Light or noise?" on too.
 // Read per request, so the switch is a Cloud Run setting and nothing more.
-const providerNow = () => (process.env.GLOVEBOX_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+const providerNow = () => (process.env.GLOVEBOX_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.GLOVEBOX_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// "Light or noise?" is Gemini-only (it hears): on in gemini and claude-first.
+const diagnoseOn = () => providerNow() !== 'claude';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -134,8 +138,8 @@ app.get('/api/meta', (_req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false, ai: providerNow(), diagnose: providerNow() === 'gemini' });
-  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, ai: providerNow(), diagnose: providerNow() === 'gemini' });
+  if (!req.user) return res.json({ signedIn: false, ai: providerNow(), diagnose: diagnoseOn() });
+  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, ai: providerNow(), diagnose: diagnoseOn() });
 });
 
 /* ------------------------------------------------------------------ *
@@ -226,6 +230,17 @@ async function readWithClaude(req, kind, p) {
   }
 }
 
+/** Why a Claude read failed, as a fixed code for the log - or null for a
+ *  burst refusal, which is per person across both providers and is sent as
+ *  it is. Never the provider's own words. */
+function claudeFailure(err) {
+  if (!err) return 'error';
+  if (err.code === 'burst-minute' || err.code === 'burst-day') return null;
+  if (err.claudeFailed) return err.claudeFailed;
+  if (err.code === 'monthly-cap') return 'monthly-cap';
+  return Number.isInteger(err.status) ? 'http' : 'error';
+}
+
 /** Gates, then the 6 MB parser, then the kind and the photo checked (by its
  *  bytes - a 400 costs nothing), then the lab's AI guard, then ONE call (a
  *  forced tool on Claude, a responseSchema on Gemini), then the answer
@@ -254,6 +269,20 @@ app.post('/api/read', ...spend, readJson, async (req, res) => {
         result = null;
       }
     }
+    if (!result && providerNow() === 'claude-first') {
+      // Claude first; if it fails for any reason but a burst refusal, Gemini
+      // reads the same photo down its own path (allow, call, record, charge).
+      try {
+        result = clean(await readWithClaude(req, kind, p));
+        if (!result.relevant) throw Object.assign(new Error('unusable'), { claudeFailed: 'unusable' });
+      } catch (err) {
+        const why = claudeFailure(err);
+        if (!why) throw err;
+        console.warn(`[glovebox] claude failed (${why}); used gemini`);
+        result = clean(gemini.toRaw(kind, await askGemini(req, gemini.readRequest(kind, p), 'read')));
+        if (!result.relevant) throw httpError(422, NOT[kind]);
+      }
+    }
     if (!result) {
       result = clean(await readWithClaude(req, kind, p));
       if (!result.relevant) throw httpError(422, NOT[kind]);
@@ -276,7 +305,7 @@ app.post('/api/read', ...spend, readJson, async (req, res) => {
  *  wording the page shows is the app's own. Nothing is stored or logged. */
 app.post('/api/diagnose', ...spend, readJson, async (req, res) => {
   try {
-    if (providerNow() !== 'gemini') throw httpError(404, 'That isn’t switched on yet. The warning-light finder is free and needs no AI.', { code: 'ai-off' });
+    if (!diagnoseOn()) throw httpError(404, 'That isn’t switched on yet. The warning-light finder is free and needs no AI.', { code: 'ai-off' });
     const b = req.body || {};
     if (!b.photo && !b.audio) throw httpError(400, 'Add a photo of the light or a recording of the noise first.');
     const p = b.photo ? photo.validateAll([b.photo])[0] : null;

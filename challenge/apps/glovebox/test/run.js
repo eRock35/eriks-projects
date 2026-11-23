@@ -1117,7 +1117,7 @@ test('"Light or noise?" on Gemini: the gates before the parser, then the guard, 
   assert.ok(geminiCalls.every((c) => c.parts.every((x) => !x.inlineData || /^<\d+ chars>$/.test(x.inlineData.data))), 'even the test double keeps only the media\'s length');
   const src = read('server.js');
   const mid = src.slice(src.indexOf('async function guardAllow'), src.indexOf('/* ------------------------------------------------------------------ *\n * The page'));
-  assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')", 'console.warn(`[glovebox] gemini failed (${err.fallback})'], 'the metered routes log fixed words only (and the fallback\'s fixed line with a fixed code)');
+  assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')", 'console.warn(`[glovebox] gemini failed (${err.fallback})', 'console.warn(`[glovebox] claude failed (${why})'], 'the metered routes log fixed words only (and the fallback\'s fixed line with a fixed code)');
 });
 
 test('the photo reads on Gemini: the same cleaned answers as on Claude, through the guard; on Claude the guard is asked first and told the cost after', async () => {
@@ -1206,6 +1206,66 @@ test('photo reads: Gemini fails, Claude answers (a thrown error, unusable output
     assert.strictEqual(fakeCalls.length, n0, 'no Claude call from "Light or noise?"');
   } finally { console.warn = warn; }
   assert.deepStrictEqual(lines, ['[glovebox] gemini failed (http); used claude', '[glovebox] gemini failed (unusable); used claude', '[glovebox] gemini failed (monthly-cap); used claude']);
+});
+
+/* ---------------- claude-first (GLOVEBOX_AI_PROVIDER=claude-first) ---------------- */
+
+async function withClaudeFirst(guard, fn) {
+  process.env.GLOVEBOX_AI_PROVIDER = 'claude-first';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.GLOVEBOX_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: photo reads on Claude, Gemini when Claude throws, reads nothing or is capped; a burst refusal is sent as it is; "Light or noise?" is on, Gemini-only, safety rules as ever', async () => {
+  const jo = await register('jo.claudefirst@example.com');
+  const anon = client();
+  await withClaudeFirst(undefined, async () => assert.deepStrictEqual([(await anon('GET', '/api/me')).data.ai, (await anon('GET', '/api/me')).data.diagnose], ['claude-first', true]));
+  // Gemini's stand-in answer for a plain photo, whatever marker the request carried
+  const OK = async (r) => ({ json: await r.fake({ contents: [{ parts: [{ inlineData: { mimeType: 'image/jpeg', data: jpeg().data } }] }], generationConfig: { responseSchema: r.responseSchema }, systemInstruction: r.systemInstruction }), usage: { inputTokens: 100, outputTokens: 10 } });
+  const warn = console.warn; const lines = [];
+  console.warn = (...a) => lines.push(a.join(' '));
+  try {
+    // Claude answers: no Gemini call
+    let g = fakeGuard();
+    let n0 = fakeCalls.length;
+    let r = await withClaudeFirst(g, () => jo('POST', '/api/read', { kind: 'dash', photo: jpeg(), today: T }));
+    assert.deepStrictEqual([r.status, fakeCalls.length, g.log.order], [200, n0 + 1, ['allow', 'record']], r.text);
+    // Claude throws -> Gemini answers 200
+    g = fakeGuard({ generate: OK });
+    r = await withClaudeFirst(g, () => jo('POST', '/api/read', { kind: 'dash', photo: jpeg('UPSTREAM500'), today: T }));
+    assert.strictEqual(r.status, 200, r.text);
+    assert.ok(r.data.result.lights.length > 0 && !/stand-in/.test(r.text));
+    assert.deepStrictEqual([g.log.order, g.log.allow.map((a) => a.provider)], [['allow', 'allow', 'generate', 'record'], ['claude', 'gemini']]);
+    // Claude unusable (not a receipt) -> Gemini; both calls recorded
+    g = fakeGuard({ generate: OK });
+    r = await withClaudeFirst(g, () => jo('POST', '/api/read', { kind: 'receipt', photo: jpeg('BLANK'), today: T }));
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(g.log.record.map((x) => x.provider), ['claude', 'gemini']);
+    // Claude's month is spent -> Gemini
+    g = fakeGuard({ generate: OK, denyFor: { claude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+    n0 = fakeCalls.length;
+    r = await withClaudeFirst(g, () => jo('POST', '/api/read', { kind: 'dash', photo: jpeg(), today: T }));
+    assert.deepStrictEqual([r.status, fakeCalls.length, g.log.order], [200, n0, ['allow', 'allow', 'generate', 'record']]);
+    // a burst refusal: the guard's 429, no Gemini call
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = fakeGuard({ denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+      r = await withClaudeFirst(g, () => jo('POST', '/api/read', { kind: 'dash', photo: jpeg(), today: T }));
+      assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']]);
+    }
+    // both fail: the friendly error, never provider text
+    g = fakeGuard();
+    r = await withClaudeFirst(g, () => jo('POST', '/api/read', { kind: 'dash', photo: jpeg('UPSTREAM500'), today: T }));
+    assert.ok(r.status === 502 && !/stand-in|Gemini/.test(r.text), r.text);
+    // "Light or noise?" is on and Gemini-only: the brakes squeal is still raised to stop now
+    g = fakeGuard();
+    n0 = fakeCalls.length;
+    r = await withClaudeFirst(g, () => jo('POST', '/api/diagnose', { audio: webm() }));
+    assert.deepStrictEqual([r.status, r.data.result.urgency, g.log.allow.map((a) => a.provider), fakeCalls.length], [200, 'stop_now', ['gemini'], n0]);
+    g = fakeGuard({ generate: async () => { throw Object.assign(new Error('PROVIDER-TEXT'), { name: 'VertexError', code: 'http', status: 500 }); } });
+    r = await withClaudeFirst(g, () => jo('POST', '/api/diagnose', { audio: webm('RATTLE') }));
+    assert.ok(r.status === 502 && /red light is on, stop safely/.test(r.data.error) && fakeCalls.length === n0, 'its friendly error, never Claude');
+  } finally { console.warn = warn; }
+  assert.deepStrictEqual(lines, ['[glovebox] claude failed (http); used gemini', '[glovebox] claude failed (unusable); used gemini', '[glovebox] claude failed (monthly-cap); used gemini', '[glovebox] claude failed (http); used gemini']);
 });
 
 test('the look: no style attribute in a page or written by script; motion only when allowed; line icons, not emoji, in the app', () => {

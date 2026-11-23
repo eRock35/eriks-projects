@@ -154,6 +154,13 @@ or no helper - the same request goes down the Claude path unchanged (its own
 (<code>); used claude`. A burst refusal is sent as it is. `/api/read` answers
 `reader: 'claude' | 'gemini'` (who actually read) and the sheet shows that.
 
+**Claude first (2026-11-23).** `DULY_AI_PROVIDER=claude-first` runs Claude
+first, unchanged; if it throws, reads nothing, hits Claude's `monthly-cap` or
+has no key, the Gemini path reads the same request (log `[duly] claude failed
+(<code>); used gemini`); a burst refusal is sent as it is. `/api/me` says
+`reader: 'claude-first'`, so the sheet reads "Claude (or Google's Gemini if
+Claude is busy)".
+
 - **Claude (the default).** One forced tool `record_bill` -> `{payee,
   category, amount, minimumDue, dueDate, statementDate, autopay:
   on|off|unknown}`, max 600 tokens, exactly as before (`lib/ai.js`). The tool

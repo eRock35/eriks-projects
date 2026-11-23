@@ -1000,6 +1000,54 @@ test('Gemini fails, Claude answers: a thrown error, unusable output, a Gemini mo
   } finally { delete global.LAB_AI_GUARD; }
 });
 
+/* ---------------- claude-first (PAWLOG_AI_PROVIDER=claude-first) ---------------- */
+
+async function withClaudeFirst(guard, fn) {
+  process.env.PAWLOG_AI_PROVIDER = 'claude-first';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.PAWLOG_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: Claude reads; it throws, reads nothing or is capped -> Gemini answers; a burst refusal is sent with no Gemini call; one log line', async () => {
+  const me = await register('cf.reader@example.com');
+  await withClaudeFirst(undefined, async () => assert.strictEqual((await client()('GET', '/api/me')).data.reader, 'claude-first'));
+  // Gemini's stand-in answer (the made-up discharge sheet), whatever the text said
+  const OK = async (r) => ({ json: await r.fake({ contents: [{ parts: [{ text: 'Today is 2026-11-23' }] }] }), usage: { inputTokens: 100, outputTokens: 10 } });
+  const UP = { ...PAPER, text: 'UPSTREAM500 ' + PAPER.text };
+  const BLANK = { ...PAPER, text: 'BLANK paper' };
+  const warn = console.warn;
+  const lines = [];
+  console.warn = (...a) => lines.push(a.join(' '));
+  try {
+    let g = fakeGuard({ provider: 'any' });
+    let r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'claude', ['allow', 'record']], 'Claude answers: no Gemini call');
+    g = fakeGuard({ provider: 'any', generate: OK });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', UP));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.meds.length > 0], [200, 'gemini', true], r.text);
+    assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+    assert.ok(!/stand-in/.test(r.text));
+    g = fakeGuard({ provider: 'any', generate: OK });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', BLANK));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.record.map((x) => x.provider)], [200, 'gemini', ['claude', 'gemini']], 'the Claude call that billed is recorded, then Gemini');
+    g = fakeGuard({ provider: 'any' });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', BLANK));
+    assert.strictEqual(r.status, 422, 'both read nothing');
+    g = fakeGuard({ provider: 'any', generate: OK, denyFor: { claude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', PAPER));
+    assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'gemini', ['allow', 'allow', 'generate', 'record']]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = fakeGuard({ provider: 'any', denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+      r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', PAPER));
+      assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']], 'no Gemini call');
+    }
+    g = fakeGuard({ provider: 'any' });
+    r = await withClaudeFirst(g, () => me('POST', '/api/read-paperwork', UP));
+    assert.ok(r.status >= 500 && !/stand-in|PROVIDER/.test(r.text), 'both fail: the friendly error');
+  } finally { console.warn = warn; }
+  assert.deepStrictEqual(lines, ['[pawlog] claude failed (http); used gemini', '[pawlog] claude failed (unusable); used gemini', '[pawlog] claude failed (unusable); used gemini', '[pawlog] claude failed (monthly-cap); used gemini', '[pawlog] claude failed (http); used gemini']);
+});
+
 test('on Claude the lab guard is asked first and told the cost after; a refusal makes no call; the gates still come before it', async () => {
   const me = await register('guarded.claude@example.com');
   const g = fakeGuard({ provider: 'claude' });

@@ -255,9 +255,10 @@ app.get('/api/me', (req, res) => {
  * ------------------------------------------------------------------ */
 
 /** Which model reads the sheet. PENCIL_AI_PROVIDER=gemini moves it to
- *  Gemini on Vertex AI (through the lab's AI guard); anything else - unset
+ *  Gemini on Vertex AI (through the lab's AI guard); claude-first keeps
+ *  Claude first with Gemini as its fallback; anything else - unset
  *  included - is Claude, as it has been since the app shipped. */
-const PROVIDER = process.env.PENCIL_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude';
+const PROVIDER = process.env.PENCIL_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.PENCIL_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude';
 const fakeGemini = FAKE_AI ? require('./lib/fakeai').createGemini() : null;
 
 /** The lab's monthly cap and burst limits, when the host has a guard. An
@@ -338,10 +339,30 @@ app.post('/api/ai/sheet', ...spend, aiJson, route('Reading a score sheet isn’t
     }
     console.warn(`[pencil] gemini failed (${why}); used claude`);
   }
+  // Claude first when claude-first is set; if it fails for any reason but a
+  // burst refusal, Gemini reads the same photo down its own path.
+  if (PROVIDER === 'claude-first') {
+    const no = await guardAllow(req, 'claude');
+    if (no && no.code !== 'monthly-cap') throw no;
+    let why = no ? 'monthly-cap' : null;
+    if (!no) {
+      try { return res.json(ai.answer(await readWithClaude(req, b))); } catch (err) { why = claudeFailCode(err); }
+    }
+    console.warn(`[pencil] claude failed (${why}); used gemini`);
+    const gno = await guardAllow(req, 'gemini');
+    if (gno) throw gno;
+    return res.json(ai.answer(await readWithGemini(req, b)));
+  }
   const no = await guardAllow(req, 'claude');
   if (no) throw no;
   res.json(ai.answer(await readWithClaude(req, b)));
 }));
+/** The same for a Claude failure: an answer the app refused is "unusable",
+ *  a provider error "http". */
+function claudeFailCode(err) {
+  if (err && err.expose && (err.status === 422 || err.status === 502)) return 'unusable';
+  return err && Number.isInteger(err.status) ? 'http' : 'error';
+}
 
 /* ------------------------------------------------------------------ *
  * Showing the table: no account. The scorer's phone sends the game.
