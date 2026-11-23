@@ -45,7 +45,10 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // else - unset included - is Claude, exactly as before, with "Record or
 // snap" off. Read per request, so the switch is a Cloud Run setting and
 // nothing more.
-const providerNow = () => (process.env.RECEIPT_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// RECEIPT_AI_PROVIDER=claude-first (2026-11-23): the sharpener and the recap
+// run on Claude first with Gemini as the fallback; "Record or snap" is on.
+const providerNow = () => (process.env.RECEIPT_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.RECEIPT_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+const geminiOn = () => providerNow() !== 'claude';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -221,7 +224,7 @@ function listOf(rows, t) {
 // minuteCents: what a minute of recording costs to read, for the page's
 // "about N cents" (32 audio tokens a second in, ~300 tokens a minute out).
 const aiView = () => ({
-  provider: providerNow(), minutes: providerNow() === 'gemini', audioMinutes: audio.MAX_MINUTES, audioBytes: audio.MAX_BYTES,
+  provider: providerNow(), minutes: geminiOn(), audioMinutes: audio.MAX_MINUTES, audioBytes: audio.MAX_BYTES,
   minuteCents: Math.round(gemini.priceUsd({ inputTokens: 32 * 60, outputTokens: 300 }) * 1e4) / 100,
 });
 
@@ -676,6 +679,31 @@ async function geminiElseClaude(viaGemini, viaClaude) {
   return viaClaude();
 }
 
+/** Claude first (RECEIPT_AI_PROVIDER=claude-first): the same two paths in
+ *  the other order. If Claude's own path fails for any reason but a burst
+ *  refusal - a thrown SDK error, output the validator rejects, the month's
+ *  Claude cap, no key - Gemini's own path answers the same request. */
+async function claudeElseGemini(viaClaude, viaGemini) {
+  let code;
+  try {
+    const out = await viaClaude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.status === 422 ? 'unusable' : (err.code || err.status))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[receipt] claude failed (${code}); used gemini`);
+  return viaGemini();
+}
+/** A feature's two paths, in the order the switch says. */
+function byProvider(viaClaude, viaGemini) {
+  const p = providerNow();
+  if (p === 'gemini') return geminiElseClaude(viaGemini, viaClaude);
+  if (p === 'claude-first') return claudeElseGemini(viaClaude, viaGemini);
+  return viaClaude();
+}
+
 /**
  * A vague invite in, a timeboxed agenda out - with an honest verdict on
  * whether it could be an email, and the written update if so. A proposal
@@ -689,9 +717,7 @@ app.post('/api/meetings/:id/sharpen', ...spend, async (req, res) => {
     const ctx = ai.sharpenContext(m, b.invite !== undefined ? b.invite : m.invite);
     if (!ctx.invite && m.title.length < 4) throw httpError(400, 'Paste the invite first.', { field: 'invite' });
     const viaClaude = async () => ai.validateSharpen(await withClaude(req, (client, model, onUsage) => ai.sharpen(client, model, ctx, onUsage)), ctx);
-    const p = providerNow() === 'gemini'
-      ? await geminiElseClaude(async () => ai.validateSharpen(await askGemini(req, gemini.sharpenRequest(ctx), 'sharpen'), ctx), viaClaude)
-      : await viaClaude();
+    const p = await byProvider(viaClaude, async () => ai.validateSharpen(await askGemini(req, gemini.sharpenRequest(ctx), 'sharpen'), ctx));
     if (!p) throw httpError(422, 'Nothing usable came back. Try again - or start from a template.');
     res.json({ invite: ctx.invite, proposal: p });
   } catch (err) { fail(res, err, 'Could not sharpen that. Try again, or start from a template.'); }
@@ -717,9 +743,7 @@ app.post('/api/meetings/:id/recap', ...spend, ownerOnly, bigJson, async (req, re
     const ctx = ai.recapContext(m, log, notes, Boolean(image));
     let raw;
     const viaClaude = async () => ai.validateRecap(raw = await withClaude(req, (client, model, onUsage) => ai.recap(client, model, ctx, image, onUsage)), ctx);
-    const rec = providerNow() === 'gemini'
-      ? await geminiElseClaude(async () => ai.validateRecap(raw = await askGemini(req, gemini.recapRequest(ctx, image), 'recap'), ctx), viaClaude)
-      : await viaClaude();
+    const rec = await byProvider(viaClaude, async () => ai.validateRecap(raw = await askGemini(req, gemini.recapRequest(ctx, image), 'recap'), ctx));
     if (!rec) {
       throw httpError(422, image && raw && raw.readable === false
         ? 'We couldn’t read that whiteboard. Try a closer, straighter photo - or type the notes in.'
@@ -737,7 +761,7 @@ app.post('/api/meetings/:id/recap', ...spend, ownerOnly, bigJson, async (req, re
 /** Off (a 404 that says so) unless the switch is on - after the sign-in,
  *  budget and ownership checks, before the 12 MB parser. */
 function minutesOn(req, res, next) {
-  if (providerNow() === 'gemini') return next();
+  if (geminiOn()) return next();
   fail(res, httpError(404, 'That isn’t switched on yet. The free recap from the log needs no AI.', { code: 'ai-off' }));
 }
 

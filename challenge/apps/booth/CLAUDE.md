@@ -265,7 +265,11 @@ Claude exactly as before (`providerNow()` in `server.js`, read per request).
   Claude path answers the same request unchanged (`geminiElseClaude`; log
   `[booth] gemini failed (<code>); used claude`). Bursts go out as they are.
   `/scan` has no Claude path: its failure is its own friendly error.
-- `GET /api/me` adds `ai` (`claude | gemini`), `scan` (boolean) and
+- **Claude first (`BOOTH_AI_PROVIDER=claude-first`, 2026-11-23).** `/read` and
+  `/draft` run Claude first and fall back to Gemini on any failure but a burst
+  (`claudeElseGemini` via `byProvider`; log `[booth] claude failed (<code>);
+  used gemini`); `/scan` (card + memo) is on, Gemini only, as in `gemini` mode.
+- `GET /api/me` adds `ai` (`claude | gemini | claude-first`), `scan` (boolean) and
   `limits.memoSeconds`, signed in or not; the page offers the scan only when
   `scan` is true.
 - **The sample** shows a hand-written scan ("See a sample scan", when the

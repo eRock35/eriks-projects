@@ -44,7 +44,9 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // anything else, unset included, is Claude reading three totals, as it has
 // always been. Read per request, so the switch is a Cloud Run setting and
 // never a code change.
-const providerNow = () => (process.env.TIPOUT_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// TIPOUT_AI_PROVIDER=claude-first (2026-11-23): Claude reads the three
+// totals first; Gemini's report reader answers when Claude fails.
+const providerNow = () => (process.env.TIPOUT_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.TIPOUT_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -534,13 +536,33 @@ async function geminiElseClaude(viaGemini, viaClaude) {
   return viaClaude();
 }
 
+/** Claude first (TIPOUT_AI_PROVIDER=claude-first): the same two paths in the
+ *  other order. If Claude's own path fails for any reason but a burst
+ *  refusal - a thrown SDK error, a reading the validator rejects (a 422), the
+ *  month's Claude cap, no key - Gemini's own path answers the same photo. */
+async function claudeElseGemini(viaClaude, viaGemini) {
+  let code;
+  try {
+    const out = await viaClaude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.status === 422 ? 'unusable' : (err.code || err.status))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tipout] claude failed (${code}); used gemini`);
+  return viaGemini();
+}
+
 app.post('/api/snap', ...spend, snapJson, async (req, res) => {
   try {
     const image = photo.validate((req.body || {}).image);
     const viaClaude = async () => { await guardAllow('claude', req); return { reader: 'totals', ...(await snapWithClaude(req, image)) }; };
-    res.json(providerNow() === 'gemini'
-      ? await geminiElseClaude(async () => { await guardAllow('gemini', req); return snapWithGemini(req, image); }, viaClaude)
-      : await viaClaude());
+    const viaGemini = async () => { await guardAllow('gemini', req); return snapWithGemini(req, image); };
+    const mode = providerNow();
+    res.json(mode === 'gemini' ? await geminiElseClaude(viaGemini, viaClaude)
+      : mode === 'claude-first' ? await claudeElseGemini(viaClaude, viaGemini)
+        : await viaClaude());
   } catch (err) { fail(res, err, 'Could not read that photo. Try again, or type the tips in.'); }
 });
 

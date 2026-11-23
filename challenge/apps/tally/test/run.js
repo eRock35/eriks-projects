@@ -728,6 +728,46 @@ test('Gemini fails, Claude answers a photo (reader "zreport"): a thrown call, un
   assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[tally] gemini failed (http); used claude', '[tally] gemini failed (unusable); used claude', '[tally] gemini failed (monthly-cap); used claude']);
 });
 
+test('claude-first: a photo goes to Claude, Gemini answers when Claude throws, is unusable or capped - not a burst; pasted text is on', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const snap = async (over, body) => {
+    const g = global.LAB_AI_GUARD = fakeGuard(over);
+    if (over.denyClaude) g.allow = async (a) => { g.allowed.push([a.provider, a.app, true]); return a.provider === 'claude' ? over.denyClaude : { ok: true }; };
+    // Gemini reads a clean photo, so the stand-in's failure words stay Claude's.
+    g.gemini.generate = async (r) => { g.sent.push(r); return { json: await r.fake({ contents: [{ ...r.contents[0], parts: r.contents[0].parts.map((p) => (p.inlineData ? { inlineData: { ...p.inlineData, data: jpeg('ZREPORT') } } : p)) }] }), usage: { inputTokens: 2000, outputTokens: 300 } }; };
+    try { return { r: await maya('POST', '/api/days/snap', body), g }; } finally { delete global.LAB_AI_GUARD; }
+  };
+  const img = (s) => ({ image: { type: 'image/jpeg', data: jpeg(s) } });
+  process.env.TALLY_AI_PROVIDER = 'claude-first';
+  try {
+    assert.strictEqual((await maya('GET', '/api/me')).data.reader, 'report', 'the page offers pasted text');
+    // Claude answers when it can (reader "zreport"), Gemini untouched.
+    let { r, g } = await snap({}, img('ZREPORT'));
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.gross, g.allowed.map((a) => a[0]), g.sent.length], [200, 'zreport', '1284.50', ['claude'], 0]);
+    // Claude throws: Gemini answers 200 (reader "report").
+    ({ r, g } = await snap({}, img('ZREPORT UPSTREAM500')));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.recorded.map((x) => x.provider)], [200, 'report', ['claude', 'gemini'], ['gemini']], JSON.stringify(r.data));
+    assert.ok(!/fake_upstream/.test(JSON.stringify(r.data)));
+    // Claude unusable (not a report to it): Gemini; Claude's billed call still recorded.
+    ({ r, g } = await snap({}, img('BLANK')));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.recorded.map((x) => x.provider)], [200, 'report', ['claude', 'gemini'], ['claude', 'gemini']]);
+    // Claude's monthly cap: Gemini.
+    ({ r, g } = await snap({ denyClaude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }, img('ZREPORT')));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0]), g.sent.length], [200, 'report', ['claude', 'gemini'], 1]);
+    // A burst refusal goes out as it is.
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, g } = await snap({ denyClaude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }, img('ZREPORT')));
+      assert.deepStrictEqual([r.status, r.data.code, g.allowed.map((a) => a[0]), g.sent.length, g.recorded.length], [429, code, ['claude'], 0, 0]);
+    }
+    // Pasted text (Gemini only) is on.
+    ({ r, g } = await snap({}, { text: 'Card sales 1,284.50 count 96' }));
+    assert.deepStrictEqual([r.status, r.data.reader, g.allowed.map((a) => a[0])], [200, 'report', ['gemini']], JSON.stringify(r.data));
+  } finally { delete process.env.TALLY_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[tally] claude failed (500); used gemini', '[tally] claude failed (unusable); used gemini', '[tally] claude failed (monthly-cap); used gemini']);
+});
+
 test('the sample carries a made-up reading (no model), in the live reading’s exact shape', async () => {
   const before = await modelCalls();
   const d = (await client()('GET', '/api/demo')).data;

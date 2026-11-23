@@ -909,6 +909,62 @@ test('Gemini fails, Claude answers: a thrown call, unusable output or the Gemini
   assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[booth] gemini failed (http); used claude', '[booth] gemini failed (http); used claude', '[booth] gemini failed (unusable); used claude', '[booth] gemini failed (unusable); used claude', '[booth] gemini failed (monthly-cap); used claude']);
 });
 
+test('claude-first: Claude reads and drafts, Gemini answers when Claude throws, is unusable or capped; a burst does not fall back; the scan is on', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const cf = async (g, fn) => { process.env.BOOTH_AI_PROVIDER = 'claude-first'; if (g) global.LAB_AI_GUARD = g; try { return await fn(); } finally { delete process.env.BOOTH_AI_PROVIDER; delete global.LAB_AI_GUARD; } };
+  // A guard that can refuse Claude alone; Gemini reads a clean copy of what it was sent.
+  const guardCF = (denyClaude) => {
+    const g = fakeGuard({ generate: async (r) => ({ json: await fakeGemini({ contents: r.contents.map((c) => ({ ...c, parts: c.parts.map((p) => (p.text ? { text: p.text.replace(/UPSTREAM/g, 'UP-STREAM') } : p.inlineData && /^image/.test(p.inlineData.mimeType) ? { inlineData: { ...p.inlineData, data: JPEG } } : p)) })), generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 1500, outputTokens: 300 } }) });
+    const allow = g.allow;
+    g.allow = async (a) => (a.provider === 'claude' && denyClaude ? (g.log.order.push('allow'), g.log.allow.push({ provider: 'claude' }), denyClaude) : allow(a));
+    return g;
+  };
+  const up = await theo('POST', `/api/events/${EV.id}/leads`, { name: 'Up Stream', email: 'up9@example.com', temp: 'warm', note: 'UPSTREAM500' });
+  try {
+    const me = (await cf(null, () => theo('GET', '/api/me'))).data;
+    assert.deepStrictEqual([me.ai, me.scan], ['claude-first', true]);
+    // Claude answers when it can: Gemini never called.
+    let g = guardCF();
+    const r0 = await cf(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } }));
+    assert.deepStrictEqual([r0.status, r0.data.name, 'check' in r0.data, g.log.allow.map((a) => a.provider)], [200, 'Riley Chen', false, ['claude']]);
+    // Claude throws (the draft): Gemini answers 200.
+    g = guardCF();
+    const d1 = await cf(g, () => theo('POST', `/api/events/${EV.id}/leads/${up.data.lead.id}/draft`));
+    assert.deepStrictEqual([d1.status, /^Hi Up,/.test(d1.data.body), g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)], [200, true, ['claude', 'gemini'], ['gemini']]);
+    assert.ok(!JSON.stringify(d1.data).includes('fake_upstream_error'));
+    // Claude unusable (a card it cannot read): Gemini.
+    g = guardCF();
+    const r1 = await cf(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: withText('BLANK wall') } }));
+    assert.deepStrictEqual([r1.status, r1.data.name, r1.data.check, g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)], [200, 'Riley Chen', ['email'], ['claude', 'gemini'], ['claude', 'gemini']], 'the Claude call that billed is still recorded');
+    // Claude's monthly cap: Gemini, for the read and the draft.
+    const cap = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    g = guardCF(cap);
+    const r2 = await cf(g, () => priya('POST', `/api/events/${EV.id}/read`, { image: { type: 'image/jpeg', data: JPEG } }));
+    assert.deepStrictEqual([r2.status, r2.data.name, g.log.order], [200, 'Riley Chen', ['allow', 'allow', 'generate', 'record']]);
+    g = guardCF(cap);
+    const d2 = await cf(g, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`));
+    assert.deepStrictEqual([d2.status, /^Hi Dana,/.test(d2.data.body), g.log.allow.map((a) => a.provider)], [200, true, ['claude', 'gemini']]);
+    // A burst refusal goes out as it is: no Gemini call.
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      g = guardCF({ ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' });
+      const b = await cf(g, () => theo('POST', `/api/events/${EV.id}/leads/${EV.dana}/draft`));
+      assert.deepStrictEqual([b.status, b.data.code, g.log.order], [429, code, ['allow']]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'nobody charged for a burst');
+    // The scan (Gemini only) is on in this mode.
+    g = fakeGuard();
+    const s = await cf(g, () => theo('POST', scanPath(), scanBody()));
+    assert.deepStrictEqual([s.status, s.data.check, g.log.allow.map((a) => a.provider)], [200, ['email'], ['gemini']]);
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.strictEqual((await theo('DELETE', `/api/events/${EV.id}/leads/${up.data.lead.id}`)).status, 200);
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[booth] claude failed (500); used gemini', '[booth] claude failed (unusable); used gemini', '[booth] claude failed (monthly-cap); used gemini', '[booth] claude failed (monthly-cap); used gemini']);
+  assert.match(src('public/app.js'), /me\.ai === 'claude-first' \? 'Claude drafts \(Gemini if Claude is busy\); Gemini scans'/);
+});
+
 test('the page: says what is sent, will not save an unchecked field, never sends, and writes no style attribute', () => {
   const js = src('public/app.js');
   const html = src('public/index.html');

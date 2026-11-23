@@ -246,6 +246,10 @@ Gemini reader; unset or anything else is Claude, exactly as before
   three-totals Claude reader answers the same photo unchanged and the answer
   says `reader: 'totals'` (`geminiElseClaude`; log `[tipout] gemini failed
   (<code>); used claude`). Bursts go out as they are.
+- **Claude first (`TIPOUT_AI_PROVIDER=claude-first`, 2026-11-23).** The
+  three-totals Claude reader goes first (`reader: 'totals'`, `snap: 'totals'`
+  in `/api/me`); on any failure but a burst Gemini's report reader answers
+  (`reader: 'report'`; log `[tipout] claude failed (<code>); used gemini`).
 - **Stand-in** (`lib/fakeai.js` `gemini`, `TIPOUT_FAKE_AI=1`): byte triggers
   `BLANK`, `NOTIPS` (422s), `SUMS` (no totals; lines add up), `MISMATCH`,
   `INJECT`, `UPSTREAMnnn`; anything else is The Copper Fox's Friday with a

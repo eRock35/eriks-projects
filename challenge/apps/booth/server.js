@@ -45,7 +45,10 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // hear. Anything else - unset included - is Claude, exactly as before, so
 // merging this changes nothing live. Read per request: flipping it is a
 // Cloud Run setting, not a deploy.
-const providerNow = () => (process.env.BOOTH_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// BOOTH_AI_PROVIDER=claude-first (2026-11-23): Claude reads and drafts first,
+// Gemini answers when Claude fails; the scan (Gemini only) is on as well.
+const providerNow = () => (process.env.BOOTH_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.BOOTH_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+const geminiOn = () => providerNow() !== 'claude';
 // A scan's photo is held tighter than the plain snap's 4 MB: the page sends
 // a 1600 px JPEG, a few hundred KB.
 const SCAN_PHOTO_BYTES = 2 * 1024 * 1024;
@@ -258,7 +261,7 @@ app.get('/api/me', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
     // `ai` says which model reads; `scan` whether the voice-memo scan is on.
-    const ai_ = { ai: providerNow(), scan: providerNow() === 'gemini', limits: { memoSeconds: MEMO_SECONDS } };
+    const ai_ = { ai: providerNow(), scan: geminiOn(), limits: { memoSeconds: MEMO_SECONDS } };
     if (!req.user) return res.json({ signedIn: false, ...ai_ });
     res.json({
       signedIn: true,
@@ -672,6 +675,32 @@ async function geminiElseClaude(gemini_, claude) {
   return claude();
 }
 
+/** Claude first (BOOTH_AI_PROVIDER=claude-first): the same two paths in the
+ *  other order. Claude's own path runs unchanged; if it fails for any reason
+ *  but a burst refusal - a thrown SDK error, output the validator rejects,
+ *  the month's Claude cap, no key - Gemini's own path answers the same
+ *  request. A burst goes out as it is. One log line, no user data. */
+async function claudeElseGemini(claude, gemini_) {
+  let code;
+  try {
+    const out = await claude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.code || err.status)) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[booth] claude failed (${code}); used gemini`);
+  return gemini_();
+}
+/** The feature's two paths, in the order the switch says. */
+function byProvider(claude, gemini_) {
+  const p = providerNow();
+  if (p === 'gemini') return geminiElseClaude(gemini_, claude);
+  if (p === 'claude-first') return claudeElseGemini(claude, gemini_);
+  return claude();
+}
+
 /** The person's own ledger (their credit, and the free tier's daily
  *  ceiling) is the identity's, and its price table is Claude's. A Gemini
  *  call is charged there at its real dollars, written as the Haiku input
@@ -714,9 +743,7 @@ app.post('/api/events/:id/leads/:lid/draft', ...spend, async (req, res) => {
     const src = ai.draftSource(ev, ev.me, l);
     const fallback = B.template(l, ev, ev.me).subject;
     const viaClaude = async () => ai.validateDraft(await askClaude(req, (client, model, onUsage) => ai.draft(client, model, src, onUsage)), src, fallback);
-    const d = providerNow() === 'gemini'
-      ? await geminiElseClaude(async () => ai.validateDraft(await askGemini(req, gemini.draftRequest(src), 'draft'), src, fallback), viaClaude)
-      : await viaClaude();
+    const d = await byProvider(viaClaude, async () => ai.validateDraft(await askGemini(req, gemini.draftRequest(src), 'draft'), src, fallback));
     if (!d) throw httpError(422, 'The draft came back empty. Try again - or use the free template.');
     res.json({ ...d, mailto: B.mailto(l.email, d.subject, d.body) });
   } catch (err) { fail(res, err, 'Could not draft that. Try again, or use the free template.'); }
@@ -731,15 +758,10 @@ app.post('/api/events/:id/read', ...spend, memberOnly, bigJson, async (req, res)
   try {
     const image = photo.validate((req.body || {}).image);
     const viaClaude = async () => ai.validateContact(await askClaude(req, (client, model, onUsage) => ai.readContact(client, model, image, onUsage)));
-    let c;
-    if (providerNow() === 'gemini') {
-      c = await geminiElseClaude(async () => {
-        const s = ai.validateScan(await askGemini(req, gemini.scanRequest({ photo: image }), 'read'));
-        return s && { kind: s.kind, name: s.fields.name.value || '', title: s.fields.title.value || '', company: s.fields.company.value || '', email: s.fields.email.value || '', phone: s.fields.phone.value || '', dropped: s.dropped, fields: s.fields, check: s.check };
-      }, viaClaude);
-    } else {
-      c = await viaClaude();
-    }
+    const c = await byProvider(viaClaude, async () => {
+      const s = ai.validateScan(await askGemini(req, gemini.scanRequest({ photo: image }), 'read'));
+      return s && { kind: s.kind, name: s.fields.name.value || '', title: s.fields.title.value || '', company: s.fields.company.value || '', email: s.fields.email.value || '', phone: s.fields.phone.value || '', dropped: s.dropped, fields: s.fields, check: s.check };
+    });
     if (!c) throw httpError(422, 'We couldn’t read a name, company, email or phone on that. Try a closer, flatter shot - or type it in.');
     res.set('Cache-Control', 'no-store');
     res.json(c);
@@ -765,7 +787,7 @@ app.post('/api/events/:id/read', ...spend, memberOnly, bigJson, async (req, res)
  * read once and dropped with the request - never stored, never logged.
  */
 function scanOn(_req, res, next) {
-  if (providerNow() === 'gemini') return next();
+  if (geminiOn()) return next();
   fail(res, httpError(404, 'Scanning with a voice memo isn’t switched on yet. Snap the card on its own, or type it in.', { code: 'ai-off' }));
 }
 app.post('/api/events/:id/scan', ...spend, memberOnly, scanOn, bigJson, async (req, res) => {
