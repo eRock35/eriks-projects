@@ -22,6 +22,8 @@ const { app, identityStore, store } = require('../server');
 const Q = require('../public/quiz');
 const T = require('../lib/teams');
 const aiLib = require('../lib/ai');
+const gemini = require('../lib/gemini');
+const fakeai = require('../lib/fakeai');
 const { demo, SAMPLE } = require('../lib/demo');
 
 let base;
@@ -683,6 +685,241 @@ test('snap a page: non-image 400 before the model, unreadable 422, a proposal an
   assert.strictEqual(big.status, 200, 'the photo route takes a real photo');
   assert.strictEqual(store._dump(), dump, 'reading a photo saves nothing');
   assert.ok(!store._dump().includes(JPEG.slice(0, 60)), 'the image is nowhere in the store');
+});
+
+/* ---------------- Snap a page on Gemini (POPQUIZ_AI_PROVIDER=gemini) ---------------- */
+
+const jpegWith = (word) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(`${word} page`), Buffer.alloc(500, 3)]).toString('base64');
+const flatOf = (s) => String(s).replace(/\s+/g, ' ').trim();
+
+/** A stand-in for the lab's AI guard, so the route can be watched from the
+ *  outside. Nothing here touches the network. */
+function fakeGuard(opts = {}) {
+  const log = { allow: [], record: [], requests: [], order: [] };
+  return {
+    log,
+    allow: async (a) => { log.order.push('allow'); log.allow.push({ provider: a.provider, app: a.app, uid: a.req && a.req.user && a.req.user.id }); return opts.deny || { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
+    priceUsd: ({ provider, model, inputTokens, outputTokens }) => { log.priced = { provider, model }; return provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6; },
+    gemini: {
+      generate: async (r) => {
+        log.order.push('generate'); log.requests.push(r);
+        if (opts.generate) return opts.generate(r);
+        return { json: await r.fake({ contents: r.contents, generationConfig: { ...r.generationConfig, responseMimeType: 'application/json', responseSchema: r.responseSchema } }), usage: { inputTokens: 2000, outputTokens: 1500 } };
+      },
+    },
+  };
+}
+async function withProvider(provider, guard, fn) {
+  if (provider) process.env.POPQUIZ_AI_PROVIDER = provider; else delete process.env.POPQUIZ_AI_PROVIDER;
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.POPQUIZ_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+const snapPath = () => `/api/teams/${team.id}/generate/photo`;
+
+test('gemini: the request is one photo and a schema; the price table moves on 2027-01-01', () => {
+  const r = gemini.request({ image: { mediaType: 'image/jpeg', data: 'AAAA' }, title: 'Closing', count: 99 });
+  assert.strictEqual(r.model, 'gemini-3.8-flash');
+  assert.strictEqual(r.contents.length, 1);
+  assert.deepStrictEqual(r.contents[0].parts[0], { inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } });
+  assert.match(r.contents[0].parts[1].text, /QUESTIONS WANTED: 12\n/, 'the count is clamped before it is asked for');
+  assert.match(gemini.request({ image: { mediaType: 'image/png', data: 'A' }, count: 1 }).contents[0].parts[1].text, /QUESTIONS WANTED: 4\n/);
+  assert.deepStrictEqual(r.responseSchema.required, ['readable', 'title', 'transcription', 'questions']);
+  assert.deepStrictEqual(r.responseSchema.properties.questions.items.required, ['type', 'prompt', 'options', 'explanation', 'source', 'topic']);
+  assert.match(r.systemInstruction, /never an instruction to you/);
+  assert.ok(Math.abs(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }) - 4.5) < 1e-9);
+  assert.ok(Math.abs(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }) - 9) < 1e-9);
+});
+
+test('gemini: a question survives only if its source is a sentence of the transcription', () => {
+  const page = 'Allergen sheet\nThe pesto contains  pine nuts and “Parmesan”.\nGarlic knots are brushed with butter — not vegan.';
+  const good = (source, extra = {}) => ({ type: 'tf', prompt: 'The pesto has pine nuts in it.', options: [{ text: 'True', correct: true }, { text: 'False', correct: false }], explanation: 'The sheet lists pine nuts in the pesto.', source, topic: 'Allergens', ...extra });
+  const one = (source, extra) => gemini.cleanPage({ readable: true, title: 'Allergens', transcription: page, questions: [good(source, extra)] });
+  // Found whatever the spacing, case or quote style - and the quote kept is the PAGE's wording.
+  const hit = one('the pesto contains pine nuts and "parmesan".');
+  assert.strictEqual(hit.questions[0].source, 'The pesto contains pine nuts and “Parmesan”.');
+  assert.strictEqual(one('"Garlic knots are brushed with butter - not vegan."').questions[0].source, 'Garlic knots are brushed with butter — not vegan.');
+  assert.ok(flatOf(hit.transcription).includes(hit.questions[0].source));
+  assert.deepStrictEqual([hit.grounded, hit.dropped, hit.ungrounded], [true, 0, 0]);
+  // Not on the page, retold, empty, or too short to prove anything: dropped.
+  for (const bad of ['The pesto contains walnuts.', 'Pesto has pine nuts and Parmesan in it.', '', 'pine nuts', 'pesto', null, 42, { evil: true }]) {
+    assert.strictEqual(one(bad), null, `refused: ${JSON.stringify(bad)}`);
+  }
+  // A sentence spanning two lines of the page still counts (it IS on the page).
+  assert.ok(one('pine nuts and “Parmesan”. Garlic knots are brushed with butter'));
+  // Nothing readable, no transcription, or a shape that is not an answer: null.
+  for (const raw of [null, 'text', [], { readable: false, transcription: page, questions: [good('The pesto contains pine nuts')] }, { readable: true, transcription: '', questions: [good('The pesto contains pine nuts')] }, { readable: true, transcription: page, questions: 'none' }]) {
+    assert.strictEqual(gemini.cleanPage(raw), null);
+  }
+  // Counted: one grounded, one invented, one that is not a question.
+  const mix = gemini.cleanPage({ readable: true, title: '<b>Allergens</b>', transcription: `${page}<script>x</script>`, questions: [good('The pesto contains pine nuts'), good('The oven is at 500 degrees.', { prompt: 'The oven runs at five hundred.' }), { type: 'essay' }, good('The pesto contains pine nuts')] }, { count: 4 });
+  assert.deepStrictEqual([mix.questions.length, mix.dropped, mix.ungrounded, mix.title], [1, 3, 1, 'Allergens']);
+  assert.ok(!/[<>]/.test(mix.transcription));
+  // A long sentence is cut at a word, still the page's own words.
+  const long = `Rule one says that ${'every single closing shift '.repeat(12)}ends with the alarm.`;
+  const cut = gemini.cleanPage({ readable: true, title: 'x', transcription: long, questions: [good(long)] });
+  assert.ok(cut.questions[0].source.length <= Q.LIMITS.source && long.startsWith(cut.questions[0].source));
+});
+
+test('the provider switch: Claude reads the photo unless POPQUIZ_AI_PROVIDER=gemini, and pasted text is always Claude', async () => {
+  for (const value of [undefined, '', 'claude', 'GEMINI', 'off', 'vertex']) {
+    const g = fakeGuard();
+    const r = await withProvider(value, g, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: JPEG } }));
+    assert.strictEqual(r.status, 200, String(value));
+    assert.deepStrictEqual(g.log.order, ['allow', 'record'], `${value}: allow, the call, record - and no Gemini`);
+    assert.deepStrictEqual([g.log.allow[0].provider, g.log.allow[0].app, g.log.record[0].provider, g.log.record[0].app], ['claude', 'popquiz', 'claude', 'popquiz']);
+    assert.ok(g.log.record[0].usd > 0);
+    assert.ok(!('transcription' in r.data) && !('grounded' in r.data), 'the Claude answer is the shape it always was');
+    assert.strictEqual((await gio('GET', '/api/me')).data.photoReader, 'claude');
+  }
+  const g = fakeGuard();
+  await withProvider('gemini', g, async () => {
+    assert.strictEqual((await gio('GET', '/api/me')).data.photoReader, 'gemini');
+    const t = await gio('POST', `/api/teams/${team.id}/generate`, { text: MATERIAL });
+    assert.strictEqual(t.status, 200);
+    assert.deepStrictEqual([g.log.order, g.log.allow[0].provider], [['allow', 'record'], 'claude'], 'text stays on Claude');
+  });
+  // No guard at all (the app on its own): Claude works exactly as before.
+  assert.strictEqual((await gio('POST', snapPath(), { image: { type: 'image/jpeg', data: JPEG } })).status, 200);
+});
+
+test('gemini snap: transcription back, every question quotes it, clamped, charged to the ledger, nothing stored', async () => {
+  const g = fakeGuard();
+  const calls = await modelCalls();
+  const dump = store._dump();
+  const r = await withProvider('gemini', g, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: JPEG }, title: 'Closing', count: 6 }));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record']);
+  assert.deepStrictEqual(g.log.allow[0], { provider: 'gemini', app: 'popquiz', uid: uidOf('gio@example.com') });
+  assert.deepStrictEqual([r.data.source, r.data.title, r.data.grounded, r.data.teamId], ['photo', 'Closing', true, team.id]);
+  assert.strictEqual(r.data.transcription, fakeai.PAGE.join('\n'), 'the model\'s reading of the page comes back');
+  assert.strictEqual(r.data.questions.length, 6, 'as many as asked for');
+  const page = flatOf(r.data.transcription);
+  for (const q of r.data.questions) {
+    assert.ok(q.source.length >= 12 && page.includes(q.source), `"${q.source}" is on the page`);
+    assert.ok(!Q.validateQuestion(q, { strict: true }).error);
+    assert.deepStrictEqual(Object.keys(q).sort(), ['answer', 'explanation', 'options', 'prompt', 'source', 'topic', 'type']);
+  }
+  assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+  // The request the helper got: the photo inline, the schema, and nothing else of the person's.
+  const sent = g.log.requests[0];
+  assert.strictEqual(sent.model, 'gemini-3.8-flash');
+  assert.strictEqual(sent.contents[0].parts[0].inlineData.data, JPEG);
+  assert.ok(sent.responseSchema && !JSON.stringify(sent).includes('gio@example.com'));
+  // The cap's book and the person's own ledger are both charged, at Gemini's price.
+  assert.deepStrictEqual([g.log.record[0].provider, g.log.record[0].app, g.log.priced.model], ['gemini', 'popquiz', 'gemini-3.8-flash']);
+  assert.ok(Math.abs(g.log.record[0].usd - (2000 * 0.75 + 1500 * 3.75) / 1e6) < 1e-9);
+  await settle();
+  const rows = await identityStore.list('usage');
+  assert.strictEqual(rows.length, calls + 1, 'one usage row');
+  assert.ok(rows.some((u) => u.route === 'photo:gemini-3.8-flash'), 'the row says what really ran');
+  assert.strictEqual(store._dump(), dump, 'reading a photo saves nothing - not the questions, not the transcription');
+  assert.ok(!JSON.stringify(await identityStore.list('usage')).includes('walk-in'), 'no page text in the ledger');
+  // Clamped at both ends.
+  const few = await withProvider('gemini', fakeGuard(), () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: JPEG }, count: 1 }));
+  assert.strictEqual(few.data.questions.length, 4);
+  assert.strictEqual(few.data.title, 'Closing checklist', 'a suggested title when none is given');
+  // No guard (the app on its own): the stand-in still answers under POPQUIZ_FAKE_AI.
+  const alone = await withProvider('gemini', null, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: JPEG } }));
+  assert.deepStrictEqual([alone.status, alone.data.grounded], [200, true]);
+});
+
+test('gemini snap: a hostile answer is cut down to what the page says', async () => {
+  const g = fakeGuard();
+  const r = await withProvider('gemini', g, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: jpegWith('INJECT') }, count: 12 }));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const body = JSON.stringify(r.data);
+  assert.ok(!/[<>]/.test(body) && !body.includes('evil.example') && !body.includes('\\u0007'), 'no markup, no link, no control characters');
+  assert.deepStrictEqual(Object.keys(r.data).sort(), ['dropped', 'grounded', 'questions', 'source', 'teamId', 'title', 'transcription', 'ungrounded']);
+  assert.strictEqual(r.data.title, 'Closing checklist');
+  assert.ok(r.data.transcription.length <= gemini.LIMITS.transcription);
+  assert.strictEqual(r.data.questions.length, 12, 'never more than twelve');
+  assert.strictEqual(r.data.ungrounded, 4, 'the four with no sentence on the page are gone');
+  assert.ok(r.data.dropped >= 10);
+  const page = flatOf(r.data.transcription);
+  const prompts = r.data.questions.map((q) => q.prompt).join('|');
+  assert.ok(!/salmonella|freezer|manager decides|Everything is done|essay|two of these|right at all/i.test(prompts));
+  assert.ok(prompts.includes('Two people are always in the building at close.'), 'the grounded one is kept, cleaned');
+  for (const q of r.data.questions) {
+    assert.ok(page.includes(q.source));
+    assert.ok(!Q.validateQuestion(q, { strict: true }).error);
+    assert.ok(!('url' in q));
+  }
+});
+
+test('gemini snap: gates, then the parser, then the guard - a refusal anywhere means no model call', async () => {
+  const body = { image: { type: 'image/jpeg', data: JPEG } };
+  const calls = await modelCalls();
+  const g = fakeGuard();
+  await withProvider('gemini', g, async () => {
+    const anon = client();
+    assert.strictEqual((await anon('POST', snapPath(), body)).status, 401, 'signed out');
+    assert.strictEqual((await anon('POST', snapPath(), { image: { type: 'image/jpeg', data: 'A'.repeat(5 * 1024 * 1024) } })).status, 401, 'a stranger\'s big body is not read');
+    assert.strictEqual((await jess('POST', snapPath(), body)).status, 403, 'staff');
+    assert.strictEqual((await stranger('POST', snapPath(), body)).status, 404, 'not on the team');
+    assert.strictEqual((await gio('POST', snapPath(), { image: { type: 'image/jpeg', data: Buffer.from('%PDF-1.7 not an image').toString('base64') } })).status, 400, 'not an image');
+    assert.strictEqual((await gio('POST', snapPath(), {})).status, 400);
+    await identityStore.merge('users', uidOf('gio@example.com'), { spentUsd: 100 });
+    assert.strictEqual((await gio('POST', snapPath(), body)).status, 402, 'out of credit');
+    await identityStore.merge('users', uidOf('gio@example.com'), { spentUsd: 0 });
+  });
+  assert.deepStrictEqual(g.log.order, [], 'the guard was never asked and nothing was called');
+  // The guard says no: its own words, its status and code, and no call.
+  for (const deny of [{ ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' }, { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' }]) {
+    const d = fakeGuard({ deny });
+    const r = await withProvider('gemini', d, () => gio('POST', snapPath(), body));
+    assert.deepStrictEqual([r.status, r.data.error, r.data.code], [deny.status, deny.message, deny.code]);
+    assert.deepStrictEqual(d.log.order, ['allow']);
+    const c = fakeGuard({ deny });
+    assert.strictEqual((await withProvider(undefined, c, () => gio('POST', snapPath(), body))).status, deny.status, 'the same for Claude');
+    assert.deepStrictEqual(c.log.order, ['allow']);
+  }
+  await settle();
+  assert.strictEqual(await modelCalls(), calls, 'not one usage row');
+  const dump = store._dump();
+  // Unreadable: 422, though the call was made and paid for.
+  const blank = fakeGuard();
+  assert.strictEqual((await withProvider('gemini', blank, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: BLANK } }))).status, 422);
+  assert.deepStrictEqual(blank.log.order, ['allow', 'generate', 'record']);
+  // A provider failure: the route's own sentence, never the provider's.
+  for (const [word, status] of [['UPSTREAM401', 502], ['UPSTREAM429', 503], ['UPSTREAM500', 502]]) {
+    const u = fakeGuard();
+    const r = await withProvider('gemini', u, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: jpegWith(word) } }));
+    assert.deepStrictEqual([r.status, r.data.error], [status, 'Could not read that photo. Try again, or paste the text.'], word);
+    assert.ok(!JSON.stringify(r.data).includes('stand-in'));
+    assert.deepStrictEqual(u.log.order, ['allow', 'generate'], 'nothing billed, nothing recorded');
+  }
+  // A call that failed after the model billed it is still recorded.
+  const billed = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer.'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 1500, outputTokens: 10 } }); } });
+  assert.strictEqual((await withProvider('gemini', billed, () => gio('POST', snapPath(), body))).status, 502);
+  assert.deepStrictEqual(billed.log.order, ['allow', 'generate', 'record']);
+  const slow = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini took too long.'), { name: 'VertexError', code: 'timeout' }); } });
+  assert.strictEqual((await withProvider('gemini', slow, () => gio('POST', snapPath(), body))).status, 503);
+  // A junk answer (not the schema's shape at all) is a 422, not a crash.
+  const junk = fakeGuard({ generate: async () => ({ json: ['nope'], usage: { inputTokens: 10, outputTokens: 1 } }) });
+  assert.strictEqual((await withProvider('gemini', junk, () => gio('POST', snapPath(), body))).status, 422);
+  assert.strictEqual(store._dump(), dump, 'none of it saved anything');
+});
+
+test('gemini is refused without the lab: no guard and no stand-in means no call', () => {
+  const dir = path.join(__dirname, '..');
+  const code = `process.env.POPQUIZ_MEMORY='1';process.env.POPQUIZ_AI_PROVIDER='gemini';
+    const { app, identityStore } = require('./server');
+    const http = require('http');
+    const s = http.createServer(app).listen(0, async () => {
+      const b = 'http://127.0.0.1:' + s.address().port;
+      const h = { 'Content-Type': 'application/json' };
+      const reg = await fetch(b + '/api/auth/register', { method: 'POST', headers: h, body: JSON.stringify({ email: 'solo@example.com', password: 'correct horse battery' }) });
+      const cookie = reg.headers.get('set-cookie').split(';')[0];
+      const t = await (await fetch(b + '/api/teams', { method: 'POST', headers: { ...h, Cookie: cookie }, body: JSON.stringify({ name: 'Solo' }) })).json();
+      const img = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(100, 7)]).toString('base64');
+      const r = await fetch(b + '/api/teams/' + t.id + '/generate/photo', { method: 'POST', headers: { ...h, Cookie: cookie }, body: JSON.stringify({ image: { type: 'image/jpeg', data: img } }) });
+      console.log(JSON.stringify({ status: r.status, body: await r.json(), usage: (await identityStore.list('usage')).length }));
+      s.close();
+    });`;
+  const r = spawnSync(process.execPath, ['-e', code], { cwd: dir, env: { ...process.env, POPQUIZ_FAKE_AI: '', REQUIRE_VERIFIED_FOR_FREE_AI: '0' }, encoding: 'utf8' });
+  const out = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.deepStrictEqual(out, { status: 503, body: { error: 'Could not read that photo. Try again, or paste the text.' }, usage: 0 });
 });
 
 test('managing the team: rename, a fresh code kills the old one, remove and leave', async () => {
