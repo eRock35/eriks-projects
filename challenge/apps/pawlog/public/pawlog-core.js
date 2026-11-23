@@ -41,7 +41,9 @@
     label: 40,         // "Evening walk (long one)"
     note: 400,         // a pet's notes for the sitter
     medName: 50,
-    dose: 60,          // "4 drops, left ear"
+    dose: 80,          // "4 drops, left ear" - or amount · strength · with food
+    medAmount: 36,     // read off paperwork: "1 tablet", "0.5 ml by mouth"
+    medStrength: 24,   // "25 mg", "50 mg/ml"
     healthName: 60,
     practice: 60,
     members: 12,
@@ -1030,6 +1032,132 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * A medicine read off vet paperwork (the Gemini reader), checked by the
+   * person before it is saved. The reader only TRANSCRIBES: every field is
+   * the paper's own words or nothing, with how sure the reader is. Nothing
+   * here suggests, rounds or changes a dose. The reminder times, the repeat
+   * and the last day are worked out HERE, from the fields the person has
+   * confirmed - never by a model. Anything unclear or missing is flagged,
+   * and medFromDraft refuses to make a medicine until each flagged field
+   * has been confirmed or typed, and the whole thing checked against the
+   * label.
+   * ------------------------------------------------------------------ */
+
+  const MED_FIELDS = ['name', 'strength', 'amount', 'frequency', 'days', 'food', 'start'];
+  const MED_FIELD_LABELS = { name: 'Medicine', strength: 'Strength', amount: 'Amount each time', frequency: 'How often', days: 'For how many days', food: 'With food', start: 'Starts' };
+  const FOODS = [{ id: 'with', label: 'With food' }, { id: 'without', label: 'Without food' }, { id: 'none', label: 'Not stated' }];
+  /** How often, as the app can schedule it. The times are the app's own
+   *  defaults, spread through the day; the person can move them. */
+  const FREQUENCIES = [
+    { id: 'd1', label: 'Once a day', times: [480], repeat: { every: 'day', n: 1 } },
+    { id: 'd2', label: 'Twice a day', times: [480, 1200], repeat: { every: 'day', n: 1 } },
+    { id: 'd3', label: '3 times a day', times: [480, 840, 1320], repeat: { every: 'day', n: 1 } },
+    { id: 'd4', label: '4 times a day', times: [480, 720, 960, 1200], repeat: { every: 'day', n: 1 } },
+    { id: 'e2', label: 'Every other day', times: [480], repeat: { every: 'days', n: 2 } },
+    { id: 'w1', label: 'Once a week', times: [480], repeat: { every: 'week', n: 1 } },
+    { id: 'm1', label: 'Once a month', times: [480], repeat: { every: 'month', n: 1 } },
+  ];
+  const frequencyOf = (id) => FREQUENCIES.find((f) => f.id === id) || null;
+  /** The label's words for how often -> one of FREQUENCIES, or null. Unlike
+   *  parseSchedule there is NO fallback: words this does not know are for
+   *  the person to answer, never a guess. "As needed" is never scheduled. */
+  function parseFrequency(words) {
+    const s = fold(words);
+    if (!s || /\b(?:as needed|as required|when needed|if needed|prn|p r n|then|followed by|taper|tapering|reduce|reducing|increase|increasing|until|or)\b/.test(s)) return null;
+    const hit = [];
+    if (/\b(?:four times|4 times|4x|qid|q i d|every 6 hours|every six hours|6 hourly|q6h)\b/.test(s)) hit.push('d4');
+    if (/\b(?:three times|3 times|3x|tid|t i d|every 8 hours|every eight hours|8 hourly|q8h)\b/.test(s)) hit.push('d3');
+    if (/\b(?:twice|two times|2 times|2x|bid|b i d|every 12 hours|every twelve hours|12 hourly|q12h|morning and (?:evening|night))\b/.test(s)) hit.push('d2');
+    if (/\b(?:every other day|every second day|alternate days|every 2 days|every 48 hours|eod|q48h)\b/.test(s)) hit.push('e2');
+    if (/\b(?:weekly|once a week|once weekly|every week|every 7 days)\b/.test(s)) hit.push('w1');
+    if (/\b(?:monthly|once a month|once monthly|every month)\b/.test(s)) hit.push('m1');
+    if (!hit.length && /\b(?:once daily|once a day|once per day|one time a day|daily|every day|each day|every 24 hours|q24h|sid|s i d|every morning|every evening|every night|at bedtime)\b/.test(s)) hit.push('d1');
+    // "twice daily" also says "daily": the day words only count alone. Two
+    // different answers in one line is unclear, and unclear is a question.
+    if (hit.length !== 1) return null;
+    // "twice a week" is not twice a day: with a week or a month in the
+    // words, only the plain weekly and monthly answers stand.
+    if (/\b(?:week|weeks|weekly|month|months|monthly|fortnight|fortnightly)\b/.test(s) && hit[0] !== 'w1' && hit[0] !== 'm1') return null;
+    return hit[0];
+  }
+  /** One read field: the value (or null) and whether the person must check
+   *  it - missing, or the reader was anything less than sure. */
+  function draftField(f) {
+    const x = f && typeof f === 'object' ? f : {};
+    const value = x.value === undefined ? null : x.value;
+    const sure = x.confidence === 'high' && value !== null;
+    return { value, confidence: value === null ? null : (['high', 'medium', 'low'].includes(x.confidence) ? x.confidence : 'low'), flagged: !sure };
+  }
+  /** A reading (lib/gemini.js cleanMeds) -> what the review sheet shows:
+   *  the fields as read, which need checking, and the schedule the app
+   *  works out. Nothing is filled in that the paper did not say - except
+   *  the start, which is today and flagged when the paper gives none. */
+  function medDraft(reading, today) {
+    const r = reading && typeof reading === 'object' ? reading : {};
+    const fields = {};
+    for (const k of MED_FIELDS) fields[k] = draftField(r[k]);
+    const freq = typeof fields.frequency.value === 'string' ? parseFrequency(fields.frequency.value) : null;
+    if (!freq) fields.frequency.flagged = true;
+    if (fields.food.value !== 'with' && fields.food.value !== 'without') { fields.food.value = 'none'; }
+    if (!isDay(fields.start.value)) { fields.start.value = today; fields.start.flagged = true; fields.start.assumed = true; }
+    return { fields, said: typeof fields.frequency.value === 'string' ? fields.frequency.value : '', freq, times: freq ? frequencyOf(freq).times.slice() : [] };
+  }
+  /** The last day of a course: the start plus its days, counting the first. */
+  function courseEnd(start, days) {
+    return isDay(start) && Number.isInteger(days) && days >= 1 && days <= 730 ? addDays(start, days - 1) : null;
+  }
+  /** The dose line a medicine keeps, from the confirmed words - joined, never
+   *  reworded: "1 tablet · 25 mg · with food". */
+  function doseLine(amount, strength, food) {
+    return [amount, strength, food === 'with' ? 'with food' : food === 'without' ? 'without food' : ''].filter(Boolean).join(' · ');
+  }
+  /** What the person confirmed -> the `med` change, or a 400 that says what
+   *  is still to check. `input` is {pet, name, strength, amount, freq, times,
+   *  days, ongoing, food, start, flagged: [field...], confirmed: {field:
+   *  true}, checked}. A flagged field counts once it is confirmed (ticked
+   *  "matches the label", or typed afresh). Nothing is trimmed to fit: a
+   *  value too long is refused, not shortened. */
+  function medFromDraft(input, today) {
+    const x = input && typeof input === 'object' ? input : {};
+    const exact = (v, max, what, need) => {
+      const s = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+      if (!s) { if (need) throw fail(400, `${what}: type what the label says.`, { field: need }); return ''; }
+      if (cleanText(s, max) !== s) throw fail(400, `${what}: keep it to ${max} plain characters - copy the label’s words.`, { field: need || 'strength' });
+      return s;
+    };
+    const name = exact(x.name, LIMITS.medName, 'Medicine', 'name');
+    const amount = exact(x.amount, LIMITS.medAmount, 'Amount each time', 'amount');
+    const strength = exact(x.strength, LIMITS.medStrength, 'Strength', '');
+    const f = frequencyOf(x.freq);
+    if (!f) throw fail(400, 'How often: choose it from the list, as the label says.', { field: 'frequency' });
+    const times = [...new Set((Array.isArray(x.times) ? x.times : []).filter(isMin))].sort((a, b) => a - b);
+    if (times.length !== f.times.length) throw fail(400, `How often: ${f.label.toLowerCase()} needs ${plural(f.times.length, 'different time')}.`, { field: 'frequency' });
+    const start = isDay(x.start) ? x.start : null;
+    if (!start || start < addDays(today, -60) || start > addDays(today, 60)) throw fail(400, 'Starts: pick the first day.', { field: 'start' });
+    let until = null;
+    if (x.ongoing !== true) {
+      const days = typeof x.days === 'number' ? x.days : (/^\d{1,3}$/.test(String(x.days || '').trim()) ? Number(String(x.days).trim()) : NaN);
+      until = courseEnd(start, days);
+      if (!until) throw fail(400, 'For how many days: type the number on the label, or tick “no end date”.', { field: 'days' });
+    }
+    const food = x.food === 'with' || x.food === 'without' ? x.food : 'none';
+    const confirmed = x.confirmed && typeof x.confirmed === 'object' ? x.confirmed : {};
+    const open = (Array.isArray(x.flagged) ? x.flagged : []).filter((k) => MED_FIELDS.includes(k) && confirmed[k] !== true);
+    if (open.length) throw fail(400, `Still to check against the label: ${open.map((k) => MED_FIELD_LABELS[k].toLowerCase()).join(', ')}.`, { field: open[0], open });
+    if (x.checked !== true) throw fail(400, 'Tick that you’ve checked it against the label first.', { field: 'checked' });
+    const dose = doseLine(amount, strength, food);
+    if (Array.from(dose).length > LIMITS.dose) throw fail(400, 'That dose line is too long to keep whole - shorten the amount or the strength to the label’s key words.', { field: 'amount' });
+    return { pet: x.pet, name, dose, times, repeat: { every: f.repeat.every, n: f.repeat.n, anchor: start }, start, until };
+  }
+  /** "Twice a day at 8:00am and 8:00pm, Nov 23 to Dec 2 (10 days)". */
+  function scheduleWords(freq, times, start, until, today) {
+    const f = frequencyOf(freq);
+    if (!f) return '';
+    const days = until ? daysBetween(start, until) + 1 : null;
+    return `${f.label} at ${times.map(fmtTime).join(' and ')}, ${until ? `${fmtDay(start, today)} to ${fmtDay(until, today)} (${plural(days, 'day')})` : `from ${fmtDay(start, today)}, no end date`}`;
+  }
+
+  /* ------------------------------------------------------------------ *
    * The sample home: a made-up dog and cat, a household of three, today
    * half done, a medicine course, a vaccination due in 9 days and a week
    * of history - so every part of the app has something to show in one
@@ -1113,5 +1241,6 @@
     week, streak, fairShare,
     act, memberView, sitterView,
     icsText, icsFold, buildIcs, parseSchedule, sample,
+    MED_FIELDS, MED_FIELD_LABELS, FOODS, FREQUENCIES, frequencyOf, parseFrequency, medDraft, courseEnd, doseLine, medFromDraft, scheduleWords,
   };
 });
