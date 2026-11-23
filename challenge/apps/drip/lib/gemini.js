@@ -36,7 +36,8 @@ const SCHEMA = {
   properties: {
     items: {
       type: 'ARRAY',
-      maxItems: Core.LIMITS.snapItems,
+      // No maxItems: Vertex refuses this schema (400) with maxItems over
+      // about 20 (checked live 2026-11-23). cleanReading keeps 60 rows.
       items: {
         type: 'OBJECT',
         properties: {

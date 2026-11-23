@@ -884,7 +884,8 @@ test('gemini snap: gates, then the parser, then the guard - a refusal anywhere m
     const d = fakeGuard({ deny });
     const r = await withProvider('gemini', d, () => gio('POST', snapPath(), body));
     assert.deepStrictEqual([r.status, r.data.error, r.data.code], [deny.status, deny.message, deny.code]);
-    assert.deepStrictEqual(d.log.order, ['allow']);
+    // The Gemini cap falls back to Claude's own allow (capped too here); a burst does not.
+    assert.deepStrictEqual(d.log.order, deny.code === 'monthly-cap' ? ['allow', 'allow'] : ['allow']);
     const c = fakeGuard({ deny });
     assert.strictEqual((await withProvider(undefined, c, () => gio('POST', snapPath(), body))).status, deny.status, 'the same for Claude');
     assert.deepStrictEqual(c.log.order, ['allow']);
@@ -892,28 +893,52 @@ test('gemini snap: gates, then the parser, then the guard - a refusal anywhere m
   await settle();
   assert.strictEqual(await modelCalls(), calls, 'not one usage row');
   const dump = store._dump();
-  // Unreadable: 422, though the call was made and paid for.
+  // Unreadable on Gemini (paid for) -> Claude reads it too, and its 422 stands.
   const blank = fakeGuard();
   assert.strictEqual((await withProvider('gemini', blank, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: BLANK } }))).status, 422);
-  assert.deepStrictEqual(blank.log.order, ['allow', 'generate', 'record']);
-  // A provider failure: the route's own sentence, never the provider's.
-  for (const [word, status] of [['UPSTREAM401', 502], ['UPSTREAM429', 503], ['UPSTREAM500', 502]]) {
+  assert.deepStrictEqual(blank.log.order, ['allow', 'generate', 'record', 'allow', 'record']);
+  // A provider failure falls back to Claude: never the provider's words.
+  for (const word of ['UPSTREAM401', 'UPSTREAM429', 'UPSTREAM500']) {
     const u = fakeGuard();
     const r = await withProvider('gemini', u, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: jpegWith(word) } }));
-    assert.deepStrictEqual([r.status, r.data.error], [status, 'Could not read that photo. Try again, or paste the text.'], word);
+    assert.deepStrictEqual([r.status, r.data.reader, 'grounded' in r.data], [200, 'claude', false], word);
     assert.ok(!JSON.stringify(r.data).includes('stand-in'));
-    assert.deepStrictEqual(u.log.order, ['allow', 'generate'], 'nothing billed, nothing recorded');
+    assert.deepStrictEqual(u.log.order, ['allow', 'generate', 'allow', 'record'], 'Gemini billed nothing; Claude recorded');
   }
-  // A call that failed after the model billed it is still recorded.
+  // A call that failed after the model billed it is still recorded, then Claude answers.
   const billed = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer.'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 1500, outputTokens: 10 } }); } });
-  assert.strictEqual((await withProvider('gemini', billed, () => gio('POST', snapPath(), body))).status, 502);
-  assert.deepStrictEqual(billed.log.order, ['allow', 'generate', 'record']);
+  assert.strictEqual((await withProvider('gemini', billed, () => gio('POST', snapPath(), body))).status, 200);
+  assert.deepStrictEqual([billed.log.order, billed.log.record.map((x) => x.provider)], [['allow', 'generate', 'record', 'allow', 'record'], ['gemini', 'claude']]);
   const slow = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini took too long.'), { name: 'VertexError', code: 'timeout' }); } });
-  assert.strictEqual((await withProvider('gemini', slow, () => gio('POST', snapPath(), body))).status, 503);
-  // A junk answer (not the schema's shape at all) is a 422, not a crash.
+  assert.strictEqual((await withProvider('gemini', slow, () => gio('POST', snapPath(), body))).data.reader, 'claude');
+  // A junk answer (not the schema's shape at all) is unusable: Claude answers, no crash.
   const junk = fakeGuard({ generate: async () => ({ json: ['nope'], usage: { inputTokens: 10, outputTokens: 1 } }) });
-  assert.strictEqual((await withProvider('gemini', junk, () => gio('POST', snapPath(), body))).status, 422);
+  const jr = await withProvider('gemini', junk, () => gio('POST', snapPath(), body));
+  assert.deepStrictEqual([jr.status, jr.data.reader], [200, 'claude']);
   assert.strictEqual(store._dump(), dump, 'none of it saved anything');
+});
+
+test('gemini snap fallback: only the Gemini cap -> Claude answers, logged once; a burst -> the guard\'s 429 and no Claude call', async () => {
+  const body = { image: { type: 'image/jpeg', data: JPEG } };
+  const cap = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+  const g = fakeGuard();
+  g.allow = async (a) => { g.log.order.push('allow:' + a.provider); return a.provider === 'gemini' ? cap : { ok: true }; };
+  const logs = [];
+  const orig = console.log;
+  console.log = (...a) => logs.push(a.join(' '));
+  let r;
+  try { r = await withProvider('gemini', g, () => gio('POST', snapPath(), body)); } finally { console.log = orig; }
+  assert.deepStrictEqual([r.status, r.data.reader, r.data.source, g.log.order], [200, 'claude', 'photo', ['allow:gemini', 'allow:claude', 'record']]);
+  assert.ok(r.data.questions.length > 0);
+  assert.deepStrictEqual(logs.filter((l) => l.startsWith('[popquiz]')), ['[popquiz] gemini failed (monthly-cap); used claude']);
+  const calls = await modelCalls();
+  const b = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-day', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  const br = await withProvider('gemini', b, () => gio('POST', snapPath(), body));
+  await settle();
+  assert.deepStrictEqual([br.status, br.data.code, b.log.order, await modelCalls()], [429, 'burst-day', ['allow'], calls]);
+  // Switch off: no reader field, as before.
+  const off = await withProvider(undefined, fakeGuard(), () => gio('POST', snapPath(), body));
+  assert.deepStrictEqual([off.status, 'reader' in off.data], [200, false]);
 });
 
 test('gemini is refused without the lab: no guard and no stand-in means no call', () => {
@@ -934,7 +959,8 @@ test('gemini is refused without the lab: no guard and no stand-in means no call'
     });`;
   const r = spawnSync(process.execPath, ['-e', code], { cwd: dir, env: { ...process.env, POPQUIZ_FAKE_AI: '', REQUIRE_VERIFIED_FOR_FREE_AI: '0' }, encoding: 'utf8' });
   const out = JSON.parse(r.stdout.trim().split('\n').pop());
-  assert.deepStrictEqual(out, { status: 503, body: { error: 'Could not read that photo. Try again, or paste the text.' }, usage: 0 });
+  // No helper falls back to Claude, which (no key here) fails the usual way: 500 with the route's sentence.
+  assert.deepStrictEqual(out, { status: 500, body: { error: 'Could not read that photo. Try again, or paste the text.' }, usage: 0 });
 });
 
 test('managing the team: rename, a fresh code kills the old one, remove and leave', async () => {

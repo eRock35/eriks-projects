@@ -520,7 +520,12 @@ async function writeWithClaude(req, ask) {
  *  (the app on its own) only the local stand-in can answer; a real call
  *  needs the lab. The photo rides in this one request and is kept nowhere. */
 async function readWithGemini(req, ask) {
-  await guardAllow('gemini', req);
+  // Every failure past the burst limits carries `fallback` (a short code):
+  // the route then reads the same photo with Claude.
+  try { await guardAllow('gemini', req); } catch (err) {
+    if (err && err.code === 'monthly-cap') err.fallback = 'monthly-cap';
+    throw err;
+  }
   const guard = global.LAB_AI_GUARD;
   const request = gemini.request(ask);
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
@@ -531,7 +536,7 @@ async function readWithGemini(req, ask) {
       usage: { inputTokens: 1800, outputTokens: 1400 },
     });
   }
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -541,14 +546,17 @@ async function readWithGemini(req, ask) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), fallback: String((err && err.code) || 'error').slice(0, 20) });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
       await chargeGemini(req, usage);
     }
   }
-  return gemini.cleanPage(out && out.json, { title: ask.title, count: ask.count });
+  let page = null;
+  try { page = gemini.cleanPage(out && out.json, { title: ask.title, count: ask.count }); } catch (err) { page = null; }
+  if (!page) throw Object.assign(new Error('gemini answer unusable'), { status: 422, fallback: 'unusable' });
+  return page;
 }
 
 /** The person's own ledger (their credit, and the free tier's daily
@@ -593,10 +601,23 @@ app.post('/api/teams/:id/generate/photo', ...spend, bigJson, async (req, res) =>
     const image = photo.validate(b.image);
     const title = T.clean(b.title, T.LIMITS.deckTitle);
     const ask = { image, title, count: b.count };
-    const proposal = providerNow() === 'gemini' ? await readWithGemini(req, ask) : await writeWithClaude(req, ask);
+    const viaGemini = providerNow() === 'gemini';
+    let reader = viaGemini ? 'gemini' : 'claude'; // sent only when Claude stood in
+    let proposal;
+    try {
+      proposal = viaGemini ? await readWithGemini(req, ask) : await writeWithClaude(req, ask);
+    } catch (err) {
+      // Gemini could not read it (a thrown call, an unusable answer, its
+      // monthly cap, no helper): Claude's reader, unchanged. A burst refusal
+      // is the person's across both providers: no fallback.
+      if (!viaGemini || !err || !err.fallback) throw err;
+      console.log(`[popquiz] gemini failed (${err.fallback}); used claude`);
+      proposal = await writeWithClaude(req, ask);
+      reader = 'claude';
+    }
     if (!proposal) throw httpError(422, 'We couldn’t read training material in that photo. Try a sharper, closer shot of one page - or paste the text.');
     res.set('Cache-Control', 'no-store');
-    res.json({ ...proposal, source: 'photo', teamId: t.id });
+    res.json({ ...proposal, source: 'photo', teamId: t.id, ...(reader !== (viaGemini ? 'gemini' : 'claude') ? { reader } : {}) });
   } catch (err) { fail(res, err, 'Could not read that photo. Try again, or paste the text.'); }
 });
 

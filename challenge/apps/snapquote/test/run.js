@@ -756,6 +756,7 @@ test('read failures are plain sentences: not a job is a 422, a provider error a 
     await withGemini(billed, async () => {
       assert.strictEqual((await alice('POST', '/api/quotes/read', { note: 'Repaint the living room' })).status, 502);
       assert.strictEqual(billed.log.record.length, 1);
+      assert.deepStrictEqual(billed.log.allow.map((x) => x.provider), ['gemini'], 'Gemini-only: no Claude fallback for a read');
     });
     // with no guard and no stand-in helper the app still answers through the local stand-in
     await withGemini(null, async () => assert.strictEqual((await alice('POST', '/api/quotes/read', { note: 'Repaint the living room' })).status, 200));

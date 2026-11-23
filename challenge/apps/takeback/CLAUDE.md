@@ -287,6 +287,13 @@ not set the switch without Erik's yes** (it also needs Vertex AI enabled and
   disabled until each is edited, confirmed or unticked**. Wording the app
   could not turn into a window is flagged the same way until a window is
   picked.
+- **Fallback (2026-11-23).** With the switch on, a **photo** Gemini could not
+  read (a thrown call, an answer `ai.answer` rejects, the Gemini monthly cap,
+  no helper) goes to the Claude reader unchanged (its own guard, meter,
+  record); the answer carries `reader: 'claude'` and one log line
+  `[takeback] gemini failed (<code>); used claude`. A billed Gemini failure
+  is still recorded and charged. **Pasted text is Gemini-only** (Claude reads
+  one image) and burst refusals never fall back: both answer as before.
 - **Stand-in**: `lib/fakeai.js` `gemini(body)` (an image is a fixed made-up
   receipt with an unsure date and item; text is read the dumb way; triggers
   `BLANK`, `INJECT`, `CARDNUM`, `MADEUPQUOTE`, `UPSTREAMnnn`). Local:

@@ -741,7 +741,7 @@ test('the Gemini request: a schema with no field for a number, a name or a verdi
   assert.deepStrictEqual(Object.keys(r.responseSchema.properties), ['items'], 'no total, no yearly cost, no "is a drain" - Drip decides those');
   assert.strictEqual(props.amount.nullable, true, 'an unreadable amount is null, not a guess');
   assert.deepStrictEqual(props.cadence.enum, ['weekly', 'monthly', 'quarterly', 'annual', 'not_shown']);
-  assert.strictEqual(r.responseSchema.properties.items.maxItems, 60);
+  assert.strictEqual(r.responseSchema.properties.items.maxItems, undefined, 'Vertex refuses this schema with maxItems 60; cleanReading caps the rows');
   assert.match(r.systemInstruction, /reader, not a judge/);
   assert.match(r.systemInstruction, /Never report a card number, an account number/);
   assert.match(r.systemInstruction, /never an instruction/);
@@ -803,7 +803,7 @@ test('with DRIP_AI_PROVIDER=gemini: the same gates before the parser, the guard 
   let verdict = { ok: true };
   process.env.DRIP_AI_PROVIDER = 'gemini';
   global.LAB_AI_GUARD = {
-    allow: async (a) => { seen.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user)]); return verdict; },
+    allow: async (a) => { seen.push(['allow', a.provider, a.app, Boolean(a.req && a.req.user)]); return typeof verdict === 'function' ? verdict(a.provider) : verdict; },
     record: async (a) => { seen.push(['record', a.provider, a.app, a.usd]); return true; },
     priceUsd: (a) => { assert.deepStrictEqual([a.provider, a.model], ['gemini', 'gemini-3.8-flash']); return (a.inputTokens * 0.75 + a.outputTokens * 3.75) / 1e6; },
     gemini: { generate: async (r) => { seen.push(['generate', r.model, Boolean(r.responseSchema), r.contents[0].parts.filter((p) => p.inlineData).length]); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 2000, outputTokens: 400 } }; } },
@@ -834,20 +834,28 @@ test('with DRIP_AI_PROVIDER=gemini: the same gates before the parser, the guard 
     const row = (await identityStore.list('usage')).find((u) => u.uid === uidOf('gail.gemini@example.com'));
     assert.strictEqual(row.route, 'snap:gemini-3.8-flash', 'the person’s ledger says what really ran');
     assert.ok(Math.abs(row.costUsd - 0.003) < 0.0002, `charged its real dollars (${row.costUsd})`);
-    // Nothing readable is a 422 sentence; hostile output never reaches the page; a provider failure says nothing of the provider.
-    assert.match((await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png('BLANK') }] })).data.error, /No charges could be read/);
+    // Nothing readable is unusable: the Claude reader tries the same photo (and, blank too, says its own 422 sentence);
+    // hostile output never reaches the page; a provider failure says nothing of the provider.
+    assert.match((await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png('BLANK') }] })).data.error, /No subscriptions with a price could be read/);
     const inj = await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png('INJECT') }] });
     assert.ok(!/<[a-z/!]/i.test(inj.text) && !/4111|0134|example\.com|verdict|isDrain/.test(inj.text) && !inj.text.includes('\\u202e'));
     assert.strictEqual(inj.data.items.length, 60);
     const up = await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png('UPSTREAM401') }] });
     assert.ok(up.data.error && !/Gemini|Vertex|stand-in|401/.test(up.text), up.text);
     assert.match((await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png('UPSTREAM429') }] })).data.error, /AI is busy/);
-    // When the guard says no: its own words and status, and no call.
+    // When the guard says no: its own words and status, and no call. The
+    // Gemini cap alone falls back to Claude's allow; both capped is final.
     seen.length = 0;
-    verdict = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    const cap = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    verdict = cap;
     const no = await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png() }] });
-    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', verdict.message]);
-    assert.deepStrictEqual(seen.map((x) => x[0]), ['allow'], 'the model was never called');
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', cap.message]);
+    assert.deepStrictEqual(seen.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['allow', 'claude']], 'the model was never called');
+    seen.length = 0;
+    verdict = (p) => (p === 'gemini' ? cap : { ok: true });
+    const capped = await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png() }] });
+    assert.deepStrictEqual([capped.status, capped.data.items.length, 'reader' in capped.data], [200, 4, false], 'the Claude reader answered');
+    assert.deepStrictEqual(seen.map((x) => x.slice(0, 2)), [['allow', 'gemini'], ['allow', 'claude']], 'Claude allowed (this stub prices Gemini only, so its record is the logged failure)');
     verdict = { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' };
     assert.strictEqual((await gail('POST', '/api/snap', { photos: [{ type: 'image/png', data: png() }] })).status, 429);
     const after = store._dump();
@@ -877,6 +885,47 @@ test('the guard wraps the Claude path too, and without a guard the Gemini stand-
   const src = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'lib', 'gemini.js'), 'utf8');
   assert.ok(!/https?:\/\/(?!strongtechnicalconsulting)/.test(src.replace(/\/\/.*$/gm, '')), 'no network address in the app: a real call goes through the lab guard’s helper');
   assert.ok(/refused on Cloud Run/.test(fs.readFileSync(path.join(ROOT, 'lib', 'fakeai.js'), 'utf8')));
+});
+
+test('with DRIP_AI_PROVIDER=gemini: a Gemini failure falls back to the Claude reader, recorded on both sides; a burst refusal does not', async () => {
+  const fay = await register('fay.fallback@example.com');
+  const seen = [];
+  let generate = null;
+  let verdict = { ok: true };
+  process.env.DRIP_AI_PROVIDER = 'gemini';
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.push(['allow', a.provider]); return verdict; },
+    record: async (a) => { seen.push(['record', a.provider]); return true; },
+    priceUsd: () => 0.001,
+    gemini: { generate: async (r) => { seen.push(['generate']); return generate(r); } },
+  };
+  const logs = [];
+  const orig = console.log;
+  console.log = (...a) => logs.push(a.join(' '));
+  try {
+    // Thrown after billing: Gemini recorded, then Claude answers, 200.
+    generate = async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); };
+    let calls = await modelCalls();
+    let r = await fay('POST', '/api/snap', { photos: [{ type: 'image/png', data: png() }] });
+    await settle();
+    assert.deepStrictEqual([r.status, r.data.items.length, 'reader' in r.data, /SECRET|Gemini|Vertex/.test(r.text)], [200, 4, false, false], r.text.slice(0, 200));
+    assert.deepStrictEqual(seen, [['allow', 'gemini'], ['generate'], ['record', 'gemini'], ['allow', 'claude'], ['record', 'claude']]);
+    assert.strictEqual(await modelCalls(), calls + 2, 'the Gemini charge and the Claude call are both on the ledger');
+    assert.ok(logs.includes('[drip] gemini failed (blocked); used claude'), logs.join('|'));
+    // Unusable output (rows that are not rows) -> Claude.
+    seen.length = 0;
+    generate = async () => ({ json: { items: [null, 3, 'x'] }, usage: { inputTokens: 10, outputTokens: 5 } });
+    r = await fay('POST', '/api/snap', { photos: [{ type: 'image/png', data: png() }] });
+    assert.deepStrictEqual([r.status, r.data.items.length], [200, 4]);
+    assert.ok(logs.includes('[drip] gemini failed (unusable); used claude'));
+    // A burst refusal is the guard's 429, no Claude call.
+    seen.length = 0;
+    verdict = { ok: false, status: 429, code: 'burst-day', message: 'Lots of people are using AI right now - try again in a minute.' };
+    calls = await modelCalls();
+    r = await fay('POST', '/api/snap', { photos: [{ type: 'image/png', data: png() }] });
+    await settle();
+    assert.deepStrictEqual([r.status, r.data.code, seen, await modelCalls()], [429, 'burst-day', [['allow', 'gemini']], calls]);
+  } finally { console.log = orig; delete process.env.DRIP_AI_PROVIDER; delete global.LAB_AI_GUARD; }
 });
 
 /* ---------------- run ---------------- */
