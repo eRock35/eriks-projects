@@ -33,6 +33,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/again-core');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const identityLib = require('./lib/identity');
 
 const PORT = process.env.PORT || 8080;
@@ -43,6 +44,12 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('AGAIN_FAKE_AI=1 is for lo
 // identity.planFor, like every sibling. Both read an image and take a
 // forced tool.
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
+
+// Which model reads a photo. AGAIN_AI_PROVIDER=gemini moves the menu reader
+// to Gemini on Vertex AI (through the lab's AI guard) and turns on "Snap my
+// plate"; anything else - unset included - is the provider Again has always
+// had, so nothing changes until the switch is set. Read per request.
+const providerNow = () => (process.env.AGAIN_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const LIMITS = {
   listWrites: 120,                    // list saves per account...
@@ -78,7 +85,7 @@ const aiJson = express.json({ limit: '1500kb' });
 const listJson = express.json({ limit: '1100kb' });
 const shareJson = express.json({ limit: '64kb' });
 const smallJson = express.json({ limit: '16kb' });
-const OWN_PARSER = /^\/api\/(ai\/menu|list|shares)$/;
+const OWN_PARSER = /^\/api\/(ai\/menu|ai\/plate|list|shares)$/;
 app.use((req, res, next) => (OWN_PARSER.test(req.path) ? next() : smallJson(req, res, next)));
 
 /* ------------------------------------------------------------------ *
@@ -180,8 +187,8 @@ app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: 
 
 app.get('/api/me', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!req.user) return res.json({ signedIn: false });
-  res.json({ signedIn: true, email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
+  if (!req.user) return res.json({ signedIn: false, reader: providerNow() });
+  res.json({ signedIn: true, reader: providerNow(), email: req.user.email, budget: identityLib.budgetFor(req.user), tier: identityLib.planFor(req.user, MODELS).tier, sync: Boolean(SECRET()) });
 });
 
 /* ------------------------------------------------------------------ *
@@ -335,15 +342,103 @@ app.all('/api/s/:code', (_req, res) => res.status(405).set('Allow', 'GET').json(
  * Metered: "Read the menu" (and "What should I order?")
  * ------------------------------------------------------------------ */
 
+/** The lab's AI guard (monthly cap per provider, burst limits), when the
+ *  host has one. Its "no" is sent in its own friendly words and no model is
+ *  called. */
+async function guardAllow(provider, req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const a = await guard.allow({ provider, req, app: 'again' });
+  if (!a || !a.ok) throw httpError((a && a.status) || 503, (a && a.message) || 'AI is resting for now. Adding dishes by hand always works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** Tell the guard what a call cost. Never fails the answer it measured. */
+async function guardRecord(provider, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider, app: 'again', usd: guard.priceUsd({ provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/** Claude, as it has always been: the identity meter charges the person. */
+async function menuWithClaude(req, b) {
+  await guardAllow('claude', req);
+  const client = await clientFor(req);
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return ai.answer(await ai.ask(client, model, b, (u) => { used = u; }), b);
+  } finally {
+    // A member's own key paid for theirs; the lab's cap counts the lab's key.
+    if (!client.__byok) await guardRecord('claude', model, used);
+  }
+}
+
+/** Gemini, through the guard's Vertex helper. With no guard (the app on its
+ *  own) only the local stand-in can answer; a real call needs the lab. */
+async function askGemini(req, request, what) {
+  await guardAllow('gemini', req);
+  const guard = global.LAB_AI_GUARD;
+  const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
+  let generate = guard && guard.gemini && guard.gemini.generate;
+  if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  let out = null;
+  let usage = null;
+  try {
+    out = await generate({ ...request, ...(fake ? { fake } : {}) });
+    usage = out && out.usage;
+  } catch (err) {
+    // A call that failed after the model billed it is still paid for. The
+    // provider's own words never reach the page: a status only.
+    usage = err && err.usage;
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+  } finally {
+    if (usage) {
+      await guardRecord('gemini', gemini.MODEL, usage);
+      await chargeGemini(req, usage, what);
+    }
+  }
+  return out && out.json;
+}
+
+/** The person's own ledger (their credit, and the free tier's daily
+ *  ceiling) is the identity's, and its price table is Claude's. A Gemini
+ *  call is charged there at its real dollars, written as the Haiku input
+ *  tokens that cost the same, with the route saying what really ran. */
+async function chargeGemini(req, usage, what) {
+  try {
+    const guard = global.LAB_AI_GUARD;
+    const usd = guard ? guard.priceUsd({ provider: 'gemini', model: gemini.MODEL, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage);
+    const perToken = identityLib.PRICES[MODELS.free].input / 1e6;
+    await identity.recordUsage({ model: MODELS.free, usage: { input_tokens: Math.ceil(usd / perToken), output_tokens: 0 }, route: `${what}:${gemini.MODEL}`, uid: req.user.id });
+  } catch (e) { console.error('usage: gemini charge failed'); }
+}
+
 /** Gates, then the parser, then the request rebuilt (the photo checked by
  *  its bytes, the history checked field by field - a 400 costs nothing),
- *  then one forced tool, then the answer checked. Nothing here writes to
- *  any store, and nothing logged carries a byte of the photo. */
+ *  then the lab's AI guard, then ONE call - a forced tool on Claude, or the
+ *  dishes as written against a responseSchema on Gemini - then the answer
+ *  checked. Nothing here writes to any store, and nothing logged carries a
+ *  byte of the photo. */
 app.post('/api/ai/menu', ...spend, aiJson, route('Reading a menu isn’t available right now. Try again in a minute - adding dishes by hand always works.', async (req, res) => {
   const b = ai.brief(req.body);
-  const raw = await ai.ask(await clientFor(req), modelFor(req), b);
+  const out = providerNow() === 'gemini'
+    ? ai.answer(null, b, gemini.cleanMenu(await askGemini(req, gemini.menuRequest(b, ai.text(b)), 'menu'), b))
+    : await menuWithClaude(req, b);
   res.set('Cache-Control', 'no-store');
-  res.json(ai.answer(raw, b));
+  res.json(out);
+}));
+
+/** "Snap my plate" (Gemini only: with the switch off the route answers the
+ *  same 404 as any path that does not exist, after the same gates). One
+ *  photo and nothing else in; one short description of what can be seen and
+ *  a best-guess name, marked as a guess, out. The photo is not kept here:
+ *  the page may keep its own copy on the phone, as it does for any dish. */
+app.post('/api/ai/plate', ...spend, aiJson, route('Looking at a plate isn’t available right now. Try again in a minute - typing the dish always works.', async (req, res) => {
+  if (providerNow() !== 'gemini') return res.status(404).json({ error: 'Not found.' });
+  const b = ai.briefPlate(req.body);
+  const plate = gemini.cleanPlate(await askGemini(req, gemini.plateRequest(b), 'plate'));
+  res.set('Cache-Control', 'no-store');
+  res.json(ai.plateAnswer(plate));
 }));
 
 /* ------------------------------------------------------------------ *

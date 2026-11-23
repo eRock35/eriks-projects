@@ -33,6 +33,8 @@ if (process.env.AGAIN_MEMORY !== '1' || process.env.AGAIN_FAKE_AI !== '1') {
 const { app, identityStore, store, fakeClient, ownerTag, shareId } = require('../server');
 const C = require('../public/again-core');
 const ai = require('../lib/ai');
+const gemini = require('../lib/gemini');
+const fakeGemini = require('../lib/fakeai').gemini;
 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -481,11 +483,18 @@ test('every text colour holds 4.5:1 on its surface in both themes; the hero, the
     ok('accent-ink', 'accent'); for (const fg of ['text', 'link', 'muted']) ok(fg, 'accent-soft');
     for (const k of ['love', 'fine', 'skip']) { ok(k, `${k}-bg`); ok('text', `${k}-bg`); ok('muted', `${k}-bg`); ok('link', `${k}-bg`); for (const bg of ['card', 'face', 'bg', 'card2']) ok(k, bg); }
     for (const k of ['ok', 'warn']) { ok(k, `${k}-bg`); ok('text', `${k}-bg`); }
-    for (const fg of ['hero-ink', 'hero-soft']) for (const bg of ['hero-1', 'hero-2']) ok(fg, bg);
-    ok('accent', 'card'); ok('accent', 'bg');
+    ok('accent', 'card'); ok('accent', 'bg'); ok('toast-ink', 'toast'); ok('muted', 'warn-bg'); ok('warn', 'card');
   }
-  // Colours written as literals: the hero's buttons, the mock card, the share card, the offline page.
-  for (const [fg, bg] of [['#8f1b13', '#ffffff'], ['#ffffff', '#b4231a'], ['#ffffff', '#0e5a63'], ['#fde8e4', '#b4231a'], ['#fde8e4', '#0e5a63'], ['#1d1915', '#fbe7e3'], ['#5a5047', '#fbe7e3'], ['#1d1915', '#ffffff'], ['#5a5047', '#ffffff'], ['#a3201a', '#ffffff'], ['#a3201a', '#fde9e5'], ['#57504a', '#ffffff'], ['#1d5a80', '#ffffff'], ['#1d1915', '#faf7f3'], ['#5a5047', '#faf7f3'], ['#8f1b13', '#ffffff']]) {
+  // The look: a pure white page (true black in dark), no gradients or textures, hairline cards with 12px corners, system fonts.
+  assert.deepStrictEqual([light.bg, light.card, light.line, dark.bg], ['#ffffff', '#ffffff', '#e5e5ea', '#000000']);
+  assert.strictEqual(light.accent, require('../../../lab').get('again').color, 'the one accent is the app\u2019s own lab colour');
+  assert.ok(!/gradient\(|@font-face|@import|url\((?!"data:image\/svg\+xml)/.test(css), 'no gradient, no fetched font or image');
+  assert.ok(/\.here \{[^}]*border: 1px solid var\(--line\); border-radius: 12px/.test(css) && /\.input, select\.input, textarea\.input \{[^}]*border-radius: 10px/.test(css) && /\.btn \{[^}]*border-radius: 999px/.test(css));
+  assert.ok(!/\sstyle=|\.style\.|setAttribute\('style'|cssText/.test(read('public/app.js') + read('public/index.html')), 'no style attribute in the page or written by its script');
+  const moving = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}\n/, '');
+  assert.ok(!/\b(transition|animation):/.test(moving.replace(/animation: none !important; transition: none !important;/, '')), 'motion only inside prefers-reduced-motion: no-preference');
+  // Colours written as literals: the share card (drawn on a canvas in the lab colours) and the offline page.
+  for (const [fg, bg] of [['#8f1b13', '#ffffff'], ['#ffffff', '#b4231a'], ['#ffffff', '#0e5a63'], ['#fde8e4', '#b4231a'], ['#fde8e4', '#0e5a63'], ['#1d1d1f', '#ffffff'], ['#636366', '#ffffff'], ['#f5f5f7', '#000000'], ['#a1a1a6', '#000000']]) {
     assert.ok(ratio(fg, bg) >= 4.5, `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
   }
   const lab = require('../../../lab').get('again');
@@ -493,7 +502,7 @@ test('every text colour holds 4.5:1 on its surface in both themes; the hero, the
   for (const sel of ['.btn', '.btn.small', '.link-btn', '.seg button, .chip', '.input, select.input, textarea.input', '.check', 'details.more > summary', '.vbtn', '.dish', '.drow']) {
     assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*(min-height|height): (4[4-9]|[5-9]\\d)px').test(css), `${sel}: 44px`);
   }
-  assert.ok(/\.tabbar button \{[^}]*min-height: 60px/.test(css) && /\.prow \{[^}]*min-height: 68px/.test(css) && /\.vmini button \{ width: 44px; height: 44px/.test(css));
+  assert.ok(/\.tabbar button \{[^}]*min-height: 4[4-9]px/.test(css) && /\.prow \{[^}]*min-height: 68px/.test(css) && /\.vmini button \{ width: 44px; height: 44px/.test(css));
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
   assert.ok(/prefers-reduced-motion: reduce[\s\S]*animation: none !important; transition: none !important/.test(css));
 });
@@ -503,7 +512,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'no inline <script>');
   assert.ok(!/\son[a-z]+\s*=/i.test(html), 'no inline handlers');
   assert.ok(html.includes('<script src="verify-banner.js" data-mount="api/auth" defer></script>'));
-  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && /<body class="dk">/.test(html) && html.includes('class="tabbar dk-tabbar"'));
+  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && /<body class="dk">/.test(html) && html.includes('<nav class="tabbar" id="tabbar"'));
   assert.ok(!/(src|href)="\//.test(html), 'relative asset links only');
   const js = read('public/app.js');
   assert.ok(!/\son[a-z]+=\\?["']/.test(js), 'no handler written into markup');
@@ -519,14 +528,14 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.match(js, /Sync stores your list - places, dishes, verdicts, notes, prices, the days you went and the first names of who was there, and your Want to try - in the lab’s database, so your other device can see it\. <b>Photos stay on this phone\.<\/b>/);
   assert.ok(!/fetch\(['"]\//.test(js) && !/href="\//.test(js), 'every browser URL is relative to BASE');
   const calls = [...new Set([...js.matchAll(/api\('(GET|POST|PUT|DELETE)', '([^']+)'/g)].map((m) => m[2]))].sort();
-  assert.deepStrictEqual(calls, ['api/ai/menu', 'api/auth/', 'api/auth/billing', 'api/auth/logout', 'api/list', 'api/me', 'api/s/', 'api/shares', 'api/shares/'].sort(), 'the page asks for nothing else');
+  assert.deepStrictEqual(calls, ['api/ai/menu', 'api/ai/plate', 'api/auth/', 'api/auth/billing', 'api/auth/logout', 'api/list', 'api/me', 'api/s/', 'api/shares', 'api/shares/'].sort(), 'the page asks for nothing else');
   assert.match(js, /var body = \{ image: \{ type: 'image\/jpeg', data: b64 \} \};\n\s*if \(r\.ask && hist\.length\) body\.history = hist;/, 'the reader sends the photo, and the history only when asked');
   assert.match(js, /var hist = C\.historyFor\(D\(\), \{ exceptPlaceId: r\.placeId \}\);/, 'the history the page shows is the history it sends');
   assert.match(js, /api\('POST', 'api\/shares', \{ city: pay\.city, from: prefs\.from, days: opts\.days, places: pay\.places \}\)/, 'a link sends the payload the sheet showed');
   assert.match(js, /api\('PUT', 'api\/list', \{ list: mine\(\), base: sync\.version \}\)/);
   assert.match(js, /function mine\(\) \{ return C\.syncPayload\(data\); \}/, 'sync sends the payload without photo flags');
   assert.match(js, /function syncOn\(\) \{ return Boolean\(prefs\.sync && signedIn\(\)/, 'sync only when the person turned it on');
-  for (const f of ['public/index.html', 'public/app.js', 'public/again-core.js', 'server.js', 'lib/ai.js', 'lib/fakeai.js', 'lib/store.js', 'CLAUDE.md']) assert.ok(!/[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(read(f)), `no email address in ${f}`);
+  for (const f of ['public/index.html', 'public/app.js', 'public/again-core.js', 'server.js', 'lib/ai.js', 'lib/gemini.js', 'lib/fakeai.js', 'lib/store.js', 'CLAUDE.md']) assert.ok(!/[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(read(f)), `no email address in ${f}`);
   const core = read('public/again-core.js');
   assert.ok(!/\bfetch\(|XMLHttpRequest|localStorage|sessionStorage|navigator\.|indexedDB|WebSocket/.test(core), 'the core touches no network or storage');
   assert.ok(!/Math\.random|Date\.now\(\)|new Date\(\)/.test(core), 'the core has no dice and no clock');
@@ -536,8 +545,8 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   const risky = unesc(js).split('\n').filter((l) => !/toast\(|say\(|confirm\(|copy\(|download\(|textContent|\.value = |fillText|fit\(g/.test(l)).join('\n')
     .match(/['"]\s*\+\s*(p\.name|p\.area|p\.city|d\.name|d\.note|d\.desc|w\.place|w\.dish|w\.note|w\.from|x\.name|x\.reason|it\.name|it\.note|sh\.city|sh\.from|h\.dish|m\.note|l\.city|c\.city|c\.label|c\.emoji|g\.place\.name|r\.dish\.name|r\.place\.name|err\.message|e\.message|me\.email|r\.error|res\.error|S\.error|n|q|url|city|B\.city|B\.q|pending)\s*\+/g);
   assert.strictEqual(risky, null, `unescaped: ${risky}`);
-  for (const f of ['server.js', 'lib/ai.js']) assert.ok(!/console\.(log|error|warn)\([^)]*(req\.body|\bbody\b|\bimage\b|\blist\b|\bhistory\b)/.test(read(f).replace(/`[^`]*`|'[^'\n]*'/g, "''")), `${f} logs a body`);
-  assert.ok(!/setInterval|setTimeout/.test(read('server.js') + read('lib/ai.js') + read('lib/store.js').replace(/setImmediate/g, '')), 'nothing runs after a response (billed per request)');
+  for (const f of ['server.js', 'lib/ai.js', 'lib/gemini.js']) assert.ok(!/console\.(log|error|warn)\([^)]*(req\.body|\bbody\b|\bimage\b|\blist\b|\bhistory\b)/.test(read(f).replace(/`[^`]*`|'[^'\n]*'/g, "''")), `${f} logs a body`);
+  assert.ok(!/setInterval|setTimeout/.test(read('server.js') + read('lib/ai.js') + read('lib/gemini.js') + read('lib/store.js').replace(/setImmediate/g, '')), 'nothing runs after a response (billed per request)');
   const sw = read('public/sw.js');
   assert.ok(/rel\.indexOf\('api\/'\) === 0\) return;/.test(sw) && /again-shell-v1/.test(sw) && sw.includes("'again-core.js'") && /k\.indexOf\('again-'\) === 0/.test(sw), 'the service worker never answers api/ and only clears its own caches');
   assert.ok(/rel\.indexOf\('s\/'\) === 0/.test(sw) && /This list needs the internet/.test(sw), 'a friend\u2019s link offline says it needs the network');
@@ -547,7 +556,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
 
 test('the copy: neutral wording (no he/she/his/her), no invisible characters in any source file, no key-shaped strings', () => {
   const strings = (src) => [...src.matchAll(/'([^'\\\n]|\\.){3,}'|`[^`]{3,}`|"[^"\n]{3,}"/g)].map((m) => m[0]).join('\n');
-  const all = strings(read('public/app.js')) + strings(read('public/again-core.js')) + read('public/index.html') + strings(read('server.js')) + strings(read('lib/ai.js')) + read('CLAUDE.md');
+  const all = strings(read('public/app.js')) + strings(read('public/again-core.js')) + read('public/index.html') + strings(read('server.js')) + strings(read('lib/ai.js')) + strings(read('lib/gemini.js')) + read('CLAUDE.md');
   const gendered = all.match(/\b(he|she|his|hers|him|himself|herself)\b|\bher\b/gi);
   assert.strictEqual(gendered, null, `gendered: ${gendered}`);
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.name === 'node_modules' ? [] : d.isDirectory() ? walk(path.join(dir, d.name)) : [path.join(dir, d.name)]));
@@ -867,6 +876,221 @@ test('the gates: unconfirmed free account 403, out of credit 402, the day\u2019s
     await settle();
     assert.strictEqual(await modelCalls(), calls);
   } finally { await identityStore.remove('control', `free-spend-again-${day}`); }
+});
+
+/* ================================================================== *
+ * "Snap the menu or your plate" on Gemini (AGAIN_AI_PROVIDER=gemini)
+ * ================================================================== */
+
+/** A stand-in for the lab's AI guard, so the routes can be watched from the
+ *  outside. Nothing here touches the network. */
+function fakeGuard(opts = {}) {
+  const log = { allow: [], record: [], requests: [], order: [] };
+  return {
+    log,
+    allow: async (a) => { log.order.push('allow'); log.allow.push({ provider: a.provider, app: a.app, uid: a.req && a.req.user && a.req.user.id }); return opts.deny || { ok: true }; },
+    record: async (r) => { log.order.push('record'); log.record.push(r); return true; },
+    priceUsd: ({ provider, inputTokens, outputTokens }) => (provider === 'gemini' ? gemini.priceUsd({ inputTokens, outputTokens, at: new Date('2026-11-23T00:00:00Z') }) : (inputTokens + 5 * outputTokens) / 1e6),
+    gemini: { generate: async (r) => { log.order.push('generate'); log.requests.push(r); if (opts.generate) return opts.generate(r); return { json: await r.fake({ contents: r.contents }), usage: { inputTokens: 1400, outputTokens: 300 } }; } },
+  };
+}
+async function withGemini(guard, fn) {
+  process.env.AGAIN_AI_PROVIDER = 'gemini';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.AGAIN_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+const plateBody = () => ({ image: menuBody().image });
+
+test('the provider switch: Claude unless AGAIN_AI_PROVIDER=gemini, read per request; the schemas copy a menu and guess a plate - no field for an allergen, an ingredient or nutrition', async () => {
+  const anon = client();
+  assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', 'unset: the provider Again has always had');
+  for (const v of ['', 'off', 'Gemini', 'GEMINI', 'vertex', '1', 'true']) {
+    process.env.AGAIN_AI_PROVIDER = v;
+    try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', `"${v}" is not the switch`); } finally { delete process.env.AGAIN_AI_PROVIDER; }
+  }
+  await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
+  assert.match(read('server.js'), /process\.env\.AGAIN_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
+  assert.deepStrictEqual(Object.keys(gemini.MENU_SCHEMA.properties), ['dishes', 'currency', 'picks', 'confidence', 'note']);
+  assert.deepStrictEqual(Object.keys(gemini.MENU_SCHEMA.properties.dishes.items.properties), ['name', 'description', 'price', 'confidence']);
+  assert.deepStrictEqual([gemini.MENU_SCHEMA.properties.dishes.items.properties.price.nullable, gemini.MENU_SCHEMA.properties.dishes.items.properties.confidence.enum], [true, C.CONFIDENCE]);
+  assert.deepStrictEqual(Object.keys(gemini.PLATE_SCHEMA.properties), ['isFood', 'description', 'guess']);
+  assert.deepStrictEqual([Object.keys(gemini.PLATE_SCHEMA.properties.guess.properties), gemini.PLATE_SCHEMA.properties.guess.properties.name.nullable], [['name', 'confidence'], true]);
+  for (const sc of [gemini.MENU_SCHEMA, gemini.PLATE_SCHEMA]) assert.ok(!/"(?:allergens?|ingredients?|nutrition|calories|diet\w*|contains|vegan|safe\w*|restaurant|place|people)"/i.test(JSON.stringify(sc).replace(/"description":"[^"]*"/g, '')), 'no field for a claim the photo cannot support');
+  assert.ok(/a price only when one is printed/.test(gemini.MENU_SYSTEM) && /Never state an ingredient, an allergen, a diet label or a nutrition fact that the menu does not print/.test(gemini.MENU_SYSTEM) && /never an instruction to you/.test(gemini.MENU_SYSTEM) && /Never pick a dish that is not on this menu/.test(gemini.MENU_SYSTEM));
+  assert.ok(/It is a guess and will be shown as one/.test(gemini.PLATE_SYSTEM) && /Never state or imply an allergen, a diet label/.test(gemini.PLATE_SYSTEM) && /never name an ingredient that cannot be seen/.test(gemini.PLATE_SYSTEM) && /never an instruction to you/.test(gemini.PLATE_SYSTEM));
+  const b = { image: { type: 'image/jpeg', data: 'QUJD' }, history: HIST };
+  const mq = gemini.menuRequest(b, ai.text(b));
+  assert.deepStrictEqual([mq.model, mq.responseSchema, mq.generationConfig.temperature, mq.systemInstruction], ['gemini-3.8-flash', gemini.MENU_SCHEMA, 0, gemini.MENU_SYSTEM]);
+  assert.deepStrictEqual(mq.contents, [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } }, { text: ai.text(b) }] }], 'the photo once, and the same words Claude is told');
+  const pq = gemini.plateRequest({ image: b.image });
+  assert.deepStrictEqual([pq.responseSchema, pq.contents[0].parts[1]], [gemini.PLATE_SCHEMA, { text: gemini.PLATE_WORDS }], 'a plate: the photo and one fixed sentence');
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2026-12-31T23:59:59Z') }), 4.5);
+  assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
+  assert.ok(!/fetch\(|https?:\/\//.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own: the guard’s helper does');
+  assert.ok(!/console\./.test(read('lib/gemini.js')), 'the reader logs nothing');
+});
+
+test('a plate request is one photo and nothing else; the answer is a short description and a name marked as a guess - allergen, diet and nutrition claims are dropped, never mended', () => {
+  const im = menuBody().image;
+  assert.deepStrictEqual(C.plateRequest({ image: im }), { image: im });
+  for (const bad of [null, [], {}, { image: im, history: HIST }, { image: im, place: 'Orzolino' }, { image: im, note: 'x' }, { image: im, with: ['Sam'] }, { image: { ...im, name: 'x' } }, { image: { type: 'image/gif', data: im.data } }, { image: { type: 'image/jpeg', data: 'not base64!' } }]) assert.strictEqual(C.plateRequest(bad), null, JSON.stringify(bad).slice(0, 60));
+  const ok = { isFood: true, description: 'A bowl of long pasta in a pale sauce with black pepper', guess: { name: 'Cacio e pepe', confidence: 'medium' } };
+  assert.deepStrictEqual(C.cleanPlate(ok), { desc: 'A bowl of long pasta in a pale sauce with black pepper', guess: 'Cacio e pepe', sure: 'medium', guessed: true });
+  assert.deepStrictEqual(C.cleanPlate({ ...ok, guess: { name: null, confidence: 'high' } }), { desc: ok.description, guess: '', sure: null, guessed: true }, 'no guess is allowed; it never invents one');
+  assert.strictEqual(C.cleanPlate({ ...ok, guess: { name: 'Cacio e pepe', confidence: 'certain' } }).sure, 'low', 'an unknown confidence is low');
+  for (const claim of ['A vegan bowl of greens', 'Gluten-free pasta', 'Safe for a nut allergy', 'About 450 calories', 'Contains peanuts', 'A healthy salad', 'Dairy free ice cream', 'High protein bowl', 'Halal chicken over rice', 'Free from allergens', 'Keto friendly plate', 'Good for a low-carb diet']) {
+    assert.deepStrictEqual(C.cleanPlate({ ...ok, description: claim }).desc, '', claim);
+    assert.deepStrictEqual(C.cleanPlate({ ...ok, guess: { name: claim, confidence: 'high' } }).guess, '', claim);
+    assert.strictEqual(C.cleanPlate({ isFood: true, description: claim, guess: { name: claim, confidence: 'high' } }), null, 'nothing left: nothing shown');
+  }
+  for (const junk of [null, 'x', 7, [], {}, { ...ok, isFood: false }, { ...ok, isFood: 'yes' }, { isFood: true, description: '', guess: null }, { isFood: true, description: '   ', guess: { name: '<b></b>' } }]) assert.strictEqual(C.cleanPlate(junk), null);
+  const hostile = C.cleanPlate({ isFood: true, description: '<img src=x onerror=alert(1)>Pasta \u202e see https://evil.example/win ' + 'x'.repeat(600), guess: { name: '<b>Cacio e pepe</b> www.evil.example', confidence: 'high', allergens: ['none'] }, calories: 450 });
+  assert.ok(!/<|\u202e|https?:|evil/.test(JSON.stringify(hostile)) && Array.from(hostile.desc).length <= C.LIMITS.aiPlateDesc && hostile.guess === 'Cacio e pepe');
+  assert.deepStrictEqual(Object.keys(hostile).sort(), ['desc', 'guess', 'guessed', 'sure'], 'only the four known fields come back');
+  // The menu through the same door as ever, with how sure each row was.
+  const m = gemini.cleanMenu({ dishes: [{ name: 'Burrata', description: 'Tomatoes, basil', price: 16, confidence: 'high' }, { name: 'Lamb', description: '', price: null, confidence: 'maybe' }, { name: 'Soup', description: '', price: -4, confidence: 'low', allergens: ['none'] }], currency: 'USD', picks: [{ name: 'Burrata', reason: 'x' }], confidence: 'high', note: '' }, { history: null });
+  assert.deepStrictEqual(m.dishes, [{ name: 'Burrata', desc: 'Tomatoes, basil', price: 1600, sure: 'high' }, { name: 'Lamb', desc: '', price: null, sure: 'low' }, { name: 'Soup', desc: '', price: null, sure: 'low' }], 'a price only when one was printed; an unknown confidence is low; nothing else rides along');
+  assert.deepStrictEqual(m.picks, [], 'picks only when they were asked for');
+  assert.ok(!('sure' in C.cleanMenu({ dishes: [{ name: 'Burrata', description: '', price: 16 }], currency: '', picks: [], confidence: 'high', note: '' }, {}).dishes[0]), 'the Claude reader’s rows are unchanged');
+});
+
+test('Gemini over HTTP: gates and 400s before the guard; allow, the call, record; the person’s ledger is charged the real dollars; hostile output cleaned; the guard’s no is passed on; nothing stored', async () => {
+  const gia = await register('gia.gemini');
+  const uid = uidOf(mail('gia.gemini'));
+  const dump = store._dump();
+  // With the switch off there is no plate route to call, and the menu still goes to Claude.
+  let g = fakeGuard();
+  global.LAB_AI_GUARD = g;
+  try {
+    assert.strictEqual((await gia('POST', '/api/ai/plate', plateBody())).status, 404, 'no plate reader until the switch is on');
+    assert.strictEqual((await client()('POST', '/api/ai/plate', plateBody())).status, 401);
+    const n0 = fakeClient.calls.length;
+    const viaClaude = await gia('POST', '/api/ai/menu', menuBody());
+    assert.deepStrictEqual([viaClaude.status, fakeClient.calls.length - n0, 'sure' in viaClaude.data.menu.dishes[0]], [200, 1, false], 'the default provider is Claude');
+    assert.deepStrictEqual([g.log.order, g.log.allow[0], g.log.record[0].provider], [['allow', 'record'], { provider: 'claude', app: 'again', uid }, 'claude'], 'and Claude calls go through the guard too');
+    assert.strictEqual(g.log.record[0].usd, (2400 + 5 * 520) / 1e6);
+  } finally { delete global.LAB_AI_GUARD; }
+  // Signed out and bad requests never reach the guard or the model.
+  g = fakeGuard();
+  await withGemini(g, async () => {
+    for (const p of ['/api/ai/menu', '/api/ai/plate']) {
+      assert.strictEqual((await client()('POST', p, plateBody())).status, 401);
+      assert.strictEqual((await client()('POST', p, BIG)).status, 401, 'the gate answers before the parser');
+      assert.strictEqual((await gia('POST', p, {})).status, 400);
+      assert.strictEqual((await gia('POST', p, { image: { type: 'image/jpeg', data: png(200, 200).toString('base64') } })).status, 400, 'checked by its bytes');
+      assert.strictEqual((await gia('POST', p, { image: { type: 'image/jpeg', data: jpeg(1000, 1000, 1020000).toString('base64') } })).status, 400, 'a photo over the cap is refused before any call');
+      assert.strictEqual((await gia('POST', p, { image: { type: 'image/jpeg', data: jpeg(2400, 1800).toString('base64') } })).status, 400, 'and one over 1600 px');
+    }
+    for (const extra of [{ history: HIST }, { place: 'Orzolino' }, { note: 'x' }, { day: '2026-10-01' }]) assert.strictEqual((await gia('POST', '/api/ai/plate', { ...plateBody(), ...extra })).status, 400, 'a plate is the photo and nothing else');
+    assert.strictEqual((await gia('POST', '/api/ai/menu', { ...menuBody(), place: 'Orzolino' })).status, 400);
+  });
+  assert.deepStrictEqual(g.log.order, [], 'no allow, no call, no record');
+  // A menu.
+  const calls = await modelCalls();
+  const before = (await identityStore.get('users', uid)).spentUsd || 0;
+  const claudeCalls = fakeClient.calls.length;
+  g = fakeGuard();
+  const mr = await withGemini(g, () => gia('POST', '/api/ai/menu', menuBody(HIST)));
+  assert.strictEqual(mr.status, 200, mr.text);
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record'], 'allow, the call, record');
+  assert.deepStrictEqual(g.log.allow[0], { provider: 'gemini', app: 'again', uid });
+  assert.strictEqual(fakeClient.calls.length, claudeCalls, 'Claude is not called');
+  const rq = g.log.requests[0];
+  assert.deepStrictEqual([rq.model, rq.responseSchema], ['gemini-3.8-flash', gemini.MENU_SCHEMA]);
+  const sentImg = rq.contents[0].parts[0].inlineData;
+  assert.ok(sentImg.mimeType === 'image/jpeg' && !Buffer.from(sentImg.data, 'base64').includes(Buffer.from('GPSLatitude')), 'the photo goes inline, once, without its location');
+  assert.strictEqual(rq.contents[0].parts[1].text, ai.text({ history: HIST }), 'the words: the instruction and dish names, cuisines and verdicts');
+  assert.ok(!/example\.com|gia/.test(JSON.stringify(rq.contents).replace(sentImg.data, '')), 'nothing about the person');
+  const menu = mr.data.menu;
+  assert.deepStrictEqual(Object.keys(menu).sort(), ['asked', 'confidence', 'currency', 'dishes', 'note', 'picks']);
+  assert.deepStrictEqual([menu.dishes.length, menu.dishes[0], menu.dishes[1].sure, menu.dishes[9].sure], [10, { name: 'Burrata', desc: 'Heirloom tomatoes, basil, olive oil', price: 1600, sure: 'high' }, 'medium', 'low'], 'each row as written, with how sure the reader was');
+  assert.deepStrictEqual(menu.picks.map((x) => x.name), ['Rigatoni alla gricia', 'Short rib ragù', 'Olive oil cake']);
+  const usd = gemini.priceUsd({ inputTokens: 1400, outputTokens: 300, at: new Date('2026-11-23T00:00:00Z') });
+  assert.deepStrictEqual(g.log.record, [{ provider: 'gemini', app: 'again', usd }]);
+  await settle();
+  assert.strictEqual(await modelCalls(), calls + 1, 'one usage row');
+  assert.ok((await identityStore.list('usage')).find((r) => r.route === 'menu:gemini-3.8-flash'), 'the ledger says what really ran');
+  const spent = ((await identityStore.get('users', uid)).spentUsd || 0) - before;
+  assert.ok(spent >= usd && spent < usd + 1e-5, `the person is charged the call's real dollars: ${spent} vs ${usd}`);
+  // A plate.
+  g = fakeGuard();
+  const pr = await withGemini(g, () => gia('POST', '/api/ai/plate', plateBody()));
+  assert.strictEqual(pr.status, 200, pr.text);
+  assert.deepStrictEqual(pr.data, { plate: { desc: 'A bowl of long pasta in a pale, glossy sauce with cracked black pepper on top', guess: 'Cacio e pepe', sure: 'medium', guessed: true } });
+  assert.deepStrictEqual([g.log.order, g.log.requests[0].responseSchema, g.log.requests[0].contents[0].parts.length, g.log.requests[0].contents[0].parts[1].text], [['allow', 'generate', 'record'], gemini.PLATE_SCHEMA, 2, gemini.PLATE_WORDS]);
+  assert.ok(!Buffer.from(g.log.requests[0].contents[0].parts[0].inlineData.data, 'base64').includes(Buffer.from('Acacia')), 'the plate photo loses its metadata too');
+  await settle();
+  assert.ok((await identityStore.list('usage')).find((r) => r.route === 'plate:gemini-3.8-flash'));
+  // Hostile output, claims, not food, nothing.
+  g = fakeGuard();
+  await withGemini(g, async () => {
+    fakeGemini.mode = 'inject';
+    const inj = await gia('POST', '/api/ai/menu', menuBody(HIST));
+    assert.strictEqual(inj.status, 200, inj.text);
+    assert.ok(!/<[a-z/!]|\u202e|javascript:|https?:|www\.|evil\.example|allergens/i.test(inj.text), inj.text.slice(0, 300));
+    assert.ok(inj.data.menu.dishes.length <= 80 && inj.data.menu.dishes.every((d) => (d.price === null || (d.price >= 0 && d.price <= C.LIMITS.priceCents)) && C.CONFIDENCE.includes(d.sure)) && inj.data.menu.picks.every((x) => inj.data.menu.dishes[x.index].name === x.name));
+    fakeGemini.mode = 'inject';
+    const pi = await gia('POST', '/api/ai/plate', plateBody());
+    assert.strictEqual(pi.status, 200, pi.text);
+    assert.ok(!/<[a-z/!]|\u202e|https?:|www\.|evil|allergens|calories|ingredients|wheat/i.test(pi.text) && pi.data.plate.guess === 'Cacio e pepe' && pi.data.plate.sure === 'low', pi.text);
+    fakeGemini.mode = 'claims';
+    const cl = await gia('POST', '/api/ai/plate', plateBody());
+    assert.ok(cl.status === 422 && !/vegan|gluten|allerg|calorie|healthy/i.test(cl.text), 'an answer that is only claims shows nothing');
+    fakeGemini.mode = 'notfood';
+    assert.strictEqual((await gia('POST', '/api/ai/plate', plateBody())).status, 422);
+    fakeGemini.mode = 'blank';
+    assert.strictEqual((await gia('POST', '/api/ai/plate', plateBody())).status, 422);
+    fakeGemini.mode = 'blank';
+    assert.strictEqual((await gia('POST', '/api/ai/menu', menuBody())).status, 422);
+    fakeGemini.mode = 'upstream401';
+    const up = await gia('POST', '/api/ai/plate', plateBody());
+    assert.ok(up.status === 502 && up.data.error && !/stand-in|Gemini answered/.test(up.text), 'a provider error is not passed on');
+    fakeGemini.mode = 'upstream429';
+    const busy = await gia('POST', '/api/ai/menu', menuBody());
+    assert.deepStrictEqual([busy.status, /AI is busy/.test(busy.data.error)], [503, true]);
+  });
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); } });
+  const blocked = await withGemini(g, () => gia('POST', '/api/ai/plate', plateBody()));
+  assert.ok(blocked.status === 502 && !/SECRET/.test(blocked.text));
+  assert.deepStrictEqual(g.log.order, ['allow', 'generate', 'record'], 'a call that failed after it was billed is still recorded');
+  // The guard says no: its words, no call.
+  const deny = fakeGuard({ deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } });
+  const before2 = await modelCalls();
+  for (const [p, body] of [['/api/ai/plate', plateBody()], ['/api/ai/menu', menuBody()]]) {
+    const no = await withGemini(deny, () => gia('POST', p, body));
+    assert.deepStrictEqual([no.status, no.data.code, no.data.error], [503, 'monthly-cap', 'AI answers are resting until next month; everything else still works.']);
+  }
+  assert.deepStrictEqual(deny.log.order, ['allow', 'allow']);
+  await settle();
+  assert.strictEqual(await modelCalls(), before2, 'and nobody is charged');
+  // With no guard (the app on its own) the stand-in still answers; nothing is ever stored.
+  const alone = await withGemini(undefined, () => gia('POST', '/api/ai/plate', plateBody()));
+  assert.deepStrictEqual([alone.status, alone.data.plate.guess], [200, 'Cacio e pepe']);
+  assert.strictEqual(store._dump(), dump, 'reading stores nothing - no photo, no dish, no answer');
+  const layer = (p) => app._router.stack.find((l) => l.route && l.route.path === p && l.route.methods.post);
+  assert.deepStrictEqual(layer('/api/ai/plate').route.stack.map((l) => l.handle.name || '(anon)').slice(0, 4), ['requireUser', 'requireBudget', 'requireDailyCap', 'jsonParser']);
+  const src = read('server.js');
+  const mid = src.slice(src.indexOf('async function guardAllow'), src.indexOf("app.post('/api/ai/menu'"));
+  assert.deepStrictEqual(mid.match(/console\.\w+\([^)]*\)/g), ["console.error('ai guard: record failed')", "console.error('usage: gemini charge failed')"], 'and the routes log fixed words only');
+  assert.strictEqual((src.match(/generate\(\{ \.\.\.request/g) || []).length, 1, 'one place Gemini is asked');
+});
+
+test('the page keeps the plate honest: only on the Gemini reader, what is sent is shown first, the name is marked a guess and editable, nothing is added without a tap', () => {
+  const js = read('public/app.js');
+  assert.match(js, /function plateOn\(\) \{ return Boolean\(state\.me && state\.me\.reader === 'gemini'\); \}/);
+  assert.match(js, /\(plateOn\(\) \? '<button class="btn ' \+ cls \+ ' cam" type="button" data-act="plate"/, 'no plate button unless the server runs the Gemini reader');
+  assert.match(js, /api\('POST', 'api\/ai\/plate', \{ image: \{ type: 'image\/jpeg', data: b64 \} \}\)/, 'the page sends the photo and nothing else');
+  assert.match(js, /Promise\.all\(\[prepPhoto\(file, 1600\), prepPhoto\(file\)\]\)/, 'shrunk on the device before anything is sent');
+  assert.match(js, /this one photo, shrunk on this phone with its location removed\. <b>Never a place name, who you ate with, a date, a price or a note\.<\/b> The server does not keep it\./);
+  assert.match(js, /'Best guess · ' \+ x\.sure \+ ' confidence'/);
+  assert.match(js, /a guess from the photo - fix it if it’s wrong/);
+  assert.match(js, /A photo can’t show what is in a dish\. Never rely on this for allergies or a diet - ask the staff\./);
+  assert.match(js, /Again never guesses ingredients or allergens - ask the staff\./);
+  assert.match(js, /d\.sure && d\.sure !== 'high' \? '<span class="pill t-warn js">Check this<\/span>'/, 'an unsure menu row says so');
+  const res = js.slice(js.indexOf('function drawPlateResult'), js.indexOf('/* ---------------- settings'));
+  assert.ok(!/setD\(|save\(\)|photoPut\(/.test(res), 'the plate sheet saves nothing itself: it adds to the visit being logged, which the person saves');
+  assert.match(res, /C\.quickAdd\(L\.items, name, btn\.getAttribute\('data-pv'\)\)/);
 });
 
 /* ---------------- run ---------------- */

@@ -70,6 +70,8 @@
     aiNote: 160,
     aiImageBytes: 1000000,
     aiImageSide: 1600,
+    // "Snap my plate"
+    aiPlateDesc: 160,
   };
 
   /* ------------------------------------------------------------------ *
@@ -1173,8 +1175,10 @@
    * asked for, only dishes from its own list, at most three, each reason
    * plain and short.
    * @param req the checked request (so picks need a history)
+   * @param opts {sure: true} keeps how sure the reader was of each row
+   *             ("low" when it did not say) - the Gemini reader's rows
    */
-  function cleanMenu(raw, req) {
+  function cleanMenu(raw, req, opts) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const dishes = [];
     const keys = new Map();
@@ -1187,7 +1191,9 @@
       const pr = it.price;
       const price = typeof pr === 'number' && Number.isFinite(pr) && pr >= 0 && pr * 100 <= LIMITS.priceCents ? Math.round(pr * 100) : null;
       keys.set(k, dishes.length);
-      dishes.push({ name, desc: plainOut(it.description, LIMITS.aiDesc), price });
+      const row = { name, desc: plainOut(it.description, LIMITS.aiDesc), price };
+      if (opts && opts.sure) row.sure = CONFIDENCE.includes(it.confidence) ? it.confidence : 'low';
+      dishes.push(row);
     }
     if (!dishes.length) return null;
     const picks = [];
@@ -1209,6 +1215,38 @@
       confidence: CONFIDENCE.includes(raw.confidence) ? raw.confidence : 'low',
       note: plainOut(raw.note, LIMITS.aiNote),
     };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * "Snap my plate": what is sent, what is accepted back.
+   * ------------------------------------------------------------------ */
+
+  /** Exactly {image: {type, data}} - one JPEG or PNG and nothing else: no
+   *  place, no person, no date, no note. Its bytes are checked on the server. */
+  function plateRequest(body) {
+    if (!onlyKeys(body, ['image']) || !body.image) return null;
+    const r = menuRequest({ image: body.image });
+    return r ? { image: r.image } : null;
+  }
+  // A photo cannot show what a dish is safe for, or what is in it that the
+  // eye cannot see. A description or a name that says so is dropped whole -
+  // never trimmed into something that reads like advice.
+  const PLATE_CLAIMS = /\b(?:allerg\w*|gluten|vegan|vegetarian|pescatarian|dairy|lactose|nut[- ]free|free of|free from|contains?|calorie\w*|kcal|protein|carbs?|carbohydrate\w*|nutri\w*|health\w*|low[- ](?:fat|carb|sugar|sodium|calorie)|sugar[- ]free|organic|halal|kosher|keto|paleo|diet\w*|safe)\b/i;
+  /**
+   * The model's look at a plate, checked: one short plain description of
+   * what can be seen, and a best-guess dish name that is always marked as a
+   * guess. Anything that reads as an allergen, diet, ingredient-safety or
+   * nutrition claim is dropped. Not food, or nothing usable: null.
+   */
+  function cleanPlate(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.isFood !== true) return null;
+    let desc = plainOut(raw.description, LIMITS.aiPlateDesc);
+    if (!hasWord(desc) || PLATE_CLAIMS.test(desc)) desc = '';
+    const g = raw.guess && typeof raw.guess === 'object' && !Array.isArray(raw.guess) ? raw.guess : {};
+    let name = plainOut(g.name, LIMITS.dish);
+    if (!hasWord(name) || PLATE_CLAIMS.test(name)) name = '';
+    if (!desc && !name) return null;
+    return { desc, guess: name, sure: name ? (CONFIDENCE.includes(g.confidence) ? g.confidence : 'low') : null, guessed: true };
   }
 
   /* ------------------------------------------------------------------ *
@@ -1290,7 +1328,7 @@
     sharePayload, shareRequest, shareView, wantFromShare, hasWant, topDishes,
     cleanTombstones, cleanList, syncPayload, mergeLists, listBytes, countOf,
     toJson, fromJson, csvCell, toCsv, dataCsv, parseCsv, fromCsv, importInto,
-    menuRequest, historyFor, cleanMenu,
+    menuRequest, historyFor, cleanMenu, plateRequest, cleanPlate,
     sample,
   };
 }));
