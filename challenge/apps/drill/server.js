@@ -8,8 +8,11 @@
 //     scenario) and everyone joins from their own phone by code, with a
 //     first name and a role. The room keeps who joined, the votes on the
 //     current inject and the decisions, for 48 hours;
-//   - a signed-in facilitator's custom scenarios ("Make it about us"), the
-//     one model call, metered.
+//   - a signed-in facilitator's custom scenarios ("Make it about us"), a
+//     model call, metered;
+//   - the live tabletop: the model as the facilitator, one metered call a
+//     turn. Nothing of it is kept here - the page holds the session and the
+//     server signs what it issued (lib/ai.js).
 
 const fs = require('fs');
 const path = require('path');
@@ -53,8 +56,10 @@ app.use((req, res, next) => {
 // The metered route mounts its own 8 KB parser AFTER sign-in, budget and
 // the daily cap, so a stranger's body is never read. Everything else 16 KB.
 const customJson = express.json({ limit: '8kb' });
+// A live turn carries the whole session (at most eight bounded turns).
+const liveJson = express.json({ limit: '32kb' });
 const smallJson = express.json({ limit: '16kb' });
-app.use((req, res, next) => (req.path === '/api/custom' ? next() : smallJson(req, res, next)));
+app.use((req, res, next) => (req.path === '/api/custom' || req.path === '/api/live' ? next() : smallJson(req, res, next)));
 
 /* ------------------------------------------------------------------ *
  * The shared account (custom scenarios need it; nothing else)
@@ -72,8 +77,9 @@ const identity = identityLib.create({
 });
 identity.mount(app);
 
+const fakeClient = FAKE_AI ? require('./lib/fakeai').create() : null;
 const sharedClient = FAKE_AI
-  ? identity.meter(require('./lib/fakeai').create())
+  ? identity.meter(fakeClient)
   : identity.meter(new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
 
 function clientFor(req) {
@@ -85,6 +91,32 @@ const modelFor = (req) => identityLib.planFor(req.user, MODELS).model;
 // Never put a model call behind a sign-in alone: it goes through the budget
 // and the free tier's daily ceiling as well.
 const spend = [identity.requireUser, identity.requireBudget, identity.requireDailyCap];
+
+// The lab's AI guard (challenge/CLAUDE.md, "Lab AI guard"): the host sets
+// global.LAB_AI_GUARD; on its own (tests, npm run dev) the app has none and
+// the identity gates stand alone. Every model call in this file goes through
+// metered(): the guard is asked first - a no is its friendly message and no
+// call - and told what the call cost afterwards, in a finally, because a
+// call that came back is paid for whether or not its answer passed the checks.
+const PROVIDER = 'claude';
+async function guardAllows(req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return;
+  const g = await guard.allow({ provider: PROVIDER, req, app: 'drill' });
+  if (!g || !g.ok) throw httpError((g && g.status) || 429, `${(g && g.message) || 'The AI is resting for now.'} The built-in drills are free and still work.`, { code: (g && g.code) || 'ai-guard' });
+}
+async function metered(req, fn) {
+  const guard = global.LAB_AI_GUARD;
+  const model = modelFor(req);
+  let used = null;
+  try {
+    return await fn(await clientFor(req), model, (u) => { used = u; });
+  } finally {
+    if (guard && used) {
+      try { await guard.record({ provider: PROVIDER, app: 'drill', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) }); } catch (e) { console.error('ai guard: record failed'); }
+    }
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * Errors: only the app's own (marked `expose`) reach the page in their own
@@ -212,7 +244,7 @@ app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: 
 
 app.get('/api/meta', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  res.json({ limits: { ...Core.LIMITS, timers: R.LIMITS.timers, roomHours: R.LIMITS.ttlMs / 3600000 }, roles: Core.ROLES, areas: Core.AREAS, focus: ai.FOCUS_IDS });
+  res.json({ limits: { ...Core.LIMITS, timers: R.LIMITS.timers, roomHours: R.LIMITS.ttlMs / 3600000 }, roles: Core.ROLES, areas: Core.AREAS, focus: ai.FOCUS_IDS, live: { maxInjects: ai.LIVE.maxInjects, entry: ai.LIVE.entry } });
 });
 
 app.get('/api/me', (req, res) => {
@@ -406,10 +438,11 @@ app.post('/api/custom', ...spend, customJson, async (req, res) => {
     tag = libraryTag(req);
     const lib = await store.get('libraries', tag);
     if (lib && lib.scenarios && Object.keys(lib.scenarios).length >= Core.LIMITS.library) throw httpError(409, `You have ${Core.LIMITS.library} saved scenarios. Delete one first.`);
+    await guardAllows(req);
   } catch (err) { return fail(res, err, 'Could not start that.'); }
   const send = streamedJson(res);
   try {
-    const raw = await ai.write(await clientFor(req), modelFor(req), b);
+    const raw = await metered(req, (client, model, onUsage) => ai.write(client, model, b, onUsage));
     const id = R.newScenarioId();
     const scenario = ai.toScenario(raw, id);
     const createdAt = new Date().toISOString();
@@ -425,6 +458,34 @@ app.post('/api/custom', ...spend, customJson, async (req, res) => {
     send({ ...f.body, status: f.status });
   }
 });
+
+/* ------------------------------------------------------------------ *
+ * Metered: the live tabletop (the model as the facilitator)
+ * ------------------------------------------------------------------ */
+
+/** One turn. Gates, then a 32 KB parser, then the session checked - the
+ *  brief, the signature on every turn this server issued, the team's entry
+ *  (a 400 costs nothing) - then the guard, then ONE forced tool:
+ *  record_inject while the session runs, record_debrief when it has reached
+ *  its last inject (eight at most, counted here) or the team stops early.
+ *  Nothing is stored: the answer carries the next turn and a new signature,
+ *  or the finished report. */
+app.post('/api/live', ...spend, liveJson, route('The live facilitator isn’t available right now. Try again in a minute - the built-in drills still work.', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!SECRET()) throw httpError(503, 'The live facilitator isn’t available right now. The built-in drills still work.');
+  const key = ai.liveKey(SECRET(), req.user.id);
+  const s = ai.liveState(req.body, key);
+  const day = (req.body || {}).date;
+  await guardAllows(req);
+  if (s.mode === 'debrief') {
+    const raw = await metered(req, (client, model, onUsage) => ai.debrief(client, model, s, onUsage));
+    return res.json({ report: ai.toReport(raw, s, day) });
+  }
+  const raw = await metered(req, (client, model, onUsage) => ai.inject(client, model, s, onUsage));
+  const { turn, title } = ai.toTurn(raw, s);
+  const next = { ...s, title, turns: s.turns.concat([{ ...turn, entry: '' }]) };
+  res.json({ title, emoji: ai.FOCUS_EMOJI[s.focus], turn: ai.turnView(s, turn), sig: ai.sign(key, next), max: ai.LIVE.maxInjects });
+}));
 
 /* ------------------------------------------------------------------ *
  * The page
@@ -481,4 +542,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`drill listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, fakeClient };

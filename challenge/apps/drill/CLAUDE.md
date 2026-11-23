@@ -44,9 +44,10 @@ office manager, whoever would be on the call.
 
 **Who pays.** Nobody, for almost all of it. The five scenarios, the demo,
 solo play, rooms (opening one and joining one) and the report are free, need
-no account and make **no model call**. One thing is metered and signed in:
-**"Make it about us"** (Haiku for the free tier, Sonnet for members via
-`identity.planFor`), a few cents.
+no account and make **no model call**. Two things are metered and signed
+in, both Claude (Haiku for the free tier, Sonnet for members via
+`identity.planFor`), a few cents each: **"Make it about us"** and the
+**live tabletop** with an AI facilitator (2026-11-23, below).
 
 **Not legal advice, anywhere.** A regulator point is always "check the rules
 where you operate" or "with your lawyer, check which breach rules apply",
@@ -138,7 +139,7 @@ Mirrors Dibs and Flight, with one difference: **no account to open one**
 - A custom scenario is run from the facilitator's **saved list**, never from
   the request, and copied into the room so guests need nothing else.
 
-## Make it about us (the one model call)
+## Make it about us (a model call)
 
 `POST /api/custom {about, tools, focus}`: `requireUser, requireBudget,
 requireDailyCap` **then** the route's own 8 KB parser (tested 401/402/403/
@@ -155,6 +156,96 @@ is never stored or logged (tested: not in the store). A good one is saved to
 Signed out, the button explains it needs a free account and that the
 built-ins stay free; 402 opens the credit sheet; 403 `verify-email` shows its
 sentence and "Send the link again".
+
+## The live tabletop: the model as the facilitator (2026-11-23 redesign)
+
+Erik's per-app AI plan gives Drill **Claude: "Runs a custom tabletop
+scenario live, with injects and a debrief." Why: role-play.** It extends the
+app's one Anthropic client (`clientFor`, `identityLib.planFor`); no second
+client, no federation, no Gemini switch.
+
+- **The flow.** Live tab -> a few lines about the organisation, optional
+  tools, the kind of bad day (the same `ai.brief` and `FOCUS` as "Make it
+  about us") -> each turn the facilitator gives *what happened next*, ONE
+  inject on one role and 2-4 open questions; the team types what it decides
+  (500 characters) and locks it in. After at most **eight injects** (or "End
+  here and debrief", or the facilitator setting `final`) comes the debrief:
+  the app's ordinary after-action report plus "The facilitator's debrief" -
+  each decision **quoted in the team's own words** with one note.
+- **`POST /api/live`**: `requireUser, requireBudget, requireDailyCap`, then
+  its own 32 KB parser, then `ai.liveState` (a 400 costs nothing), then the
+  lab guard, then ONE forced tool: `record_inject` or `record_debrief`
+  (`max_tokens` 900 / 1600, 60 s). The server decides which from the count.
+- **Nothing is stored.** The page holds the session (`drill-live-v1`) and
+  sends all of it each turn. The server **signs what it issued**: an HMAC
+  over the brief, the title, every facilitator turn and every earlier entry,
+  under a key derived from `IDENTITY_SESSION_SECRET` and the account id
+  ("drill live v1"). An edited inject, a swapped scenario type, another
+  account's session, a ninth turn or a made-up signature is a 400
+  `live-stale` before any spend. Only the newest entry is unsigned. With no
+  secret the route answers 503, like the library.
+- **Server-side facts.** `Core.cleanLiveTurn` cleans and bounds every field,
+  keeps only known roles and checklist items, 2-4 distinct questions, and
+  **refuses** a turn with a link or an obligation stated as law
+  (`Core.LEGAL_CLAIM`, the wording the built-ins are tested against) - a 502
+  "try again", decisions kept. Scenario time is added up here and only moves
+  forward (5 minutes to 2 days a step, from Mon 8:40 AM). In the debrief the
+  model gives points only; they count **only on items that inject tested**,
+  0-2, an ungraded item is 0; a quote that is not a span of the team's entry
+  is replaced by the entry itself (`Core.quoteOf`); a note or summary with a
+  link or a legal claim is replaced. The percentages, bands, three gaps,
+  fixes, owners and action list are `Core.scoreOf`/`findings` over the one
+  checklist - `Core.liveReport` returns the same shape `report` does, so the
+  page, Markdown and printable exports draw it unchanged (mode `live`, with
+  `Core.LIVE_NOTE` saying an AI wrote the injects and Drill did the sums).
+- **The prompts** (`INJECT_SYSTEM`, `DEBRIEF_SYSTEM`): fictional only - no
+  real company, person, group or incident as attacker or victim beyond what
+  was typed; decision level only (who to call, what to isolate, what to tell
+  customers), never attack technique; the app's not-legal-advice wording; no
+  links; typed text sits between markers and is never an instruction
+  (angle brackets are stripped by cleaning, so an entry cannot close them).
+- **The lab's AI guard.** Every model call in `server.js` goes through
+  `guardAllows(req)` (after the gates and the body check; a no is the
+  guard's message plus "The built-in drills are free and still work", its
+  status and code, and no call) and `metered()` (the one `clientFor`; the
+  call's cost goes to `guard.record` with `guard.priceUsd` in a `finally`,
+  so a turn that came back and was refused is still recorded). "Make it
+  about us" goes through the same two. No guard loaded -> the identity gates
+  stand alone.
+- **Not built:** a live tabletop in a room (it would mean storing model
+  output in the room document; today the facilitator's phone or the big
+  screen runs it and the team talks). Worth doing if Erik keeps the feature.
+
+## Design (2026-11-23 redesign, the HOA Desk rules)
+
+- Pure white page (true black in dark), no tints, gradients or shadows
+  except the floating phone nav, sheets and the toast. The old dark
+  "incident board" is gone: an inject is a hairline, the clock in the accent
+  (tabular numbers), then type and space. Lists with hairline dividers
+  replaced stacks of cards (scenarios, how/why, gaps, went well, actions,
+  people, tested items); cards remain for the live-tabletop and "Make it
+  about us" features, the join QR and empty states.
+- One accent, the lab card's red `#b4232a` (`#ff7d75` in dark): primary
+  action, links, active nav, the clock. Status colours only on bands, meters
+  and tested chips, always with their word.
+- Navigation: Home, Drills, Live, Reports. Phones: a floating translucent
+  pill bar (1.5 px line icons, label on the active item, accent indicator);
+  desktop: a top nav row with an underline (the shared `desktop.css` rail is
+  undone in `app.css`). The bar is hidden while a drill is being played
+  (solo, room, a running live session). `#scenarios`, `#live`, `#reports`
+  open a tab directly.
+- Home is a centred hero (headline, one line, two pill buttons). Taps from
+  home: the 5-minute drill 1; join with a code 1; open a team room 2 (Run
+  with my team, Open the room); a built-in solo 2 (Drills, Play solo); the
+  live tabletop 2 (Start a live tabletop, Start); a past report 2; Make it
+  about us 2.
+- The page writes **no `style=` attribute** (meters are small SVGs with a
+  `width` attribute); motion (press states, sheet and view transitions, the
+  clock dot, the ring) lives only inside `prefers-reduced-motion:
+  no-preference`. System font stack, five sizes plus the hero's display
+  size. Measured in Chromium at 390, 320 and 1440 px, both themes: minimum
+  text contrast 5.62 light / 7.46 dark, every target 44 px or more (48
+  primary), nothing sideways.
 
 ## Data (Firestore: `drill_*` in the lab database `challenge`)
 
@@ -175,14 +266,16 @@ account: `POST /api/rooms`, `GET /api/rooms/:code[?since=v]`, `POST
 /api/rooms/:code/join|me|vote`, `POST /api/rooms/:code/host` (facilitator
 key: `start|lock|next|finish|timer|remove`), `DELETE /api/rooms/:code`
 (facilitator key). Signed in, free: `GET /api/library`, `DELETE
-/api/library/:id`, a room from a saved scenario. Metered: `POST /api/custom`.
+/api/library/:id`, a room from a saved scenario. Metered: `POST /api/custom`,
+`POST /api/live`.
 
 ## On the phone
 
 Solo drills and the demo never touch the server. `localStorage` (every
 access wrapped): `drill-profile-v1` (first name and role), `drill-host-v1`,
 `drill-history-v1`, `drill-solo-v1` (a solo drill in progress resumes on
-reload). Exports are built on the phone (`Blob` downloads, `window.print()`
+reload), `drill-live-v1` (a live tabletop in progress, cleaned again when
+read back). Exports are built on the phone (`Blob` downloads, `window.print()`
 with a print stylesheet that shows only the report). A service worker
 (`sw.js`, network first) keeps the app's files for offline solo play, never
 `api/` and never a room page.
@@ -199,9 +292,12 @@ npm test        # pure rules first, then end to end over HTTP under a /drill mou
 `DRILL_COLLECTION_PREFIX` (set to `drill_` by the lab host) prefixes every
 top-level collection. The fake model refuses a call that does not force a
 tool; triggers in the description: `BLANK`, `BACKWARDS`, `INJECT`,
-`MAXTOKENS`, `UPSTREAMnnn`.
+`MAXTOKENS`, `UPSTREAMnnn`; for the live tabletop `LIVEBLANK`, `LIVELEGAL`,
+`LIVENAMES`, `MISQUOTE`, `EARLYEND` (see `lib/fakeai.js`).
 
-`test/run.js` (24 tests): cleaning; scenario integrity (every built-in
+`test/run.js` (29 tests; the last five are the live tabletop: its rules, a
+whole session over HTTP with the signature, cap and debrief, untrusted
+output and what the model sees, its gates, and the lab's AI guard): cleaning; scenario integrity (every built-in
 through the door unchanged, every inject reachable, every path ends and
 moves forward in time, a right and a weak answer per inject, every role and
 every checklist item used, the not-legal-advice wording); the clock; what

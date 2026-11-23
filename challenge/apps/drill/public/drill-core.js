@@ -684,6 +684,10 @@
         items[t].earned += ch.hits[t] || 0;
       }
     }
+    return scoreOf(items);
+  }
+  /** Areas, the overall percentage and the band from per-item points. */
+  function scoreOf(items) {
     const areas = AREAS.map((a) => {
       const its = Object.values(items).filter((it) => ITEMS[it.id].area === a.id);
       const earned = its.reduce((s, it) => s + it.earned, 0);
@@ -698,15 +702,9 @@
   }
 
   const AREA_ORDER = (id) => AREA_IDS.indexOf(ITEMS[id].area);
-  /**
-   * The after-action report as data. `meta`: {mode: 'solo'|'room', date
-   * (YYYY-MM-DD), org (optional), people: [{name, role}]}. Nothing about
-   * the business is needed; `org` only fills the heading if it was typed.
-   */
-  function report(scn, decisionsIn, meta) {
-    const m = meta || {};
-    const decisions = cleanDecisions(scn, decisionsIn);
-    const s = score(scn, decisions);
+  /** What went well, the three gaps and the action list, straight from the
+   *  checklist: the same words whichever drill was run. */
+  function findings(s) {
     const rated = Object.values(s.items).map((it) => ({ ...it, ratio: it.possible ? it.earned / it.possible : 0 }));
     const went = rated.filter((it) => it.ratio >= 0.75)
       .sort((a, b) => b.ratio - a.ratio || b.possible - a.possible || AREA_ORDER(a.id) - AREA_ORDER(b.id))
@@ -716,6 +714,18 @@
     const gaps = weak.slice(0, 3).map((it) => ({ id: it.id, label: ITEMS[it.id].label, fix: ITEMS[it.id].fix, owner: ITEMS[it.id].owner, ownerLabel: roleOf(ITEMS[it.id].owner).label, pct: Math.round(100 * it.ratio) }));
     const actions = weak.slice(0, 5).map((it) => ({ text: ITEMS[it.id].fix, owner: ITEMS[it.id].owner, ownerLabel: roleOf(ITEMS[it.id].owner).label }));
     actions.push({ text: 'Run the next drill in three months - a different scenario, the same team.', owner: 'owner', ownerLabel: 'Owner' });
+    return { went, gaps, actions };
+  }
+  /**
+   * The after-action report as data. `meta`: {mode: 'solo'|'room', date
+   * (YYYY-MM-DD), org (optional), people: [{name, role}]}. Nothing about
+   * the business is needed; `org` only fills the heading if it was typed.
+   */
+  function report(scn, decisionsIn, meta) {
+    const m = meta || {};
+    const decisions = cleanDecisions(scn, decisionsIn);
+    const s = score(scn, decisions);
+    const { went, gaps, actions } = findings(s);
     const timeline = decisions.map((d) => {
       const inj = injectOf(scn, d.inject);
       const oc = outcome(inj, d.choice);
@@ -742,13 +752,138 @@
 
   const NOT_ADVICE = 'A rehearsal, not legal advice. Breach-notice and reporting rules differ by country, state and industry - check the rules where you operate with your own counsel.';
 
+  /* ------------------------------------------------------------------ *
+   * The live tabletop: an AI facilitator writes one inject a turn and the
+   * team types what it decides. Everything the model writes comes through
+   * cleanLiveTurn; the debrief's arithmetic is scoreOf, over the same
+   * checklist, and a "quote" is only ever the team's own words.
+   * ------------------------------------------------------------------ */
+
+  const LIVE = {
+    maxInjects: 8,      // a session ends in a debrief after at most this many
+    update: 280,        // "what happened next"
+    minPrompts: 2,
+    maxPrompts: 4,
+    prompt: 140,
+    entry: 500,         // what the team typed
+    summary: 500,
+    note: 240,
+    quote: 160,
+    minMinutes: 5,      // scenario time between injects
+    maxMinutes: 2880,
+  };
+  const LIVE_START = { day: 0, time: '08:40' };
+  // The wording the built-ins are tested against, and no links from a model.
+  const LEGAL_CLAIM = /you must (report|notify)|legally required|required by law|you are required|is reportable/i;
+  const LINKISH = /https?:\/\/|www\./i;
+  const sayable = (t) => !LEGAL_CLAIM.test(t) && !LINKISH.test(t);
+
+  /** One facilitator turn, cleaned: {update, title, text, to, minutes,
+   *  tests, prompts, final} or null when it would not make a turn. Cleaning
+   *  a cleaned turn changes nothing (the server signs the cleaned form). */
+  function cleanLiveTurn(raw, first) {
+    if (!raw || typeof raw !== 'object') return null;
+    const title = cleanText(raw.title, LIMITS.injectTitle);
+    const text = cleanText(raw.text, LIMITS.injectText);
+    const update = first ? '' : cleanText(raw.update, LIVE.update);
+    const to = ROLE_IDS.includes(raw.to) ? raw.to : null;
+    const tests = Array.isArray(raw.tests) ? [...new Set(raw.tests.filter((t) => typeof t === 'string' && own(ITEMS, t)))].slice(0, LIMITS.maxTests) : [];
+    const prompts = [];
+    for (const p of Array.isArray(raw.prompts) ? raw.prompts.slice(0, 12) : []) {
+      const q = cleanText(p, LIVE.prompt);
+      if (q && !prompts.some((x) => fold(x) === fold(q)) && prompts.length < LIVE.maxPrompts) prompts.push(q);
+    }
+    const n = Math.floor(Number(raw.minutes));
+    const minutes = first ? 0 : Math.min(LIVE.maxMinutes, Math.max(LIVE.minMinutes, Number.isFinite(n) ? n : 30));
+    if (!title || !text || !to || !tests.length || prompts.length < LIVE.minPrompts) return null;
+    if (!first && !update) return null;
+    if (!sayable([title, text, update].concat(prompts).join(' '))) return null;
+    return { update, title, text, to, minutes, tests, prompts, final: raw.final === true };
+  }
+  const cleanEntry = (v) => cleanText(v, LIVE.entry);
+  /** Minutes of scenario time at each turn: the first is 0, time only adds. */
+  function liveTimes(turns) {
+    let at = 0;
+    return turns.map((t, i) => { at += i === 0 ? 0 : t.minutes; return at; });
+  }
+  function liveClock(at) { return clock({ start: LIVE_START }, at); }
+  /** A quote is the team's own words or it is not a quote: the model's
+   *  span if it really is in the entry, otherwise the entry itself. */
+  function quoteOf(entry, q) {
+    const quote = clean(q, LIVE.quote).replace(/^["“”‘’']+|["“”‘’'…]+$/g, '').trim();
+    const low = String(entry).toLowerCase();
+    const at = Array.from(quote).length >= 3 ? low.indexOf(quote.toLowerCase()) : -1;
+    if (at >= 0) return low.length === entry.length ? entry.slice(at, at + quote.length) : quote;
+    return clean(entry, LIVE.quote);
+  }
+  /**
+   * The live tabletop's after-action report, in the shape `report` returns.
+   * `session`: {title, emoji, turns: [cleaned turn + entry]}; `grades`: the
+   * model's {summary, decisions: [{turn (1-based), quote, note, hits}]},
+   * untrusted. Points count only on an item that turn tested, 0 to 2; an
+   * ungraded item scores 0. The percentages, bands, gaps, fixes and owners
+   * are this file's, not the model's.
+   */
+  function liveReport(session, gradesIn, meta) {
+    const m = meta || {};
+    const sIn = session && typeof session === 'object' ? session : {};
+    const turns = (Array.isArray(sIn.turns) ? sIn.turns : []).filter((t) => t && t.entry).slice(0, LIVE.maxInjects);
+    const g = gradesIn && typeof gradesIn === 'object' ? gradesIn : {};
+    const byTurn = {};
+    for (const d of Array.isArray(g.decisions) ? g.decisions.slice(0, 40) : []) {
+      const n = Math.floor(Number(d && d.turn));
+      if (n >= 1 && n <= turns.length && !byTurn[n]) byTurn[n] = d;
+    }
+    const items = {};
+    const times = liveTimes(turns);
+    const timeline = turns.map((t, i) => {
+      const d = byTurn[i + 1] || {};
+      const pts = {};
+      for (const h of Array.isArray(d.hits) ? d.hits.slice(0, 20) : []) {
+        if (!h || !t.tests.includes(h.item) || own(pts, h.item)) continue;
+        const p = Math.floor(Number(h.points));
+        pts[h.item] = p >= 2 ? 2 : p === 1 ? 1 : 0;
+      }
+      const tested = t.tests.map((id) => ({ id, label: ITEMS[id].label, area: ITEMS[id].area, points: pts[id] || 0, of: 2 }));
+      for (const x of tested) {
+        if (!items[x.id]) items[x.id] = { id: x.id, earned: 0, possible: 0 };
+        items[x.id].possible += 2;
+        items[x.id].earned += x.points;
+      }
+      const k = liveClock(times[i]);
+      const note = cleanText(d.note, LIVE.note);
+      return {
+        inject: `live${i + 1}`, at: times[i], wall: k.wall, since: k.since, to: t.to, toLabel: roleOf(t.to).label,
+        title: t.title, text: t.text, choice: t.entry, quote: quoteOf(t.entry, d.quote),
+        then: note && sayable(note) ? note : 'No note for this decision.', by: 'live', votes: 0, late: false,
+        points: tested.reduce((x, y) => x + y.points, 0), of: tested.length * 2, tested,
+      };
+    });
+    const s = scoreOf(items);
+    const { went, gaps, actions } = findings(s);
+    const summary = cleanText(g.summary, LIVE.summary);
+    return {
+      scenario: { id: 'live', title: cleanText(sIn.title, LIMITS.title) || 'Live tabletop', emoji: EMOJI_SET.includes(sIn.emoji) ? sIn.emoji : '🧯', custom: true },
+      mode: 'live',
+      date: typeof m.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : '',
+      org: cleanOrg(m.org),
+      complete: Boolean(m.complete),
+      score: s.pct, band: s.band, areas: s.areas,
+      went, gaps, actions, timeline, people: [],
+      decisions: timeline.length,
+      debrief: { summary: summary && sayable(summary) ? summary : `The team worked through ${timeline.length} inject${timeline.length === 1 ? '' : 's'} and wrote down a decision for each.` },
+    };
+  }
+  const LIVE_NOTE = 'The injects and the notes were written by an AI facilitator for a made-up incident. The scores are worked out by Drill from its own checklist.';
+  const modeLabel = (r) => (r.mode === 'room' ? 'team drill' : r.mode === 'live' ? 'live tabletop' : 'solo drill');
+
   function mdEsc(s) { return String(s == null ? '' : s).replace(/([\\`*_[\]#|<>])/g, '\\$1'); }
   /** The report as Markdown, for a doc, a ticket or an email. */
   function reportMarkdown(r) {
     const L = [];
     L.push(`# After-action report: ${mdEsc(r.scenario.title)}`);
     L.push('');
-    const who = [r.org ? mdEsc(r.org) : '', r.date, r.mode === 'room' ? 'team drill' : 'solo drill', r.complete ? '' : 'stopped early'].filter(Boolean).join(' · ');
+    const who = [r.org ? mdEsc(r.org) : '', r.date, modeLabel(r), r.complete ? '' : 'stopped early'].filter(Boolean).join(' · ');
     L.push(`*${who}*`);
     L.push('');
     L.push(`**Readiness: ${r.score}/100 - ${r.band.label}**`);
@@ -757,6 +892,16 @@
     L.push('|---|---|---|');
     r.areas.forEach((a) => L.push(`| ${mdEsc(a.label)} | ${a.pct === null ? '-' : `${a.pct}%`} | ${a.band.label} |`));
     L.push('');
+    if (r.mode === 'live' && r.debrief) {
+      L.push('## The facilitator’s debrief');
+      L.push('');
+      L.push(mdEsc(r.debrief.summary));
+      L.push('');
+      r.timeline.forEach((t) => L.push(`- ${mdEsc(t.title)}: the team wrote “${mdEsc(t.quote)}” - ${mdEsc(t.then)}`));
+      L.push('');
+      L.push(`*${LIVE_NOTE}*`);
+      L.push('');
+    }
     if (r.people.length) {
       L.push('## Who took part');
       L.push('');
@@ -788,7 +933,7 @@
       L.push('');
       L.push(`**Decided${t.by === 'timer' ? ' (the clock ran out)' : ''}:** ${mdEsc(t.choice)}${t.votes ? ` *(${t.votes} vote${t.votes === 1 ? '' : 's'})*` : ''}`);
       L.push('');
-      L.push(`**What happened:** ${mdEsc(t.then)}`);
+      L.push(`**${r.mode === 'live' ? 'Facilitator’s note' : 'What happened'}:** ${mdEsc(t.then)}`);
       L.push('');
       L.push(`Tested: ${t.tested.map((x) => `${mdEsc(x.label)} ${x.points}/2`).join(', ')}`);
       L.push('');
@@ -809,9 +954,10 @@
     const went = r.went.length ? r.went.map((w) => `<li><b>${hEsc(w.label)}.</b> ${hEsc(w.text)}</li>`).join('') : '<li>Nothing scored full marks this time. That is what a drill is for.</li>';
     const gaps = r.gaps.length ? r.gaps.map((g) => `<li><b>${hEsc(g.label)}</b> - ${hEsc(g.fix)} <i>(Owner: ${hEsc(g.ownerLabel)})</i></li>`).join('') : '<li>No gaps in this run. Try a harder scenario.</li>';
     const acts = r.actions.map((a) => `<tr><td>${hEsc(a.text)}</td><td>${hEsc(a.ownerLabel)}</td><td class="box">☐</td></tr>`).join('');
-    const tl = r.timeline.map((t) => `<li><p class="when">${hEsc(t.wall)} · ${hEsc(t.since)} · to ${hEsc(t.toLabel)}</p><h3>${hEsc(t.title)}</h3><p>${hEsc(t.text)}</p><p><b>Decided${t.by === 'timer' ? ' (the clock ran out)' : ''}:</b> ${hEsc(t.choice)}${t.votes ? ` <i>(${t.votes} vote${t.votes === 1 ? '' : 's'})</i>` : ''}</p><p><b>What happened:</b> ${hEsc(t.then)}</p><p class="when">Tested: ${t.tested.map((x) => `${hEsc(x.label)} ${x.points}/2`).join(' · ')}</p></li>`).join('');
+    const tl = r.timeline.map((t) => `<li><p class="when">${hEsc(t.wall)} · ${hEsc(t.since)} · to ${hEsc(t.toLabel)}</p><h3>${hEsc(t.title)}</h3><p>${hEsc(t.text)}</p><p><b>Decided${t.by === 'timer' ? ' (the clock ran out)' : ''}:</b> ${hEsc(t.choice)}${t.votes ? ` <i>(${t.votes} vote${t.votes === 1 ? '' : 's'})</i>` : ''}</p><p><b>${r.mode === 'live' ? 'Facilitator’s note' : 'What happened'}:</b> ${hEsc(t.then)}</p><p class="when">Tested: ${t.tested.map((x) => `${hEsc(x.label)} ${x.points}/2`).join(' · ')}</p></li>`).join('');
     const people = r.people.length ? `<h2>Who took part</h2><p>${r.people.map((p) => `${hEsc(p.name)} (${hEsc(p.role)})`).join(', ')}</p>` : '';
-    const sub = [r.org ? hEsc(r.org) : '', hEsc(r.date), r.mode === 'room' ? 'team drill' : 'solo drill', r.complete ? '' : 'stopped early'].filter(Boolean).join(' · ');
+    const sub = [r.org ? hEsc(r.org) : '', hEsc(r.date), modeLabel(r), r.complete ? '' : 'stopped early'].filter(Boolean).join(' · ');
+    const debrief = r.mode === 'live' && r.debrief ? `<h2>The facilitator’s debrief</h2><p>${hEsc(r.debrief.summary)}</p><ul>${r.timeline.map((t) => `<li><b>${hEsc(t.title)}.</b> The team wrote “${hEsc(t.quote)}” - ${hEsc(t.then)}</li>`).join('')}</ul><p class="when">${hEsc(LIVE_NOTE)}</p>` : '';
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>After-action report - ${hEsc(r.scenario.title)}</title>
@@ -829,6 +975,7 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #e3e5e9;
 <p class="sub">${sub}</p>
 <p class="score">Readiness: ${r.score}/100 - ${hEsc(r.band.label)}</p>
 <table><thead><tr><th>Area</th><th>Score</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+${debrief}
 ${people}
 <h2>What went well</h2><ul>${went}</ul>
 <h2>The three gaps to fix</h2><ol>${gaps}</ol>
@@ -846,6 +993,7 @@ ${people}
     LIMITS, ROLES, ROLE_IDS, AREAS, AREA_IDS, ITEMS, ITEM_IDS, SCENARIOS, DEMO_ID, EMOJI_SET, CHOICE_IDS, NOT_ADVICE, DAYS,
     clean, cleanText, cleanName, cleanOrg, fold, roleOf, scenarioById, cleanScenario, injectOf, choiceOf, paths,
     sinceLabel, wallLabel, clock, outcome, worstChoice, tally, leading, nextOf, cleanDecisions, finished,
-    bandOf, score, report, reportMarkdown, reportHtml, slug,
+    bandOf, score, scoreOf, report, reportMarkdown, reportHtml, slug,
+    LIVE, LIVE_START, LIVE_NOTE, LEGAL_CLAIM, cleanLiveTurn, cleanEntry, liveTimes, liveClock, quoteOf, liveReport, modeLabel,
   };
 });
