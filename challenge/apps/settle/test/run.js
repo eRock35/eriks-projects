@@ -684,7 +684,8 @@ test('the provider switch: Claude unless SETTLE_AI_PROVIDER=gemini, read per req
     try { assert.strictEqual((await anon('GET', '/api/me')).data.ai, 'claude', `"${v}" is not the switch`); } finally { delete process.env.SETTLE_AI_PROVIDER; }
   }
   await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.ai, 'gemini'));
-  assert.match(read('server.js'), /process\.env\.SETTLE_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  // (Was a match on the one-line gemini/claude switch before claude-first.)
+  assert.match(read('server.js'), /PROVIDERS = new Set\(\['gemini', 'claude-first'\]\)/);
   assert.strictEqual(gemini.MODEL, 'gemini-3.5-flash-lite', 'the Flash Lite model the lab guard prices');
   assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['question', 'cards']);
   const card = gemini.SCHEMA.properties.cards;
@@ -830,6 +831,44 @@ test('the fallback: Gemini throws or its cap is reached -> Claude answers (200);
     assert.strictEqual(await modelCalls(), calls, 'no Claude call');
   }
   assert.match(read('server.js'), /console\.error\(`\[settle\] gemini failed \(\$\{code\}\); used claude`\)/);
+});
+
+async function withClaudeFirst(guard, fn) {
+  process.env.SETTLE_AI_PROVIDER = 'claude-first';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.SETTLE_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: Claude fills the deck; Claude throwing, too thin or capped -> Gemini deals it (200, its question and cards); a burst refusal -> 429 and no Gemini call', async () => {
+  const me = await register('cy.claudefirst@example.com');
+  assert.strictEqual((await withClaudeFirst(undefined, () => client()('GET', '/api/me'))).data.ai, 'claude-first');
+  let g = fakeGuard({ provider: 'any' });
+  let r = await withClaudeFirst(g, () => me('POST', '/api/suggest', { prompt: 'cheap date ideas in winter' }));
+  assert.deepStrictEqual([r.status, r.data.options.length, r.data.cards, g.log.order], [200, 10, undefined, ['allow', 'record']], r.text);
+  // Claude throws (the SDK's 529; the stand-in Gemini answers whatever the ask): Gemini's deck.
+  const good = async () => ({ json: await fakeGemini({ contents: [{ parts: [{ text: '<<<ASK\ncheap tacos\nASK>>>' }] }] }), usage: { inputTokens: 380, outputTokens: 320 } });
+  g = fakeGuard({ provider: 'any', generate: good });
+  r = await withClaudeFirst(g, () => me('POST', '/api/suggest', { prompt: 'UPSTREAM529 cheap tacos' }));
+  assert.deepStrictEqual([r.status, r.data.cards, g.log.order, g.log.allow.map((a) => a.provider)], [200, true, ['allow', 'allow', 'generate', 'record'], ['claude', 'gemini']], r.text);
+  assert.ok(!/stand-in provider failure/.test(r.text));
+  // Claude's list too thin: Gemini, and the billed Claude call is still recorded.
+  g = fakeGuard({ provider: 'any', generate: good });
+  r = await withClaudeFirst(g, () => me('POST', '/api/suggest', { prompt: 'BLANK ideas' }));
+  assert.deepStrictEqual([r.status, r.data.cards, g.log.record.map((x) => x.provider)], [200, true, ['claude', 'gemini']], r.text);
+  // Claude's monthly cap: Gemini, no Claude call.
+  g = fakeGuard({ provider: 'any', denyFor: { claude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+  r = await withClaudeFirst(g, () => me('POST', '/api/suggest', { prompt: 'cheap tacos' }));
+  assert.deepStrictEqual([r.status, r.data.cards, g.log.order], [200, true, ['allow', 'allow', 'generate', 'record']], r.text);
+  for (const code of ['burst-minute', 'burst-day']) {
+    g = fakeGuard({ provider: 'any', denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+    r = await withClaudeFirst(g, () => me('POST', '/api/suggest', { prompt: 'cheap tacos' }));
+    assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']]);
+  }
+  // Both fail: Gemini's plain error, never the provider's words.
+  g = fakeGuard({ provider: 'any', generate: async () => { throw Object.assign(new Error('SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'http' }); } });
+  r = await withClaudeFirst(g, () => me('POST', '/api/suggest', { prompt: 'UPSTREAM529 cheap tacos' }));
+  assert.ok(r.status >= 500 && !/SECRET/.test(r.text), r.text);
+  assert.match(read('server.js'), /console\.error\(`\[settle\] claude failed \(\$\{code\}\); used gemini`\)/);
 });
 
 let HOST; let ID; let CODE;

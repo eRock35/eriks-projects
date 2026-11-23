@@ -49,7 +49,11 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // to Gemini on Vertex AI (through the lab's AI guard) and turns on "Snap my
 // plate"; anything else - unset included - is the provider Again has always
 // had, so nothing changes until the switch is set. Read per request.
-const providerNow = () => (process.env.AGAIN_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// AGAIN_AI_PROVIDER=claude-first keeps Claude reading the menu first (Gemini
+// if Claude fails) and turns "Snap my plate" on, as `gemini` does.
+const PROVIDERS = new Set(['gemini', 'claude-first']);
+const providerNow = () => (PROVIDERS.has(process.env.AGAIN_AI_PROVIDER) ? process.env.AGAIN_AI_PROVIDER : 'claude');
+const plateOnNow = () => providerNow() !== 'claude';
 
 const LIMITS = {
   listWrites: 120,                    // list saves per account...
@@ -421,7 +425,8 @@ async function chargeGemini(req, usage, what) {
  *  byte of the photo. */
 app.post('/api/ai/menu', ...spend, aiJson, route('Reading a menu isn’t available right now. Try again in a minute - adding dishes by hand always works.', async (req, res) => {
   const b = ai.brief(req.body);
-  const out = providerNow() === 'gemini' ? await menuGeminiFirst(req, b) : await menuWithClaude(req, b);
+  const mode = providerNow();
+  const out = mode === 'gemini' ? await menuGeminiFirst(req, b) : mode === 'claude-first' ? await menuClaudeFirst(req, b) : await menuWithClaude(req, b);
   res.set('Cache-Control', 'no-store');
   res.json(out);
 }));
@@ -436,9 +441,7 @@ app.post('/api/ai/menu', ...spend, aiJson, route('Reading a menu isn’t availab
 const BURSTS = new Set(['burst-minute', 'burst-day']);
 async function menuGeminiFirst(req, b) {
   try {
-    const menu = gemini.cleanMenu(await askGemini(req, gemini.menuRequest(b, ai.text(b)), 'menu'), b);
-    if (!menu) throw Object.assign(new Error('unusable'), { geminiCode: 'unusable' });
-    return { ...ai.answer(null, b, menu), reader: 'gemini' };
+    return await menuWithGemini(req, b);
   } catch (err) {
     if (err && BURSTS.has(err.code)) throw err;
     const raw = (err && (err.geminiCode || err.code)) || 'error';
@@ -448,13 +451,36 @@ async function menuGeminiFirst(req, b) {
   }
 }
 
+/** The Gemini menu reader on its own (what menuGeminiFirst tries first). */
+async function menuWithGemini(req, b) {
+  const menu = gemini.cleanMenu(await askGemini(req, gemini.menuRequest(b, ai.text(b)), 'menu'), b);
+  if (!menu) throw Object.assign(new Error('unusable'), { geminiCode: 'unusable' });
+  return { ...ai.answer(null, b, menu), reader: 'gemini' };
+}
+
+/** Claude first (AGAIN_AI_PROVIDER=claude-first): the same two readers the
+ *  other way round. Claude failing for any reason but a burst refusal (a
+ *  thrown SDK error, an answer the core's door rejects, Claude's monthly
+ *  cap, no key) hands the same request to the Gemini reader. */
+async function menuClaudeFirst(req, b) {
+  try {
+    return { ...(await menuWithClaude(req, b)), reader: 'claude' };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const raw = (err && (err.code || (Number.isInteger(err.status) ? `http-${err.status}` : err.name))) || 'error';
+    const code = typeof raw === 'string' && /^[a-z0-9-]{1,24}$/i.test(raw) ? raw.toLowerCase() : 'error';
+    console.error(`[again] claude failed (${code}); used gemini`);
+    return menuWithGemini(req, b);
+  }
+}
+
 /** "Snap my plate" (Gemini only: with the switch off the route answers the
  *  same 404 as any path that does not exist, after the same gates). One
  *  photo and nothing else in; one short description of what can be seen and
  *  a best-guess name, marked as a guess, out. The photo is not kept here:
  *  the page may keep its own copy on the phone, as it does for any dish. */
 app.post('/api/ai/plate', ...spend, aiJson, route('Looking at a plate isn’t available right now. Try again in a minute - typing the dish always works.', async (req, res) => {
-  if (providerNow() !== 'gemini') return res.status(404).json({ error: 'Not found.' });
+  if (!plateOnNow()) return res.status(404).json({ error: 'Not found.' });
   const b = ai.briefPlate(req.body);
   const plate = gemini.cleanPlate(await askGemini(req, gemini.plateRequest(b), 'plate'));
   res.set('Cache-Control', 'no-store');

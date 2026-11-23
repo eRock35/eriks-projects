@@ -138,7 +138,7 @@
   function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'list'; }
   function signedIn() { return Boolean(state.me && state.me.signedIn); }
   /** The server says which reader it runs; "Snap my plate" exists only on the Gemini one. */
-  function plateOn() { return Boolean(state.me && state.me.reader === 'gemini'); }
+  function plateOn() { return Boolean(state.me && (state.me.reader === 'gemini' || state.me.reader === 'claude-first')); }
   function menuWord() { return plateOn() ? 'Snap the menu' : 'Read the menu'; }
   function aiActs(placeId, cls) {
     return '<button class="btn ' + cls + ' ai" type="button" data-act="reader" data-id="' + esc(placeId || '') + '">' + menuWord() + '</button>' +

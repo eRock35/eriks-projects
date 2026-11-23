@@ -541,7 +541,9 @@ test('the metered routes’ gates come before their big parsers, in order, with 
   // "Make a round" has the same gates, then the provider switch, then the parser.
   assert.deepStrictEqual(layer('/api/groups/:gid/round', 'post').route.stack.map((l) => l.handle.name || '(anon)').slice(0, 6), ['requireUser', 'requireBudget', 'requireDailyCap', 'memberGate', 'roundSwitch', 'jsonParser']);
   // The provider switch: Claude unless INSIDEJOKE_AI_PROVIDER says gemini (test/gemini.js runs that side).
-  assert.match(src, /const PROVIDER = process\.env\.INSIDEJOKE_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude';/);
+  // (Was a match on the one-line gemini/claude PROVIDER before claude-first; test/claude-first.js runs that mode.)
+  assert.match(src, /const MODE = \['gemini', 'claude-first'\]\.includes\(process\.env\.INSIDEJOKE_AI_PROVIDER\)/);
+  assert.match(src, /const PROVIDER = MODE === 'gemini' \? 'gemini' : 'claude';/);
   assert.strictEqual(require('../server').PROVIDER, 'claude', 'unset means the provider the app has always used');
 });
 

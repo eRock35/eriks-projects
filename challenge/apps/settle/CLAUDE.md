@@ -189,7 +189,12 @@ and **off**: `providerNow()` in `server.js` is `gemini` only when the env var
 is exactly `gemini`, read per request; unset or anything else is Claude, as
 before. **Switching it on is Erik's call** (a Cloud Run env change; it also
 needs Vertex AI enabled for `challenge-run@`, see `challenge/CLAUDE.md` "Lab
-AI guard"). `/api/me` reports `ai: 'claude' | 'gemini'`.
+AI guard"). `/api/me` reports `ai: 'claude' | 'gemini' | 'claude-first'`.
+
+**`SETTLE_AI_PROVIDER=claude-first` (2026-11-23):** Claude fills the deck first, exactly as unset; any
+Claude failure but a burst refusal (SDK error, a list under `suggestMin`, Claude's `monthly-cap`, no key)
+has Gemini deal the same ask (`fillClaudeFirst`, log `[settle] claude failed (<code>); used gemini`; the
+answer is then Gemini's `{options, question, cards: true}`).
 
 - **What it does.** One line in ("cheap tacos near downtown, open late, 4 of
   us"), and `gemini-3.5-flash-lite` (the Lite model the guard prices, $0.30 /
