@@ -949,11 +949,11 @@
   function scrubReportText(v) {
     var s = String(v == null ? '' : v).slice(0, REPORT_TEXT_MAX * 4).replace(/\r\n?/g, '\n');
     s = s.replace(/<[^<>\n]*>/g, ' ').replace(/[<>]/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f​-‏‪-‮]/g, ' ');
-    s = s.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[email removed]');
+    s = s.replace(/(?<![\w.+-])[\w.+-]{1,64}@[\w-]+(?:\.[\w-]+)+/g, '[email removed]');
     s = s.replace(/\b(?:https?:\/\/|www\.)\S+/gi, '[link removed]');
     s = s.replace(/^([ \t]*(?:cashier|server|employee|operator|clerk|staff|customer|card ?holder|name|owner|contact|address|phone|tel|fax|e-?mail)\b[ \t]*[:#-]?)[^\n]*$/gim, '$1 [removed]');
     s = s.replace(/(?:\+?1[\s.-]?)?(?:\(\d{3}\)\s?|\b\d{3}[\s.-])\d{3}[\s.-]\d{4}\b/g, '[phone removed]');
-    s = s.replace(/(?:[xX*•#]{2,}[\s-]*)+(\d{2,})/g, function (_m, d) { return '••' + d.slice(-4); });
+    s = s.replace(/(?<![A-Za-z*•#])[xX*•#]{2}[xX*•#\s-]{0,30}?(\d{2,})/g, function (_m, d) { return '••' + d.slice(-4); });
     s = s.replace(/(^|[^\d.,])(\d{4}(?:[ -]\d{4}){2,3}|\d{8,})(?!\d|[.,]\d)/g, function (_m, pre, run) {
       return pre + '••' + run.replace(/\D/g, '').slice(-4);
     });

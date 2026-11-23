@@ -127,7 +127,12 @@ function request(input, today) {
  *  digit by digit (rules.toCents) - never through a float. */
 function amount(v, abs) {
   if (typeof v !== 'string' || !v || v.length > 40) return null;
-  const c = R.toCents(v.replace(/[^\d.,()$-]/g, ''), true);
+  // Digits, separators, a currency sign, brackets or a minus - nothing else.
+  // "1e9" or "<b>12.00</b>" is not a printed amount, and dropping its odd
+  // characters would invent a different number.
+  const t = v.replace(/\s+/g, '').replace(/^(usd|cr|db)|(usd|cr|db)$/gi, '');
+  if (!/^[\d.,()$-]+$/.test(t)) return null;
+  const c = R.toCents(t, true);
   if (c === null) return null;
   if (c < 0 && !abs) return null;
   const a = Math.abs(c);
@@ -140,7 +145,7 @@ const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
  *  only, and anything long enough to be an account, card or merchant number
  *  cut to its last four. */
 function batch(v) {
-  if (typeof v !== 'string') return null;
+  if (typeof v !== 'string' || /[^A-Za-z0-9 #:.-]/.test(v)) return null;
   const s = v.slice(0, 80).replace(/[^A-Za-z0-9-]/g, '').slice(0, 24);
   if (!s || !/\d/.test(s)) return null;
   const digits = s.replace(/\D/g, '');
