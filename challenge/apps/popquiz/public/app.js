@@ -993,7 +993,7 @@
     var ed = state.editor;
     if (!ed || !ed.transcription) return '';
     if (!(q.source || '').trim()) return '<span class="proof off">No quote from the page</span>';
-    return onPage(q.source) ? '<button type="button" class="proof ok" data-proof>' + ICON.check + 'On the page<span class="sr-only">: show it</span></button>' : '<span class="proof off">Edited: not the page’s words</span>';
+    return onPage(q.source) ? '<button type="button" class="proof-btn" data-proof><span class="proof ok">' + ICON.check + 'On the page<span class="sr-only">: show it</span></span></button>' : '<span class="proof off">Edited: not the page’s words</span>';
   }
   function drawPageText(source) {
     var ed = state.editor;
@@ -1035,7 +1035,7 @@
       '<div class="lbl">Why — shown after they answer</div>' +
       '<textarea class="input" data-f="explanation" rows="2" maxlength="300" placeholder="One line on why. People remember the reason, not the rule.">' + esc(q.explanation) + '</textarea>' +
       '<div class="lbl">' + (state.editor && state.editor.transcription ? 'From the page' : 'Quote and topic') + '<span data-proofline>' + proofHtml(q) + '</span></div>' +
-      '<div class="more"><input class="input" data-f="source" maxlength="200" value="' + esc(q.source) + '" placeholder="Quote from the material" aria-label="Source quote"><input class="input" data-f="topic" maxlength="40" value="' + esc(q.topic) + '" placeholder="Topic, e.g. Allergens" aria-label="Topic"></div>' +
+      '<div class="more"><textarea class="input" data-f="source" rows="1" maxlength="200" placeholder="Quote from the material" aria-label="Source quote">' + esc(q.source) + '</textarea><input class="input" data-f="topic" maxlength="40" value="' + esc(q.topic) + '" placeholder="Topic, e.g. Allergens" aria-label="Topic"></div>' +
       '<div class="qerr" aria-live="polite">' + (r.error && q.prompt ? esc(r.error) : '') + '</div>' +
       '</div>';
   }
@@ -1149,7 +1149,7 @@
     updateBar();
   }
   /** A question box grows to fit what is in it (field-sizing in the stylesheet); rows is the fallback. */
-  function fit(ta) { ta.rows = Math.max(2, Math.min(8, Math.ceil(ta.value.length / 34))); }
+  function fit(ta) { ta.rows = Math.max(ta.dataset.f === 'source' ? 1 : 2, Math.min(8, Math.ceil(ta.value.length / 34))); }
   function refreshCard(card, q) {
     var r = check(q);
     var show = r.error && (q.prompt || '').trim();

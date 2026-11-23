@@ -687,6 +687,21 @@ test('snap a page: non-image 400 before the model, unreadable 422, a proposal an
   assert.ok(!store._dump().includes(JPEG.slice(0, 60)), 'the image is nowhere in the store');
 });
 
+test('the page: no inline script, handler or style attribute, in the HTML or written by script; motion only when allowed', () => {
+  const fs = require('fs');
+  const pub = path.join(__dirname, '..', 'public');
+  const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(pub, 'app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(pub, 'app.css'), 'utf8');
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html) && !/\son[a-z]+\s*=/i.test(html) && !/\sstyle\s*=/i.test(html));
+  assert.ok(!/style\s*=\s*["']/.test(js) && !/\.style\b/.test(js) && !/setAttribute\(\s*['"]style/.test(js), 'the script writes no style');
+  assert.ok(!/@import|url\(\s*["']?https?:/i.test(css) && !/@font-face/i.test(css), 'system fonts, nothing fetched');
+  const still = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*$/, '');
+  assert.ok(!/\b(animation|transition)\s*:/.test(still) && !/@keyframes/.test(still), 'every animation sits inside prefers-reduced-motion: no-preference');
+  assert.ok(/--bg: #ffffff;/.test(css) && /--bg: #000000;/.test(css) && !/gradient\(/.test(css), 'a white page, a black one in dark, no gradients');
+  assert.ok(html.includes('verify-banner.js" data-mount="api/auth"') && html.includes('<!-- lab:og'));
+});
+
 /* ---------------- Snap a page on Gemini (POPQUIZ_AI_PROVIDER=gemini) ---------------- */
 
 const jpegWith = (word) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(`${word} page`), Buffer.alloc(500, 3)]).toString('base64');
