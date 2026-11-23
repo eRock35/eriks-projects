@@ -413,6 +413,7 @@ details.others summary { cursor: pointer; min-height: 48px; display: flex; align
   body.locked .tabbar { display: flex; }
   .wrap { max-width: 1120px; padding: 8px 28px 48px; }
   .welcome { padding: 96px 0 40px; }
+  .welcome h1 { max-width: 18ch; }
   .welcome .lede { font-size: 21px; max-width: 34ch; }
   .layout.home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 96px; align-items: start; }
   .layout.home > section { min-width: 0; }
