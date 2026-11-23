@@ -301,7 +301,7 @@
     return '<div class="level"><div class="row spread"><span><b>Level ' + p.level.level + ' · ' + esc(p.level.title) + '</b></span><span class="small muted num">' +
       (p.level.next ? p.level.xp + ' / ' + p.level.next + ' XP' : p.level.xp + ' XP · top level') + '</span></div>' +
       bar(p.level.progress * 100, 'accent') +
-      '<div class="small muted num">' + p.rounds + ' rounds · ' + p.wins + ' wins' + (p.streak ? ' · ' + p.streak + '-day streak' : '') + '</div></div>';
+      '<div class="small muted num">' + p.rounds + (p.rounds === 1 ? ' round · ' : ' rounds · ') + p.wins + (p.wins === 1 ? ' win' : ' wins') + (p.streak ? ' · ' + p.streak + '-day streak' : '') + '</div></div>';
   }
 
   function renderArena() {
@@ -492,7 +492,7 @@
       '<div class="tools">' +
       '<button class="tool" id="hintBtn" type="button">' + ic('bulb') + 'Whisper · <span id="hintLeft">' + (r.maxHints - r.hintsUsed) + '</span></button>' +
       (synth ? '<button class="tool" id="voiceBtn" type="button" aria-pressed="' + voiceOn() + '">' + ic('sound') + 'Voice</button>' : '') +
-      '<button class="tool end" id="endBtn" type="button">' + ic('flag') + 'End<span class="wide">&nbsp;and score</span></button></div>' +
+      '<button class="tool end" id="endBtn" type="button">' + ic('flag') + '<span>End<span class="wide"> and score</span></span></button></div>' +
       '<div class="line">' +
       (SR ? '<button class="icon-btn" id="micBtn" type="button" aria-label="Speak">' + ic('mic') + '</button>' : '') +
       '<textarea id="say" rows="1" maxlength="700" aria-label="Your line" placeholder="Say something to ' + esc(s.them.name.split(' ')[0]) + '…"></textarea>' +
@@ -912,7 +912,7 @@
         }).join('') : '<div class="empty">No rounds yet. <a href="#/arena">Pick an opponent</a>.</div>') + '</div>' +
         '<div class="cols two">' +
         '<section><div class="section-title"><h2>Skill profile</h2></div>' +
-        (p.rounds ? radar(p.skills) + '<p class="small muted center">Average across ' + p.rounds + ' scored rounds. Weakest: <b>' + esc(weakest(p.skills)) + '</b>.</p>' : '<div class="empty">Finish a round to see your profile.</div>') +
+        (p.rounds ? radar(p.skills) + '<p class="small muted center">Average across ' + p.rounds + ' scored round' + (p.rounds === 1 ? '' : 's') + '. Weakest: <b>' + esc(weakest(p.skills)) + '</b>.</p>' : '<div class="empty">Finish a round to see your profile.</div>') +
         '</section><section><div class="section-title"><h2>Badges</h2><span class="small num">' + earned + ' of ' + p.badges.length + '</span></div><div class="list">' +
         p.badges.map(function (b) {
           return '<div class="item static' + (b.earned ? '' : ' off') + '"><span class="em" aria-hidden="true">' + esc(b.emoji) + '</span><span class="t"><b>' + esc(b.label) + '</b><span>' + esc(b.desc) + '</span></span>' +
