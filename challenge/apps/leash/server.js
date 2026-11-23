@@ -348,4 +348,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`leash listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store };
+module.exports = { app, identity, identityStore, store, MODELS };
