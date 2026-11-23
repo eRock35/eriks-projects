@@ -4,7 +4,7 @@
   "description": "Where are we eating? Everyone swipes, nobody argues.",
   "start_url": "./", "scope": "./",
   "display": "standalone",
-  "background_color": "#f7f5fb",
+  "background_color": "#ffffff",
   "theme_color": "#6d28d9",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }

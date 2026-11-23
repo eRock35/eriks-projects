@@ -38,8 +38,9 @@ would have said out loud.
 decision, joining, swiping, ranking, vetoes, the reveal, the runoff, the
 wheel and "settle another" are free, need no account, and make no model
 call. The one metered thing is **"Fill the deck for me"** (Haiku for the
-free tier, Sonnet for members via `identity.planFor`), about a cent, and only
-the creator needs to be signed in for it. Voters never sign in.
+free tier, Sonnet for members via `identity.planFor`; Gemini Flash Lite once
+`SETTLE_AI_PROVIDER=gemini` is set), about a cent, and only the creator needs
+to be signed in for it. Voters never sign in.
 
 **How it becomes an iPhone app.** It already is one in shape: a card stack,
 three thumb buttons, a share sheet. The obvious next steps are an App Clip
@@ -180,6 +181,52 @@ Signed out, the button explains and offers a free account (the prompt is
 kept); 402 opens the credit sheet; 403 `verify-email` shows its sentence and
 "Send the link again".
 
+### On Gemini Flash Lite, behind `SETTLE_AI_PROVIDER=gemini` (2026-11-23)
+
+Erik's per-app AI plan gives Settle "Gemini (flash-lite): fills the deck of
+places from a short description, instantly - a fast, light task". It is built
+and **off**: `providerNow()` in `server.js` is `gemini` only when the env var
+is exactly `gemini`, read per request; unset or anything else is Claude, as
+before. **Switching it on is Erik's call** (a Cloud Run env change; it also
+needs Vertex AI enabled for `challenge-run@`, see `challenge/CLAUDE.md` "Lab
+AI guard"). `/api/me` reports `ai: 'claude' | 'gemini'`.
+
+- **What it does.** One line in ("cheap tacos near downtown, open late, 4 of
+  us"), and `gemini-3.5-flash-lite` (the Lite model the guard prices, $0.30 /
+  $2.50 per 1M) returns `{question, cards: [{label, emoji, why}]}` against a
+  `responseSchema` (`lib/gemini.js`): the question to put to the group and
+  8-12 cards. The answer is `{options, question, cards: true}`.
+- **Cards are kinds of places, never places.** Settle has no place data, so
+  there is nothing real to pick among and the model is told so. The code does
+  not take its word: `cleanDeck` runs every card through `Core.cleanOption`,
+  then drops a card whose label carries a link, a handle, a phone-shaped
+  number, a street address, a rating, a price or an opening time (`factual`),
+  blanks a "why" that carries one, drops a question that does, folds repeats
+  and anything already on the list, and keeps 12. The schema has no field
+  that could hold a real place's details (tested).
+- **The person edits and removes.** The sheet lists the cards as rows: each
+  label is an input, each row has a remove button, the dealt question has a
+  "Use this as the question" switch (offered only when the form's question is
+  empty or a deck's default). Nothing reaches the deck until "Add N cards to
+  my deck". The same sheet serves the Claude answer (no question there).
+- **Order of a call, both providers:** `requireUser, requireBudget,
+  requireDailyCap` -> the 16 KB parser -> the ask checked -> the lab guard's
+  `allow({provider, req, app: 'settle'})` (its "no" is sent in its own words,
+  429 or 503, and no model is called) -> ONE call -> `guard.record` with
+  `guard.priceUsd`. With no guard loaded (the app on its own) Claude works as
+  before and Gemini answers only from the stand-in. A member's own Claude key
+  is not counted against the lab's cap.
+- **Charged to the person too.** The identity ledger prices Claude models
+  only, so a Gemini call is written there at its real dollars as the Haiku
+  input tokens that cost the same, route `suggest:gemini-3.5-flash-lite`
+  (`chargeGemini`, Pawlog's pattern). A call that failed after it billed
+  (`err.usage`) is still recorded and charged. Provider errors are a 502 (503
+  for busy or a timeout) with the route's own sentence.
+- `lib/gemini.js` opens no connection and logs nothing: the call is
+  `global.LAB_AI_GUARD.gemini.generate`. The stand-in is `fakeai.gemini`
+  (triggers `BLANK`, `INJECT`, `UPSTREAMnnn`; otherwise nine taco-night
+  cards). Local: `SETTLE_AI_PROVIDER=gemini npm run dev`.
+
 ## Local run and tests
 
 ```
@@ -225,6 +272,48 @@ Members: `GET /api/d/:id[?since=v]`, `PUT /api/d/:id/vote {oid, v}`, `PUT
 /api/d/:id/close`, `POST /api/d/:id/reopen`, `DELETE /api/d/:id`. Metered:
 `POST /api/suggest`.
 
+## Design (redesigned 2026-11-23, the HOA Desk look)
+
+Erik's brief for every lab app: clean white, Apple-like, lots of space.
+`public/app.css` holds the rules at its top; keep them when adding anything.
+
+- **Pure white page** (#FFFFFF; true black in dark, sheets and the swipe card
+  on #1c1c1e), 1 px hairlines (#E5E5EA), 12 px cards, 10 px inputs and tiles,
+  pill buttons and chips. **Lists over boxes**: the ranking, the runoff, the
+  steps, the rank pool and the AI cards are hairline-divided rows; only the
+  reveal, the "you're done" panel and the desktop preview are boxed. No
+  shadows except a faint one on what floats (nav, sheet, swipe card, toast).
+- **One accent**, Settle violet `#6d28d9` from `lab.js` (`#c4b5fd` in dark):
+  the primary button, links, the active nav item, a chosen chip. Green, red,
+  pink and amber are status only (Yes, No, Love, veto) and always carry
+  their word.
+- **Type**: the system stack only; five sizes (13, 15, 17, 22 and the big
+  heading, `--t-cap` to `--t-big`), tight-tracked headings, tabular numbers
+  for counts and tallies. Spacing on 4/8, 40-64 px between sections.
+- **Navigation**: one `<nav class="tabs">` inside the header (Home, New,
+  Join, Sign in/Account). Phones: a floating translucent pill at the bottom,
+  1.5 px line icons, the label only on the current item with a small accent
+  mark, safe-area aware. Desktop (900 px+): the same buttons as a top nav
+  with a quiet underline. The header's blur is on `.top::before` - a
+  backdrop-filter on the header itself would make it the containing block of
+  the fixed nav. **While a swipe card is up on a phone the nav steps aside**
+  (`body.swiping`), so nothing sits over the three thumb buttons; the brand
+  goes home. It does not use the shared `.dk-tabbar` rail.
+- **Home** is a centred hero: the headline, one line, "Start a decision" and
+  "Try the demo", "Have a code?" under them, then Your decisions and How it
+  works as lists.
+- **Taps from home**: start a decision 1, the demo 1, join with a code 1,
+  re-open a recent decision 1, account 1, fill the deck with AI 2.
+- **Motion** (press states, the sheet and view fades, cards dealing in, the
+  card flying off, the wheel, confetti) is all inside `@media
+  (prefers-reduced-motion: no-preference)`; every page is complete at rest.
+- **No `style=` attribute** in the HTML or written by script (tested). Sizes
+  that depend on data (bar widths, confetti) are `data-*` attributes applied
+  through the style object by `applyDyn()` after each draw.
+- Measured in the browser at 390, 320 and 1440 px, both themes: lowest text
+  contrast 4.57:1 light (the Match tag) and 6.43:1 dark; nothing wider than
+  the window; every target 44 px or more.
+
 ## The page
 
 Swipe by **touch or mouse drag** (pointer events, `touch-action: none` on
@@ -239,7 +328,7 @@ winner pops in under CSS confetti (only the first time this page sees it),
 the ranking with bars and Match / Vetoed tags, who loved what when named,
 the runoff in words for rank mode, Share / Copy the result line, and for the
 host Re-open with the top 3 / Settle another. Motion is off under
-`prefers-reduced-motion`. Rendered at 390 and 1280, light and dark.
+`prefers-reduced-motion`. Rendered at 390, 320 and 1440, light and dark.
 
 ## What is deliberately not built
 
