@@ -30,7 +30,14 @@
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var HS_TOKEN = (function () { var m = /\/h\/([A-Za-z0-9_-]{22})\/?$/.exec(location.pathname); return m ? m[1] : null; }());
   var AS_FRIEND = /(?:^|[?&])as=friend(?:&|$)/.test(location.search);
-  var CONFETTI = ['#0f6b66', '#f59a4a', '#e8742b', '#62d6c6', '#f2c14e', '#d9467a'];
+  // Line icons, 1.5px, drawn by the stylesheet (svg.i). Fixed strings: nothing typed ever goes in one.
+  var ICON = {
+    spark: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1-5.1-1.9 5.1-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>',
+    note: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h9l3.5 3.5v11.5H6z"/><path d="M9 10h6M9 13.5h6M9 17h3.5"/></svg>',
+    link: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+    chat: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5h14v9.5h-7.5L7.5 19.5V16H5z"/></svg>',
+    home: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11.5L12 5l7.5 6.5"/><path d="M6.5 10v9h11v-9"/></svg>',
+  };
 
   function esc(v) {
     return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -115,7 +122,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. The ready-made messages work meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err mt0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. The ready-made messages work meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     $('#resend', where).addEventListener('click', function () {
       fetch(e.data.resend || (BASE + 'api/auth/verify/send'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function () { toast('Sent - check your email.'); }, function () { toast('Could not send it. Try again in a minute.'); });
@@ -265,8 +272,8 @@
   function draw() {
     document.body.classList.toggle('is-hs', state.view === 'hs');
     var hasLoans = state.loans.length > 0;
-    $('#fab').hidden = !(state.view === 'shelf' && hasLoans);
-    $('#topAdd').hidden = !(state.view === 'shelf' && hasLoans);
+    $('#bar').hidden = state.view !== 'shelf';
+    $('#topAdd').hidden = state.view !== 'shelf';
     if (state.view === 'hs') return drawHs();
     if (!hasLoans) return drawEmpty();
     drawShelf();
@@ -274,27 +281,23 @@
 
   /* ---------------- the first run ---------------- */
 
-  function choice(act, cls, icon, title, sub) {
-    return '<button class="choice ' + cls + '" type="button" data-act="' + act + '"><span class="ci" aria-hidden="true">' + icon + '</span><span class="ct"><b>' + title + '</b><span>' + sub + '</span></span><span class="chev" aria-hidden="true">›</span></button>';
-  }
   function drawEmpty() {
     main.innerHTML = '<div class="first">' +
       '<section class="hero">' +
-      '<div class="arc" aria-hidden="true"><svg viewBox="0 0 260 140"><path class="path" d="M18 112 Q130 -46 242 112"/></svg><span class="thing t1">🏠</span><span class="thing t2">🏡</span><span class="boom">🪃</span></div>' +
       '<h1>Lend it. <em>Get it back.</em></h1>' +
-      '<p class="lede">Who has your drill? Boomerang remembers what you lent and borrowed, sends a receipt your friend confirms in one tap, and writes the “can I have it back?” message for you.</p>' +
+      '<p class="lede">Remember who has your drill, and ask for it back without the awkward.</p>' +
       '<div class="choices">' +
-      choice('sample', 'primary', '🧪', 'Try a sample shelf', 'A drill gone 94 days, a book due tomorrow, Mum’s casserole dish') +
-      choice('add-lent', '', '📤', 'I lent something', 'What, who and when - about ten seconds') +
-      choice('add-borrowed', '', '📥', 'I borrowed something', 'So it goes back before anyone has to ask') +
+      '<button class="btn big" type="button" data-act="sample">Try a sample shelf</button>' +
+      '<button class="btn big ghost" type="button" data-act="add-lent">I lent something</button>' +
       '</div>' +
+      '<p class="third"><button class="link-btn" type="button" data-act="add-borrowed">I borrowed something</button></p>' +
       '<p class="privacy">Free, and no account. Your shelf stays on this phone - sign in only if you want it on your other phones too.</p>' +
       '</section>' +
-      '<section aria-labelledby="howT"><h2 class="how-title" id="howT">How it works</h2><ol class="how">' +
-      '<li><span class="n" aria-hidden="true">📝</span><div><b>Jot it down</b><p>“Cordless drill, Sam, back by Nov 1.” The emoji picks itself; a photo stays on your phone.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">🤝</span><div><b>Send them a receipt</b><p>One link. They tap “Got it” - no app, no account - so you both agree who has what.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">💬</span><div><b>Nudge without the awkward</b><p>Slide from Polite to Legal-ish and get a message ready to paste.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">🪃</span><div><b>It came back!</b><p>Tap It’s back for a small celebration - and find out who your most reliable borrower is.</p></div></li>' +
+      '<section class="how-wrap" aria-labelledby="howT"><h2 class="how-title" id="howT">How it works</h2><ol class="how">' +
+      '<li><span class="n" aria-hidden="true">' + ICON.note + '</span><div><b>Jot it down</b><p>“Cordless drill, Sam, back by Nov 1.” The emoji picks itself; a photo stays on your phone.</p></div></li>' +
+      '<li><span class="n" aria-hidden="true">' + ICON.link + '</span><div><b>Send them a receipt</b><p>One link. They tap “Got it” - no app, no account - so you both agree who has what.</p></div></li>' +
+      '<li><span class="n" aria-hidden="true">' + ICON.chat + '</span><div><b>Nudge without the awkward</b><p>Pick a tone from Polite to Legal-ish, or have it written for you. You send it yourself.</p></div></li>' +
+      '<li><span class="n" aria-hidden="true">' + ICON.home + '</span><div><b>It came back</b><p>Tap It’s back for a small celebration - and find out who your most reliable borrower is.</p></div></li>' +
       '</ol></section></div>';
   }
 
@@ -309,9 +312,9 @@
     if (s.oldest) h += '<div class="holiday"><span class="e" aria-hidden="true">' + esc(s.oldest.emoji) + '</span><p>' + esc(s.oldest.line) + '<small>The longest one out · with ' + esc(s.oldest.who) + '</small></p></div>';
     var r = s.returns;
     h += '<div class="facts">' +
-      '<div class="fact"><div class="k">Came back</div>' + (r ? '<div class="v">' + r.back + ' of ' + r.of + ' · ' + r.pct + '%</div><div class="meter" aria-hidden="true"><i style="width:' + r.pct + '%"></i></div>' : '<div class="v">—</div><div class="s">Lend something to start</div>') + '</div>' +
-      '<div class="fact"><div class="k">Most reliable</div>' + (s.reliable ? '<div class="v">🏅 ' + esc(s.reliable.who) + '</div><div class="s">' + esc(s.reliable.line) + '</div>' : '<div class="v">—</div><div class="s">Shows once something comes back</div>') + '</div>' +
-      '<div class="fact"><div class="k">Your best lender</div>' + (s.bestLender ? '<div class="v">💛 ' + esc(s.bestLender.who) + '</div><div class="s">' + esc(s.bestLender.line) + '</div>' : '<div class="v">—</div><div class="s">Shows once you borrow something</div>') + '</div>' +
+      '<div class="fact"><div class="k">Came back</div>' + (r ? '<div class="v">' + r.back + ' of ' + r.of + ' · ' + r.pct + '%</div><svg class="meter" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="4"/><rect class="on" width="' + Number(r.pct) + '" height="4"/></svg>' : '<div class="v">—</div><div class="s">Lend something to start</div>') + '</div>' +
+      '<div class="fact"><div class="k">Most reliable</div>' + (s.reliable ? '<div class="v">' + esc(s.reliable.who) + '</div><div class="s">' + esc(s.reliable.line) + '</div>' : '<div class="v">—</div><div class="s">Shows once something comes back</div>') + '</div>' +
+      '<div class="fact"><div class="k">Your best lender</div>' + (s.bestLender ? '<div class="v">' + esc(s.bestLender.who) + '</div><div class="s">' + esc(s.bestLender.line) + '</div>' : '<div class="v">—</div><div class="s">Shows once you borrow something</div>') + '</div>' +
       '<div class="fact"><div class="k">On your shelf</div><div class="v">' + plural(state.loans.length, 'thing') + '</div><div class="s">' + (syncOn() ? 'Synced to your account' : 'On this phone') + '</div></div>' +
       '</div></section>';
     return h;
@@ -322,29 +325,28 @@
     var st = (v && v.state) || l.share.state;
     var other = l.who;
     var mine = Boolean(l.share.key);
-    var text = st === 'sent' ? (mine ? '🤝 Receipt sent' : '🤝 Receipt from ' + other)
-      : st === 'confirmed' ? '✓ ' + (mine ? other + ' confirmed it' : 'Confirmed')
-        : st === 'returning' ? (l.dir === 'lent' ? '📦 ' + other + ' says it’s on its way' : '📦 You said it’s on its way')
-          : '🏠 Receipt closed';
+    var text = st === 'sent' ? (mine ? 'Receipt sent' : 'Receipt from ' + other)
+      : st === 'confirmed' ? (mine ? other + ' confirmed it' : 'Confirmed')
+        : st === 'returning' ? (l.dir === 'lent' ? other + ' says it’s on its way' : 'You said it’s on its way')
+          : 'Receipt closed';
     return '<span class="chip out">' + esc(text) + '</span>';
   }
   function chipClass(st) { return st === 'overdue' ? 'late' : st === 'soon' ? 'soon' : st === 'back' ? 'home' : 'out'; }
-  function chipIcon(st) { return st === 'overdue' ? '⏰ ' : st === 'soon' ? '📅 ' : st === 'back' ? '🏠 ' : ''; }
   function loanCard(l) {
     var t = today();
     var st = C.status(l, t);
     var acts = '';
     if (st !== 'back') {
       acts = '<div class="acts">' +
-        '<button class="btn small soft" type="button" data-act="nudge" data-id="' + esc(l.id) + '">💬 ' + (l.dir === 'lent' ? 'Nudge' : 'Message') + '</button>' +
-        '<button class="btn small ' + (l.dir === 'lent' ? 'home' : 'ghost') + '" type="button" data-act="back" data-id="' + esc(l.id) + '">' + (l.dir === 'lent' ? '🪃 It’s back' : '📦 I gave it back') + '</button></div>';
+        '<button class="btn small soft" type="button" data-act="nudge" data-id="' + esc(l.id) + '">' + (l.dir === 'lent' ? 'Nudge' : 'Message') + '</button>' +
+        '<button class="btn small ' + (l.dir === 'lent' ? 'home' : 'ghost') + '" type="button" data-act="back" data-id="' + esc(l.id) + '">' + (l.dir === 'lent' ? 'It’s back' : 'I gave it back') + '</button></div>';
     }
-    var dirChip = state.tab === 'all' ? '<span class="chip dir">' + (l.dir === 'lent' ? '📤 Lent' : '📥 Borrowed') + '</span>' : '';
+    var dirChip = state.tab === 'all' ? '<span class="chip dir">' + (l.dir === 'lent' ? 'Lent' : 'Borrowed') + '</span>' : '';
     var label = l.item + ', ' + (l.dir === 'lent' ? 'lent to ' : 'borrowed from ') + l.who + ', ' + C.dueText(l, t);
     return '<article class="loan' + (st === 'overdue' ? ' is-late' : st === 'back' ? ' is-back' : '') + '">' + tileFor(l) +
       '<button class="loan-open" type="button" data-act="open" data-id="' + esc(l.id) + '" aria-label="' + esc(label) + '">' +
       '<div class="t">' + esc(l.item) + '</div><div class="w">' + esc(C.whoLine(l, t)) + '</div>' +
-      '<div class="chips"><span class="chip ' + chipClass(st) + '">' + chipIcon(st) + esc(C.dueText(l, t)) + '</span>' + dirChip + receiptChip(l) + '</div></button>' +
+      '<div class="chips"><span class="chip ' + chipClass(st) + '">' + esc(C.dueText(l, t)) + '</span>' + dirChip + receiptChip(l) + '</div></button>' +
       acts + '</article>';
   }
   function drawShelf() {
@@ -352,20 +354,20 @@
     var g = C.shelf(state.loans, t, state.tab === 'all' ? null : state.tab);
     var n = function (d) { return state.loans.filter(function (l) { return !d || l.dir === d; }).length; };
     var tab = function (id, label, d) { return '<button type="button" role="tab" data-act="tab" data-tab="' + id + '" aria-selected="' + (state.tab === id) + '">' + label + ' <span class="n">' + n(d) + '</span></button>'; };
-    var sec = function (cls, icon, title, list, sub) {
+    var sec = function (cls, title, list, sub) {
       if (!list.length) return '';
-      return '<div class="sec ' + cls + '"><h2><span aria-hidden="true">' + icon + '</span>' + title + '</h2><span class="ct">' + (sub || list.length) + '</span></div><div class="loans">' + list.map(loanCard).join('') + '</div>';
+      return '<div class="sec ' + cls + '"><h2>' + title + '</h2><span class="ct">' + (sub || list.length) + '</span></div><div class="loans">' + list.map(loanCard).join('') + '</div>';
     };
     var outTitle = state.tab === 'borrowed' ? 'With you now' : state.tab === 'lent' ? 'Out now' : 'Out and about';
-    var body = sec('late', '⏰', 'Overdue', g.overdue) + sec('soon', '📅', 'Due soon', g.soon) + sec('', '📤', outTitle, g.out);
+    var body = sec('late', 'Overdue', g.overdue) + sec('soon', 'Due soon', g.soon) + sec('', outTitle, g.out);
     if (g.back.length) {
-      body += '<details class="more"' + (!body || g.back.length <= 4 ? ' open' : '') + '><summary>🏠 Back home <span class="muted">· ' + g.back.length + '</span></summary><div class="loans backlist">' + g.back.map(loanCard).join('') + '</div></details>';
+      body += '<details class="more"' + (!body || g.back.length <= 4 ? ' open' : '') + '><summary>Back home <span class="muted">· ' + g.back.length + '</span></summary><div class="loans backlist">' + g.back.map(loanCard).join('') + '</div></details>';
     }
     if (!body) {
-      body = '<div class="empty-tab"><p>' + (state.tab === 'borrowed' ? 'Nothing borrowed. Nobody is waiting on you. 😇' : 'Nothing lent out yet.') + '</p><button class="btn small" type="button" data-act="' + (state.tab === 'borrowed' ? 'add-borrowed' : 'add-lent') + '">+ Add one</button></div>';
+      body = '<div class="empty-tab"><p>' + (state.tab === 'borrowed' ? 'Nothing borrowed. Nobody is waiting on you.' : 'Nothing lent out yet.') + '</p><button class="btn small" type="button" data-act="' + (state.tab === 'borrowed' ? 'add-borrowed' : 'add-lent') + '">Add one</button></div>';
     }
     var strip = hasSample()
-      ? '<div class="strip" role="note"><p><b>🧪 A made-up sample shelf.</b> Tap anything - nudges, receipts, It’s back. Nothing here is saved anywhere.</p><div class="row"><button class="btn small" type="button" data-act="mine">Start my own</button><button class="btn small ghost" type="button" data-act="clearsample">Clear the sample</button></div></div>'
+      ? '<div class="strip" role="note"><p><b>A made-up sample shelf.</b> Tap anything - nudges, receipts, It’s back. Nothing here is saved anywhere.</p><div class="row"><button class="btn small" type="button" data-act="mine">Start my own</button><button class="btn small ghost" type="button" data-act="clearsample">Clear the sample</button></div></div>'
       : '';
     main.innerHTML = strip + '<div class="dk-split dk-split-aside shelf">' +
       '<aside class="shelf-aside">' + statsHtml() + '</aside>' +
@@ -374,6 +376,10 @@
 
   /* ---------------- sheets ---------------- */
 
+  /** Which nav item is current: the shelf, unless the add form or the account sheet is open. */
+  function nav(which) {
+    $$('[data-nav]').forEach(function (b) { if (b.getAttribute('data-nav') === which) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  }
   var lastFocus = null;
   function sheet(html, after) {
     lastFocus = document.activeElement;
@@ -391,6 +397,7 @@
     if ($('#sheet').hidden) return;
     $('#sheet').hidden = true; $('#sheetBack').hidden = true; $('#sheet').innerHTML = '';
     document.body.classList.remove('sheet-open');
+    nav('shelf');
     state.nudge = null; state.form = null; state.armed = null;
     if (!quiet && lastFocus && lastFocus.focus && document.body.contains(lastFocus)) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
   }
@@ -408,6 +415,7 @@
       ? { id: l.id, dir: l.dir, item: l.item, emoji: l.emoji, emojiTouched: true, who: l.who, on: l.on, dueMode: l.due ? 'date' : 'none', due: l.due || '', note: l.note, photo: state.photos[l.id] || null, photoChanged: false, sample: Boolean(l.sample) }
       : { id: null, dir: dir || 'lent', item: '', emoji: '', emojiTouched: false, who: '', on: t, dueMode: '14', due: C.addDays(t, 14), note: '', photo: null, photoChanged: false, sample: false };
     drawForm();
+    nav('add');
   }
   function names() {
     var seen = {}, out = [];
@@ -421,8 +429,8 @@
     sheet(head(f.id ? 'Edit' : (f.dir === 'lent' ? 'I lent something' : 'I borrowed something')) +
       '<form id="loanForm" novalidate>' +
       '<div class="seg" role="group" aria-label="Which way">' +
-      '<button type="button" data-act="fdir" data-dir="lent" aria-pressed="' + (f.dir === 'lent') + '">📤 I lent</button>' +
-      '<button type="button" data-act="fdir" data-dir="borrowed" aria-pressed="' + (f.dir === 'borrowed') + '">📥 I borrowed</button></div>' +
+      '<button type="button" data-act="fdir" data-dir="lent" aria-pressed="' + (f.dir === 'lent') + '">I lent</button>' +
+      '<button type="button" data-act="fdir" data-dir="borrowed" aria-pressed="' + (f.dir === 'borrowed') + '">I borrowed</button></div>' +
       '<div class="field"><span id="whatL">What is it?</span><div class="what"><button class="emoji-btn" type="button" id="emojiBtn" data-act="emojis" aria-label="Emoji: ' + esc(guess) + '. Change it">' + esc(guess) + '</button>' +
       '<input class="input" id="fItem" name="item" maxlength="' + C.LIMITS.item + '" autocomplete="off" placeholder="Cordless drill" aria-labelledby="whatL" value="' + esc(f.item) + '"' + (f.id ? '' : ' autofocus') + '></div>' +
       '<div class="picker" id="picker" role="group" aria-label="Pick an emoji">' + C.PICKER.map(function (e) { return '<button type="button" data-act="pick" data-e="' + esc(e) + '" aria-pressed="' + (guess === e) + '">' + esc(e) + '</button>'; }).join('') + '</div></div>' +
@@ -436,13 +444,13 @@
       '<div class="field"><span>Photo <span class="muted">(optional - stays on this phone)</span></span><div class="photo-row" id="photoRow">' + photoRowHtml() + '</div></div>' +
       '<div id="formErr"></div>' +
       '<button class="btn block big" type="submit">' + (f.id ? 'Save' : 'Add to my shelf') + '</button>' +
-      (f.id ? '<button class="btn danger block" type="button" data-act="delete" data-id="' + esc(f.id) + '" style="margin-top:10px">Delete</button>' : '') +
+      (f.id ? '<button class="btn danger block mt8" type="button" data-act="delete" data-id="' + esc(f.id) + '">Delete</button>' : '') +
       '</form>', bindForm);
   }
   function photoRowHtml() {
     var f = state.form;
     return (f.photo ? '<img src="' + esc(f.photo) + '" alt="The photo you added"><button class="btn small ghost" type="button" data-act="nophoto">Remove</button>' : '') +
-      '<span class="btn small ghost filebtn">' + (f.photo ? 'Change' : '📷 Add a photo') + '<input type="file" id="fPhoto" accept="image/*" aria-label="Add a photo"></span>';
+      '<span class="btn small ghost filebtn">' + (f.photo ? 'Change' : 'Add a photo') + '<input type="file" id="fPhoto" accept="image/*" aria-label="Add a photo"></span>';
   }
   function dueSay() {
     var f = state.form;
@@ -525,25 +533,25 @@
       if (v.steps.returning) tl += '<li class="done"><b>' + esc(v.borrower) + ' said it’s on its way back</b><span>' + esc(fmt(dayOf(v.steps.returning))) + '</span></li>';
     }
     if (l.due) tl += '<li class="' + (st === 'overdue' ? 'late' : '') + '"><b>Back by ' + esc(fmt(l.due)) + '</b><span>' + esc(st === 'back' ? (C.daysBetween(l.back, l.due) >= 0 ? 'Made it in time' : 'Came back late') : C.dueText(l, t)) + '</span></li>';
-    tl += l.back ? '<li class="done"><b>Back home 🏠</b><span>' + esc(fmt(l.back)) + ' · after ' + esc(plural(C.daysAway(l, t), 'day')) + '</span></li>' : '<li><b>Back home</b><span>Not yet</span></li>';
+    tl += l.back ? '<li class="done"><b>Back home</b><span>' + esc(fmt(l.back)) + ' · after ' + esc(plural(C.daysAway(l, t), 'day')) + '</span></li>' : '<li><b>Back home</b><span>Not yet</span></li>';
     var actions = '';
     if (!l.back) {
-      actions += '<button class="btn block big" type="button" data-act="nudge" data-id="' + esc(l.id) + '">💬 ' + (l.dir === 'lent' ? 'Nudge ' : 'Message ') + esc(l.who) + '</button>';
-      if (!l.share) actions += '<button class="btn soft block" type="button" data-act="receipt" data-id="' + esc(l.id) + '">🤝 Send ' + esc(l.who) + ' a receipt</button>';
-      else actions += '<button class="btn soft block" type="button" data-act="seeit" data-id="' + esc(l.id) + '">👀 See what ' + esc(l.who) + ' sees</button>' +
-        (l.share.key && !l.sample ? '<button class="btn ghost block" type="button" data-act="resend" data-id="' + esc(l.id) + '">🔗 Share the receipt link again</button>' : '');
-      actions += '<button class="btn ' + (l.dir === 'lent' ? 'home' : 'ghost') + ' block" type="button" data-act="back" data-id="' + esc(l.id) + '">' + (l.dir === 'lent' ? '🪃 It’s back' : '📦 I gave it back') + '</button>';
+      actions += '<button class="btn block big" type="button" data-act="nudge" data-id="' + esc(l.id) + '">' + (l.dir === 'lent' ? 'Nudge ' : 'Message ') + esc(l.who) + '</button>';
+      if (!l.share) actions += '<button class="btn soft block" type="button" data-act="receipt" data-id="' + esc(l.id) + '">Send ' + esc(l.who) + ' a receipt</button>';
+      else actions += '<button class="btn soft block" type="button" data-act="seeit" data-id="' + esc(l.id) + '">See what ' + esc(l.who) + ' sees</button>' +
+        (l.share.key && !l.sample ? '<button class="btn ghost block" type="button" data-act="resend" data-id="' + esc(l.id) + '">Share the receipt link again</button>' : '');
+      actions += '<button class="btn ' + (l.dir === 'lent' ? 'home' : 'ghost') + ' block" type="button" data-act="back" data-id="' + esc(l.id) + '">' + (l.dir === 'lent' ? 'It’s back' : 'I gave it back') + '</button>';
     } else {
-      actions += '<button class="btn ghost block" type="button" data-act="unback" data-id="' + esc(l.id) + '">↩︎ Not back after all</button>';
+      actions += '<button class="btn ghost block" type="button" data-act="unback" data-id="' + esc(l.id) + '">Not back after all</button>';
     }
-    actions += '<div class="row"><button class="btn ghost" type="button" data-act="edit" data-id="' + esc(l.id) + '" style="flex:1">✏️ Edit</button>' +
-      (l.share && l.share.key && !l.sample ? '<button class="btn ghost" type="button" data-act="revoke" data-id="' + esc(l.id) + '" style="flex:1">Take the link back</button>' : '') +
-      '<button class="btn danger" type="button" data-act="delete" data-id="' + esc(l.id) + '" style="flex:1">Delete</button></div>';
+    actions += '<div class="row"><button class="btn ghost grow" type="button" data-act="edit" data-id="' + esc(l.id) + '">Edit</button>' +
+      (l.share && l.share.key && !l.sample ? '<button class="btn ghost grow" type="button" data-act="revoke" data-id="' + esc(l.id) + '">Take the link back</button>' : '') +
+      '<button class="btn danger grow" type="button" data-act="delete" data-id="' + esc(l.id) + '">Delete</button></div>';
     sheet(head(l.dir === 'lent' ? 'You lent it' : 'You borrowed it') +
-      '<div class="detail-top">' + tileFor(l).replace('class="tile"', 'class="tile big"') + '<div><h2>' + esc(l.item) + '</h2><div class="muted">' + esc(C.whoLine(l, t)) + '</div><div class="chips"><span class="chip ' + chipClass(st) + '">' + chipIcon(st) + esc(C.dueText(l, t)) + '</span>' + receiptChip(l) + '</div></div></div>' +
-      (l.note ? '<div class="note-box"><span class="eyebrow">Note</span><p style="margin:0">' + esc(l.note) + '</p></div>' : '') +
+      '<div class="detail-top">' + tileFor(l).replace('class="tile"', 'class="tile big"') + '<div><h2>' + esc(l.item) + '</h2><div class="muted">' + esc(C.whoLine(l, t)) + '</div><div class="chips"><span class="chip ' + chipClass(st) + '">' + esc(C.dueText(l, t)) + '</span>' + receiptChip(l) + '</div></div></div>' +
+      (l.note ? '<div class="note-box"><span class="eyebrow">Note</span><p class="mb0">' + esc(l.note) + '</p></div>' : '') +
       '<ol class="timeline">' + tl + '</ol><div class="stack">' + actions + '</div>' +
-      (l.sample ? '<p class="small muted center" style="margin-top:12px">A sample loan - nothing here is saved anywhere.</p>' : ''));
+      (l.sample ? '<p class="small muted center mt12">A sample loan - nothing here is saved anywhere.</p>' : ''));
     if (l.share && !l.sample && !state.hsCache[l.share.token]) readShare(l).then(function (r) { if (r && !$('#sheet').hidden && loanById(id)) openLoan(id); });
   }
 
@@ -585,8 +593,7 @@
     var box = $('#confetti');
     var bits = '';
     for (var i = 0; i < 36; i++) {
-      var left = (i * 37) % 100, delay = (i % 9) * 0.06, col = CONFETTI[i % CONFETTI.length];
-      bits += '<i style="left:' + left + 'vw;background:' + col + ';animation-delay:' + delay.toFixed(2) + 's"></i>';
+      bits += '<i class="x' + ((i * 7) % 12) + ' c' + (i % 6) + ' d' + (i % 9) + '"></i>';
     }
     box.innerHTML = bits;
     setTimeout(function () { c.remove(); box.innerHTML = ''; }, 2600);
@@ -614,7 +621,7 @@
       return sheet(head('Send ' + esc(l.who) + ' a receipt') +
         '<p>On a real loan this makes a link you send to ' + esc(l.who) + '. They open it with no app and no account, tap <b>Got it</b>, and later <b>I’ve given it back</b> - and you tap <b>It’s back</b>.</p>' +
         '<p class="small muted">This one is a sample, so no link was made. Have a look at what ' + esc(l.who) + ' would see - you can tap through their side too.</p>' +
-        '<div class="stack"><button class="btn block big" type="button" data-act="preview" data-id="' + esc(l.id) + '">👀 See it as ' + esc(l.who) + '</button></div>');
+        '<div class="stack"><button class="btn block big" type="button" data-act="preview" data-id="' + esc(l.id) + '">See it as ' + esc(l.who) + '</button></div>');
     }
     if (!myName()) return askName(id);
     makeReceipt(id);
@@ -651,12 +658,12 @@
   }
   function receiptReady(l) {
     var link = receiptLink(l.share.token);
-    sheet(head('Receipt ready 🤝') +
+    sheet(head('Receipt ready') +
       '<p>Send this to ' + esc(l.who) + '. They open it with no app and no account and tap <b>Got it</b>.</p>' +
       '<div class="linkbox"><code>' + esc(link) + '</code><button class="btn small ghost" type="button" data-act="copylink" data-id="' + esc(l.id) + '">Copy</button></div>' +
       '<div class="stack"><button class="btn block big" type="button" data-act="sharelink" data-id="' + esc(l.id) + '">Send it to ' + esc(l.who) + '</button>' +
-      '<button class="btn ghost block" type="button" data-act="seeit" data-id="' + esc(l.id) + '">👀 See what ' + esc(l.who) + ' sees</button></div>' +
-      '<p class="small muted" style="margin-top:12px">The link shows only the item, your two first names, the dates' + (l.note ? ', your note' : '') + ' and where it’s up to. Anyone with the link can see it, so send it only to ' + esc(l.who) + '. You can take it back any time.</p>');
+      '<button class="btn ghost block" type="button" data-act="seeit" data-id="' + esc(l.id) + '">See what ' + esc(l.who) + ' sees</button></div>' +
+      '<p class="small muted mt12">The link shows only the item, your two first names, the dates' + (l.note ? ', your note' : '') + ' and where it’s up to. Anyone with the link can see it, so send it only to ' + esc(l.who) + '. You can take it back any time.</p>');
   }
   function revoke(id) {
     var l = loanById(id);
@@ -703,24 +710,24 @@
   }
   function trackHtml(v) {
     var steps = [
-      ['sent', '✓', 'Lent'],
+      ['sent', '1', 'Lent'],
       ['confirmed', '2', v.you === 'lender' ? 'Confirmed' : 'Got it'],
       ['returning', '3', 'Given back'],
-      ['closed', '🏠', 'Back home'],
+      ['closed', '4', 'Back home'],
     ];
     var nowI = { sent: 1, confirmed: 2, returning: 3 }[v.state];
     if (nowI === undefined) nowI = -1;
     return '<ol class="track" aria-label="Where it’s up to">' + steps.map(function (s, i) {
       var done = Boolean(v.steps[s[0]]);
       var cls = done ? 'done' : (i === nowI ? 'now' : '');
-      return '<li class="' + cls + '"><span class="dot" aria-hidden="true">' + (done && i > 0 && i < 3 ? '✓' : s[1]) + '</span><b>' + esc(s[2]) + '</b>' +
+      return '<li class="' + cls + '"><span class="dot" aria-hidden="true">' + (done ? '✓' : s[1]) + '</span><b>' + esc(s[2]) + '</b>' +
         (v.steps[s[0]] ? '<time datetime="' + esc(v.steps[s[0]]) + '">' + esc(fmt(dayOf(v.steps[s[0]]))) + '</time>' : '<span class="vh">not yet</span>') + '</li>';
     }).join('') + '</ol>';
   }
   function hsStatus(v) {
     var other = v.you === 'borrower' ? v.lender : v.borrower;
     var it = C.itemPhrase(v.item);
-    if (v.state === 'closed') return v.you === 'borrower' ? '🪃 Back home with ' + v.lender + '. Thanks for bringing it back!' : '🪃 It’s back home. All square.';
+    if (v.state === 'closed') return v.you === 'borrower' ? 'Back home with ' + v.lender + '. Thanks for bringing it back!' : 'It’s back home. All square.';
     if (v.role === 'owner') {
       if (v.state === 'sent') return 'Sent. Waiting for ' + other + ' to tap “Got it”.';
       if (v.state === 'confirmed') return other + ' confirmed ' + (v.you === 'lender' ? 'they have it' : 'it’s right') + '.';
@@ -735,7 +742,7 @@
     if (v.state === 'confirmed') return 'Tap It’s back when your ' + it + ' is home.';
     return v.borrower + ' says it’s on its way back. Is it home?';
   }
-  var STEP_LABEL = { confirm: '👍 Got it', gave: '📦 I’ve given it back', back: '🪃 It’s back' };
+  var STEP_LABEL = { confirm: 'Got it', gave: 'I’ve given it back', back: 'It’s back' };
   function drawHs() {
     var hs = state.hs;
     if (!hs) return;
@@ -751,7 +758,7 @@
       : (v.you === 'lender' ? 'You lent ' + esc(v.borrower) : 'You borrowed from ' + esc(v.lender));
     var noteBy = v.role === 'friend' ? (v.you === 'borrower' ? v.lender : v.borrower) : 'Your';
     var acts = v.can.map(function (s) {
-      var label = s === 'confirm' && v.you === 'lender' ? '👍 That’s right' : STEP_LABEL[s];
+      var label = s === 'confirm' && v.you === 'lender' ? 'That’s right' : STEP_LABEL[s];
       var cls = s === 'back' ? 'home' : s === 'gave' && v.can.length > 1 ? 'ghost' : '';
       return '<button class="btn block big ' + cls + '" type="button" data-act="step" data-step="' + s + '">' + label + '</button>';
     }).join('');
@@ -767,7 +774,7 @@
       trackHtml(v) +
       '<p class="hs-status" id="hsStatus">' + esc(hsStatus(v)) + '</p>' +
       '<div class="stack">' + acts + '</div>' +
-      (v.role === 'owner' && hs.token ? '<div class="stack"><button class="btn ghost block" type="button" data-act="hsshare">🔗 Share the link again</button></div>' : '') +
+      (v.role === 'owner' && hs.token ? '<div class="stack"><button class="btn ghost block" type="button" data-act="hsshare">Share the link again</button></div>' : '') +
       '<div id="hsErr"></div>' +
       '</article>' +
       '<p class="hs-foot">' + (v.role === 'friend'
@@ -779,13 +786,13 @@
     if (state.hs && state.hs.preview) {
       var yours = v && v.state === 'returning' && v.you === 'borrower';
       return '<div class="hs-cta"><b>' + (yours ? 'Now it’s your turn.' : 'That’s the friend’s side.') + '</b><p class="small muted">' + (yours ? 'On your phone you’d tap It’s back to close the loop.' : 'Tap their buttons above to see each step, then head back.') + '</p>' +
-        (yours ? '<button class="btn home block" type="button" data-act="previewback">🪃 It’s back</button><div style="height:8px"></div>' : '') +
-        '<button class="btn ghost block" type="button" data-act="home">← Back to the sample shelf</button></div>';
+        (yours ? '<button class="btn home block" type="button" data-act="previewback">It’s back</button>' : '') +
+        '<button class="btn ghost block mt8" type="button" data-act="home">Back to the sample shelf</button></div>';
     }
     var saved = v && state.hs.token && ownerLoanFor(state.hs.token);
     var canSave = v && v.role === 'friend' && !saved && v.state !== 'closed';
     return '<div class="hs-cta">' +
-      (canSave ? '<b>Keep track of it yourself</b><p class="small muted">Add this to your own Boomerang shelf - free, no account, it stays on this phone.</p><button class="btn block" type="button" data-act="hssave">+ Add it to my shelf</button>' :
+      (canSave ? '<b>Keep track of it yourself</b><p class="small muted">Add this to your own Boomerang shelf - free, no account, it stays on this phone.</p><button class="btn block" type="button" data-act="hssave">Add it to my shelf</button>' :
         saved ? '<b>It’s on your shelf</b><p class="small muted">Open Boomerang to see everything you’ve lent and borrowed.</p><a class="btn ghost block" href="./">Open my shelf</a>' :
           '<b>Lend things too?</b><p class="small muted">Keep a shelf of what’s out and who has it - free, no account.</p><a class="btn ghost block" href="./">Open Boomerang</a>') + '</div>';
   }
@@ -839,34 +846,45 @@
     var l = loanById(id);
     if (!l) return;
     var tone = state.nudge && state.nudge.id === id ? state.nudge.tone : (C.status(l, today()) === 'overdue' ? 'cheeky' : 'friendly');
-    state.nudge = { id: id, tone: tone, variant: C.firstVariant(l, tone), link: Boolean(l.share), ai: null, chosen: null, hint: '' };
+    state.nudge = { id: id, tone: tone, variant: C.firstVariant(l, tone), link: Boolean(l.share), ai: null, chosen: null, hint: '', edit: null };
     drawNudge();
   }
+  function nudgeLink() {
+    var n = state.nudge, l = loanById(n.id);
+    return n.link && l.share ? (l.sample ? '(your receipt link goes here)' : receiptLink(l.share.token)) : null;
+  }
+  /** The message as it stands: what the person typed over it, else the one
+   *  picked from "Write it for me", else the ready-made one for the tone. */
   function nudgeText() {
     var n = state.nudge, l = loanById(n.id);
-    var link = n.link && l.share ? (l.sample ? '(your receipt link goes here)' : receiptLink(l.share.token)) : null;
-    if (n.chosen !== null && n.ai && n.ai.options[n.chosen]) return n.ai.options[n.chosen].text + (link ? '\n\nOur Boomerang receipt: ' + link : '');
+    if (typeof n.edit === 'string') return n.edit;
+    var link = nudgeLink();
+    if (n.chosen !== null && n.ai && n.ai.options && n.ai.options[n.chosen]) return n.ai.options[n.chosen].text + (link ? '\n\nOur Boomerang receipt: ' + link : '');
     return C.nudge(l, n.tone, n.variant, today(), link);
   }
+  function firstName(who) { return String(who || '').split(/\s+/)[0]; }
   function drawNudge() {
     var n = state.nudge, l = loanById(n.id);
     var t = today();
-    var stops = C.TONES.map(function (tn) {
-      return '<button class="stop" type="button" role="radio" aria-checked="' + (n.tone === tn.id) + '" data-act="tone" data-tone="' + tn.id + '"><span class="knob" aria-hidden="true">' + tn.emoji + '</span>' + tn.label + '</button>';
+    var tones = C.TONES.map(function (tn) {
+      return '<button class="pill" type="button" role="radio" aria-checked="' + (n.tone === tn.id) + '" data-act="tone" data-tone="' + tn.id + '">' + tn.label + '</button>';
     }).join('');
     sheet(head((l.dir === 'lent' ? 'Nudge ' : 'Message ') + esc(l.who)) +
-      '<p class="small muted" style="margin-top:-2px">' + esc(l.emoji + ' ' + l.item) + ' · ' + esc(C.dueText(l, t)) + '</p>' +
-      '<div class="dial"><div class="dial-track" aria-hidden="true"></div><div class="dial-stops" role="radiogroup" aria-label="Tone">' + stops + '</div></div>' +
-      '<div class="chat"><div class="to">To ' + esc(l.who) + '</div><div class="bubble-me" id="msg" aria-live="polite">' + esc(nudgeText()) + '</div></div>' +
-      '<div class="row" style="margin-top:10px">' +
-      '<button class="btn small ghost" type="button" data-act="another">↻ Another one</button>' +
-      (l.share ? '<button class="pill" type="button" data-act="togglelink" aria-pressed="' + n.link + '">🔗 Receipt link</button>' : (l.back ? '' : '<button class="btn small ghost" type="button" data-act="receipt" data-id="' + esc(l.id) + '">🤝 Add a receipt link</button>')) +
+      '<p class="small muted mt0">' + esc(l.emoji + ' ' + l.item) + ' · ' + esc(C.dueText(l, t)) + '</p>' +
+      '<div class="tones" role="radiogroup" aria-label="Tone">' + tones + '</div>' +
+      '<label class="msg-label" for="msg">Your message to ' + esc(l.who) + ' - edit it however you like</label>' +
+      '<textarea class="input msg" id="msg" maxlength="1200" rows="5">' + esc(nudgeText()) + '</textarea>' +
+      '<div class="row mt8">' +
+      '<button class="btn small ghost" type="button" data-act="another">Another one</button>' +
+      (l.share ? '<button class="pill" type="button" data-act="togglelink" aria-pressed="' + n.link + '">Receipt link</button>' : (l.back ? '' : '<button class="btn small ghost" type="button" data-act="receipt" data-id="' + esc(l.id) + '">Add a receipt link</button>')) +
       '</div>' +
-      '<div class="two" style="margin-top:12px"><button class="btn big" type="button" data-act="sendnudge">Send…</button><button class="btn big ghost" type="button" data-act="copynudge">Copy</button></div>' +
-      '<p class="small muted" style="margin-top:8px">Boomerang never sends anything itself - this opens your phone’s share sheet.</p>' +
-      '<div class="ai-box"><b>✨ Write it for me</b><p class="small muted" style="margin:2px 0 8px">Three fresh ones in this tone. Make it about… <span class="vh">(optional)</span></p>' +
-      '<div class="row"><input class="input" id="hint" maxlength="' + C.LIMITS.hint + '" placeholder="their birthday, the football" value="' + esc(n.hint) + '" aria-label="Make it about (optional)"><button class="btn" type="button" data-act="aiwrite">Write</button></div>' +
-      '<div id="aiOut">' + aiOutHtml() + '</div></div>', function (root) {
+      '<div class="two mt16"><button class="btn big" type="button" data-act="sendnudge">Send…</button><button class="btn big ghost" type="button" data-act="copynudge">Copy</button></div>' +
+      '<p class="cap muted mt8">Boomerang never sends anything itself - Send opens your phone’s share sheet, and you pick the chat.</p>' +
+      '<section class="ai-box" aria-labelledby="aiT"><h3 id="aiT">' + ICON.spark + 'Write it for me</h3>' +
+      '<p class="small muted">Two or three fresh ones in the tone you picked, written by AI from this loan only: the ' + esc(C.itemPhrase(l.item)) + ', ' + esc(firstName(l.who)) + '’s first name and the dates.</p>' +
+      '<div class="row"><input class="input" id="hint" maxlength="' + C.LIMITS.hint + '" placeholder="Make it about… their birthday" value="' + esc(n.hint) + '" aria-label="Make it about (optional)"><button class="btn" type="button" data-act="aiwrite">Write it</button></div>' +
+      '<div id="aiOut">' + aiOutHtml() + '</div></section>', function (root) {
+      $('#msg', root).addEventListener('input', function (e) { n.edit = e.target.value; });
       $('#hint', root).addEventListener('input', function (e) { n.hint = e.target.value; });
       $('#hint', root).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); aiWrite(); } });
     });
@@ -874,17 +892,17 @@
   function aiOutHtml() {
     var n = state.nudge;
     if (!n.ai) return '';
-    if (n.ai.busy) return '<p class="small muted" role="status">Writing three…</p>';
-    if (n.ai.signin) return '<div class="note"><p style="margin:0 0 8px">Writing it for you uses AI, so it needs a free account - it comes with $2 of AI credit. The ready-made messages above are free and always will be.</p><div class="row"><button class="btn small" type="button" data-act="signup">Create a free account</button><button class="btn small ghost" type="button" data-act="signin">Sign in</button></div></div>';
+    if (n.ai.busy) return '<p class="small muted mt12" role="status">Writing…</p>';
+    if (n.ai.signin) return '<div class="note"><p>Writing it for you uses AI, so it needs a free account - it comes with $2 of AI credit. The ready-made messages above are free and always will be.</p><div class="row"><button class="btn small" type="button" data-act="signup">Create a free account</button><button class="btn small ghost" type="button" data-act="signin">Sign in</button></div></div>';
     if (!n.ai.options || !n.ai.options.length) return '';
     return '<div class="opts" role="group" aria-label="Written for you">' + n.ai.options.map(function (o, i) {
-      return '<button class="opt" type="button" data-act="pickai" data-i="' + i + '" aria-pressed="' + (n.chosen === i) + '">' + esc(o.text) + '</button>';
-    }).join('') + '</div><p class="small muted" style="margin-top:6px">Tap one to use it. Check it before you send.</p>';
+      return '<button class="opt" type="button" data-act="pickai" data-i="' + i + '" aria-pressed="' + (n.chosen === i) + '"><span>' + esc(o.text) + '</span><span class="use">' + (n.chosen === i ? 'In your message' : 'Use this') + '</span></button>';
+    }).join('') + '</div><p class="cap muted mt8">Written by AI from those facts only. One that adds a date, a deadline or pressure is thrown away before you see it - still, read it and make it yours before you send.</p>';
   }
   function refreshNudge() {
     var m = $('#msg');
-    if (m) m.textContent = nudgeText();
-    $$('.stop').forEach(function (s) { s.setAttribute('aria-checked', String(s.getAttribute('data-tone') === state.nudge.tone)); });
+    if (m) m.value = nudgeText();
+    $$('#sheet [data-tone]').forEach(function (s) { s.setAttribute('aria-checked', String(s.getAttribute('data-tone') === state.nudge.tone)); });
     var out = $('#aiOut');
     if (out) out.innerHTML = aiOutHtml();
   }
@@ -892,15 +910,18 @@
     var n = state.nudge, l = loanById(n.id);
     if (!signedIn()) { n.ai = { signin: true }; return refreshNudge(); }
     n.ai = { busy: true }; refreshNudge();
-    api('POST', 'api/write', { loan: { item: l.item, who: l.who, dir: l.dir, on: l.on, due: l.due }, tone: n.tone, hint: n.hint, today: today() }).then(function (r) {
+    // Only what this one message needs: the item, a first name, the dates, the tone and the hint.
+    api('POST', 'api/write', { loan: { item: l.item, who: firstName(l.who), dir: l.dir, on: l.on, due: l.due }, tone: n.tone, hint: n.hint, today: today() }).then(function (r) {
       if (state.nudge !== n) return;
-      n.ai = { options: r.options }; n.chosen = 0; refreshNudge();
+      n.ai = { options: r.options }; n.chosen = 0; n.edit = null; refreshNudge();
+      say(r.options.length + ' written. The first one is in your message - edit it before you send.');
     }).catch(function (e) {
       if (state.nudge !== n) return;
       n.ai = null; refreshNudge();
       if (e.status === 401) { n.ai = { signin: true }; return refreshNudge(); }
       if (e.status === 402) return openCredit(e.data);
       if (e.data && e.data.code === 'verify-email') return verifyNote($('#aiOut'), e);
+      // The lab's AI guard (too many at once, or the month's cap) and every other refusal: its own sentence, here.
       showError(e, $('#aiOut'));
     });
   }
@@ -912,7 +933,7 @@
     return api('GET', 'api/me').then(function (me) { state.me = me; drawTop(); return me; })
       .catch(function () { state.me = { signedIn: false }; drawTop(); return state.me; });
   }
-  function drawTop() { $('#acct').textContent = signedIn() ? 'Account' : 'Sign in'; }
+  function drawTop() { var label = signedIn() ? 'Account' : 'Sign in'; $('#acct').textContent = label; $('#barAcct').textContent = label; }
   function openAccount(reason, then, login) {
     var mode = login ? 'login' : 'register';
     function draw2(root) {
@@ -923,8 +944,8 @@
         '<label class="field"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt8" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -941,16 +962,17 @@
       });
     }
     sheet('<div class="body"></div>', draw2);
+    nav('acct');
   }
   function openSettings() {
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet(head('Account') + '<p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><b>Your shelf</b><p class="small muted" style="margin:4px 0 0">' + (syncOn() ? 'Kept in your account, so it follows you to any phone you sign in on. Photos stay on the phone that took them.' : 'Syncing isn’t available right now - your shelf is safe on this phone.') + '</p></div>' +
-      '<div class="note"><div class="row" style="justify-content:space-between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">“Write it for me” costs about a cent. The shelf, receipts and ready-made nudges are free.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>' +
-      '<p class="small muted" style="margin-top:8px">Signing out keeps this phone’s copy of your shelf.</p>',
+      '<div class="note"><b>Your shelf</b><p class="small muted mt4 mb0">' + (syncOn() ? 'Kept in your account, so it follows you to any phone you sign in on. Photos stay on the phone that took them.' : 'Syncing isn’t available right now - your shelf is safe on this phone.') + '</p></div>' +
+      '<div class="note"><div class="row between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt8 mb0">“Write it for me” costs about a cent. The shelf, receipts and ready-made nudges are free.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block mt16" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt8" id="signOut" type="button">Sign out</button>' +
+      '<p class="small muted mt8">Signing out keeps this phone’s copy of your shelf.</p>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () {
@@ -965,6 +987,7 @@
       });
   }
   function drawBilling(el) {
+    if ($('#signOut')) nav('acct');
     api('GET', 'api/auth/billing').then(function (b) {
       if (b.elsewhere) { el.innerHTML = '<a class="btn small ghost" href="' + esc(b.elsewhere) + '">Add credit</a>'; return; }
       if (!b.available) { el.innerHTML = ''; return; }
@@ -986,7 +1009,6 @@
       (data && data.topUpUrl ? '<p><a class="btn small ghost" href="' + esc(data.topUpUrl) + '">Top up</a></p>' : ''),
       function (root) { drawBilling($('#billing', root)); });
   }
-  $('#acct').addEventListener('click', function () { if (signedIn()) openSettings(); else openAccount(); });
 
   /* ---------------- one click listener ---------------- */
 
@@ -1004,10 +1026,11 @@
     switch (a) {
       case 'home': if (t.tagName === 'A' && !HS_TOKEN) { e.preventDefault(); goHome(); } else if (t.tagName !== 'A') goHome(); break;
       case 'closesheet': closeSheet(); break;
+      case 'account': if (signedIn()) openSettings(); else openAccount(); break;
       case 'sample':
         state.loans = C.sample(today()).concat(state.loans.filter(function (l) { return !l.sample; }));
         saveLocal(); draw(); scrollTo(0, 0);
-        toast('🧪 A made-up shelf to play with. Nothing is saved anywhere.');
+        toast('A made-up shelf to play with. Nothing is saved anywhere.');
         break;
       case 'clearsample':
         state.loans = state.loans.filter(function (l) { return !l.sample; });
@@ -1051,13 +1074,20 @@
       case 'back': markBack(id); break;
       case 'unback': unBack(id); break;
       case 'nudge': openNudge(id); break;
-      case 'tone': n.tone = t.getAttribute('data-tone'); n.variant = C.firstVariant(loanById(n.id), n.tone); n.chosen = null; n.ai = null; refreshNudge(); break;
-      case 'another': n.variant = (n.variant + 1) % C.nudgeCount(loanById(n.id).dir, n.tone); n.chosen = null; refreshNudge(); break;
-      case 'togglelink': n.link = !n.link; t.setAttribute('aria-pressed', String(n.link)); refreshNudge(); break;
+      case 'tone': n.tone = t.getAttribute('data-tone'); n.variant = C.firstVariant(loanById(n.id), n.tone); n.chosen = null; n.ai = null; n.edit = null; refreshNudge(); break;
+      case 'another': n.variant = (n.variant + 1) % C.nudgeCount(loanById(n.id).dir, n.tone); n.chosen = null; n.edit = null; refreshNudge(); break;
+      case 'togglelink': {
+        // An edited message keeps its edits: the link line is added to or taken off the end of it.
+        var had = nudgeLink();
+        n.link = !n.link; t.setAttribute('aria-pressed', String(n.link));
+        if (typeof n.edit === 'string') n.edit = n.link ? n.edit.replace(/\s+$/, '') + '\n\nOur Boomerang receipt: ' + nudgeLink() : n.edit.split('\n\nOur Boomerang receipt: ' + had).join('');
+        refreshNudge();
+        break;
+      }
       case 'sendnudge': share('Boomerang', nudgeText()); break;
       case 'copynudge': copy(nudgeText(), 'Copied - paste it in your chat'); break;
       case 'aiwrite': aiWrite(); break;
-      case 'pickai': n.chosen = Number(t.getAttribute('data-i')); refreshNudge(); break;
+      case 'pickai': n.chosen = Number(t.getAttribute('data-i')); n.edit = null; refreshNudge(); break;
       case 'signup': { var back1 = n && n.id; openAccount(null, function () { if (back1) openNudge(back1); }); break; }
       case 'signin': { var back2 = n && n.id; openAccount(null, function () { if (back2) openNudge(back2); }, true); break; }
       case 'receipt': openReceipt(id); break;
