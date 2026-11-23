@@ -130,8 +130,23 @@
   }
 
   var ICON = {
+    chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
   };
+
+  /* Bar widths, bar heights and column counts come from the data. They ride
+   * in data attributes and are set here through the CSSOM, so no markup the
+   * page writes carries a style attribute. */
+  function size(root) {
+    if (!root.querySelectorAll) return;
+    var each = function (sel, fn) { if (root.matches && root.matches(sel)) fn(root); Array.prototype.forEach.call(root.querySelectorAll(sel), fn); };
+    each('[data-wd]', function (el) { el.style.width = Math.max(0, Math.min(100, Number(el.dataset.wd) || 0)) + '%'; });
+    each('[data-ht]', function (el) { el.style.height = Math.max(0, Math.min(100, Number(el.dataset.ht) || 0)) + '%'; });
+    each('[data-cols]', function (el) { el.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(24, Number(el.dataset.cols) || 1)) + ', minmax(0, 1fr))'; });
+  }
+  new MutationObserver(function (list) {
+    list.forEach(function (m) { Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) size(n); }); });
+  }).observe(document.body, { childList: true, subtree: true });
 
   /* ---------------- me and the top bar ---------------- */
 
@@ -152,8 +167,9 @@
     var el = $('#topRight');
     var me = state.me;
     if (!me || !me.signedIn) {
-      el.innerHTML = '<a class="btn small ghost" href="#/sample">Try a meeting</a><button class="btn small" id="signInTop">Sign in</button>';
+      el.innerHTML = '<a class="btn small plain wide-only" href="#/sample">Try a meeting</a><button class="btn small ghost" id="signInTop">Sign in</button>';
       $('#signInTop').onclick = function () { openAccount(null, 'login'); };
+      recPill();
       return;
     }
     var b = me.budget || {};
@@ -162,6 +178,7 @@
       '<span class="pill credit" title="AI credit">' + (b.unlimited ? '∞' : '$' + Number(b.remainingUsd || 0).toFixed(2)) + '</span>' +
       '<button class="avatar-btn" id="acctBtn" aria-label="Account">' + esc(initials(me.email)) + '</button>';
     $('#acctBtn').onclick = function () { openAccount(); };
+    recPill();
   }
 
   /* ---------------- sheets ---------------- */
@@ -243,8 +260,8 @@
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button>' +
         '</form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="center small muted" style="margin-top:14px">' +
+        (pkOk() && mode === 'login' ? '<button class="mt12 btn ghost block" id="pkBtn">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="mt16 center small muted">' +
         (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap">Sign in</button>' : 'New here? <button class="link-btn" id="swap">Create an account</button>') +
         '</p>';
       labelSheet();
@@ -286,13 +303,13 @@
     sheet(
       '<h2>Your account</h2>' +
       '<p class="muted small">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'Member model (Sonnet)' : 'Free model (Haiku)') + '</p>' +
-      '<div class="card" style="margin:14px 0"><div class="row spread"><b>AI credit</b><span class="num">' + remaining + '</span></div>' +
-      '<div class="bar-cost" style="height:10px;margin-top:10px"><i style="width:' + pct + '%;background:var(--m-ok)"></i></div>' +
-      '<p class="small muted" style="margin:10px 0 0">Sharpening an agenda costs about a cent; so does a recap (a few cents with a whiteboard photo). The meter, the room, the receipt, the audit and the scoreboard are free.</p>' +
-      '<div id="billing" style="margin-top:12px"></div></div>' +
-      '<label class="toggle" style="margin-bottom:10px"><input type="checkbox" id="soundT"' + (state.sound ? ' checked' : '') + '><span class="sw"></span><span><b>Chime when an item runs over</b><small>Your phone also buzzes, where it can.</small></span></label>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" style="margin-top:10px">Sign out</button>',
+      '<div class="m0 mt16 mb16 card"><div class="row spread"><b>AI credit</b><span class="num">' + remaining + '</span></div>' +
+      '<div class="mt12 tall bar-cost"><i class="ok" data-wd="' + pct + '"></i></div>' +
+      '<p class="m0 mt12 small muted">Sharpening an agenda costs about a cent; so does a recap (a few cents with a whiteboard photo). The meter, the room, the receipt, the audit and the scoreboard are free.</p>' +
+      '<div id="billing" class="mt12"></div></div>' +
+      '<label class="mb12 toggle"><input type="checkbox" id="soundT"' + (state.sound ? ' checked' : '') + '><span class="sw"></span><span><b>Chime when an item runs over</b><small>Your phone also buzzes, where it can.</small></span></label>' +
+      (pkOk() ? '<button class="mt12 btn ghost block" id="pkEnrol">Set up Face ID for this device</button>' : '') +
+      '<button class="mt12 btn ghost block" id="signOut">Sign out</button>',
       function (root) {
         $('#soundT', root).onchange = function (e) { state.sound = e.target.checked; store('receipt-sound', state.sound); };
         $('#signOut', root).onclick = function () {
@@ -316,7 +333,7 @@
       if (!b.available) { el.innerHTML = ''; return; }
       if (!b.member) {
         el.innerHTML = '<button class="btn small" id="joinM">Become a member · $' + esc(b.monthlyUsd) + '/mo</button>' +
-          '<p class="small muted" style="margin:8px 0 0">Membership covers every app on this site, runs the better model, and lets you add credit.</p>';
+          '<p class="m0 mt8 small muted">Membership covers every app on this site, runs the better model, and lets you add credit.</p>';
         $('#joinM', el).onclick = function () { checkout('api/auth/billing/membership', {}); };
         return;
       }
@@ -357,7 +374,7 @@
     var h = location.hash.replace(/^#\/?/, '');
     var parts = h.split('/').map(function (p) { try { return decodeURIComponent(p); } catch (e) { return ''; } });
     var tab = tabFor(parts);
-    $$('#tabbar button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
+    $$('#tabbar button').forEach(function (b) { var on = b.dataset.tab === tab; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     window.scrollTo(0, 0);
     if (parts[0] === 'sample') return renderSample(parts[1] || 'live');
     if (parts[0] === 'join') return renderJoin();
@@ -466,21 +483,21 @@
     h += ln('COST PER DECISION', r.costPerDecision == null ? '<span class="red">NO DECISIONS</span>' : esc(R.money(r.costPerDecision)), 'big');
     h += '<hr>' + (compact ? '' : ln('PERSON-HOURS', esc((Math.round(r.personHours * 10) / 10).toFixed(1))));
     h += ln('TOTAL', esc(usd(r.costUsd)), 'total');
-    if (r.compare) h += '<div class="dim" style="text-align:right">≈ ' + esc(r.compare.text) + ' ' + esc(r.compare.emoji) + '</div>';
+    if (r.compare) h += '<div class="tr dim">≈ ' + esc(r.compare.text) + ' ' + esc(r.compare.emoji) + '</div>';
     h += '<hr>';
     var roti = r.roti || { n: 0, dist: [0, 0, 0, 0, 0] };
     h += ln('ROTI · WORTH IT?', roti.n ? esc(roti.avg.toFixed(1)) + '/4' : '<span class="dim">no votes</span>', 'big');
     if (roti.n && !compact) {
       var max = Math.max.apply(null, roti.dist.concat([1]));
-      h += '<div class="roti-bar" aria-hidden="true">' + roti.dist.map(function (n) { return '<i style="height:' + Math.round(n / max * 100) + '%"></i>'; }).join('') + '</div>' +
+      h += '<div class="roti-bar" aria-hidden="true">' + roti.dist.map(function (n) { return '<i data-ht="' + Math.round(n / max * 100) + '"></i>'; }).join('') + '</div>' +
         '<div class="roti-axis" aria-hidden="true"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span></div>' +
-        '<div class="dim" style="font-size:12px">' + esc(R.plural(roti.n, 'vote')) + ' from the room</div>';
+        '<div class="cap dim">' + esc(R.plural(roti.n, 'vote')) + ' from the room</div>';
     }
     h += ln('COULD HAVE BEEN AN EMAIL', esc(r.emailVotes) + (r.voters ? ' <span class="dim">of ' + esc(r.voters) + '</span>' : ''));
     if (r.bingo) h += ln('BINGO', esc(r.bingo.handle));
     if (r.givenBackMs >= R.MIN) {
       h += '<div class="given">TIME GIVEN BACK · ' + esc(R.minText(r.givenBackMs).toUpperCase()) + '</div>' +
-        '<div class="center dim" style="font-size:12px;margin-top:8px">' + esc(Math.round(r.personMinutesGivenBack)) + ' person-minutes back to the team</div>';
+        '<div class="cap mt8 center dim">' + esc(Math.round(r.personMinutesGivenBack)) + ' person-minutes back to the team</div>';
     } else if (r.overrunMs > R.LIMITS.graceMs) {
       h += '<div class="overtime">OVER TIME · ' + esc(R.durText(r.overrunMs).toUpperCase()) + '</div>';
     }
@@ -508,7 +525,7 @@
     c.width = w * scale; c.height = (hgt + 12) * scale;
     ctx = c.getContext('2d');
     ctx.scale(scale, scale);
-    ctx.fillStyle = '#fbf8f0';
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, w, hgt);
     // The torn edge.
     ctx.beginPath();
@@ -519,11 +536,11 @@
     lines.forEach(function (l, i) {
       var bold = /MEETING RECEIPT|^TOTAL|TIME GIVEN BACK|COST PER DECISION/.test(l);
       ctx.font = (bold ? 'bold ' : '') + font;
-      ctx.fillStyle = /TIME GIVEN BACK/.test(l) ? '#146c43' : /OVER TIME|over +\+/.test(l) ? '#b3261e' : '#1d1b17';
+      ctx.fillStyle = /TIME GIVEN BACK/.test(l) ? '#146c43' : /OVER TIME|over +\+/.test(l) ? '#b3261e' : '#1d1d1f';
       ctx.fillText(l, pad, pad + i * lh);
     });
     // A barcode, for the look of it.
-    ctx.fillStyle = '#1d1b17';
+    ctx.fillStyle = '#1d1d1f';
     var bx = pad; var by = pad + lines.length * lh + 14;
     for (var i = 0; bx < w - pad; i++) { var bw = [2, 1, 3, 1, 2][i % 5]; ctx.fillRect(bx, by, bw, 34); bx += bw + [2, 3, 1, 2, 3][i % 5]; }
     return c;
@@ -545,7 +562,7 @@
     if (!p) return;
     p.classList.remove('torn'); void p.offsetWidth; p.classList.add('torn');
     if (!reducedMotion()) { try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) { /* ignore */ } }
-    toast('✂️ Torn off. Save it, copy it or share it.');
+    toast('Torn off. Save it, copy it or share it.');
   }
   function fileName(r) { return 'receipt-' + String(r.title || 'meeting').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + (r.day || 'day') + '.png'; }
 
@@ -555,30 +572,34 @@
     loading();
     loadDemo().then(function (d) {
       var a = R.audit(d.audit);
+      var on = minutesOn();
       view.innerHTML =
-        '<section class="hero"><div class="hero-grid"><div>' +
-        '<span class="kicker">🧾 Free for every meeting</span>' +
-        '<h1>Every meeting gets a <em>receipt.</em></h1>' +
-        '<p>A live price on the meeting while it runs, a timeboxed agenda that shows overruns in dollars, one tap to log a decision, and the room’s own vote from their phones. At the end, a receipt — with <b>TIME GIVEN BACK</b> when you finish early.</p>' +
-        '<div class="ctas"><a class="btn lg" href="#/sample">▶ Try a meeting</a><button class="btn lg ghost" data-signup>Start free</button></div>' +
-        '<div class="trust"><span>✓ Role bands, never salaries</span><span>✓ The room votes with no account</span><span>✓ Free forever, AI optional</span></div>' +
-        '</div><div class="peek"><a href="#/sample/receipt" style="text-decoration:none;width:100%;display:flex;justify-content:center;padding-bottom:12px" aria-label="See the sample receipt">' + receiptHTML(d.receipt, { compact: true }) + '</a></div></div></section>' +
-        '<div class="steps">' +
-        '<div class="step"><div class="ic">⏱️</div><h3>Run it live</h3><p>A ticker in dollars and person-hours, rings on every agenda item, and a red “$38 over” when one runs long.</p></div>' +
-        '<div class="step"><div class="ic">🗳️</div><h3>Let the room vote</h3><p>Everyone scans a QR code: “could have been an email”, a 0–4 worth-it vote, and optional buzzword bingo.</p></div>' +
-        '<div class="step"><div class="ic">🧾</div><h3>Print the receipt</h3><p>Cost by role, per item, per decision, the room’s verdict — and the time you gave back. Share numbers only.</p></div>' +
-        '<div class="step"><div class="ic">🪓</div><h3>Audit the repeats</h3><p>List the recurring ones, see what each costs a year, and swipe Keep, Shrink or Kill.</p></div>' +
-        '</div>' +
-        '<a class="card" href="#/sample/audit" style="display:block;margin-top:16px;text-decoration:none;color:inherit"><div class="row spread wrap-row"><div><div class="eyebrow">Sample audit</div><b style="font-size:20px">' + esc(a.rows[0].r.title) + ': ' + esc(R.money(a.rows[0].annual)) + '/yr</b>' +
-        '<div class="small muted">Six recurring meetings cost ' + esc(R.money(a.totalAnnual)) + ' a year. Swipe them →</div></div><span class="btn small ghost">Keep · Shrink · Kill</span></div></a>' +
-        '<div class="card" style="margin-top:12px"><div class="row spread wrap-row"><div><b>In a meeting right now?</b><div class="small muted">Enter the code on the facilitator’s screen to vote.</div></div><a class="btn ghost" href="#/join">Enter a room code</a></div></div>';
+        '<section class="hero">' +
+        '<p class="eyebrow">Free for every meeting</p>' +
+        '<h1>Every meeting gets a receipt.</h1>' +
+        '<p class="lede">A live price while it runs, the room’s own vote, and a receipt at the end — with time given back when you finish early.</p>' +
+        '<div class="ctas"><a class="btn lg" href="#/sample">Try a meeting</a><button class="btn lg ghost" data-signup>Start free</button></div>' +
+        '<p class="trust">Role bands, never salaries · The room votes with no account · AI optional</p>' +
+        '<a class="peek-link" href="#/sample/receipt" aria-label="See the sample receipt">' + receiptHTML(d.receipt, { compact: true }) + '</a></section>' +
+        '<ol class="steps">' +
+        '<li class="step"><h3>Run it live</h3><p>A ticker in dollars and person-hours, a ring on every agenda item, and a red “$38 over” when one runs long.</p></li>' +
+        '<li class="step"><h3>Let the room vote</h3><p>Everyone scans a QR code: “could have been an email”, a 0–4 worth-it vote, and optional buzzword bingo.</p></li>' +
+        '<li class="step"><h3>Print the receipt</h3><p>Cost by role, per item, per decision, the room’s verdict — and the time you gave back. Share numbers only.</p></li>' +
+        (on ? '<li class="step"><h3>Record or snap</h3><p>Record the meeting or snap the whiteboard and get the decisions, owners and dates, each with the words it came from.</p></li>'
+          : '<li class="step"><h3>Audit the repeats</h3><p>List the recurring ones, see what each costs a year, and swipe Keep, Shrink or Kill.</p></li>') +
+        '</ol>' +
+        '<div class="rows">' +
+        '<a class="rowlink" href="#/sample/audit"><span class="mw0"><span class="eyebrow">Sample audit</span><b class="blk">' + esc(a.rows[0].r.title) + ': ' + esc(R.money(a.rows[0].annual)) + ' a year</b>' +
+        '<span class="blk small muted">Six recurring meetings cost ' + esc(R.money(a.totalAnnual)) + ' a year. Keep, shrink or kill them.</span></span>' + ICON.chev + '</a>' +
+        '<a class="rowlink" href="#/join"><span class="mw0"><b class="blk">In a meeting right now?</b><span class="blk small muted">Enter the code on the facilitator’s screen to vote. No account.</span></span>' + ICON.chev + '</a>' +
+        '</div>';
       wireSignup();
     }).catch(function (e) { showError(e, view); });
   }
 
   function renderJoin() {
     view.innerHTML = backLink('#/', 'Back') + '<div class="page-head"><div><h1>Join a room</h1><div class="sub">No account needed. Your vote is anonymous.</div></div></div>' +
-      '<form class="card" id="joinF"><label class="field"><span>Room code</span><input class="input" name="code" autocomplete="off" autocapitalize="characters" placeholder="ABCD-2345" maxlength="12" style="font-family:var(--mono);font-size:22px;letter-spacing:.08em"></label>' +
+      '<form class="card" id="joinF"><label class="field"><span>Room code</span><input class="code-in input" name="code" autocomplete="off" autocapitalize="characters" placeholder="ABCD-2345" maxlength="12"></label>' +
       '<div id="jErr"></div><button class="btn block">Join</button></form>';
     $('#joinF').onsubmit = function (e) {
       e.preventDefault();
@@ -595,10 +616,10 @@
     api('GET', 'api/meetings').then(function (r) {
       state.skew = Date.parse(r.now) - Date.now();
       var ms = r.meetings || [];
-      var h = '<div class="page-head"><div><h1>Your meetings</h1><div class="sub">Set one up before it starts; run it live; keep the receipt.</div></div><a class="btn small" href="#/new">＋ New</a></div>';
+      var h = '<div class="page-head"><div><h1>Your meetings</h1><div class="sub">Set one up before it starts; run it live; keep the receipt.</div></div><a class="btn small" href="#/new">New</a></div>';
       if (!ms.length) {
         h += '<div class="empty boxed"><div class="e">🧾</div><h2>No meetings yet</h2><p>Set up your next one — who is in the room and a timeboxed agenda — then press Start when it begins.</p>' +
-          '<div class="btn-row" style="max-width:420px;margin:0 auto"><a class="btn" href="#/new">New meeting</a><a class="btn ghost" href="#/sample">Try the sample</a></div></div>';
+          '<div class="mw420 mxa btn-row"><a class="btn" href="#/new">New meeting</a><a class="btn ghost" href="#/sample">Try the sample</a></div></div>';
       } else {
         h += '<div class="list">' + ms.map(function (m) {
           var live = m.status === 'live' || m.status === 'paused';
@@ -606,10 +627,10 @@
             : live ? (m.status === 'paused' ? 'Paused' : 'Live now') + ' · ' + R.plural(m.headcount, 'person', 'people')
               : fmtDay(m.day) + ' · ' + R.durText(m.durationMs) + ' · ' + R.plural(m.decisions, 'decision') + (m.rotiAvg != null ? ' · ROTI ' + m.rotiAvg.toFixed(1) : '');
           return '<a class="mcard' + (live ? ' live' : '') + '" href="#/m/' + enc(m.id) + '"><span class="ic" aria-hidden="true">' + (live ? '⏱️' : m.status === 'waiting' ? '📋' : '🧾') + '</span>' +
-            '<span style="min-width:0"><span class="t" style="display:block">' + esc(m.title) + '</span><span class="m" style="display:block">' + esc(sub) + '</span></span>' +
+            '<span class="mw0"><span class="blk t">' + esc(m.title) + '</span><span class="blk m">' + esc(sub) + '</span></span>' +
             '<span class="n"><b>' + esc(m.status === 'waiting' ? '≈' + R.money(m.hourly * m.bookedMs / R.HOUR) : R.money(m.costUsd)) + '</b><span>' + (m.status === 'waiting' ? 'if on time' : live ? 'and counting' : 'total') + '</span></span></a>';
         }).join('') + '</div>' +
-          '<div class="btn-row" style="margin-top:14px"><a class="btn" href="#/new">New meeting</a><a class="btn ghost" href="#/audit">Audit the recurring ones</a></div>';
+          '<div class="mt16 btn-row"><a class="btn" href="#/new">New meeting</a><a class="btn ghost" href="#/audit">Audit the recurring ones</a></div>';
       }
       view.innerHTML = h;
     }).catch(function (e) { showError(e, view); });
@@ -622,13 +643,13 @@
     var rows = f.mode === 'blended' ? [f.people[0] || { band: 'blended', rate: R.BLENDED.rate, count: 5 }] : f.people;
     var blended = f.mode === 'blended';
     return '<div class="seg2" role="group" aria-label="How to count the room"><button type="button" data-mode="bands" aria-pressed="' + !blended + '"' + (!blended ? ' class="on"' : '') + '>By role band</button><button type="button" data-mode="blended" aria-pressed="' + blended + '"' + (blended ? ' class="on"' : '') + '>One blended rate</button></div>' +
-      '<div class="bands" style="margin-top:10px">' + rows.map(function (p, i) {
+      '<div class="mt12 bands">' + rows.map(function (p, i) {
         var info = R.bandInfo(p.band);
         return '<div class="band" data-i="' + i + '"><span class="nm"><span class="be" aria-hidden="true">' + esc(info.emoji) + ' </span>' + esc(info.label) + (p.band === 'blended' ? '<small>Everyone, one rate</small>' : '') + '</span>' +
           '<label class="rate"><span>$</span><input inputmode="decimal" aria-label="' + esc(info.label) + ' hourly rate" data-k="rate" value="' + esc(p.rate) + '"><span>/h</span></label>' +
           '<span class="stepper"><button type="button" data-step="-1" aria-label="One fewer ' + esc(info.label) + '">−</button><input inputmode="numeric" aria-label="' + esc(info.label) + ' headcount" data-k="count" value="' + esc(p.count) + '"><button type="button" data-step="1" aria-label="One more ' + esc(info.label) + '">＋</button></span></div>';
       }).join('') + '</div>' +
-      '<label class="toggle" style="margin-top:8px"><input type="checkbox" id="' + prefix + 'Loaded"' + (f.loaded ? ' checked' : '') + '><span class="sw"></span><span><b>Loaded cost ×' + R.LOADED + '</b><small>Benefits, tax and the desk: salary is not the whole hour.</small></span></label>';
+      '<label class="mt8 toggle"><input type="checkbox" id="' + prefix + 'Loaded"' + (f.loaded ? ' checked' : '') + '><span class="sw"></span><span><b>Loaded cost ×' + R.LOADED + '</b><small>Benefits, tax and the desk: salary is not the whole hour.</small></span></label>';
   }
   function wirePeople(root, f, onChange, prefix) {
     prefix = prefix || 'p';
@@ -678,20 +699,20 @@
         '<div class="page-head"><div><h1>' + (m ? 'Edit the meeting' : 'New meeting') + '</h1><div class="sub">' + (started ? 'It has started: the room, the rates and the agenda are locked so the receipt stays honest.' : 'Who is in the room, how long it is booked for, and what it is for.') + '</div></div></div>' +
         '<form id="setupF" class="dk-split dk-split-aside"><div>' +
         '<div class="card"><label class="field"><span>Meeting name</span><input class="input" name="title" maxlength="80" required placeholder="Weekly marketing sync" value="' + esc(f.title) + '"></label>' +
-        '<label class="field" style="margin:0"><span>The invite, as sent (optional — the sharpener works from this)</span><textarea class="input" name="invite" maxlength="2000" placeholder="Sync on Q4 - campaign, launch, budget. Bring updates!">' + esc(f.invite || '') + '</textarea></label></div>' +
+        '<label class="m0 field"><span>The invite, as sent (optional — the sharpener works from this)</span><textarea class="input" name="invite" maxlength="2000" placeholder="Sync on Q4 - campaign, launch, budget. Bring updates!">' + esc(f.invite || '') + '</textarea></label></div>' +
         (started ? '' : '<div class="label">Who’s in the room <span class="count" id="pplCount"></span></div><div class="card" id="people">' + peopleFields(f) + '<div class="costline" id="costline"></div><p class="hint">Rates are estimates per role band. Nobody’s name or salary goes in here.</p></div>') +
         (started ? '' : '<div class="label">Booked for</div><div class="chips" id="booked">' + [15, 25, 30, 45, 50, 60, 90].map(function (n) {
           return '<button type="button" class="chip' + (f.bookedMinutes === n ? ' on' : '') + '" aria-pressed="' + (f.bookedMinutes === n) + '" data-min="' + n + '">' + n + ' min</button>';
-        }).join('') + '<input class="input" id="bookedOther" inputmode="numeric" aria-label="Other length in minutes" placeholder="Other" style="width:90px;min-height:44px;padding:6px 10px;border-radius:999px" value="' + ([15, 25, 30, 45, 50, 60, 90].indexOf(f.bookedMinutes) < 0 ? esc(f.bookedMinutes) : '') + '"></div>') +
+        }).join('') + '<input class="mini-in input" id="bookedOther" inputmode="numeric" aria-label="Other length in minutes" placeholder="Other" value="' + ([15, 25, 30, 45, 50, 60, 90].indexOf(f.bookedMinutes) < 0 ? esc(f.bookedMinutes) : '') + '"></div>') +
         '</div><div>' +
-        (started ? '' : '<div class="label col-top">Timeboxed agenda <span class="count fit" id="fit"></span></div><div class="card"><div class="chips" style="margin-bottom:10px">' + R.TEMPLATES.map(function (t) {
+        (started ? '' : '<div class="label col-top">Timeboxed agenda <span class="count fit" id="fit"></span></div><div class="card"><div class="mb12 chips">' + R.TEMPLATES.map(function (t) {
           return '<button type="button" class="chip" data-tpl="' + esc(t.key) + '">' + esc(t.label) + '</button>';
-        }).join('') + '</div><div class="agenda-edit" id="agendaEd"></div><button type="button" class="btn small ghost" id="addItem" style="margin-top:10px">＋ Add an item</button></div>') +
+        }).join('') + '</div><div class="agenda-edit" id="agendaEd"></div><button type="button" class="mt12 btn small ghost" id="addItem">Add an item</button></div>') +
         '<div class="label">Attendee names for action owners</div><div class="card"><input class="input" name="labels" placeholder="Maya, Jordan, Sam" value="' + esc((f.labels || []).join(', ')) + '"><p class="hint">Optional. First names or roles, so an action can have an owner. Never shown on a shared receipt, never tied to a rate.</p></div>' +
         '<div class="label">For the room</div><label class="toggle"><input type="checkbox" name="bingo"' + (f.bingo ? ' checked' : '') + '><span class="sw"></span><span><b>Buzzword bingo</b><small>Each phone gets its own card. Off by default — your call.</small></span></label>' +
-        '<div id="setErr" style="margin-top:12px"></div>' +
-        '<div class="btn-row" style="margin-top:14px"><button class="btn lg" type="submit">' + (m ? 'Save' : 'Create the meeting') + '</button></div>' +
-        (m ? '<button type="button" class="btn danger block" id="delM" style="margin-top:22px">Delete this meeting</button>' : '') +
+        '<div id="setErr" class="mt12"></div>' +
+        '<div class="mt16 btn-row"><button class="btn lg" type="submit">' + (m ? 'Save' : 'Create the meeting') + '</button></div>' +
+        (m ? '<button type="button" class="mt24 btn danger block" id="delM">Delete this meeting</button>' : '') +
         '</div></form>';
       if (!started) {
         var onPeople = function (redraw) {
@@ -735,12 +756,12 @@
     function drawAgenda() {
       var el = $('#agendaEd');
       if (!el) return;
-      if (!f.agenda.length) { el.innerHTML = '<p class="hint" style="margin:0">No agenda yet — pick a template, add items, or sharpen the invite after you create it.</p>'; return; }
+      if (!f.agenda.length) { el.innerHTML = '<p class="m0 hint">No agenda yet — pick a template, add items, or sharpen the invite after you create it.</p>'; return; }
       el.innerHTML = f.agenda.map(function (a, i) {
         return '<div class="aitem" data-i="' + i + '"><div class="arow"><input class="input" data-k="title" maxlength="80" aria-label="Item ' + (i + 1) + '" placeholder="Item ' + (i + 1) + '" value="' + esc(a.title) + '">' +
           '<input class="input" data-k="minutes" inputmode="numeric" aria-label="Minutes for item ' + (i + 1) + '" value="' + esc(a.minutes) + '">' +
           '<button type="button" class="x" data-x aria-label="Remove item ' + (i + 1) + '">×</button></div>' +
-          '<input class="input" data-k="owner" maxlength="30" aria-label="Who leads item ' + (i + 1) + '" placeholder="Who leads it (optional)" value="' + esc(a.owner || '') + '" style="min-height:38px;padding:7px 11px;font-size:14px"></div>';
+          '<input class="compact input" data-k="owner" maxlength="30" aria-label="Who leads item ' + (i + 1) + '" placeholder="Who leads it (optional)" value="' + esc(a.owner || '') + '"></div>';
       }).join('');
       $$('.aitem', el).forEach(function (row) {
         var i = Number(row.dataset.i);
@@ -778,6 +799,7 @@
       var m = d.meeting;
       if (sub === 'edit') return renderSetup(m);
       if (sub === 'recap') return renderRecap(d);
+      if (sub === 'minutes') return renderMinutes(d);
       if (m.status === 'waiting') return renderPrep(d);
       if (m.status === 'ended' || sub === 'receipt') return renderReceiptPage(d);
       return renderLiveReal(d);
@@ -793,19 +815,19 @@
   function roomLink(code) { return location.origin + BASE + 'r/' + code; }
   function roomCard(c) {
     var code = c.code;
-    var demoNote = c.demo ? '<p class="hint" style="margin:10px 0 0">Sample: in a real meeting, people scan this and vote from their phones.</p>' : '';
-    return '<div class="card room-card"><div class="card-head"><h3>🗳️ The room</h3><span class="sub">No account needed</span></div>' +
+    var demoNote = c.demo ? '<p class="m0 mt12 hint">Sample: in a real meeting, people scan this and vote from their phones.</p>' : '';
+    return '<div class="card room-card"><div class="card-head"><h3>The room</h3><span class="sub">No account needed</span></div>' +
       '<div class="room-grid"><button class="qr" id="qrBtn" aria-label="Show the QR code full screen">' + QR.svg(roomLink(code), 'QR code for room ' + code) + '</button>' +
-      '<div style="min-width:0"><div class="eyebrow">Room code</div><div class="code">' + esc(code) + '</div>' +
+      '<div class="mw0"><div class="eyebrow">Room code</div><div class="code">' + esc(code) + '</div>' +
       '<div class="small muted">Scan, or open <b>' + esc(location.host + BASE) + 'r/…</b></div>' +
-      '<div class="row wrap-row" style="margin-top:8px;gap:6px"><button class="btn small ghost" id="copyRoom">Copy link</button><button class="btn small ghost" id="bigQr">Show big</button></div></div></div>' +
+      '<div class="mt8 gap8 row wrap-row"><button class="btn small ghost" id="copyRoom">Copy link</button><button class="btn small ghost" id="bigQr">Show big</button></div></div></div>' +
       '<div class="pulse-row" id="pulseRow">' + pulseCells(c.pulse) + '</div>' +
       (c.bingoMini || '') + demoNote +
       '</div>';
   }
   function bingoStatus(on, p) {
     if (!on) return '';
-    return '<div class="small muted" id="bingoLine" style="margin-top:10px">🎲 Bingo is on' + (p && p.bingo ? ' · <b style="color:var(--text)">' + esc(p.bingo.handle) + ' got bingo first</b>' : ' · nobody has a line yet') + '</div>';
+    return '<div class="mt12 small muted" id="bingoLine">🎲 Bingo is on' + (p && p.bingo ? ' · <b class="ink">' + esc(p.bingo.handle) + ' got bingo first</b>' : ' · nobody has a line yet') + '</div>';
   }
   function pulseCells(p) {
     p = p || { voters: 0, emailVotes: 0, roti: { n: 0 } };
@@ -827,11 +849,11 @@
 
   function looseEndsCard(list, onDone) {
     if (!list || !list.length) return '';
-    return '<div class="card"><div class="card-head"><h3>🔥 Loose ends from last time</h3><span class="sub">' + esc(R.plural(list.length, 'open action')) + '</span></div><ul class="logl">' + list.map(function (a) {
+    return '<div class="card"><div class="card-head"><h3>Loose ends from last time</h3><span class="sub">' + esc(R.plural(list.length, 'open action')) + '</span></div><ul class="logl">' + list.map(function (a) {
       var hi = R.heatInfo(a.heat.state);
-      return '<li><span class="e" aria-hidden="true">' + hi.emoji + '</span><span style="min-width:0"><span class="t" style="display:block">' + esc(a.text) + '</span>' +
+      return '<li><span class="e" aria-hidden="true">' + hi.emoji + '</span><span class="mw0"><span class="blk t">' + esc(a.text) + '</span>' +
         '<span class="m">' + esc([a.owner || 'No owner', a.due ? 'due ' + R.fmtDue(a.due) : '', a.meetingDay ? 'from ' + fmtDay(a.meetingDay) : ''].filter(Boolean).join(' · ')) + '</span></span>' +
-        '<span class="row" style="gap:6px"><span class="heat ' + esc(a.heat.state) + '">' + esc(hi.label) + '</span>' + (onDone ? '<button class="icon-btn" data-done="' + esc(a.id) + '" data-mid="' + esc(a.meetingId) + '" aria-label="Mark done">✓</button>' : '') + '</span></li>';
+        '<span class="gap8 row"><span class="heat ' + esc(a.heat.state) + '">' + esc(hi.label) + '</span>' + (onDone ? '<button class="icon-btn" data-done="' + esc(a.id) + '" data-mid="' + esc(a.meetingId) + '" aria-label="Mark done">✓</button>' : '') + '</span></li>';
     }).join('') + '</ul></div>';
   }
   function wireLooseEnds(root, reload) {
@@ -845,14 +867,14 @@
 
   function agendaListHTML(m, t) {
     var a = R.agenda(m, t);
-    if (!a.items.length) return '<p class="muted small" style="margin:0">No agenda — the whole meeting is one box: ' + esc(m.bookedMinutes) + ' minutes.</p>';
+    if (!a.items.length) return '<p class="m0 muted small">No agenda — the whole meeting is one box: ' + esc(m.bookedMinutes) + ' minutes.</p>';
     return '<ul class="agenda-list">' + a.items.map(function (it) {
       var r = '';
       if (it.state === 'done') r = '<span class="' + (it.overMs >= 30000 ? 'bad' : 'good') + '">' + esc(R.durText(it.actualMs)) + '<small>' + (it.overUsd >= 1 ? '+' + esc(R.money(it.overUsd)) : it.underMs >= 30000 ? '−' + esc(R.durText(it.underMs)) : 'on time') + '</small></span>';
       else if (it.state === 'current') r = '<span data-cur-act>' + esc(R.clockText(it.actualMs)) + '</span><small class="faint">of ' + esc(it.minutes) + 'm</small>';
       else if (it.state === 'skipped') r = '<span class="faint">skipped</span>';
       else r = '<span class="faint">' + esc(it.minutes) + ' min</span>';
-      return '<li class="' + it.state + '"><span class="n">' + it.n + '</span><span style="min-width:0"><span class="t" style="display:block">' + esc(it.title) + '</span>' + (it.owner ? '<span class="m">' + esc(it.owner) + '</span>' : '') + '</span><span class="r">' + r + '</span></li>';
+      return '<li class="' + it.state + '"><span class="n">' + it.n + '</span><span class="mw0"><span class="blk t">' + esc(it.title) + '</span>' + (it.owner ? '<span class="m">' + esc(it.owner) + '</span>' : '') + '</span><span class="r">' + r + '</span></li>';
     }).join('') + (a.afterMs >= 30000 ? '<li class="skipped"><span class="n">+</span><span class="t">After the agenda</span><span class="r">' + esc(R.durText(a.afterMs)) + '</span></li>' : '') + '</ul>';
   }
 
@@ -862,21 +884,21 @@
     var m = d.meeting;
     var hr = R.hourly(m);
     view.innerHTML = backLink('#/', 'Your meetings') +
-      '<div class="live-head"><div style="min-width:0"><span class="state waiting">Ready</span><h1 style="margin-top:8px">' + esc(m.title) + '</h1>' +
-      '<div class="muted" style="margin-top:4px">' + esc(m.bookedMinutes) + ' min booked · ' + esc(R.plural(R.headcount(m), 'person', 'people')) + ' · ' + esc(R.money(hr)) + '/h — about ' + esc(R.money(hr * m.bookedMinutes / 60)) + ' if it runs to time</div></div>' +
+      '<div class="live-head"><div class="mw0"><span class="state waiting">Ready</span><h1 class="mt8">' + esc(m.title) + '</h1>' +
+      '<div class="mt4 muted">' + esc(m.bookedMinutes) + ' min booked · ' + esc(R.plural(R.headcount(m), 'person', 'people')) + ' · ' + esc(R.money(hr)) + '/h — about ' + esc(R.money(hr * m.bookedMinutes / 60)) + ' if it runs to time</div></div>' +
       '<a class="btn small ghost" href="#/m/' + enc(m.id) + '/edit">Edit</a></div>' +
       '<div class="dk-split dk-split-aside"><div class="stack">' +
-      '<button class="btn xl block" id="startBtn">▶ Start the meeting</button>' +
+      '<button class="btn xl block" id="startBtn">Start the meeting</button>' +
       looseEndsCard(d.looseEnds, true) +
-      (m.outcome ? '<div class="card"><div class="eyebrow">The outcome</div><p style="margin:6px 0 0;font-weight:650">' + esc(m.outcome) + '</p></div>' : '') +
-      '<div class="card"><div class="card-head"><h3>📋 Agenda</h3><span class="sub">' + esc(R.agendaMinutes(m.agenda)) + ' of ' + esc(m.bookedMinutes) + ' min</span></div>' + agendaListHTML(m, now()) + '</div>' +
-      '<div class="card" id="sharpCard"><div class="card-head"><h3>✨ Sharpen the invite</h3><span class="sub">about a cent</span></div>' +
-      '<p class="small muted" style="margin:0 0 10px">Paste the vague invite. You get an outcome, a timeboxed agenda that fits ' + esc(m.bookedMinutes) + ' minutes, who really needs to be there — and an honest verdict on whether it could be an email. Nothing changes until you tap Apply.</p>' +
+      (m.outcome ? '<div class="card"><div class="eyebrow">The outcome</div><p class="m0 mt8 fw6">' + esc(m.outcome) + '</p></div>' : '') +
+      '<div class="card"><div class="card-head"><h3>Agenda</h3><span class="sub">' + esc(R.agendaMinutes(m.agenda)) + ' of ' + esc(m.bookedMinutes) + ' min</span></div>' + agendaListHTML(m, now()) + '</div>' +
+      '<div class="card" id="sharpCard"><div class="card-head"><h3>Sharpen the invite</h3><span class="sub">about a cent</span></div>' +
+      '<p class="m0 mb12 small muted">Paste the vague invite. You get an outcome, a timeboxed agenda that fits ' + esc(m.bookedMinutes) + ' minutes, who really needs to be there — and an honest verdict on whether it could be an email. Nothing changes until you tap Apply.</p>' +
       '<textarea class="input" id="invite" maxlength="2000" placeholder="Sync on Q4 - campaign, launch, budget. Bring updates!">' + esc(m.invite || '') + '</textarea>' +
-      '<div id="shErr"></div><button class="btn block" id="sharpBtn" style="margin-top:10px">✨ Sharpen it <span class="cost">· ~1¢</span></button><div id="proposal"></div></div>' +
+      '<div id="shErr"></div><button class="mt12 btn block" id="sharpBtn">Sharpen it <span class="cost">· ~1¢</span></button><div id="proposal"></div></div>' +
       '</div><div class="stack dk-sticky">' + roomCard({ code: m.code, pulse: null }) +
       '<div class="card"><div class="row spread"><div><b>Buzzword bingo</b><div class="small muted">' + (m.bingo ? 'On — every phone gets a card.' : 'Off. Turn it on in Edit.') + '</div></div><span class="tag' + (m.bingo ? ' good' : '') + '">' + (m.bingo ? 'On' : 'Off') + '</span></div></div>' +
-      '<div class="card"><div class="eyebrow">When it’s over</div><p class="small muted" style="margin:6px 0 0">Press End and a receipt prints: cost by band and item, decisions, the room’s vote, and TIME GIVEN BACK if you finish early.</p></div>' +
+      '<div class="card"><div class="eyebrow">When it’s over</div><p class="m0 mt8 small muted">Press End and a receipt prints: cost by band and item, decisions, the room’s vote, and TIME GIVEN BACK if you finish early.</p></div>' +
       '</div></div>';
     wireRoom(view, m.code);
     wireLooseEnds(view, function () { renderMeeting(m.id, ''); });
@@ -888,13 +910,13 @@
     };
     $('#sharpBtn').onclick = function (e) {
       var btn = e.target.closest('button'); btn.disabled = true;
-      btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Sharpening…';
+      btn.innerHTML = '<span class="sm spinner"></span> Sharpening…';
       api('POST', 'api/meetings/' + enc(m.id) + '/sharpen', { invite: $('#invite').value }).then(function (r) {
-        btn.disabled = false; btn.innerHTML = '✨ Sharpen again <span class="cost">· ~1¢</span>';
+        btn.disabled = false; btn.innerHTML = 'Sharpen again <span class="cost">· ~1¢</span>';
         $('#shErr').innerHTML = '';
         drawProposal($('#proposal'), r.proposal, r.invite, m);
         loadMe();
-      }).catch(function (err) { btn.disabled = false; btn.innerHTML = '✨ Sharpen it <span class="cost">· ~1¢</span>'; showError(err, $('#shErr')); });
+      }).catch(function (err) { btn.disabled = false; btn.innerHTML = 'Sharpen it <span class="cost">· ~1¢</span>'; showError(err, $('#shErr')); });
     };
   }
   function chimeUnlock() {
@@ -910,16 +932,16 @@
   function proposalHTML(p, opts) {
     opts = opts || {};
     var v = VERDICT[p.verdict] || VERDICT.meeting;
-    return '<div class="stack" style="margin-top:14px">' +
+    return '<div class="mt16 stack">' +
       '<div><span class="verdict-badge ' + esc(p.verdict) + '">' + v.emoji + ' ' + esc(v.label) + '</span></div>' +
-      (p.why ? '<p style="margin:0" class="muted">' + gaps(p.why) + '</p>' : '') +
-      (p.outcome ? '<div><div class="eyebrow">Outcome</div><p style="margin:4px 0 0;font-weight:700">' + gaps(p.outcome) + '</p></div>' : '') +
-      (p.items.length ? '<div><div class="eyebrow" style="margin-bottom:6px">Agenda · ' + esc(p.minutes) + ' of ' + esc(p.bookedMinutes) + ' min</div><ul class="agenda-list">' + p.items.map(function (it, i) {
-        return '<li><span class="n">' + (i + 1) + '</span><span style="min-width:0"><span class="t" style="display:block">' + gaps(it.title) + '</span>' + (it.owner ? '<span class="m">' + esc(it.owner) + ' leads</span>' : '') + '</span><span class="r">' + esc(it.minutes) + ' min</span></li>';
+      (p.why ? '<p class="m0 muted">' + gaps(p.why) + '</p>' : '') +
+      (p.outcome ? '<div><div class="eyebrow">Outcome</div><p class="m0 mt4 fw6">' + gaps(p.outcome) + '</p></div>' : '') +
+      (p.items.length ? '<div><div class="mb8 eyebrow">Agenda · ' + esc(p.minutes) + ' of ' + esc(p.bookedMinutes) + ' min</div><ul class="agenda-list">' + p.items.map(function (it, i) {
+        return '<li><span class="n">' + (i + 1) + '</span><span class="mw0"><span class="blk t">' + gaps(it.title) + '</span>' + (it.owner ? '<span class="m">' + esc(it.owner) + ' leads</span>' : '') + '</span><span class="r">' + esc(it.minutes) + ' min</span></li>';
       }).join('') + '</ul></div>' : '') +
       (p.attendeeBands && p.attendeeBands.length ? '<div class="small muted">Who needs to be there: <b>' + esc(p.attendeeBands.map(function (b) { return R.bandInfo(b).label; }).join(', ')) + '</b>' + (p.skipBands && p.skipBands.length ? ' — send ' + esc(p.skipBands.map(function (b) { return R.bandInfo(b).label; }).join(', ')) + ' the recap instead.' : '') + '</div>' : '') +
-      (p.asyncDraft ? '<div><div class="eyebrow" style="margin-bottom:6px">📧 Send this instead' + (p.verdict === 'split' ? ' (before the meeting)' : '') + '</div><div class="draft">' + gaps(p.asyncDraft) + '</div>' +
-        '<div class="btn-row" style="margin-top:8px"><button class="btn small ghost" data-copydraft>Copy the update</button><a class="btn small ghost" href="' + esc(R.mailto('Update: ' + (opts.title || 'our meeting'), p.asyncDraft)) + '">Open in mail</a></div></div>' : '') +
+      (p.asyncDraft ? '<div><div class="mb8 eyebrow">📧 Send this instead' + (p.verdict === 'split' ? ' (before the meeting)' : '') + '</div><div class="draft">' + gaps(p.asyncDraft) + '</div>' +
+        '<div class="mt8 btn-row"><button class="btn small ghost" data-copydraft>Copy the update</button><a class="btn small ghost" href="' + esc(R.mailto('Update: ' + (opts.title || 'our meeting'), p.asyncDraft)) + '">Open in mail</a></div></div>' : '') +
       ((p.notes || []).length ? '<div class="banner warn"><span class="e">📏</span><span>' + esc(p.notes.join(' ')) + '</span></div>' : '') +
       ((p.removed || []).length ? '<details><summary class="small muted">Taken out: ' + esc(R.plural(p.removed.length, 'detail')) + ' you never gave</summary><ul class="removed">' + p.removed.map(function (x) { return '<li><b>' + esc(x.what) + '</b> — ' + esc(x.why) + '</li>'; }).join('') + '</ul></details>' : '') +
       (opts.actions === false ? '' : '<div class="btn-row">' + (p.items.length ? '<button class="btn" data-apply>Apply this agenda</button>' : '') + '<button class="btn ghost" data-discard>Discard</button></div>') +
@@ -958,11 +980,11 @@
       var a = R.agenda(m, c.now());
       var cur = a.current;
       var cpd = m && c.log.filter(function (l) { return l.kind === 'decision'; }).length;
-      var labelsNote = m.labels && m.labels.length ? '' : '<p class="hint" style="margin:8px 0 0">Add attendee names in Edit to give actions an owner.</p>';
+      var labelsNote = m.labels && m.labels.length ? '' : '<p class="m0 mt8 hint">Add attendee names in Edit to give actions an owner.</p>';
       return (c.demo ? sampleBar('A made-up weekly marketing sync, played at 60× — real rules, no AI, nothing saved.') + subnav('live') : backLink('#/', 'Your meetings')) +
-        '<div class="live-head"><div style="min-width:0"><span class="state ' + st + '" id="stateTag">' + (st === 'paused' ? 'Paused' : st === 'waiting' ? 'Ready' : st === 'ended' ? 'Ended' : 'Live') + '</span>' +
-        '<h1 style="margin-top:8px">' + esc(m.title) + '</h1></div>' +
-        (c.demo ? '<button class="btn small ghost ff" id="ffBtn" aria-pressed="' + (c.speed() > 1) + '">⏩ ' + (c.speed() > 1 ? '60×' : '1×') + '</button>' : '<a class="btn small ghost" href="#/m/' + enc(m.id) + '/edit">Edit</a>') + '</div>' +
+        '<div class="live-head"><div class="mw0"><span class="state ' + st + '" id="stateTag">' + (st === 'paused' ? 'Paused' : st === 'waiting' ? 'Ready' : st === 'ended' ? 'Ended' : 'Live') + '</span>' +
+        '<h1 class="mt8">' + esc(m.title) + '</h1></div>' +
+        (c.demo ? '<button class="btn small ghost ff" id="ffBtn" aria-pressed="' + (c.speed() > 1) + '">⏩ ' + (c.speed() > 1 ? '60×' : '1×') + '</button>' : '<span class="row headbtns">' + (minutesOn() && st !== 'waiting' ? '<a class="btn small ghost" href="#/m/' + enc(m.id) + '/minutes">Record</a>' : '') + '<a class="btn small ghost" href="#/m/' + enc(m.id) + '/edit">Edit</a></span>') + '</div>' +
         '<div class="dk-split dk-split-aside"><div class="stack">' +
         '<div class="ticker' + (st === 'paused' ? ' paused' : '') + '"><div class="lbl">This meeting has cost</div><div class="usd" id="tUsd">$0<small>.00</small></div>' +
         '<div class="meta" id="tMeta"></div>' +
@@ -976,27 +998,27 @@
         '<div class="live-dock">' + controlsHTML(st, a) +
         '<div class="quick" role="group" aria-label="Log it, one tap"><button data-log="decision"><span class="e" aria-hidden="true">✅</span>Decision</button><button data-log="action"><span class="e" aria-hidden="true">📌</span>Action</button><button data-log="parking"><span class="e" aria-hidden="true">🅿️</span>Park it</button></div></div>' +
         '<div class="card"><div class="card-head"><h3>The log</h3><span class="sub">decisions, actions, parking lot</span></div>' +
-        '<div class="cpd" style="margin-top:0"><span>' + esc(R.plural(cpd, 'decision')) + (cpd ? ' · each cost' : '') + '</span><b id="cpd">' + (cpd ? '' : 'none yet') + '</b></div>' + labelsNote +
-        (c.log.length ? '<ul class="logl" style="margin-top:12px">' + c.log.slice().sort(function (x, y) { return (y.at || 0) - (x.at || 0); }).map(function (l) {
+        '<div class="mt0 cpd"><span>' + esc(R.plural(cpd, 'decision')) + (cpd ? ' · each cost' : '') + '</span><b id="cpd">' + (cpd ? '' : 'none yet') + '</b></div>' + labelsNote +
+        (c.log.length ? '<ul class="mt12 logl">' + c.log.slice().sort(function (x, y) { return (y.at || 0) - (x.at || 0); }).map(function (l) {
           var k = R.kindInfo(l.kind);
-          return '<li class="' + (l.doneAt ? 'done ' : '') + (freshLog === l ? 'new' : '') + '"><span class="e" aria-hidden="true">' + k.emoji + '</span><span style="min-width:0"><span class="t" style="display:block">' + esc(l.text) + '</span>' +
+          return '<li class="' + (l.doneAt ? 'done ' : '') + (freshLog === l ? 'new' : '') + '"><span class="e" aria-hidden="true">' + k.emoji + '</span><span class="mw0"><span class="blk t">' + esc(l.text) + '</span>' +
             ((l.owner || l.due) ? '<span class="m">' + esc([l.owner, l.due ? 'due ' + R.fmtDue(l.due) : ''].filter(Boolean).join(' · ')) + '</span>' : '') + '</span>' +
-            '<span class="at">' + esc(R.clockText(l.at || 0)) + (c.demo || !l.id ? '' : ' <button class="icon-btn" data-edit="' + esc(l.id) + '" aria-label="Edit or delete this item" style="display:inline-grid;vertical-align:middle;margin-left:4px">⋯</button>') + '</span></li>';
+            '<span class="at">' + esc(R.clockText(l.at || 0)) + (c.demo || !l.id ? '' : ' <button class="inl icon-btn" data-edit="' + esc(l.id) + '" aria-label="Edit or delete this item">•••</button>') + '</span></li>';
         }).join('') + '</ul>' : '') + '</div>' +
         '</div><div class="stack dk-sticky">' +
         roomCard({ code: m.code, pulse: c.pulse, demo: c.demo, bingoMini: c.bingoMini ? c.bingoMini() : bingoStatus(m.bingo, c.pulse) }) +
         (c.looseEnds && c.looseEnds.length ? looseEndsCard(c.looseEnds, !c.demo) : '') +
-        '<div class="card"><div class="card-head"><h3>📋 Agenda</h3><span class="sub">' + esc(R.agendaMinutes(m.agenda)) + ' of ' + esc(m.bookedMinutes) + ' min</span></div><div id="agendaL">' + agendaListHTML(m, c.now()) + '</div></div>' +
+        '<div class="card"><div class="card-head"><h3>Agenda</h3><span class="sub">' + esc(R.agendaMinutes(m.agenda)) + ' of ' + esc(m.bookedMinutes) + ' min</span></div><div id="agendaL">' + agendaListHTML(m, c.now()) + '</div></div>' +
         '</div></div>';
     }
     function controlsHTML(st, a) {
-      if (st === 'waiting') return '<button class="btn xl block" data-ctl="start">▶ Start' + (c.demo ? ' the sample' : ' the meeting') + '</button>';
+      if (st === 'waiting') return '<button class="btn xl block" data-ctl="start">Start' + (c.demo ? ' the sample' : ' the meeting') + '</button>';
       if (st === 'ended') return '';
       var hasNext = a.items.length && a.items.some(function (i) { return i.state === 'current'; });
       return '<div class="controls">' +
-        (st === 'paused' ? '<button class="btn ghost" data-ctl="resume">▶ Resume</button>' : '<button class="btn ghost" data-ctl="pause">⏸ Pause</button>') +
-        (c.demo ? '<button class="btn" data-ctl="skip">⏭ Skip to receipt</button>' : '<button class="btn" data-ctl="next"' + (hasNext ? '' : ' disabled') + '>' + (hasNext ? 'Next item →' : 'No more items') + '</button>') +
-        (c.demo ? '<button class="btn stop" data-ctl="restart">↺ Restart</button>' : '<button class="btn stop" data-ctl="end">■ End</button>') + '</div>';
+        (st === 'paused' ? '<button class="btn ghost" data-ctl="resume">Resume</button>' : '<button class="btn ghost" data-ctl="pause">Pause</button>') +
+        (c.demo ? '<button class="btn" data-ctl="skip">Skip to receipt</button>' : '<button class="btn" data-ctl="next"' + (hasNext ? '' : ' disabled') + '>' + (hasNext ? 'Next item →' : 'No more items') + '</button>') +
+        (c.demo ? '<button class="btn stop" data-ctl="restart">Restart</button>' : '<button class="btn stop" data-ctl="end">End</button>') + '</div>';
     }
     /**
      * A meeting nobody ended: well past its booking, or opened on a later day
@@ -1015,7 +1037,7 @@
       var atBooked = Math.min(el, Math.max(floor, booked));
       var lastLog = Math.max(floor, c.log.reduce(function (s, l) { return Math.max(s, l.at || 0); }, 0));
       return '<div class="banner warn forgot" role="note"><span class="e" aria-hidden="true">🕰️</span><span><b>Still running?</b> This meeting has run ' + esc(R.durText(el)) + ' against ' + esc(R.durText(booked)) + ' booked. If it ended earlier, end it then — the receipt will count only that.' +
-        '<span class="btn-row" style="margin-top:10px;display:flex"><button class="btn small" data-endat="' + atBooked + '">End it at the booked time (' + esc(R.clockText(atBooked)) + ')</button>' +
+        '<span class="mt12 flex btn-row"><button class="btn small" data-endat="' + atBooked + '">End it at the booked time (' + esc(R.clockText(atBooked)) + ')</button>' +
         (lastLog > 0 && lastLog < el && lastLog !== atBooked ? '<button class="btn small ghost" data-endat="' + lastLog + '">At the last logged item (' + esc(R.clockText(lastLog)) + ')</button>' : '') + '</span></span></div>';
     }
     function nowItemHTML(cur, a, m) {
@@ -1040,7 +1062,7 @@
       var cls = over > 0 ? 'over' : pct >= 0.8 ? 'warn' : '';
       return '<div class="ring ' + cls + '" id="ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="trk" cx="60" cy="60" r="52" fill="none" stroke-width="10"/><circle class="val" id="ringVal" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - pct)).toFixed(2) + '"/></svg>' +
         '<div class="c"><div><b id="ringT">' + (over > 0 ? '+' + R.clockText(over) : R.clockText(Math.max(0, left))) + '</b><span>' + (over > 0 ? 'over' : 'left') + '</span></div></div></div>' +
-        '<div style="min-width:0"><div class="eyebrow">' + (cur ? 'Now' : ' ') + '</div><h2>' + esc(title) + '</h2><div class="m">' + esc(sub) + '</div>' +
+        '<div class="mw0"><div class="eyebrow">' + (cur ? 'Now' : ' ') + '</div><h2>' + esc(title) + '</h2><div class="m">' + esc(sub) + '</div>' +
         '<div id="overLine">' + (over > 0 ? '<div class="overrun">This item is ' + esc(R.money(overUsd)) + ' over</div>' : (R.started(m) && !R.ended(m) ? '<div class="onpace">On time</div>' : '')) + '</div></div>';
     }
     function draw() {
@@ -1057,7 +1079,7 @@
           var k = b.dataset.ctl;
           if (k === 'end' && !endArmed) {
             endArmed = true; b.textContent = 'Tap to end';
-            setTimeout(function () { endArmed = false; if (b.isConnected) b.textContent = '■ End'; }, 3000);
+            setTimeout(function () { endArmed = false; if (b.isConnected) b.textContent = 'End'; }, 3000);
             return;
           }
           if (k === 'start') chimeUnlock();
@@ -1084,7 +1106,7 @@
       var owner = '';
       sheet('<h2>' + k.emoji + ' ' + esc(kind === 'decision' ? 'Log a decision' : kind === 'action' ? 'Log an action' : 'Park it for later') + '</h2>' +
         '<form id="logF"><label class="field"><span>' + (kind === 'decision' ? 'What was decided?' : kind === 'action' ? 'What needs doing?' : 'What are you parking?') + '</span><input class="input" name="text" maxlength="200" required autocomplete="off"></label>' +
-        (kind === 'action' ? '<div class="field"><span id="ownerLbl">Owner</span>' + (labels.length ? '<div class="chips" id="owners" role="group" aria-labelledby="ownerLbl">' + labels.map(function (l) { return '<button type="button" class="chip" aria-pressed="false" data-o="' + esc(l) + '">' + esc(l) + '</button>'; }).join('') + '</div>' : '<p class="hint" style="margin:0">No attendee names yet — add them in Edit to assign owners.</p>') + '</div>' +
+        (kind === 'action' ? '<div class="field"><span id="ownerLbl">Owner</span>' + (labels.length ? '<div class="chips" id="owners" role="group" aria-labelledby="ownerLbl">' + labels.map(function (l) { return '<button type="button" class="chip" aria-pressed="false" data-o="' + esc(l) + '">' + esc(l) + '</button>'; }).join('') + '</div>' : '<p class="m0 hint">No attendee names yet — add them in Edit to assign owners.</p>') + '</div>' +
           '<label class="field"><span>Due (optional)</span><input class="input" type="date" name="due"></label>' : '') +
         '<div id="lErr"></div><button class="btn block" type="submit">Log it</button></form>',
         function (root) {
@@ -1112,8 +1134,8 @@
       sheet('<h2>' + k.emoji + ' Edit this ' + esc(k.label.toLowerCase()) + '</h2>' +
         '<form id="itemF"><label class="field"><span>' + (l.kind === 'decision' ? 'What was decided' : l.kind === 'action' ? 'What needs doing' : 'What is parked') + '</span><input class="input" name="text" maxlength="200" required autocomplete="off" value="' + esc(l.text) + '"></label>' +
         '<div id="iErr"></div><button class="btn block" type="submit">Save</button></form>' +
-        (l.kind === 'action' ? '<button class="btn ghost block" id="iDone" style="margin-top:10px">' + (l.doneAt ? 'Mark not done' : '✓ Mark done') + '</button>' : '') +
-        '<button class="btn danger block" id="iDel" style="margin-top:10px">Delete</button>',
+        (l.kind === 'action' ? '<button class="mt12 btn ghost block" id="iDone">' + (l.doneAt ? 'Mark not done' : '✓ Mark done') + '</button>' : '') +
+        '<button class="mt12 btn danger block" id="iDel">Delete</button>',
         function (root) {
           $('#itemF', root).onsubmit = function (e) {
             e.preventDefault();
@@ -1238,8 +1260,8 @@
 
   function receiptActions(r, opts) {
     opts = opts || {};
-    return '<div class="btn-row ract" style="max-width:420px;margin:0 auto">' +
-      '<button class="btn" id="tearBtn">✂️ Tear it off</button><button class="btn ghost" id="pngBtn">⬇️ Save PNG</button><button class="btn ghost" id="txtBtn">📋 Copy text</button></div>';
+    return '<div class="mw420 mxa btn-row ract">' +
+      '<button class="btn" id="tearBtn">Tear it off</button><button class="btn ghost" id="pngBtn">Save PNG</button><button class="btn ghost" id="txtBtn">Copy text</button></div>';
   }
   function wireReceiptActions(r, opts) {
     $('#tearBtn').onclick = tear;
@@ -1252,15 +1274,16 @@
     var draw = function (votes, log, anim) {
       var r = R.receipt(m, log, votes, now());
       view.innerHTML = backLink('#/', 'Your meetings') +
-        '<div class="live-head"><div style="min-width:0"><span class="state ended">Ended</span><h1 style="margin-top:8px">' + esc(m.title) + '</h1></div><a class="btn small ghost" href="#/m/' + enc(m.id) + '/edit">Edit</a></div>' +
+        '<div class="live-head"><div class="mw0"><span class="state ended">Ended</span><h1 class="mt8">' + esc(m.title) + '</h1></div><a class="btn small ghost" href="#/m/' + enc(m.id) + '/edit">Edit</a></div>' +
         '<div class="dk-split dk-split-aside"><div>' +
         '<div class="' + (anim ? 'printing' : '') + '"><div class="slot" aria-hidden="true"></div><div class="paper-wrap">' + receiptHTML(r) + '</div></div>' +
         receiptActions(r) + '</div><div class="stack dk-sticky">' +
-        '<div class="card"><div class="card-head"><h3>🔗 Share it</h3><span class="sub">numbers only</span></div><div id="shareBox"></div></div>' +
-        '<div class="card"><h3>📝 The recap</h3><p class="small muted" style="margin:6px 0 10px">A free template from the log, or a clean write-up from your notes, a transcript or a whiteboard photo.</p><a class="btn block" href="#/m/' + enc(m.id) + '/recap">Write the recap</a></div>' +
-        '<div class="card"><h3>🔁 Same time next week?</h3><p class="small muted" style="margin:6px 0 10px">Same room, rates and agenda — and this meeting’s open actions come back at the top as loose ends.</p><button class="btn ghost block" id="againBtn">Set up the next one</button></div>' +
-        '<div class="card"><div class="card-head"><h3>🗳️ The room</h3><span class="sub">votes count for a day</span></div><div class="pulse-row" style="margin-top:0">' + pulseCells(pulseOf(votes)) + '</div>' +
-        '<p class="small muted" style="margin:10px 0 0">Room code <b>' + esc(m.code) + '</b> — late votes still land on the receipt until tomorrow.</p></div>' +
+        '<div class="card"><div class="card-head"><h3>Share it</h3><span class="sub">numbers only</span></div><div id="shareBox"></div></div>' +
+        '<div class="card"><h3>The recap</h3><p class="m0 mt8 mb12 small muted">A free template from the log, or a clean write-up from your notes, a transcript or a whiteboard photo.</p><a class="btn block" href="#/m/' + enc(m.id) + '/recap">Write the recap</a></div>' +
+        (minutesOn() ? '<div class="card"><h3>Record or snap</h3><p class="m0 mt8 mb12 small muted">Decisions, owners and dates from a recording of the meeting or a photo of the whiteboard — checked by you before anything is saved.</p><a class="btn ghost block" href="#/m/' + enc(m.id) + '/minutes">Record or snap</a></div>' : '') +
+        '<div class="card"><h3>Same time next week?</h3><p class="m0 mt8 mb12 small muted">Same room, rates and agenda — and this meeting’s open actions come back at the top as loose ends.</p><button class="btn ghost block" id="againBtn">Set up the next one</button></div>' +
+        '<div class="card"><div class="card-head"><h3>The room</h3><span class="sub">votes count for a day</span></div><div class="mt0 pulse-row">' + pulseCells(pulseOf(votes)) + '</div>' +
+        '<p class="m0 mt12 small muted">Room code <b>' + esc(m.code) + '</b> — late votes still land on the receipt until tomorrow.</p></div>' +
         '</div></div>';
       wireReceiptActions(r);
       drawShare($('#shareBox'), m);
@@ -1288,13 +1311,13 @@
       var url = location.origin + BASE + m.share.url;
       el.innerHTML = '<div class="share-box"><div class="link">' + esc(url) + '</div>' +
         '<div class="btn-row"><button class="btn small" id="shCopy">Copy link</button><button class="btn small ghost" id="shUp">Update</button><button class="btn small danger" id="shOff">Revoke</button></div>' +
-        '<p class="small muted" style="margin:0">Frozen ' + esc(fmtDay(m.share.sharedAt)) + '. No title, no names, no decisions — just the numbers.</p></div>';
+        '<p class="m0 small muted">Frozen ' + esc(fmtDay(m.share.sharedAt)) + '. No title, no names, no decisions — just the numbers.</p></div>';
       $('#shCopy', el).onclick = function () { copy(url, 'Link copied'); };
       $('#shUp', el).onclick = function () { api('POST', 'api/meetings/' + enc(m.id) + '/share').then(function (s) { m.share = { token: s.token, url: s.url, sharedAt: s.sharedAt }; drawShare(el, m); toast('Updated with the latest votes'); }).catch(function (e) { showError(e); }); };
       $('#shOff', el).onclick = function () { api('DELETE', 'api/meetings/' + enc(m.id) + '/share').then(function () { m.share = null; drawShare(el, m); toast('Link revoked'); }).catch(function (e) { showError(e); }); };
       return;
     }
-    el.innerHTML = '<p class="small muted" style="margin:0 0 10px">A public link to a frozen, numbers-only copy: cost, time, decisions counted, the room’s score. No title, no attendee names, no notes.</p><button class="btn block" id="shOn">Make a share link</button>';
+    el.innerHTML = '<p class="m0 mb12 small muted">A public link to a frozen, numbers-only copy: cost, time, decisions counted, the room’s score. No title, no attendee names, no notes.</p><button class="btn block" id="shOn">Make a share link</button>';
     $('#shOn', el).onclick = function (e) {
       e.target.disabled = true;
       api('POST', 'api/meetings/' + enc(m.id) + '/share').then(function (s) { m.share = { token: s.token, url: s.url, sharedAt: s.sharedAt }; drawShare(el, m); }).catch(function (err) { e.target.disabled = false; showError(err); });
@@ -1309,16 +1332,16 @@
     var item = function (x, extra) {
       return '<li><div class="top-line"><b>' + esc(x.text) + '</b>' + srcTag(x) + '</div>' + (extra || '') + (x.quote ? '<span class="quote">“' + esc(x.quote) + '”</span>' : '') + '</li>';
     };
-    var sec = function (title, rows, fn) { return rows.length ? '<div><div class="eyebrow" style="margin:12px 0 6px">' + esc(title) + '</div><ul class="rec-list">' + rows.map(fn).join('') + '</ul></div>' : ''; };
-    return (rec.summary ? '<p style="margin:0;font-weight:650">' + gaps(rec.summary) + '</p>' : '') +
+    var sec = function (title, rows, fn) { return rows.length ? '<div><div class="m0 mt16 mb8 eyebrow">' + esc(title) + '</div><ul class="rec-list">' + rows.map(fn).join('') + '</ul></div>' : ''; };
+    return (rec.summary ? '<p class="m0 fw6">' + gaps(rec.summary) + '</p>' : '') +
       sec('Decisions', rec.decisions, function (x) { return item(x); }) +
       sec('Actions', rec.actions, function (x) {
-        return item(x, '<div class="small" style="margin-top:3px">' + (x.owner && x.owner !== '[owner?]' ? '<b>' + esc(x.owner) + '</b>' : '<span class="owner-q">[owner?]</span>') + (x.due ? ' · due ' + esc(R.fmtDue(x.due)) : '') + '</div>');
+        return item(x, '<div class="mt4 small">' + (x.owner && x.owner !== '[owner?]' ? '<b>' + esc(x.owner) + '</b>' : '<span class="owner-q">[owner?]</span>') + (x.due ? ' · due ' + esc(R.fmtDue(x.due)) : '') + '</div>');
       }) +
       sec('Parking lot', rec.parking, function (x) { return item(x); }) +
-      '<div class="small muted" style="margin-top:10px">Next meeting: ' + (rec.nextMeeting ? '<b>' + esc(rec.nextMeeting) + '</b>' : '<span class="gap">[add: when]</span>') + '</div>' +
-      (rec.boardText ? '<details style="margin-top:10px"><summary class="small muted">What the whiteboard said</summary><div class="draft" style="margin-top:6px">' + esc(rec.boardText) + '</div></details>' : '') +
-      ((rec.removed || []).length ? '<details style="margin-top:10px"' + (opts.openRemoved ? ' open' : '') + '><summary class="small muted">Taken out or unowned: ' + esc(R.plural(rec.removed.length, 'thing')) + '</summary><ul class="removed">' + rec.removed.map(function (x) { return '<li><b>' + esc(x.what) + '</b> — ' + esc(x.why) + '</li>'; }).join('') + '</ul></details>' : '');
+      '<div class="mt12 small muted">Next meeting: ' + (rec.nextMeeting ? '<b>' + esc(rec.nextMeeting) + '</b>' : '<span class="gap">[add: when]</span>') + '</div>' +
+      (rec.boardText ? '<details class="mt12"><summary class="small muted">What the whiteboard said</summary><div class="mt8 draft">' + esc(rec.boardText) + '</div></details>' : '') +
+      ((rec.removed || []).length ? '<details class="mt12"' + (opts.openRemoved ? ' open' : '') + '><summary class="small muted">Taken out or unowned: ' + esc(R.plural(rec.removed.length, 'thing')) + '</summary><ul class="removed">' + rec.removed.map(function (x) { return '<li><b>' + esc(x.what) + '</b> — ' + esc(x.why) + '</li>'; }).join('') + '</ul></details>' : '');
   }
 
   function renderRecap(d) {
@@ -1327,14 +1350,14 @@
     var photo = null;
     view.innerHTML = backLink('#/m/' + enc(m.id), 'Back to the receipt') +
       '<div class="page-head"><div><h1>The recap</h1><div class="sub">' + esc(m.title) + ' · ' + esc(fmtDay(m.day)) + '. Paste it into Slack or email — Receipt sends nothing itself.</div></div></div>' +
-      '<div class="dk-split"><div class="stack"><div class="card"><div class="card-head"><h3>📋 Free: from the log</h3><span class="sub">exactly what was logged</span></div>' +
-      '<textarea class="input" id="tplText" rows="12" style="font-family:var(--mono);font-size:13.5px">' + esc(tpl.body) + '</textarea>' +
-      '<div class="btn-row" style="margin-top:10px"><button class="btn small" id="tplCopy">Copy</button><a class="btn small ghost" id="tplMail" href="' + esc(R.mailto(tpl.subject, tpl.body)) + '">Open in mail</a></div></div></div>' +
-      '<div class="stack"><div class="card"><div class="card-head"><h3>✨ Write it for me</h3><span class="sub">about a cent</span></div>' +
-      '<p class="small muted" style="margin:0 0 10px">From the log, plus rough notes or a Zoom, Teams or Meet transcript. Every item cites where it came from; an owner only when someone actually took it on; a date only when one was said. The notes and any photo are read once and never stored.</p>' +
+      '<div class="dk-split"><div class="stack"><div class="card"><div class="card-head"><h3>Free: from the log</h3><span class="sub">exactly what was logged</span></div>' +
+      '<textarea class="mono input" id="tplText" rows="12">' + esc(tpl.body) + '</textarea>' +
+      '<div class="mt12 btn-row"><button class="btn small" id="tplCopy">Copy</button><a class="btn small ghost" id="tplMail" href="' + esc(R.mailto(tpl.subject, tpl.body)) + '">Open in mail</a></div></div></div>' +
+      '<div class="stack"><div class="card"><div class="card-head"><h3>Write it for me</h3><span class="sub">about a cent</span></div>' +
+      '<p class="m0 mb12 small muted">From the log, plus rough notes or a Zoom, Teams or Meet transcript. Every item cites where it came from; an owner only when someone actually took it on; a date only when one was said. The notes and any photo are read once and never stored.</p>' +
       '<label class="field"><span>Notes or transcript (optional)</span><textarea class="input" id="notes" rows="6" maxlength="20000" placeholder="Jordan: I’ll send the revised brief by Friday.&#10;Sam will book the room."></textarea></label>' +
-      '<label class="photo-pick"><input type="file" accept="image/*" id="photoIn"><span class="ic">🖼️</span><span class="grow"><b id="photoLbl">Add a whiteboard photo</b><span class="small muted" style="display:block">Optional · read once, never kept</span></span></label>' +
-      '<div id="rErr"></div><button class="btn block" id="recBtn" style="margin-top:12px">✨ Write the recap <span class="cost">· ~1¢</span></button></div>' +
+      '<label class="photo-pick"><input type="file" accept="image/*" id="photoIn"><span class="ic">🖼️</span><span class="grow"><b id="photoLbl">Add a whiteboard photo</b><span class="blk small muted">Optional · read once, never kept</span></span></label>' +
+      '<div id="rErr"></div><button class="mt12 btn block" id="recBtn">Write the recap <span class="cost">· ~1¢</span></button></div>' +
       '<div id="recOut"></div></div></div>';
     $('#tplCopy').onclick = function () { copy($('#tplText').value, 'Recap copied'); };
     $('#tplText').oninput = function (e) { $('#tplMail').href = R.mailto(tpl.subject, e.target.value); };
@@ -1345,20 +1368,313 @@
     };
     $('#recBtn').onclick = function (e) {
       var btn = e.target.closest('button'); btn.disabled = true;
-      btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Writing…';
+      btn.innerHTML = '<span class="sm spinner"></span> Writing…';
       var body = { notes: $('#notes').value };
       if (photo) body.image = photo;
       api('POST', 'api/meetings/' + enc(m.id) + '/recap', body).then(function (rec) {
-        btn.disabled = false; btn.innerHTML = '✨ Write it again <span class="cost">· ~1¢</span>';
+        btn.disabled = false; btn.innerHTML = 'Write it again <span class="cost">· ~1¢</span>';
         $('#rErr').innerHTML = '';
         $('#recOut').innerHTML = '<div class="card"><div class="card-head"><h3>Your recap</h3><span class="sub">a proposal — edit before you send</span></div>' + recapHTML(rec) +
-          '<textarea class="input" id="recText" rows="12" style="margin-top:12px;font-family:var(--mono);font-size:13.5px">' + esc(rec.body) + '</textarea>' +
-          '<div class="btn-row" style="margin-top:10px"><button class="btn small" id="recCopy">Copy</button><a class="btn small ghost" id="recMail" href="' + esc(rec.mailto) + '">Open in mail</a></div></div>';
+          '<textarea class="mt12 mono input" id="recText" rows="12">' + esc(rec.body) + '</textarea>' +
+          '<div class="mt12 btn-row"><button class="btn small" id="recCopy">Copy</button><a class="btn small ghost" id="recMail" href="' + esc(rec.mailto) + '">Open in mail</a></div></div>';
         $('#recCopy').onclick = function () { copy($('#recText').value, 'Recap copied'); };
         $('#recText').oninput = function (ev) { $('#recMail').href = R.mailto(rec.subject, ev.target.value); };
         loadMe();
-      }).catch(function (err) { btn.disabled = false; btn.innerHTML = '✨ Write the recap <span class="cost">· ~1¢</span>'; showError(err, $('#rErr')); });
+      }).catch(function (err) { btn.disabled = false; btn.innerHTML = 'Write the recap <span class="cost">· ~1¢</span>'; showError(err, $('#rErr')); });
     };
+  }
+
+  /* ---------------- Record or snap ---------------- */
+
+  function minutesOn() { return Boolean(state.me && state.me.ai && state.me.ai.minutes); }
+  function aiCaps() { var a = (state.me && state.me.ai) || {}; return { minutes: a.audioMinutes || 30, bytes: a.audioBytes || 8 * 1024 * 1024, cents: a.minuteCents || 0.3 }; }
+  function mmss(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function centsText(c) { c = Math.max(1, Math.ceil(c)); return 'about ' + c + '¢'; }
+
+  /* The recorder lives outside any one view: going back to the meter keeps
+   * it running, and the top bar shows it. The sound is held in this tab's
+   * memory only - a reload loses it, and nothing is sent until "Read it". */
+  var rec = null; // { mid, mr, stream, chunks, bytes, startedAt, secs, blob, type, tick }
+  function recType() {
+    var types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm'];
+    for (var i = 0; i < types.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+    return '';
+  }
+  function canRecord() { return Boolean(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+  function recPill() {
+    var el = $('#recPill');
+    if (!rec || !rec.mr) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('a');
+      el.id = 'recPill'; el.className = 'pill rec';
+      var host = $('#topRight'); host.insertBefore(el, host.firstChild);
+    }
+    el.href = '#/m/' + enc(rec.mid) + '/minutes';
+    el.setAttribute('aria-label', 'Recording, ' + mmss(rec.secs) + '. Open the recorder.');
+    el.textContent = mmss(rec.secs);
+  }
+  function recStop() {
+    if (!rec || !rec.mr) return;
+    try { rec.mr.stop(); } catch (e) { /* already stopped */ }
+  }
+  function recDiscard() {
+    if (!rec) return;
+    if (rec.mr) { rec.mr.onstop = null; try { rec.mr.stop(); } catch (e) { /* ignore */ } }
+    if (rec.stream) rec.stream.getTracks().forEach(function (t) { t.stop(); });
+    clearInterval(rec.tick);
+    if (rec.url) URL.revokeObjectURL(rec.url);
+    rec = null; recPill();
+  }
+  function recStart(mid, redraw) {
+    var caps = aiCaps();
+    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } }).then(function (stream) {
+      var type = recType();
+      var mr = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 24000 } : { audioBitsPerSecond: 24000 });
+      rec = { mid: mid, mr: mr, stream: stream, chunks: [], bytes: 0, startedAt: Date.now(), secs: 0, blob: null, type: mr.mimeType || type || 'audio/webm' };
+      mr.ondataavailable = function (e) {
+        if (!rec || !e.data || !e.data.size) return;
+        rec.chunks.push(e.data); rec.bytes += e.data.size;
+        // The size cap is the server's; stop a little under it.
+        if (rec.bytes > caps.bytes - 256 * 1024) recStop();
+      };
+      mr.onstop = function () {
+        if (!rec) return;
+        clearInterval(rec.tick);
+        rec.stream.getTracks().forEach(function (t) { t.stop(); });
+        rec.blob = new Blob(rec.chunks, { type: rec.type });
+        rec.chunks = []; rec.mr = null; rec.stream = null;
+        recPill();
+        if (location.hash.indexOf('/minutes') > 0) route(); else toast('Recording stopped. Open the meeting to read it.', 4000);
+      };
+      mr.start(1000);
+      rec.tick = setInterval(function () {
+        if (!rec || !rec.mr) return;
+        rec.secs = (Date.now() - rec.startedAt) / 1000;
+        recPill();
+        var t = $('#recClock'); if (t) t.textContent = mmss(rec.secs);
+        if (rec.secs >= caps.minutes * 60) recStop();
+      }, 500);
+      recPill();
+      if (redraw) redraw();
+    });
+  }
+  window.addEventListener('beforeunload', function (e) { if (rec) { e.preventDefault(); e.returnValue = ''; } });
+
+  function blobToB64(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { var s = String(fr.result); resolve(s.slice(s.indexOf(',') + 1)); };
+      fr.onerror = function () { reject(new Error('That recording could not be read. Try again.')); };
+      fr.readAsDataURL(blob);
+    });
+  }
+  /** Seconds of a chosen sound file, or null when the browser cannot tell. */
+  function audioSeconds(file) {
+    return new Promise(function (resolve) {
+      var a = document.createElement('audio'); var url = URL.createObjectURL(file);
+      var done = function (v) { URL.revokeObjectURL(url); resolve(v); };
+      a.preload = 'metadata';
+      a.onloadedmetadata = function () { done(isFinite(a.duration) ? a.duration : null); };
+      a.onerror = function () { done(null); };
+      setTimeout(function () { done(null); }, 4000);
+      a.src = url;
+    });
+  }
+
+  /** The minutes for review. `m` is the meeting (labels for the owner
+   *  picker); `opts.sample` makes it read-only, for the made-up example. */
+  function minutesHTML(x, m, opts) {
+    opts = opts || {};
+    var ro = opts.sample ? ' disabled' : '';
+    var src = x.kind === 'board' ? 'On the whiteboard' : 'Heard';
+    var n = 0;
+    var row = function (kind, it) {
+      var id = 'mi' + (n++);
+      var h = '<li class="mrow" data-kind="' + kind + '"><label class="mkeep"><input type="checkbox" data-keep checked' + ro + '><span class="sr-only">Keep this ' + (kind === 'parking' ? 'parking-lot item' : kind) + '</span></label><div class="mbody">' +
+        '<label class="sr-only" for="' + id + '">What it is</label><input class="input mtext" id="' + id + '" data-text maxlength="200" value="' + esc(it.text) + '"' + ro + '>' +
+        '<span class="quote"><span class="src">' + src + '</span> “' + esc(it.quote) + '”</span>';
+      if (kind === 'action') {
+        h += '<div class="mmeta"><label class="field"><span>Owner</span><input class="input" data-owner maxlength="30" list="mLabels" autocomplete="off" placeholder="No owner" value="' + esc(it.owner || '') + '"' + ro + '>' +
+          '<small class="hint">' + (it.owner ? 'Named in the words above.' : 'Nobody was named — pick one, or leave it open.') + '</small></label>' +
+          '<label class="field"><span>Due</span><input class="input" type="date" data-due value="' + esc(it.due || '') + '"' + ro + '>' +
+          '<small class="hint">' + (it.dueText ? 'Said: “' + esc(it.dueText) + '”' + (it.due ? ' — ' + esc(R.fmtDue(it.due)) + ', from the meeting’s date.' : ' — no day we could work out.') : 'No date was said.') + '</small></label></div>';
+      }
+      return h + '</div></li>';
+    };
+    var sec = function (title, kind, rows) { return rows.length ? '<h3 class="msec">' + title + ' <span class="count">' + rows.length + '</span></h3><ul class="mlist">' + rows.map(function (it) { return row(kind, it); }).join('') + '</ul>' : ''; };
+    var total = x.decisions.length + x.actions.length + x.parking.length;
+    return '<datalist id="mLabels">' + ((m && m.labels) || []).map(function (l) { return '<option value="' + esc(l) + '">'; }).join('') + '</datalist>' +
+      (x.summary ? '<p class="m0 fw6">' + gaps(x.summary) + '</p>' : '') +
+      (total ? '' : '<p class="m0 mt12 muted">Nothing in it reads as a decision, an action or something parked. The transcription is below.</p>') +
+      sec('Decisions', 'decision', x.decisions) + sec('Actions', 'action', x.actions) + sec('Parking lot', 'parking', x.parking) +
+      '<details class="mt16"' + (total ? '' : ' open') + '><summary>' + (x.kind === 'board' ? 'What the whiteboard says' : 'The transcription') + '</summary>' +
+      '<p class="m0 mb12 small muted">Written by AI from ' + (x.kind === 'board' ? 'the photo' : 'the recording') + ' — it can mishear. Every item above quotes it word for word, so check the quote, not just the item.</p><div class="draft">' + esc(x.transcript) + '</div></details>' +
+      ((x.removed || []).length ? '<details><summary>Taken out: ' + esc(R.plural(x.removed.length, 'thing')) + '</summary><ul class="removed">' + x.removed.map(function (r) { return '<li><b>' + esc(r.what) + '</b> — ' + esc(r.why) + '</li>'; }).join('') + '</ul></details>' : '');
+  }
+  function minutesKept(root) {
+    return $$('.mrow', root).filter(function (li) { return $('[data-keep]', li).checked && !li.classList.contains('saved'); }).map(function (li) {
+      var o = { li: li, kind: li.dataset.kind, text: $('[data-text]', li).value.trim() };
+      if (o.kind === 'action') { o.owner = $('[data-owner]', li).value.trim(); o.due = $('[data-due]', li).value || null; }
+      return o;
+    });
+  }
+  function minutesText(m, root) {
+    var by = { decision: [], action: [], parking: [] };
+    minutesKept(root).forEach(function (o) { by[o.kind].push(o.kind === 'action' ? o.text + ' — ' + (o.owner || '[owner?]') + (o.due ? ', due ' + R.fmtDue(o.due) : '') : o.text); });
+    var out = ['Minutes: ' + m.title + (m.day ? ' (' + m.day + ')' : '')];
+    [['Decisions', by.decision], ['Actions', by.action], ['Parking lot', by.parking]].forEach(function (s) { if (s[1].length) { out.push('', s[0]); s[1].forEach(function (t) { out.push('- ' + t); }); } });
+    return out.join('\n');
+  }
+
+  function renderMinutes(d) {
+    var m = d.meeting;
+    var back = backLink('#/m/' + enc(m.id), m.status === 'ended' ? 'Back to the receipt' : 'Back to the meeting');
+    if (!minutesOn()) {
+      view.innerHTML = back + '<div class="empty"><h2>Not switched on yet</h2><p>Recording a meeting or snapping the whiteboard isn’t available here yet. The free recap from the log needs no AI.</p><a class="btn" href="#/m/' + enc(m.id) + '/recap">Write the recap</a></div>';
+      return;
+    }
+    var caps = aiCaps();
+    var mode = recall('receipt-minutes-mode') === 'board' ? 'board' : 'record';
+    var photo = null; var file = null; var result = null; var told = false; var busy = false;
+    var mine = function () { return rec && rec.mid === m.id ? rec : null; };
+
+    function panel() {
+      var r = mine();
+      if (mode === 'board') {
+        return '<label class="photo-pick"><input type="file" accept="image/*" id="mPhoto"><span class="grow"><b id="mPhotoLbl">' + (photo ? 'Whiteboard photo ready' : 'Take or choose a photo of the whiteboard') + '</b><span class="blk small muted">Shrunk on this phone before it is sent.</span></span></label>' +
+          '<div id="mErr"></div><button class="mt16 btn lg block" id="mRead"' + (photo ? '' : ' disabled') + '>Read the whiteboard <span class="cost">· about 1¢</span></button>';
+      }
+      if (r && r.mr) {
+        return '<div class="recbox on" role="status"><span class="recdot" aria-hidden="true"></span><b class="recclock num" id="recClock">' + mmss(r.secs) + '</b><span class="muted">of ' + caps.minutes + ':00</span></div>' +
+          '<p class="m0 mt12 small muted">Keep this tab open. You can go back to the meter — the recording carries on, and it stops by itself at ' + caps.minutes + ' minutes.</p>' +
+          '<button class="mt16 btn lg block stop" id="mStop">Stop recording</button>';
+      }
+      var have = r && r.blob ? { blob: r.blob, secs: r.secs, name: 'Your recording' } : file;
+      if (have) {
+        return '<div class="recbox"><b>' + esc(have.name) + '</b><span class="muted num">' + (have.secs ? mmss(have.secs) + ' · ' : '') + (have.blob.size / 1048576).toFixed(1) + ' MB</span></div>' +
+          '<audio class="mt12 player" controls preload="metadata" id="mPlay"></audio>' +
+          '<div id="mErr"></div><button class="mt16 btn lg block" id="mRead">Read it <span class="cost">· ' + centsText((have.secs || 60) / 60 * caps.cents) + '</span></button>' +
+          '<button class="mt8 btn ghost block" id="mDiscard">Discard it</button>';
+      }
+      return '<label class="toggle consent"><input type="checkbox" id="mTold"' + (told ? ' checked' : '') + '><span class="sw" aria-hidden="true"></span><span><b>I’ve told everyone it’s being recorded</b><small>Say it out loud before you start, and don’t record if anyone objects. In many places recording people without their agreement is against the law.</small></span></label>' +
+        '<div id="mErr"></div>' +
+        (canRecord() ? '<button class="mt16 btn lg block" id="mStart"' + (told ? '' : ' disabled') + '>Start recording</button>' : '<p class="m0 mt12 small muted">This browser can’t record. Choose a recording you made another way.</p>') +
+        '<label class="mt8 btn ghost block filebtn' + (told ? '' : ' off') + '"><input type="file" accept="audio/*" id="mFile"' + (told ? '' : ' disabled') + '>Choose a recording instead</label>';
+    }
+
+    function draw() {
+      if (result) {
+        var total = result.decisions.length + result.actions.length + result.parking.length;
+        view.innerHTML = back + '<div class="page-head"><div><h1>Check it, then save</h1><div class="sub">' + esc(m.title) + '. Nothing is saved yet — untick what’s wrong, fix the words, then add what’s left to the log.</div></div></div>' +
+          '<div class="narrow" id="mOut">' + minutesHTML(result, m) +
+          '<div id="mSaveErr"></div><div class="mt24 btn-row sticky-actions">' + (total ? '<button class="btn lg" id="mSave">Add to the log</button>' : '') + '<button class="btn lg ghost" id="mCopy">Copy as text</button></div>' +
+          '<p class="m0 mt12 small muted">A new owner’s name is added to this meeting’s attendee list. The ' + (result.kind === 'board' ? 'photo' : 'recording') + ' and the transcription were read once and are not kept — they are gone when you leave this page.</p>' +
+          '<button class="mt8 link-btn" id="mAgain">Start over</button></div>';
+        var out = $('#mOut');
+        var count = function () { var b = $('#mSave'); if (!b) return; var k = minutesKept(out).length; b.textContent = k ? 'Add ' + k + ' to the log' : 'Nothing ticked'; b.disabled = !k || busy; };
+        out.addEventListener('change', count); count();
+        $('#mCopy').onclick = function () { copy(minutesText(m, out), 'Copied'); };
+        $('#mAgain').onclick = function () { result = null; draw(); };
+        if ($('#mSave')) $('#mSave').onclick = save;
+        return;
+      }
+      view.innerHTML = back + '<div class="page-head"><div><h1>Record or snap</h1><div class="sub">' + esc(m.title) + '. Record the meeting or snap the whiteboard, and get the decisions, who owns what and by when — to check before anything is saved.</div></div></div>' +
+        '<div class="narrow"><div class="seg2" role="group" aria-label="What to read"><button type="button" data-mode="record" aria-pressed="' + (mode === 'record') + '"' + (mode === 'record' ? ' class="on"' : '') + '>Record the meeting</button><button type="button" data-mode="board" aria-pressed="' + (mode === 'board') + '"' + (mode === 'board' ? ' class="on"' : '') + '>Snap the whiteboard</button></div>' +
+        '<div class="mt24" id="mPanel">' + panel() + '</div>' +
+        '<ul class="facts mt24"><li><b>Sent to be read, not kept.</b> The ' + (mode === 'board' ? 'photo is' : 'recording is') + ' sent once to Google’s Gemini AI to be ' + (mode === 'board' ? 'read' : 'transcribed') + '. Receipt stores neither it nor the transcription.</li>' +
+        (mode === 'board' ? '' : '<li><b>Up to ' + caps.minutes + ' minutes</b> (' + Math.round(caps.bytes / 1048576) + ' MB) at a time. A longer meeting is two recordings.</li>') +
+        '<li><b>Every item quotes the words it came from.</b> An owner is filled in only when their name is in those words; a date only when one was said.</li>' +
+        '<li><b>You decide what’s saved.</b> You check and edit the list first.</li></ul></div>';
+      $$('[data-mode]').forEach(function (b) { b.onclick = function () { mode = b.dataset.mode; store('receipt-minutes-mode', mode); draw(); }; });
+      wire();
+    }
+
+    function wire() {
+      var err = $('#mErr');
+      if ($('#mTold')) $('#mTold').onchange = function (e) { told = e.target.checked; $('#mPanel').innerHTML = panel(); wire(); };
+      if ($('#mStart')) $('#mStart').onclick = function (e) {
+        e.target.disabled = true;
+        recStart(m.id, function () { if ($('#mPanel')) { $('#mPanel').innerHTML = panel(); wire(); } }).catch(function () {
+          e.target.disabled = false;
+          err.innerHTML = '<div class="err" role="alert">The microphone is blocked. Allow it for this site in your browser’s settings, or choose a recording instead.</div>';
+        });
+      };
+      if ($('#mStop')) $('#mStop').onclick = function () { recStop(); };
+      if ($('#mFile')) $('#mFile').onchange = function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        if (f.size > caps.bytes) { err.innerHTML = '<div class="err" role="alert">That recording is ' + (f.size / 1048576).toFixed(1) + ' MB. Receipt reads up to ' + Math.round(caps.bytes / 1048576) + ' MB (' + caps.minutes + ' minutes) at a time.</div>'; return; }
+        audioSeconds(f).then(function (secs) {
+          if (secs && secs > caps.minutes * 60 + 1) { err.innerHTML = '<div class="err" role="alert">That recording is ' + mmss(secs) + ' long. Receipt reads up to ' + caps.minutes + ' minutes at a time — trim it, or send it in two parts.</div>'; return; }
+          file = { blob: f, secs: secs || 0, name: f.name || 'Your recording' };
+          $('#mPanel').innerHTML = panel(); wire();
+        });
+      };
+      if ($('#mPlay')) {
+        var have = mine() && mine().blob ? mine() : file;
+        if (!have.url) have.url = URL.createObjectURL(have.blob);
+        $('#mPlay').src = have.url;
+      }
+      if ($('#mDiscard')) $('#mDiscard').onclick = function () { if (mine()) recDiscard(); if (file && file.url) URL.revokeObjectURL(file.url); file = null; $('#mPanel').innerHTML = panel(); wire(); };
+      if ($('#mPhoto')) $('#mPhoto').onchange = function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        shrink(f).then(function (img) { photo = img; $('#mPanel').innerHTML = panel(); wire(); }).catch(function (er) { showError(er, err); });
+      };
+      if ($('#mRead')) $('#mRead').onclick = function (e) {
+        var btn = e.target.closest('button'); var label = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="sm spinner"></span> ' + (mode === 'board' ? 'Reading…' : 'Listening… this can take a minute');
+        var have = mine() && mine().blob ? mine() : file;
+        var body = mode === 'board' ? Promise.resolve({ image: photo }) : blobToB64(have.blob).then(function (b64) { return { audio: { type: have.blob.type, data: b64 } }; });
+        body.then(function (b) { return api('POST', 'api/meetings/' + enc(m.id) + '/minutes', b); }).then(function (x) {
+          result = x;
+          // Read once: the sound and the photo leave this tab's memory too.
+          if (mine()) recDiscard();
+          if (file && file.url) URL.revokeObjectURL(file.url);
+          file = null; photo = null;
+          loadMe(); draw(); window.scrollTo(0, 0); view.focus();
+        }).catch(function (er) { btn.disabled = false; btn.innerHTML = label; showError(er, err); });
+      };
+    }
+
+    function save() {
+      var out = $('#mOut'); var errBox = $('#mSaveErr');
+      var items = minutesKept(out);
+      var short = items.filter(function (o) { return o.text.length < 2; })[0];
+      if (short) { errBox.innerHTML = '<div class="err" role="alert">One of the ticked items has no words. Type what it was, or untick it.</div>'; $('[data-text]', short.li).focus(); return; }
+      var labels = (m.labels || []).slice();
+      var fresh = [];
+      items.forEach(function (o) {
+        if (o.kind !== 'action' || !o.owner) return;
+        var hit = labels.filter(function (l) { return l.toLowerCase() === o.owner.toLowerCase(); })[0];
+        if (hit) o.owner = hit; else { labels.push(o.owner); fresh.push(o.owner); }
+      });
+      busy = true; $('#mSave').disabled = true; errBox.innerHTML = '';
+      var chain = fresh.length ? api('PUT', 'api/meetings/' + enc(m.id), { labels: labels }).then(function (r) { m.labels = (r.meeting && r.meeting.labels) || labels; }) : Promise.resolve();
+      var done = 0;
+      items.forEach(function (o) {
+        chain = chain.then(function () {
+          var b = { kind: o.kind, text: o.text };
+          if (o.kind === 'action') { b.owner = o.owner || ''; b.due = o.due || ''; }
+          return api('POST', 'api/meetings/' + enc(m.id) + '/log', b).then(function () {
+            done++; o.li.classList.add('saved');
+            $$('input', o.li).forEach(function (i) { i.disabled = true; });
+          });
+        });
+      });
+      chain.then(function () {
+        busy = false;
+        toast('Added ' + R.plural(done, 'item') + ' to the log');
+        location.hash = '#/m/' + enc(m.id);
+      }).catch(function (er) {
+        busy = false;
+        errBox.innerHTML = '<div class="err" role="alert">' + esc((done ? R.plural(done, 'item') + ' added, then: ' : '') + ((er && er.message) || 'Something went wrong.')) + '</div>';
+        var b = $('#mSave'); if (b) { b.disabled = false; b.textContent = 'Add ' + minutesKept(out).length + ' to the log'; }
+      });
+    }
+
+    draw();
   }
 
   /** Shrink a photo in the browser before it is sent: 1600px JPEG. */
@@ -1440,7 +1756,7 @@
     }
     function mini() {
       var line = run.won ? bingo.line : [];
-      return '<div class="small muted" style="margin-top:12px">🎲 Bingo is on. ' + (run.won ? '<b>🦊 got bingo!</b>' : '🦊’s card:') + '</div><div class="mini-bingo' + (run.won ? ' win' : '') + '" aria-hidden="true">' +
+      return '<div class="mt12 small muted">🎲 Bingo is on. ' + (run.won ? '<b>🦊 got bingo!</b>' : '🦊’s card:') + '</div><div class="mini-bingo' + (run.won ? ' win' : '') + '" aria-hidden="true">' +
         bingo.card.map(function (_, i) { return '<i class="' + (i === R.FREE ? 'free' : run.marks.indexOf(i) >= 0 || line.indexOf(i) >= 0 ? 'on' : '') + '"></i>'; }).join('') + '</div>';
     }
     function finish() {
@@ -1451,14 +1767,14 @@
       for (var i = 0; i < emails && i < votes.length; i++) votes[votes.length - 1 - i].email = true;
       var r = R.receipt(m, log, votes, vnow());
       view.innerHTML = sampleBar('The sample meeting just ended. Every number below comes from the rules file — no AI, nothing saved.') + subnav('live') +
-        '<div class="live-head"><div><span class="state ended">Ended</span><h1 style="margin-top:8px">' + esc(m.title) + '</h1></div><button class="btn small ghost" data-rerun>↺ Run it again</button></div>' +
+        '<div class="live-head"><div><span class="state ended">Ended</span><h1 class="mt8">' + esc(m.title) + '</h1></div><button class="btn small ghost" data-rerun>Run it again</button></div>' +
         '<div class="dk-split dk-split-aside"><div class="' + (reducedMotion() ? '' : 'printing') + '"><div class="slot" aria-hidden="true"></div><div class="paper-wrap">' + receiptHTML(r) + '</div>' + receiptActions(r) + '</div>' +
-        '<div class="stack dk-sticky"><div class="card"><h3>What just happened</h3><div style="margin-top:8px">' +
+        '<div class="stack dk-sticky"><div class="card"><h3>What just happened</h3><div class="mt8">' +
         '<div class="kv"><span>Cost</span><b>' + esc(usd(r.costUsd)) + '</b></div><div class="kv"><span>Decisions</span><b>' + esc(r.counts.decision) + ' · ' + esc(R.money(r.costPerDecision)) + ' each</b></div>' +
         '<div class="kv"><span>The campaign review</span><b class="bad">' + esc(R.money(r.items[1].overUsd)) + ' over</b></div><div class="kv"><span>The room’s ROTI</span><b>' + esc(r.roti.avg.toFixed(1)) + '/4</b></div>' +
         '<div class="kv"><span>Time given back</span><b class="good">' + esc(R.minText(r.givenBackMs)) + '</b></div></div></div>' +
-        '<div class="card"><h3>Next in the sample</h3><div class="btn-row" style="margin-top:10px"><a class="btn ghost" href="#/sample/sharpen">✨ The sharpened agenda</a><a class="btn ghost" href="#/sample/audit">🪓 Swipe the audit</a></div></div>' +
-        '<div class="card"><h3>Run your own</h3><p class="small muted" style="margin:6px 0 10px">Free: the meter, the room, the receipt, the audit. About a cent for an AI agenda or recap.</p>' + (signedIn() ? '<a class="btn block" href="#/new">New meeting</a>' : '<button class="btn block" data-signup>Start free</button>') + '</div></div></div>';
+        '<div class="card"><h3>Next in the sample</h3><div class="mt12 btn-row"><a class="btn ghost" href="#/sample/sharpen">The sharpened agenda</a><a class="btn ghost" href="#/sample/audit">Swipe the audit</a></div></div>' +
+        '<div class="card"><h3>Run your own</h3><p class="m0 mt8 mb12 small muted">Free: the meter, the room, the receipt, the audit. About a cent for an AI agenda or recap.</p>' + (signedIn() ? '<a class="btn block" href="#/new">New meeting</a>' : '<button class="btn block" data-signup>Start free</button>') + '</div></div></div>';
       wireSignup();
       wireReceiptActions(r);
       // The page is already on #/sample, so a link there changes nothing.
@@ -1496,14 +1812,14 @@
     var r = d.receipt;
     view.innerHTML = sampleBar() + subnav('receipt') +
       '<div class="dk-split dk-split-aside"><div><div class="paper-wrap">' + receiptHTML(r) + '</div>' + receiptActions(r) + '</div>' +
-      '<div class="stack dk-sticky"><div class="card"><h3>How to read it</h3><div style="margin-top:8px">' +
+      '<div class="stack dk-sticky"><div class="card"><h3>How to read it</h3><div class="mt8">' +
       '<div class="kv"><span>7 people at $760/h</span><b>' + esc(usd(r.hourly / 60)) + '/min</b></div>' +
       '<div class="kv"><span>38m 22s of 45 booked</span><b>' + esc(usd(r.costUsd)) + '</b></div>' +
       '<div class="kv"><span>÷ 3 decisions</span><b>' + esc(R.money(r.costPerDecision)) + ' each</b></div>' +
       '<div class="kv"><span>Campaign review: 18 of 15 min</span><b class="bad">+' + esc(R.money(r.items[1].overUsd)) + '</b></div>' +
       '<div class="kv"><span>5 votes: 4, 3, 3, 2, 1</span><b>ROTI ' + esc(r.roti.avg.toFixed(1)) + '</b></div></div>' +
-      '<p class="small muted" style="margin:10px 0 0">Shared, it drops the title, the agenda’s names, the decisions and the attendees — numbers only.</p></div>' +
-      '<div class="card"><h3>The same receipt, shared</h3><div class="btn-row" style="margin-top:10px"><button class="btn ghost" id="pubPng">⬇️ Numbers-only PNG</button></div></div></div></div>';
+      '<p class="m0 mt12 small muted">Shared, it drops the title, the agenda’s names, the decisions and the attendees — numbers only.</p></div>' +
+      '<div class="card"><h3>The same receipt, shared</h3><div class="mt12 btn-row"><button class="btn ghost" id="pubPng">Numbers-only PNG</button></div></div></div></div>';
     wireReceiptActions(r);
     wireSignup();
     centerSubnav();
@@ -1514,14 +1830,17 @@
     var p = d.sharpen.proposal;
     var rec = d.recap.recap;
     view.innerHTML = sampleBar('Written by hand as examples of what the AI returns for this sample — clearly not a live model call.') + subnav('sharpen') +
-      '<div class="section-title" style="margin-top:4px"><h2>✨ The agenda sharpener</h2><span class="count">example output</span></div>' +
-      '<div class="dk-split"><div class="card"><div class="eyebrow" style="margin-bottom:6px">The invite, as sent</div><div class="vague">' + esc(d.sharpen.invite) + '</div>' +
-      '<p class="small muted" style="margin:10px 0 0">45 minutes booked for seven people: about ' + esc(R.money(760 * 0.75)) + ' of time, and no outcome.</p></div>' +
+      '<div class="mt4 section-title"><h2>The agenda sharpener</h2><span class="count">example output</span></div>' +
+      '<div class="dk-split"><div class="card"><div class="mb8 eyebrow">The invite, as sent</div><div class="vague">' + esc(d.sharpen.invite) + '</div>' +
+      '<p class="m0 mt12 small muted">45 minutes booked for seven people: about ' + esc(R.money(760 * 0.75)) + ' of time, and no outcome.</p></div>' +
       '<div class="card"><div class="eyebrow">Sharpened</div>' + proposalHTML(p, { actions: false, title: d.meeting.title }) + '</div></div>' +
-      '<div class="section-title"><h2>📝 The recap writer</h2><span class="count">example output</span></div>' +
-      '<div class="dk-split"><div class="card"><div class="eyebrow" style="margin-bottom:6px">Rough notes, pasted</div><div class="vague">' + esc(d.recap.notes) + '</div>' +
-      '<p class="small muted" style="margin:10px 0 0">Plus the log from the meeting. Notes are read once and never stored.</p></div>' +
-      '<div class="card">' + recapHTML(rec) + '<textarea class="input" rows="10" readonly style="margin-top:12px;font-family:var(--mono);font-size:13px">' + esc(rec.body) + '</textarea></div></div>';
+      '<div class="section-title"><h2>The recap writer</h2><span class="count">example output</span></div>' +
+      '<div class="dk-split"><div class="card"><div class="mb8 eyebrow">Rough notes, pasted</div><div class="vague">' + esc(d.recap.notes) + '</div>' +
+      '<p class="m0 mt12 small muted">Plus the log from the meeting. Notes are read once and never stored.</p></div>' +
+      '<div class="card">' + recapHTML(rec) + '<textarea class="mt12 mono input" rows="10" readonly>' + esc(rec.body) + '</textarea></div></div>' +
+      (minutesOn() && d.minutes ? '<div class="section-title"><h2>Record or snap</h2><span class="count">example output</span></div>' +
+        '<p class="m0 mb12 small muted">What comes back from a recording of the wrap-up: every item with the words it came from, an owner only when named, a date only when said. In a real meeting you edit this before anything is saved.</p>' +
+        '<div class="card">' + minutesHTML(d.minutes, d.meeting, { sample: true }) + '</div>' : '');
     var cd = $('[data-copydraft]'); if (cd) cd.onclick = function () { copy(p.asyncDraft, 'Update copied'); };
     wireSignup();
     centerSubnav();
@@ -1574,9 +1893,9 @@
         // meetings" over an empty list says nothing.
         (rows.length ? '<div class="saved-card"><div><b class="num">' + esc(R.money(totals.totalAnnual)) + '</b><span>a year, ' + esc(R.plural(rows.length, 'meeting')) + ' · ' + esc(R.hoursText(totals.hoursPerYear).replace(' h', '')) + ' person-hours</span></div>' +
         '<div class="good"><b class="num" id="savedN">' + esc(R.money(saved)) + '</b><span>saved per year · ' + esc(R.hoursText(totals.hoursSaved).replace(' h', '')) + ' hours back</span></div></div>' : '');
-      h += '<div class="dk-split dk-split-aside" style="margin-top:6px"><div>';
+      h += '<div class="mt8 dk-split dk-split-aside"><div>';
       if (!rows.length) {
-        h += '<div class="empty boxed" style="margin-top:14px"><div class="e" aria-hidden="true">🪓</div><h2>Nothing to audit yet</h2><p>Add the meetings that repeat — the weekly sync, the stand-up, the all-hands — and see what each costs a year.</p>' +
+        h += '<div class="mt16 empty boxed"><div class="e" aria-hidden="true">🪓</div><h2>Nothing to audit yet</h2><p>Add the meetings that repeat — the weekly sync, the stand-up, the all-hands — and see what each costs a year.</p>' +
           '<button class="btn" data-add-first>Add your first one</button></div>';
       } else if (undecided.length) {
             h += '<div class="section-title"><h2>Triage</h2><span class="count">' + esc(undecided.length) + ' to go · most expensive first</span></div>' +
@@ -1590,21 +1909,21 @@
           '<div class="triage"><button class="kill" data-dec="kill"><span class="e">🪓</span>Kill</button><button class="shrink" data-dec="shrink"><span class="e">✂️</span>Shrink</button><button class="keep" data-dec="keep"><span class="e">👍</span>Keep</button></div>' +
           '<p class="hint center">Swipe left to kill, right to keep — or tap.</p>';
       } else {
-        h += '<div class="banner" style="margin-top:14px"><span class="e">🎉</span><span>Every recurring meeting has a verdict. ' + (totals.savedPerYear ? 'That’s <b>' + esc(R.money(totals.savedPerYear)) + '</b> a year handed back.' : '') + '</span></div>';
+        h += '<div class="mt16 banner"><span class="e">🎉</span><span>Every recurring meeting has a verdict. ' + (totals.savedPerYear ? 'That’s <b>' + esc(R.money(totals.savedPerYear)) + '</b> a year handed back.' : '') + '</span></div>';
       }
       if (rows.length) {
         h += '<div class="section-title"><h2>All of them</h2><span class="count">ranked by cost</span></div><div class="list">' + rows.map(function (r) {
           var max = rows[0].annual || 1;
           var tag = r.decision === 'kill' ? '<span class="tag bad">Killed · saves ' + esc(R.money(r.saved)) + '</span>' : r.decision === 'shrink' ? '<span class="tag warn">Shrunk · saves ' + esc(R.money(r.saved)) + '</span>' : r.decision === 'keep' ? '<span class="tag good">Kept</span>' : '<span class="tag">Undecided</span>';
-          return '<button class="arow2' + (r.decision === 'kill' ? ' killed' : '') + '" data-row="' + esc(r.id) + '"><span style="min-width:0"><span class="t" style="display:block">' + esc(r.title) + '</span><span class="m" style="display:block">' + esc(cadenceText(r)) + '</span>' +
-            '<span class="bar-cost" style="display:block"><i style="width:' + Math.round(r.annual / max * 100) + '%"></i></span></span><span class="n"><b>' + esc(R.money(r.annual)) + '</b>' + tag + '</span></button>';
+          return '<button class="arow2' + (r.decision === 'kill' ? ' killed' : '') + '" data-row="' + esc(r.id) + '"><span class="mw0"><span class="blk t">' + esc(r.title) + '</span><span class="blk m">' + esc(cadenceText(r)) + '</span>' +
+            '<span class="blk bar-cost"><i data-wd="' + Math.round(r.annual / max * 100) + '"></i></span></span><span class="n"><b>' + esc(R.money(r.annual)) + '</b>' + tag + '</span></button>';
         }).join('') + '</div>';
       }
       h += '</div><div class="dk-sticky"><div class="section-title col-top"><h2>Add a recurring meeting</h2></div><form class="card" id="addRec">' +
         '<label class="field"><span>Name</span><input class="input" name="title" maxlength="80" placeholder="Weekly all-hands" required></label>' +
         '<div class="grid2"><label class="field"><span>Minutes</span><input class="input" name="minutes" inputmode="numeric" value="30"></label>' +
         '<label class="field"><span>How often</span><select class="input" name="cadence">' + R.CADENCES.map(function (cd) { return '<option value="' + cd.key + '"' + (cd.key === 'weekly' ? ' selected' : '') + '>' + esc(cd.label) + '</option>'; }).join('') + '</select></label></div>' +
-        '<div id="recPeople"></div><div class="costline" id="recCost"></div><div id="aErr"></div><button class="btn block" style="margin-top:12px">Add it</button></form></div></div>';
+        '<div id="recPeople"></div><div class="costline" id="recCost"></div><div id="aErr"></div><button class="mt12 btn block">Add it</button></form></div></div>';
       view.innerHTML = h;
       wireSignup();
       if (sample) centerSubnav();
@@ -1679,12 +1998,12 @@
       var inUse = R.bandsInUse(r);
       function body() {
         var after = R.shrunk(r, s);
-        return '<h2>✂️ Shrink “' + esc(r.title) + '”</h2><p class="muted small">Now ' + esc(cadenceText(r)) + ' — ' + esc(R.money(r.annual)) + ' a year.</p>' +
+        return '<h2>Shrink “' + esc(r.title) + '”</h2><p class="muted small">Now ' + esc(cadenceText(r)) + ' — ' + esc(R.money(r.annual)) + ' a year.</p>' +
           '<div class="label" id="shL">Length</div><div class="chips" role="group" aria-labelledby="shL">' + [r.minutes, (r.suggestion || R.shrinkSuggestion(r)).minutes, 60, 45, 30, 25, 20, 15, 10].filter(function (n, i, a) { return n <= r.minutes && a.indexOf(n) === i; }).sort(function (x, y) { return y - x; }).map(function (n) { return '<button type="button" class="chip' + (s.minutes === n ? ' on' : '') + '" aria-pressed="' + (s.minutes === n) + '" data-sm="' + n + '">' + n + ' min</button>'; }).join('') + '</div>' +
           '<div class="label" id="shC">How often</div><div class="chips" role="group" aria-labelledby="shC">' + R.CADENCES.filter(function (cd) { return R.CADENCE_KEYS.indexOf(cd.key) >= R.CADENCE_KEYS.indexOf(r.cadence); }).map(function (cd) { return '<button type="button" class="chip' + (s.cadence === cd.key ? ' on' : '') + '" aria-pressed="' + (s.cadence === cd.key) + '" data-sc="' + cd.key + '">' + esc(cd.label) + '</button>'; }).join('') + '</div>' +
           (inUse.length > 1 ? '<div class="label" id="shD">Send the recap instead to</div><div class="chips" role="group" aria-labelledby="shD">' + inUse.map(function (b) { return '<button type="button" class="chip' + (s.drop.indexOf(b) >= 0 ? ' on' : '') + '" aria-pressed="' + (s.drop.indexOf(b) >= 0) + '" data-sd="' + b + '">' + esc(R.bandInfo(b).label + 's') + '</button>'; }).join('') + '</div>' : '') +
-          '<div class="costline" style="margin-top:14px">After: <b>' + esc(R.money(R.annualCost(after))) + '</b> a year. Saves <b class="good">' + esc(R.money(Math.max(0, r.annual - R.annualCost(after)))) + '</b>.</div>' +
-          '<button class="btn block" id="doShrink" style="margin-top:12px">Shrink it</button>';
+          '<div class="mt16 costline">After: <b>' + esc(R.money(R.annualCost(after))) + '</b> a year. Saves <b class="good">' + esc(R.money(Math.max(0, r.annual - R.annualCost(after)))) + '</b>.</div>' +
+          '<button class="mt12 btn block" id="doShrink">Shrink it</button>';
       }
       sheet('<div id="shr">' + body() + '</div>', function (root) {
         var wire = function () {
@@ -1697,7 +2016,7 @@
               redraw();
             };
           });
-          $('#doShrink', root).onclick = function () { closeSheet(); decide(r, 'shrink', s).then(function () { toast('✂️ Shrunk'); }).catch(function (e) { showError(e); }); };
+          $('#doShrink', root).onclick = function () { closeSheet(); decide(r, 'shrink', s).then(function () { toast('Shrunk'); }).catch(function (e) { showError(e); }); };
         };
         // Redrawn in place; focus goes back to the chip that was pressed.
         var redraw = function () {
@@ -1711,9 +2030,9 @@
     }
     function openRow(r) {
       sheet('<h2>' + esc(r.title) + '</h2><p class="muted">' + esc(cadenceText(r)) + ' · ' + esc(R.money(r.annual)) + ' a year</p>' +
-        '<div class="triage" style="margin-top:12px"><button class="kill" data-d="kill"><span class="e">🪓</span>Kill</button><button class="shrink" data-d="shrink"><span class="e">✂️</span>Shrink</button><button class="keep" data-d="keep"><span class="e">👍</span>Keep</button></div>' +
-        (r.decision ? '<button class="btn ghost block" data-d="undo" style="margin-top:10px">Undo the decision</button>' : '') +
-        '<button class="btn danger block" id="delRow" style="margin-top:10px">Remove from the audit</button>',
+        '<div class="mt12 triage"><button class="kill" data-d="kill"><span class="e">🪓</span>Kill</button><button class="shrink" data-d="shrink"><span class="e">✂️</span>Shrink</button><button class="keep" data-d="keep"><span class="e">👍</span>Keep</button></div>' +
+        (r.decision ? '<button class="mt12 btn ghost block" data-d="undo">Undo the decision</button>' : '') +
+        '<button class="mt12 btn danger block" id="delRow">Remove from the audit</button>',
         function (root) {
           $$('[data-d]', root).forEach(function (b) {
             b.onclick = function () {
@@ -1746,8 +2065,8 @@
     var trend = sb.rotiTrend || [];
     // One column per meeting (no empty columns), and on a phone the label is
     // the day number alone - "Sep 16" is wider than a tenth of the card.
-    var svg = trend.length ? '<div class="bars roti-bars" role="img" aria-label="ROTI for the last ' + trend.length + ' meetings with votes" style="grid-template-columns:repeat(' + trend.length + ',minmax(0,1fr))">' + trend.map(function (t) {
-      return '<div class="b' + (t.avg >= 3 ? ' now' : t.avg < 2 ? ' low' : '') + '" title="' + esc(t.title + ' · ' + fmtDay(t.day) + ' · ' + t.avg.toFixed(1) + '/4') + '"><em>' + esc(t.avg.toFixed(1)) + '</em><i style="height:' + Math.round(t.avg / 4 * 100) + '%"></i><span><span class="mo">' + esc(fmtDay(t.day, { weekday: undefined, day: undefined })) + ' </span>' + esc(fmtDay(t.day, { weekday: undefined, month: undefined })) + '</span></div>';
+    var svg = trend.length ? '<div class="bars roti-bars" role="img" aria-label="ROTI for the last ' + trend.length + ' meetings with votes" data-cols="' + trend.length + '">' + trend.map(function (t) {
+      return '<div class="b' + (t.avg >= 3 ? ' now' : t.avg < 2 ? ' low' : '') + '" title="' + esc(t.title + ' · ' + fmtDay(t.day) + ' · ' + t.avg.toFixed(1) + '/4') + '"><em>' + esc(t.avg.toFixed(1)) + '</em><i data-ht="' + Math.round(t.avg / 4 * 100) + '"></i><span><span class="mo">' + esc(fmtDay(t.day, { weekday: undefined, day: undefined })) + ' </span>' + esc(fmtDay(t.day, { weekday: undefined, month: undefined })) + '</span></div>';
     }).join('') + '</div>' : '';
     view.innerHTML = (sample ? sampleBar('A made-up month of meetings — real rules, nothing saved.') + subnav('score') : '') +
       '<div class="page-head"><div><h1>Scoreboard</h1><div class="sub">Team totals only. Nobody is ranked; the time you give back is the score.</div></div></div>' +
@@ -1757,12 +2076,12 @@
       '<div class="tile good"><div class="k">Time given back</div><b>' + esc(R.minText(sb.givenBackMs)) + '</b><span>' + esc(R.hoursText(sb.givenBackPersonHours)) + ' of people’s time</span></div>' +
       '<div class="tile good"><div class="k">Audit savings</div><b>' + esc(R.money(sb.savedPerYear)) + '</b><span>a year, from Keep · Shrink · Kill</span></div>' +
       '</div>' +
-      '<div class="dk-split" style="margin-top:12px"><div class="stack">' +
+      '<div class="mt12 dk-split"><div class="stack">' +
       '<div class="card"><div class="card-head"><h3>Meeting cost by week</h3><span class="sub">last 8 weeks</span></div><div class="bars">' + sb.weeks.map(function (w, i) {
-        return '<div class="b' + (i === sb.weeks.length - 1 ? ' now' : '') + '" title="' + esc('Week of ' + fmtDay(w.week) + ': ' + R.money(w.costUsd) + ', ' + R.plural(w.meetings, 'meeting')) + '"><em>' + (w.costUsd ? esc(R.money(w.costUsd).replace(/,(\d)\d\d$/, '.$1k').replace(/,\d{3}$/, 'k')) : '') + '</em><i style="height:' + Math.round(w.costUsd / maxW * 100) + '%"></i><span>' + esc(fmtDay(w.week, { weekday: undefined })) + '</span></div>';
+        return '<div class="b' + (i === sb.weeks.length - 1 ? ' now' : '') + '" title="' + esc('Week of ' + fmtDay(w.week) + ': ' + R.money(w.costUsd) + ', ' + R.plural(w.meetings, 'meeting')) + '"><em>' + (w.costUsd ? esc(R.money(w.costUsd).replace(/,(\d)\d\d$/, '.$1k').replace(/,\d{3}$/, 'k')) : '') + '</em><i data-ht="' + Math.round(w.costUsd / maxW * 100) + '"></i><span>' + esc(fmtDay(w.week, { weekday: undefined })) + '</span></div>';
       }).join('') + '</div></div>' +
-      '<div class="card"><div class="card-head"><h3>Was it worth it?</h3><span class="sub">ROTI, 0–4, by meeting</span></div>' + (svg || '<p class="muted small" style="margin:0">No votes yet — share the room code in your next meeting.</p>') + '</div>' +
-      (sb.priciest ? '<div class="card"><div class="eyebrow">Most expensive this month</div><div class="row spread" style="margin-top:6px"><b style="font-size:17px">' + esc(sb.priciest.title) + '</b><b class="num" style="font-size:20px">' + esc(R.money(sb.priciest.costUsd)) + '</b></div><div class="small muted">' + esc(fmtDay(sb.priciest.day)) + '</div></div>' : '') +
+      '<div class="card"><div class="card-head"><h3>Was it worth it?</h3><span class="sub">ROTI, 0–4, by meeting</span></div>' + (svg || '<p class="m0 muted small">No votes yet — share the room code in your next meeting.</p>') + '</div>' +
+      (sb.priciest ? '<div class="card"><div class="eyebrow">Most expensive this month</div><div class="mt8 row spread"><b class="f17">' + esc(sb.priciest.title) + '</b><b class="f20 num">' + esc(R.money(sb.priciest.costUsd)) + '</b></div><div class="small muted">' + esc(fmtDay(sb.priciest.day)) + '</div></div>' : '') +
       '</div><div class="stack">' +
       '<div class="card"><div class="card-head"><h3>Badges</h3><span class="sub">' + esc(sb.badges.length) + ' of ' + R.BADGES.length + '</span></div><div class="badges">' + R.BADGES.map(function (b) {
         var on = sb.badges.indexOf(b.key) >= 0;
@@ -1771,8 +2090,8 @@
       '<div class="card"><div class="card-head"><h3>Actions after the meeting</h3><span class="sub">' + esc(sb.actions.open) + ' open · ' + esc(sb.actions.done) + ' done · ' + esc(sb.actions.dropped) + ' dropped</span></div>' +
       ((actions || []).length ? '<ul class="logl">' + actions.map(function (a) {
         var hi = R.heatInfo(a.heat.state);
-        return '<li><span class="e" aria-hidden="true">' + hi.emoji + '</span><span style="min-width:0"><span class="t" style="display:block">' + esc(a.text) + '</span><span class="m">' + esc([a.owner || 'No owner', a.due ? 'due ' + R.fmtDue(a.due) : '', a.meetingTitle].filter(Boolean).join(' · ')) + '</span></span><span class="heat ' + esc(a.heat.state) + '">' + esc(hi.label) + '</span></li>';
-      }).join('') + '</ul>' : '<p class="muted small" style="margin:0">No open actions. Log one with 📌 during a meeting.</p>') +
+        return '<li><span class="e" aria-hidden="true">' + hi.emoji + '</span><span class="mw0"><span class="blk t">' + esc(a.text) + '</span><span class="m">' + esc([a.owner || 'No owner', a.due ? 'due ' + R.fmtDue(a.due) : '', a.meetingTitle].filter(Boolean).join(' · ')) + '</span></span><span class="heat ' + esc(a.heat.state) + '">' + esc(hi.label) + '</span></li>';
+      }).join('') + '</ul>' : '<p class="m0 muted small">No open actions. Log one with 📌 during a meeting.</p>') +
       '<p class="hint">Dropped actions are counted for the team, never by person.</p></div>' +
       '</div></div>';
     wireSignup();
@@ -1808,44 +2127,44 @@
       var st = d.status;
       document.title = m.title + ' · the room';
       var cur = L.agenda.current;
-      var h = '<div class="room"><div class="brandline"><a href="./"><span class="mark" aria-hidden="true" style="font-size:20px">🧾</span>Receipt</a><span class="small muted">Room ' + esc(d.code) + '</span></div>' +
+      var h = '<div class="room"><div class="brandline"><a href="./"><span class="f20 mark" aria-hidden="true">🧾</span>Receipt</a><span class="small muted">Room ' + esc(d.code) + '</span></div>' +
         '<div class="ticker"><div class="row spread"><span class="state ' + st + '">' + (st === 'waiting' ? 'Not started' : st === 'paused' ? 'Paused' : st === 'ended' ? 'Ended' : 'Live') + '</span><span class="small muted">' + esc(R.plural(L.headcount, 'person', 'people')) + '</span></div>' +
-        '<h1 style="font-size:22px;margin-top:10px;overflow-wrap:anywhere">' + esc(m.title) + '</h1>' +
-        (st === 'waiting' ? '<p class="muted" style="margin:8px 0 0">It hasn’t started yet. Keep this open — voting opens when it does.</p>' :
-          '<div class="usd" id="rUsd" style="font-size:clamp(44px,14vw,72px)">' + bigUsd(L.costUsd) + '</div><div class="meta" id="rMeta"></div>' +
-          (cur ? '<div class="small muted" style="margin-top:6px">Now: <b style="color:var(--text)">' + esc(cur.title) + '</b> · <span id="rLeft"></span></div>' : '') +
-          (st === 'ended' && L.leftMs >= R.MIN ? '<div class="good" style="margin-top:8px;font-weight:800">🎉 Finished early: ' + esc(R.minText(L.leftMs)) + ' given back</div>' : '')) +
+        '<h1 class="f20 mt12 wrapany">' + esc(m.title) + '</h1>' +
+        (st === 'waiting' ? '<p class="m0 mt8 muted">It hasn’t started yet. Keep this open — voting opens when it does.</p>' :
+          '<div class="usd-md usd" id="rUsd">' + bigUsd(L.costUsd) + '</div><div class="meta" id="rMeta"></div>' +
+          (cur ? '<div class="mt8 small muted">Now: <b class="ink">' + esc(cur.title) + '</b> · <span id="rLeft"></span></div>' : '') +
+          (st === 'ended' && L.leftMs >= R.MIN ? '<div class="mt8 fw6 good">🎉 Finished early: ' + esc(R.minText(L.leftMs)) + ' given back</div>' : '')) +
         '<div class="note">Estimated from role-band rates — nobody’s salary.</div></div>';
       if (d.votingOpen) {
-        h += '<div class="stack" style="margin-top:12px">' +
+        h += '<div class="mt12 stack">' +
           '<button class="email-btn' + (d.me.email ? ' on' : '') + '" id="emailBtn" aria-pressed="' + d.me.email + '"><span class="e" aria-hidden="true">📧</span><span><b>' + (d.me.email ? 'You said: could have been an email' : 'Could this have been an email?') + '</b><span class="sub">' + esc(R.plural(d.room.emailVotes, 'person thinks', 'people think')) + ' so. Tap to ' + (d.me.email ? 'take it back' : 'say so') + '.</span></span></button>' +
-          '<div class="card"><h3>' + (st === 'ended' ? 'It’s over — was it worth your time?' : 'Was this worth your time?') + '</h3><p class="small muted" style="margin:4px 0 10px">Return on time invested, 0 to 4. Change it any time until tomorrow.</p>' +
+          '<div class="card"><h3>' + (st === 'ended' ? 'It’s over — was it worth your time?' : 'Was this worth your time?') + '</h3><p class="m0 mt4 mb12 small muted">Return on time invested, 0 to 4. Change it any time until tomorrow.</p>' +
           '<div class="roti" role="group" aria-label="Your vote">' + R.ROTI.map(function (x) {
             return '<button data-roti="' + x.v + '" class="' + (d.me.roti === x.v ? 'on' : '') + '" aria-pressed="' + (d.me.roti === x.v) + '"><span class="e" aria-hidden="true">' + x.emoji + '</span><b>' + x.v + '</b><span>' + esc(x.label) + '</span></button>';
-          }).join('') + '</div><p class="small muted" style="margin:10px 0 0">' + esc(R.plural(d.room.rotiN, 'vote')) + ' so far. Anonymous — one per browser.</p></div></div>';
+          }).join('') + '</div><p class="m0 mt12 small muted">' + esc(R.plural(d.room.rotiN, 'vote')) + ' so far. Anonymous — one per browser.</p></div></div>';
       } else if (st !== 'waiting') {
-        h += '<div class="banner" style="margin-top:12px"><span class="e">🔒</span><span>Voting has closed for this meeting.</span></div>';
+        h += '<div class="mt12 banner"><span class="e">🔒</span><span>Voting has closed for this meeting.</span></div>';
       }
       if (d.bingo && st !== 'waiting') {
         var card = d.bingo.card;
         var line = R.bingoLine(marks);
-        h += '<div class="card" style="margin-top:12px"><div class="card-head"><h3>🎲 Buzzword bingo</h3><span class="sub">' + (d.bingo.winner ? esc(d.bingo.winner) + ' won' : 'your own card') + '</span></div>';
+        h += '<div class="mt12 card"><div class="card-head"><h3>Buzzword bingo</h3><span class="sub">' + (d.bingo.winner ? esc(d.bingo.winner) + ' won' : 'your own card') + '</span></div>';
         if (!handle) {
-          h += '<p class="small muted" style="margin:0 0 10px">Pick who you’ll be. Just an emoji — no name.</p><div class="handles">' + R.HANDLES.map(function (x) { return '<button data-h="' + esc(x) + '" aria-label="Play as ' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>';
+          h += '<p class="m0 mb12 small muted">Pick who you’ll be. Just an emoji — no name.</p><div class="handles">' + R.HANDLES.map(function (x) { return '<button data-h="' + esc(x) + '" aria-label="Play as ' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>';
         } else {
           var over = st === 'ended';
-          if (claimed) h += '<div class="bingo-banner" style="margin-bottom:10px">BINGO! ' + esc(handle) + '</div>';
+          if (claimed) h += '<div class="mb12 bingo-banner">BINGO! ' + esc(handle) + '</div>';
           h += '<div class="bingo' + (over ? ' closed' : '') + '">' + card.map(function (p, i) {
             var on = i === R.FREE || marks.indexOf(i) >= 0;
             var win = line && line.indexOf(i) >= 0;
             return '<button data-cell="' + i + '" class="' + (i === R.FREE ? 'free' : '') + (on && i !== R.FREE ? ' on' : '') + (win ? ' win' : '') + '" aria-pressed="' + on + '"' + (i === R.FREE || over ? ' disabled' : '') + '>' + esc(i === R.FREE ? '★ FREE' : p) + '</button>';
-          }).join('') + '</div><p class="small muted" style="margin:10px 0 0">' + (over
+          }).join('') + '</div><p class="m0 mt12 small muted">' + (over
             ? 'The meeting is over — bingo is closed.' + (d.bingo.winner ? ' ' + esc(d.bingo.winner) + ' got a line first.' : ' Nobody got a line.')
             : 'Playing as ' + esc(handle) + '. Tap a square when you hear it. A full line is bingo.') + '</p>';
         }
         h += '</div>';
       }
-      h += '<p class="center small faint" style="margin-top:22px">Made with <a href="./">Receipt 🧾</a> — every meeting gets a receipt.</p></div>';
+      h += '<p class="mt24 center small faint">Made with <a href="./">Receipt 🧾</a> — every meeting gets a receipt.</p></div>';
       view.innerHTML = h;
       wire();
       tick();
@@ -1915,10 +2234,10 @@
     loading();
     api('GET', 'api/shared/' + token).then(function (c) {
       document.title = 'A meeting receipt · ' + R.money(c.costUsd);
-      view.innerHTML = (c.preview ? '<div class="banner" style="margin:0 auto 12px;max-width:520px"><span class="e">👀</span><span>This is what people see — a frozen, numbers-only copy. Update it from the meeting’s receipt.</span></div>' : '') +
+      view.innerHTML = (c.preview ? '<div class="mxa mb12 mw520 banner"><span class="e">👀</span><span>This is what people see — a frozen, numbers-only copy. Update it from the meeting’s receipt.</span></div>' : '') +
         '<div class="paper-wrap">' + receiptHTML(c, { numbersOnly: true }) + '</div>' + receiptActions(c) +
-        '<p class="center small muted" style="margin:16px auto 0;max-width:46ch">Frozen ' + esc(fmtDay(c.frozenAt, { year: 'numeric' })) + '. Numbers only — no title, no names, no decisions or notes are on this receipt.</p>' +
-        '<p class="center small faint" style="margin-top:18px">Made with <a href="./">Receipt 🧾</a> — every meeting gets a receipt.</p>';
+        '<p class="mt16 mxa mw46 center small muted">Frozen ' + esc(fmtDay(c.frozenAt, { year: 'numeric' })) + '. Numbers only — no title, no names, no decisions or notes are on this receipt.</p>' +
+        '<p class="mt16 center small faint">Made with <a href="./">Receipt 🧾</a> — every meeting gets a receipt.</p>';
       wireReceiptActions(c, { numbersOnly: true });
     }).catch(function (e) {
       view.innerHTML = '<div class="empty"><div class="e">🔒</div><h2>This link isn’t valid</h2><p>' + esc(e.message) + '</p><a class="btn" href="./">What is Receipt?</a></div>';

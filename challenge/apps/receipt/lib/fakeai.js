@@ -17,6 +17,13 @@
 //            never gave, markup and an invented figure in the summary
 //   a photo whose bytes contain BLANK - unreadable (422 when it is all there is)
 //   ... BOARD - a whiteboard with a decision and an owned action on it
+//   Gemini (RECEIPT_AI_PROVIDER=gemini): `gemini(body)` answers the same
+//            sharpen and recap from the same prompts, and "Record or snap":
+//            a recording or photo whose bytes contain BLANK cannot be made
+//            out (422); INJECT adds an item nobody said, an owner whose name
+//            is not in the quote, a voice as an owner, a name only
+//            mentioned, a deadline nobody gave, a date the model worked out
+//            itself, and markup and an invented figure in the summary
 //   UPSTREAM401 (or any UPSTREAMnnn) anywhere in the prompt - the call fails
 //            the way the SDK's APIError does: a `.status` and a message that
 //            is the status plus the provider's raw JSON body
@@ -140,4 +147,79 @@ function create() {
   };
 }
 
-module.exports = { create };
+/* ------------------------------------------------------------------ *
+ * The stand-in for Gemini: given the body Vertex would get, the JSON it
+ * would answer with.
+ * ------------------------------------------------------------------ */
+
+const SAID = [
+  'Maya: Okay, we are recording. First up, the launch date.',
+  'Speaker 2: I think we go with October 15.',
+  'Maya: Agreed, we launch on October 15.',
+  'Speaker 3: I\'ll send the revised brief by Friday.',
+  'Maya: Jordan, can you book the room for the retro?',
+  'Speaker 2: Yes.',
+  'Maya: Priya will review the pricing page tomorrow.',
+  'Maya: Let\'s park the pricing tiers question for next time.',
+];
+const BOARD = ['LAUNCH -> OCT 15', 'Sam: legal sign-off by Friday', 'Kill the paid social test', 'Park: pricing tiers'];
+
+function minutes(body) {
+  const parts = body.contents[0].parts;
+  const media = parts.find((p) => p.inlineData);
+  const bytes = media ? Buffer.from(String(media.inlineData.data).slice(0, 4096), 'base64').toString('latin1') : '';
+  if (!media || /BLANK/.test(bytes)) return { readable: false, transcript: '', summary: '', decisions: [], actions: [], parking: [] };
+  const board = /^image\//.test(media.inlineData.mimeType);
+  const out = board ? {
+    readable: true,
+    transcript: BOARD.join('\n'),
+    summary: 'The board settles the launch for October 15 and kills the paid social test.',
+    decisions: [{ text: 'Kill the paid social test', quote: 'Kill the paid social test' }],
+    actions: [{ text: 'Legal sign-off', quote: 'Sam: legal sign-off by Friday', owner: 'Sam', dueText: 'by Friday' }],
+    parking: [{ text: 'Pricing tiers', quote: 'Park: pricing tiers' }],
+  } : {
+    readable: true,
+    transcript: SAID.join('\n'),
+    summary: 'The meeting set the launch for October 15 and handed out three actions.',
+    decisions: [{ text: 'Launch on October 15', quote: 'we launch on October 15' }],
+    actions: [
+      { text: 'Send the revised brief', quote: 'I\'ll send the revised brief by Friday', owner: null, dueText: 'by Friday' },
+      { text: 'Book the room for the retro', quote: 'Jordan, can you book the room for the retro?', owner: 'Jordan', dueText: null },
+      { text: 'Review the pricing page', quote: 'Priya will review the pricing page tomorrow', owner: 'Priya', dueText: 'tomorrow' },
+    ],
+    parking: [{ text: 'The pricing tiers question', quote: 'Let\'s park the pricing tiers question for next time' }],
+  };
+  if (/INJECT/.test(bytes)) {
+    out.summary = '<script>alert(1)</script>**Great meeting** - this saves $50,000 a year.';
+    out.decisions.push({ text: 'Double the budget', quote: 'we agreed to double the budget' });
+    out.actions.push({ text: 'Wire the budget', quote: board ? 'Kill the paid social test' : 'Agreed, we launch on October 15', owner: 'Mallory', dueText: null });
+    out.actions.push({ text: 'Chase the vendor', quote: board ? 'LAUNCH -> OCT 15' : 'I think we go with October 15', owner: 'Speaker 2', dueText: 'by Monday' });
+    out.actions.push({ text: 'Fix the launch plan by 2026-12-01', quote: board ? 'Park: pricing tiers' : 'First up, the launch date', owner: board ? 'Park' : 'Maya', dueText: null, due: '2026-12-01' });
+  }
+  return out;
+}
+
+/** Sharpen and recap answer from the same prompts as the Claude stand-in. */
+function viaTool(body, fn, name) {
+  const parts = body.contents[0].parts;
+  const text = parts.find((p) => typeof p.text === 'string').text;
+  const img = parts.find((p) => p.inlineData);
+  const content = img ? [{ type: 'image', source: { data: img.inlineData.data } }, { type: 'text', text }] : text;
+  const schema = body.generationConfig.responseSchema;
+  const res = fn({ messages: [{ role: 'user', content }], tools: [{ name, input_schema: schema }] });
+  return res.content[0].input;
+}
+
+async function gemini(body) {
+  const schema = body && body.generationConfig && body.generationConfig.responseSchema;
+  if (!schema || !schema.properties) throw new Error('fake ai: every Gemini call must carry a responseSchema');
+  await new Promise((r) => setTimeout(r, Number(process.env.RECEIPT_FAKE_DELAY_MS || 0)));
+  const up = JSON.stringify(body.contents.map((c) => c.parts.filter((p) => p.text))).match(/UPSTREAM(\d{3})/);
+  if (up) throw Object.assign(new Error(`Gemini answered ${up[1]}.`), { status: Number(up[1]), code: 'http' });
+  if (schema.properties.transcript) return minutes(body);
+  if (schema.properties.verdict) return viaTool(body, sharpen, 'sharpen_agenda');
+  if (schema.properties.boardText) return viaTool(body, recap, 'write_recap');
+  throw new Error('fake ai: no Gemini answer for that schema');
+}
+
+module.exports = { create, gemini };
