@@ -134,6 +134,7 @@ function demo() {
       unplaced: result.unplaced.length,
     },
     lateDeposit: lateDeposit(),
+    reading: sampleReading(),
   };
 }
 
@@ -146,6 +147,21 @@ function lateDeposit() {
     id: 'demo-late', date: '2026-09-25', amountCents: actualNet(byDate['2026-09-22']),
     description: `SQUARE INC DES:SQ${code('2026-09-25')} ID:X9A4KD INDN:COPPER KETTLE COFFEE`, source: 'csv',
   };
+}
+
+// What a snapped report looks like, for the sample: Saturday's batch report
+// as the reader would hand it back, written here by hand - no model runs for
+// a visitor. It goes through the real cleaner, so the page gets exactly the
+// shape a live reading has: one figure (the tips) read unclearly, and a fee
+// printed at the crept 2.9%, which the page's own check then names.
+function sampleReading() {
+  const f = (value, confidence) => ({ value, confidence });
+  return require('./gemini').cleanReading({
+    reportType: 'batch_report', date: f(TODAY, 0.98), periodEnd: '', grossSales: f(null, 0), cardSales: f('1,876.35', 0.97), refunds: f(null, 0),
+    tips: f('171.40', 0.62), fees: f('80.68', 0.95), netPayout: f('1,967.07', 0.96), transactions: f(142, 0.95),
+    cardTypes: [{ type: 'visa', amount: '1,021.10', confidence: 0.95 }, { type: 'mastercard', amount: '588.75', confidence: 0.94 }, { type: 'amex', amount: '266.50', confidence: 0.93 }],
+    batchNumbers: ['000926'], processor: 'square',
+  }, TODAY);
 }
 
 module.exports = { demo, DAYS, DEPOSITS, SETTINGS, TODAY, BUSINESS, CREEP_FROM, sampleCsv, actualNet };
