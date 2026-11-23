@@ -234,6 +234,74 @@ that number. Retired apps sit at the end of every order and the "Classified"
 next-drop card is always last. A vote redraws its card in place and does not
 re-sort, so Most votes does not jump under your thumb.
 
+### The 2026-11-23 redesign: a sibling of the main site
+
+Erik asked for the vote page (the link in every LinkedIn post, and the lab's
+busiest page) to look as finished as the main site's 2026-11-22 design and
+visibly related to it. Every behaviour above and below is unchanged; what
+moved is the look, the order of the page and how 69+ drops are scanned.
+
+- **The design system** is the main site's, copied as tokens at the top of
+  `public/lab.css` (it is a different origin, so nothing is shared at run
+  time): a light or dark page under **dark navy panels in both themes** (the
+  top bar, the hero, the "Classified" card, "How it's built" — class `dk`,
+  which re-points the generic tokens, so one component works on both), fine
+  grid lines, a cyan and a violet glow, mono "instrument" labels, system
+  fonts only (the two Google Fonts are gone; nothing is downloaded). The
+  cyan-to-violet pair is for lines, glows and the hero buttons, **never
+  small text on a light surface**. Keep is green and Kill is red, as solid
+  tokens with their own on-colours. `icon.svg` is the flask in that pair on
+  navy. `/pulse` took the same palette and fonts through its own tokens
+  (`test/pulse.js` still measures them).
+- **Order of the page:** hero (headline, and **today's drop, votable right
+  there** — the newest drop that is not retired, with Try, Keep / Kill, the
+  reveal and the note) with four readouts under it (apps shipped, days
+  running, votes cast, until the next drop) → **Your streak** and the
+  **Leaderboard** side by side → the drops → "How it's built" → "How the lab
+  works". The leaderboard shows the top five; "Show all N" opens the rest in
+  columns (rank, votes, and the split only from this browser's own reveal,
+  as before).
+- **The drops grid is compact:** a card is the tile, name, drop number and
+  date, tagline, Try, Keep / Kill, the reveal line, and "About" (a
+  `<details>` holding the blurb, the four features, who it is for and the
+  Build line) beside "Tell Erik". It shows the **first 11 of the chosen
+  order plus "Classified"**; "Show all N drops" shows the rest. Above it:
+  **search** (name, tagline, blurb, features, audience — only what `lab.js`
+  holds; business / everyday is not in it and is not guessed), **Show**
+  (All, To vote, Voted — from this browser's own votes) and the same five
+  sorts. Search and Show are not stored and not sent; only the sort is
+  remembered. Searching or filtering shows every match; "Classified" is
+  still last. A vote still redraws in place: it does not re-sort, and it
+  does not drop a card out of "To vote" until the filter is next changed.
+- **One drop can be drawn twice** (the hero and its card). `vote()` redraws
+  every `[data-slug]` drawing of it where it stands (`RENDER` by
+  `data-kind`); the one that was tapped gets the animation, the "Next" line
+  and "Badge unlocked", and keeps focus on the button. A link to a card the
+  grid is not showing ("Next: Booth →", a leaderboard name, `#app-<slug>` in
+  the address) clears the search and filter, shows all and focuses the card
+  (`goTo`).
+- **No `style` attribute anywhere**, in the HTML or in what the script
+  writes: an app's two colours and every bar width travel as `data-c1`,
+  `data-c2` and `data-w`, and `paint()` sets them as custom properties (a hex
+  colour or a 0-100 number only). The CSP has no `style-src` yet; the page
+  would pass one.
+- **The note** is a modal `<dialog>`: focus stays inside, Escape closes it,
+  focus returns to the button, and a refusal ("Say a little more.") is said
+  inside it — a toast would sit under the dialog. **Badge hints** are said
+  in a status line under the badges, not a toast. After a vote the
+  leaderboard is re-read past the browser's own 15-second copy, so the row's
+  count matches the card.
+- **Motion** is all inside `prefers-reduced-motion: no-preference`: the
+  equaliser and the live dot, the hero glow that leans toward a mouse, the
+  reveal bar and percentage, the build numbers' count-up, the vote burst and
+  shake. Nothing is hidden until scrolled to; with reduced motion every
+  number is final at once.
+- **Measured in headless Chrome (2026-11-23)** at 1280, 390 and 320 px,
+  light and dark, with every drop shown, every "About" open, the whole
+  leaderboard open and a reveal on screen: lowest text contrast 6.17:1
+  light and 5.89:1 dark, every link and button at least 44 px, nothing
+  sideways, headings in order, no console error or CSP violation.
+
 ## The leaderboard
 
 `GET /api/lab/leaderboard` — Keep/Kill standings from `lab_votes`: per app
@@ -399,9 +467,10 @@ without a vote; missing one drop day resets it. `streakOf()` does the sums.
 - `/api/lab` adds `me: {streak, best, pending, voted, of, today, badges}` for
   a request that carries (or is minted) a `lab_vid`; the main site's
   cross-origin read carries no cookie and gets no `me`. The page draws it as
-  the strip under the hero: streak and what to do next ("Vote on today's
-  drop, Tally, to make it 4 →"), N of M drops voted, and all five badges,
-  locked ones greyed with their hint on tap.
+  the "Your streak" panel under the hero: streak and what to do next ("Vote
+  on today's drop, Tally, to make it 4 →"), N of M drops voted, and all five
+  badges, locked ones greyed with their hint on tap (said in a line under
+  them).
 - **Per browser, not per account.** The lab's own page has no sign-in: the
   shared account is mounted inside each app (`/<slug>/api/auth`), not by the
   host, so a streak cannot follow someone to another device. Doing that would
