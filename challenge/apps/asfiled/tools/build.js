@@ -37,9 +37,12 @@ const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 /** One number per fiscal year for a metric: the value from the EARLIEST
  *  annual report that reported that period (the year's own report, as first
  *  filed), so every figure links to the filing it was first published in. */
-function annualSeries(facts, metric, unit, ends) {
+function annualSeries(factsList, metric, unit, ends) {
   const byEnd = {};
-  TAGS[metric].forEach((qname, rank) => {
+  // factsList: [{cik, facts}] - the company's own registrant first, then
+  // any previous registrant (companies.js `priorCiks`). The rule is the same
+  // across them: the earliest annual report that reported the period wins.
+  for (const { cik, facts } of factsList) TAGS[metric].forEach((qname, rank) => {
     const [tax, tag] = qname.split(':');
     const f = facts.facts[tax] && facts.facts[tax][tag];
     const rows = f && f.units[unit];
@@ -52,7 +55,7 @@ function annualSeries(facts, metric, unit, ends) {
         if (d < 340 || d > 380) continue;
       }
       const cur = byEnd[r.end];
-      const cand = { end: r.end, val: r.val, accn: r.accn, form: r.form, filed: r.filed, tag: qname, rank };
+      const cand = { end: r.end, val: r.val, accn: r.accn, form: r.form, filed: r.filed, tag: qname, rank, cik };
       // Earliest filing wins; within one filing, revenue takes the largest
       // revenue-tagged total and everything else the preferred tag.
       const better = !cur || cand.filed < cur.filed || (cand.filed === cur.filed && (metric === 'revenue' ? cand.val > cur.val : cand.rank < cur.rank));
@@ -100,7 +103,12 @@ function main() {
     const man = manifest[c.id];
     if (!man) { report.notes.push(`${c.id}: not fetched yet; left out of this build.`); continue; }
     const a = man.annual[0];
-    const facts = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${c.id}.json`), 'utf8'));
+    const facts = [{ cik: c.cik, facts: JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${c.id}.json`), 'utf8')) }];
+    for (const p of c.priorCiks || []) {
+      const pf = path.join(sec.CACHE, 'facts', `${c.id}.${p.cik}.json`);
+      if (!fs.existsSync(pf)) throw new Error(`${c.id}: prior CIK ${p.cik} not fetched. Run tools/fetch.js.`);
+      facts.push({ cik: p.cik, facts: JSON.parse(fs.readFileSync(pf, 'utf8')) });
+    }
     const currency = c.id === 'TSM' ? 'TWD' : c.id === 'ASML' ? 'EUR' : 'USD';
     // The latest annual report's own XBRL instance. Company facts can lag a
     // new filing (TSMC's latest 20-F is not in it yet): a number missing
@@ -142,6 +150,8 @@ function main() {
       data.figures[id] = { c: c.id, m: metric, fy: fyOf(row.end), end: row.end, v: row.val, u: unit, tag: row.tag, a: row.accn };
       if (row.x) data.figures[id].x = 1;
       data.filings[row.accn] = { c: c.id, form: row.form, filed: row.filed };
+      // Filed under a previous registrant: the filing keeps that CIK, so its link opens it.
+      if (row.cik && row.cik !== c.cik) data.filings[row.accn].cik = row.cik;
     };
     for (const metric of Object.keys(TAGS)) {
       const s = metric === 'revenue' ? rev : series(metric, currency, endSet);
@@ -250,16 +260,9 @@ function main() {
     // this registrant at all (a recent listing or spin-off has fewer than
     // the YEARS shown for everyone else).
     data.companies.push({ id: c.id, name: c.name, legal: c.legal, layer: c.layer, filer: true, cik: c.cik, form: c.form, currency, years: fys, periods: Object.keys(rev).length, latest: fys[fys.length - 1], annual: { accn: a.accn, period: a.period, filed: a.filed, source: docId } });
+    if (c.priorCiks) data.companies[data.companies.length - 1].prior = c.priorCiks.map((p) => ({ cik: p.cik, legal: p.legal }));
     report.companies += 1;
   }
-
-  // Apple's own Supplier List.
-  const list = manifest['APPLE-SUPPLIER-LIST'];
-  const listText = T.sourceText('APPLE-SUPPLIER-LIST');
-  if (list && listText) {
-    texts['APPLE-SUPPLIER-LIST'] = T.norm(listText);
-    data.sources['APPLE-SUPPLIER-LIST'] = { kind: 'supplier-list', by: 'AAPL', form: 'Supplier List', period: list.period, date: list.date, title: `Apple Supplier List (${list.period})`, url: list.url, sha: T.sha(texts['APPLE-SUPPLIER-LIST']) };
-  } else report.notes.push('Apple Supplier List not in the cache: its edges will be dropped.');
 
   // Edges: curated, then verified. What fails is dropped and reported.
   const curated = JSON.parse(fs.readFileSync(path.join(__dirname, 'curated-edges.json'), 'utf8'));
@@ -312,4 +315,5 @@ function main() {
   console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
 }
 
-main();
+module.exports = { annualSeries };
+if (require.main === module) main();

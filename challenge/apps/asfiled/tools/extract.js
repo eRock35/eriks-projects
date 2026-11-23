@@ -69,19 +69,6 @@ function main() {
     const lines = [...xml.matchAll(/<link:label\b[^>]*>([\s\S]*?)<\/link:label>/g)].map((m) => T.norm(unescape(m[1].replace(/<[^>]+>/g, ''))));
     fs.writeFileSync(path.join(sec.CACHE, 'text', `${c.id}-${a.accn}.labels.txt`), [...new Set(lines)].join('\n'));
   }
-  // Apple's Supplier List (a PDF): pages separated by a form feed.
-  const pdf = path.join(sec.CACHE, 'apple', 'Apple-Supplier-List.pdf');
-  if (fs.existsSync(pdf) && !manifest['APPLE-SUPPLIER-LIST']) {
-    const buf = fs.readFileSync(pdf);
-    const pages = require('./pdftext').pdfText(buf);
-    const text = pages.map((p) => p.join('\n')).join('\f');
-    fs.writeFileSync(path.join(sec.CACHE, 'text', 'APPLE-SUPPLIER-LIST.txt'), text);
-    const made = /\/CreationDate\s*\(D:(\d{4})(\d{2})(\d{2})/.exec(buf.toString('latin1'));
-    const fy = /as of the end of (fiscal year \d{4})/.exec(T.norm(text));
-    manifest['APPLE-SUPPLIER-LIST'] = { url: 'https://www.apple.com/supply-chain/pdf/Apple-Supplier-List.pdf', date: made ? `${made[1]}-${made[2]}-${made[3]}` : null, period: fy ? fy[1] : null };
-    fs.writeFileSync(path.join(sec.CACHE, 'manifest.json'), JSON.stringify(manifest, null, 1));
-    console.log(`Apple Supplier List: ${pages.length} pages, ${manifest['APPLE-SUPPLIER-LIST'].period}, PDF dated ${manifest['APPLE-SUPPLIER-LIST'].date}`);
-  }
   fs.writeFileSync(path.join(sec.CACHE, 'candidates.json'), JSON.stringify(candidates, null, 1));
   console.log(`${candidates.length} candidate sentences -> ${path.join(sec.CACHE, 'candidates.json')}`);
 }

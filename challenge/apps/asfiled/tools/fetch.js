@@ -4,6 +4,8 @@
 //   - XBRL company facts for each company (data.sec.gov)
 //   - each company's submissions index, to find its latest annual report
 //   - that annual report's main document and its XBRL instance
+//   - a previous registrant's company facts, where companies.js names one
+//     (`priorCiks`)
 //
 // Nothing is written inside the repo. Run with SEC_USER_AGENT set.
 //
@@ -32,6 +34,12 @@ async function main() {
     const factsFile = await sec.cached(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, `facts/${c.id}.json`);
     const facts = JSON.parse(fs.readFileSync(factsFile, 'utf8'));
     if (!facts.slim) fs.writeFileSync(factsFile, JSON.stringify(slimFacts(facts)));
+    // A previous registrant's company facts (companies.js `priorCiks`).
+    for (const p of c.priorCiks || []) {
+      const pf = await sec.cached(`https://data.sec.gov/api/xbrl/companyfacts/CIK${sec.pad10(p.cik)}.json`, `facts/${c.id}.${p.cik}.json`);
+      const pj = JSON.parse(fs.readFileSync(pf, 'utf8'));
+      if (!pj.slim) fs.writeFileSync(pf, JSON.stringify(slimFacts(pj)));
+    }
     const subsFile = await sec.cached(`https://data.sec.gov/submissions/CIK${cik10}.json`, `subs/${c.id}.json`);
     const subs = JSON.parse(fs.readFileSync(subsFile, 'utf8'));
     const r = subs.filings.recent;
@@ -57,9 +65,6 @@ async function main() {
     manifest[c.id] = { cik: c.cik, name: subs.name, fiscalYearEnd: subs.fiscalYearEnd, annual };
     console.log(`${c.id}: ${annual.map((a) => `${a.form} ${a.period} (${a.accn})`).join(', ')}`);
   }
-  // Apple's own Supplier List, from apple.com (not the SEC: no declared
-  // identity is sent there, only a generic client name).
-  if (!only || only.has('AAPL')) await sec.cached('https://www.apple.com/supply-chain/pdf/Apple-Supplier-List.pdf', 'apple/Apple-Supplier-List.pdf', { binary: true });
   fs.writeFileSync(manFile, JSON.stringify(manifest, null, 1));
 }
 

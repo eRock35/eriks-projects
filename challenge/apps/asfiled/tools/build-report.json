@@ -1,10 +1,10 @@
 {
  "built": "2026-11-23",
  "companies": 81,
- "figures": 6996,
+ "figures": 7026,
  "edges": {
-  "curated": 512,
-  "kept": 511,
+  "curated": 567,
+  "kept": 566,
   "dropped": [
    {
     "by": "MSFT",
@@ -22,8 +22,8 @@
  },
  "notes": [],
  "sizes": {
-  "index": 402931,
-  "patterns": 308226,
+  "index": 434105,
+  "patterns": 309763,
   "largestCompany": {
    "id": "ZBRA",
    "bytes": 28939

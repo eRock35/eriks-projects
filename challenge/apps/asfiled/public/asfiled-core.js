@@ -19,10 +19,10 @@
   var SYMBOL = { USD: '$', EUR: '€', TWD: 'NT$' };
   var TYPE_NAMES = {
     supplier: 'Supplier', customer: 'Customer', service: 'Service or platform provider',
-    partner: 'Partner', investor: 'Investor', competitor: 'Competitor, as stated',
+    auditor: 'Auditor', partner: 'Partner', competitor: 'Competitor, as stated',
   };
   // Supply runs from -> to for these; the others have no direction.
-  var DIRECTED = { supplier: true, customer: true, service: true, investor: true };
+  var DIRECTED = { supplier: true, customer: true, service: true, auditor: true };
 
   /** The fiscal year a period belongs to: the year it ends in, except that
    *  a 52/53-week year ending in the first week of January (Cadence's ended
@@ -86,7 +86,9 @@
     var filing = data.filings[f.a] || {};
     return {
       id: fid, company: co ? co.name : f.c, label: f.tag, fy: f.fy, end: f.end, value: f.v, unit: f.u,
-      form: filing.form || '', filed: filing.filed || '', accn: f.a, url: filingUrl(co.cik, f.a),
+      form: filing.form || '', filed: filing.filed || '', accn: f.a, url: filingUrl(filing.cik || co.cik, f.a), cik: filing.cik || co.cik,
+      // Filed under an earlier registrant (a re-domicile): which one.
+      prior: filing.cik && co.prior ? co.prior.filter(function (p) { return p.cik === filing.cik; })[0] || null : null,
     };
   }
   /** A link that opens the source at the quote where the browser supports
