@@ -218,7 +218,12 @@ function listOf(rows, t) {
 
 /** What the page needs to know about the AI: which features are on, and
  *  the caps it holds on the phone. */
-const aiView = () => ({ provider: providerNow(), minutes: providerNow() === 'gemini', audioMinutes: audio.MAX_MINUTES, audioBytes: audio.MAX_BYTES });
+// minuteCents: what a minute of recording costs to read, for the page's
+// "about N cents" (32 audio tokens a second in, ~300 tokens a minute out).
+const aiView = () => ({
+  provider: providerNow(), minutes: providerNow() === 'gemini', audioMinutes: audio.MAX_MINUTES, audioBytes: audio.MAX_BYTES,
+  minuteCents: Math.round(gemini.priceUsd({ inputTokens: 32 * 60, outputTokens: 300 }) * 1e4) / 100,
+});
 
 app.get('/api/me', async (req, res) => {
   try {

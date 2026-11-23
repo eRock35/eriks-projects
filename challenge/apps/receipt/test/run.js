@@ -1151,7 +1151,9 @@ test('the Gemini requests: a responseSchema every time, media inline once, the C
 test('the provider switch: Claude unless RECEIPT_AI_PROVIDER=gemini, read per request; unset, "Record or snap" is off and costs nothing', async () => {
   assert.strictEqual(process.env.RECEIPT_AI_PROVIDER, undefined, 'the suite runs on the default');
   const anon = client();
-  assert.deepStrictEqual((await anon('GET', '/api/me')).data.ai, { provider: 'claude', minutes: false, audioMinutes: 30, audioBytes: 8 * 1024 * 1024 });
+  const aiNow = (await anon('GET', '/api/me')).data.ai;
+  assert.deepStrictEqual({ ...aiNow, minuteCents: 0 }, { provider: 'claude', minutes: false, audioMinutes: 30, audioBytes: 8 * 1024 * 1024, minuteCents: 0 });
+  assert.ok(aiNow.minuteCents > 0.2 && aiNow.minuteCents < 0.6, 'about a quarter of a cent a minute (double from 2027)');
   for (const v of ['Gemini', 'GEMINI', '1', 'true', 'vertex', ' gemini', 'off']) {
     process.env.RECEIPT_AI_PROVIDER = v;
     try { assert.strictEqual((await anon('GET', '/api/me')).data.ai.provider, 'claude', `"${v}" is not the switch`); } finally { delete process.env.RECEIPT_AI_PROVIDER; }

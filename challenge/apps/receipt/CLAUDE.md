@@ -34,6 +34,108 @@ served at `challenge.strongtechnicalconsulting.com/receipt/`, data in
 `gcpdeploy ship challenge`. See `challenge/CLAUDE.md` for mounting, prefixes
 and graduation. Every browser URL is relative to `BASE`; keep it that way.
 
+## Record or snap, the provider switch and the lab's AI guard (2026-11-23)
+
+Erik's per-app AI plan gives Receipt to Gemini: "Record the meeting or snap
+the whiteboard for decisions, owners, dates." Built on the redesign branch,
+**off until `RECEIPT_AI_PROVIDER=gemini` is set on the service** (Erik's yes).
+
+- **The switch.** `providerNow()` in `server.js`: exactly `gemini`, read per
+  request, anything else (unset included) is Claude as before. On Claude the
+  sharpener and the recap run as they always have and "Record or snap" is off
+  (its route is a 404 `ai-off`, its buttons are not drawn). On Gemini all
+  three run on `gemini-3.8-flash` through `global.LAB_AI_GUARD.gemini.generate`:
+  the sharpener and the recap reuse the Claude tools' prompts, schemas
+  (`gemini.toSchema`) and validators unchanged. `GET /api/me` carries
+  `ai: { provider, minutes, audioMinutes, audioBytes, minuteCents }` for the
+  page. On Gemini everyone gets the same model (no Haiku/Sonnet split) and a
+  member's own Anthropic key is not used.
+- **The guard, around every model call** (`guardAllow` -> the call ->
+  `guardRecord`, after the route's gates and its free 400s, so a bad upload
+  never counts against a burst): Claude calls too (`withClaude`; a member's
+  own key is not counted against the lab's cap). The guard's "no" is shown in
+  its own words with its status and `code`. A Gemini call is charged to the
+  person's own ledger at its real dollars (`chargeGemini`, written as the
+  Haiku input tokens that cost the same, route `minutes:gemini-3.8-flash`),
+  and one that failed after billing is still recorded. With no guard (the
+  app on its own) only the stand-in can answer Gemini.
+- **`POST /api/meetings/:id/minutes`**: `...spend, ownerOnly, minutesOn,
+  mediaJson` - sign-in, budget, daily cap, the ownership 404, the switch, and
+  only then the 12 MB parser. One recording **or** one whiteboard photo.
+  `lib/audio.js`: 8 MB, the type from the first bytes, a WAV refused past 30
+  minutes by its header, and the base64 is **never decoded whole** (only its
+  head) - the lab is one process. **30 minutes is held on the phone** (the
+  recorder stops itself; a chosen file's length is read before sending);
+  the server's cap is the size, and the page says both.
+- **What comes back** (`lib/gemini.js`, `MINUTES_SCHEMA`): the model
+  transcribes first, then lists decisions, actions and parked items, each
+  with the exact words it came from. `validateMinutes`: an item whose quote
+  is not a folded substring of that transcription is dropped; item text goes
+  through `guardFacts` against its own quote; an **owner** survives only when
+  the name is in the quoted words and those words hand it to them
+  (`ownerAsSaid`: "Sam will...", "Dana, can you...", "Sam: ..." on a board,
+  "@Sam", "assigned to Sam" - not "Sam said...", not "Sam will not...", never
+  "Speaker 2") - "I'll do it" names nobody, so it is null and the person
+  picks; a **due date is never the model's**: the schema has no date field,
+  the model copies the words (`dueText`, which must be in the quote) and
+  `dueFromWords` works the day out from the meeting's date (a weekday is the
+  next one after that day, "next Friday" the following week's, a month and
+  day, today/tomorrow, end of week/month; "soon" or "next week" is no date).
+  The words are always shown beside the date. The transcription itself is
+  the model's and cannot be checked here: the page says so and shows it.
+- **Nothing is stored.** Not the media, not the transcription, not the
+  items: the answer is `no-store`, and the tests dump the store before and
+  after. The page lets the person untick, edit the words, set the owner and
+  the date, then **Add to the log** saves what is left through the ordinary
+  log route (a new owner's name is added to the meeting's labels first,
+  through the ordinary edit route). The recording lives in the tab's memory
+  only and is dropped once read.
+- **Consent.** Recording cannot start (and a file cannot be chosen) until
+  "I've told everyone it's being recorded" is ticked, with the reason. The
+  page says the recording is sent once to Google's Gemini to be transcribed
+  and is not kept.
+- **Cost.** About a quarter of a cent a minute of recording (32 audio tokens
+  a second in), so ~8 cents for a full half hour; double from 2027-01-01
+  with Gemini's price. A whiteboard is about a cent.
+- **Stand-in** (`fakeai.gemini`): a recording or photo whose bytes contain
+  `BLANK` cannot be made out (422); `INJECT` adds an item nobody said, an
+  owner not in the quote, a voice as an owner, a name only mentioned, a
+  deadline nobody gave and a date the model worked out itself, plus markup
+  and an invented figure - the tests assert none survive.
+
+## The design (2026-11-23 redesign)
+
+HOA Desk's rules, Receipt's own accent. `public/app.css` opens with them.
+
+- Pure white (true black in dark), hairlines `#E5E5EA`, system fonts, five
+  type sizes plus the display figures (the hero and the ticker). One accent,
+  the lab's register teal `#0f4c45` (a light teal in dark); red, amber and
+  green only for status, always with words. The receipt is no longer cream
+  paper: it is the page's own surface in a hairline card, mono type, and the
+  saved PNG is white too.
+- **Lists over boxes.** `.card` is a section with a hairline above it, not a
+  box; meetings, the log, the agenda, the audit and badges are divided rows.
+  Real cards: the receipt, a form, the swipe deck, a sheet.
+- **Navigation.** Phones: a floating translucent pill, 1.5 px line icons,
+  the label only on the current tab. Desktop (900 px+): the same `<nav>`
+  becomes a top nav with a quiet underline - it sits right after the header
+  in the markup and is sticky with a negative margin, so it stays in the
+  header's row even when the confirm-your-email bar is above. `body` no
+  longer has the `dk` class, so shared `desktop.css` (still linked, never
+  edited) does not apply; `.dk-split` / `.dk-sticky` are styled here.
+- **No style attributes**, in `index.html` or written by `app.js`: utility
+  classes at the end of the stylesheet stand in, and data-driven sizes (bar
+  widths and heights, column counts) ride in `data-wd` / `data-ht` /
+  `data-cols` and are set through the CSSOM by one MutationObserver
+  (`size()`). Keep it that way.
+- Motion only inside `prefers-reduced-motion: no-preference`; every page is
+  complete at rest. 48 px primary buttons, 44 px everything else.
+- Measured in headless Chrome on every main screen at 390, 320 and 1440:
+  lowest text contrast 5.24:1 light, 6.61:1 dark; nothing sideways.
+- Taps from home: new meeting 1; open a meeting, its receipt, the audit, the
+  scoreboard 1; start a meeting 2; log a decision in a live meeting 2 (the
+  Live pill, then Decision); Record or snap 2 (the meeting, then Record).
+
 ## Why it exists (the business problem)
 
 Meetings are the most expensive thing on a team's calendar that nobody sees a
@@ -298,7 +400,8 @@ recurring rows a person, 100 logged items and 300 voters a meeting, 12 agenda
 items of 1–240 minutes inside a 5–480 minute booking, 200 people per band and
 300 in a room, rates to $2,000/h, 30 labels of 30 characters, titles 80, log
 text 200, invite 2,000, notes 20,000. JSON bodies 128 KB except the recap
-route (6 MB, after the gates; image 4 MB decoded). Notes over 40,000
+route (6 MB, after the gates; image 4 MB decoded) and the minutes route
+(12 MB, after the gates and the switch; recording 8 MB). Notes over 40,000
 characters are refused (400) before any cleaning. `clean()` and `cleanText()`
 cut their input to four times their limit BEFORE any pattern runs, and the
 tag pattern stops at the next `<`: a run of `<` with no `>` used to cost
@@ -324,7 +427,8 @@ the next occurrence), `GET|PUT|DELETE /api/meetings/:id`,
 `GET /api/meetings/:id/receipt`, `POST|DELETE /api/meetings/:id/share`,
 `GET|POST /api/recurring`, `PUT|DELETE /api/recurring/:rid`,
 `GET /api/scoreboard`. Metered: `POST /api/meetings/:id/sharpen`,
-`POST /api/meetings/:id/recap` (optional whiteboard photo).
+`POST /api/meetings/:id/recap` (optional whiteboard photo),
+`POST /api/meetings/:id/minutes` (one recording or one photo; Gemini only).
 
 ## Ideas not built yet
 
