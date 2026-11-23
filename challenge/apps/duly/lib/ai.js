@@ -69,7 +69,7 @@ function brief(input, photoLib) {
   return { text: s.text, stripped: s.stripped };
 }
 
-async function read(client, model, b, today) {
+async function read(client, model, b, today, onUsage) {
   const content = [];
   if (b.photo) {
     content.push({ type: 'image', source: { type: 'base64', media_type: b.photo.mediaType, data: b.photo.data } });
@@ -85,6 +85,9 @@ async function read(client, model, b, today) {
     tool_choice: { type: 'tool', name: 'record_bill' },
     messages: [{ role: 'user', content }],
   }, { timeout: 45000, maxRetries: 1 });
+  // What the call cost, for the lab's AI guard (the identity meter charges
+  // the person by itself).
+  if (onUsage && res && res.usage) onUsage({ inputTokens: Number(res.usage.input_tokens || 0), outputTokens: Number(res.usage.output_tokens || 0) });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That ran long. Try just the part with the amount and due date.');
   return pick(res, 'record_bill');
 }

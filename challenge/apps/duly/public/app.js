@@ -29,6 +29,7 @@
   var K_TAB = 'duly-tab-v1';
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var PHOTO_PX = 1600;
+  var PHOTO_MAX_BYTES = 1500000;   // a shrunk photo is sent only under this
   var TABS = ['home', 'month', 'bills', 'autopay'];
 
   function esc(v) {
@@ -102,7 +103,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Adding a bill by hand works meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Adding a bill by hand works meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     $('#resend', where).addEventListener('click', function () {
       fetch(e.data.resend || (BASE + 'api/auth/verify/send'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function () { toast('Sent - check your email.'); }, function () { toast('Could not send it. Try again in a minute.'); });
@@ -157,6 +158,22 @@
 
   /* ---------------- small drawing helpers ---------------- */
 
+  /** One small set of line icons, 1.5px stroke. Fixed markup, nothing typed. */
+  var ICONS = {
+    camera: '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.2-2h6.6l1.2 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    check: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.3l2.4 2.4 4.6-5"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    up: '<path d="M4 17l5.5-5.5 3.5 3.5L20 8"/><path d="M15 8h5v5"/>',
+    pin: '<path d="M12 21s-6.5-5.7-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.3 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.2"/>',
+    star: '<path d="M12 4l2.3 4.9 5.2.7-3.8 3.7.9 5.3L12 16l-4.6 2.6.9-5.3-3.8-3.7 5.2-.7z"/>',
+    loop: '<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/>',
+    shield: '<path d="M12 3.5l7 2.5v5.5c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6z"/>',
+    info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.2"/>',
+    chev: '<path d="M9 6l6 6-6 6"/>',
+  };
+  function icon(name) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[name] || '') + '</svg>'; }
   function tile(b) { return '<span class="tile" aria-hidden="true">' + esc(C.emojiOf(b)) + '</span>'; }
   function payChip(b) {
     if (b.pay === 'auto') return '<span class="chip auto">✓ AutoPay on</span>';
@@ -233,52 +250,49 @@
 
   function firstRun() {
     return '<section class="first">' +
-      '<div><div class="hero">' +
+      '<div class="hero">' +
       '<p class="eyebrow">Your household’s bills, watched</p>' +
-      '<h1>Every bill on time, <em>without paying them yourself.</em></h1>' +
-      '<p class="lede">Put each bill on its provider’s own AutoPay. Duly keeps the list, the due dates and what each one usually costs - and only speaks up when a bill is wrong, late, new or not on AutoPay.</p></div>' +
-      '<div class="choices">' +
-      '<button class="choice primary" type="button" data-act="sample"><span class="ci" aria-hidden="true">🏡</span><span class="ct"><b>Try a sample household</b><span>Nine made-up bills with a year of history. Nothing is saved anywhere.</span></span><span class="chev" aria-hidden="true">›</span></button>' +
-      '<button class="choice" type="button" data-act="add"><span class="ci" aria-hidden="true">＋</span><span class="ct"><b>Add my first bill</b><span>Who it’s from, about how much, when it’s due. Twenty seconds.</span></span><span class="chev" aria-hidden="true">›</span></button>' +
-      '<button class="choice" type="button" data-act="read"><span class="ci" aria-hidden="true">📄</span><span class="ct"><b>Read a statement</b><span>Paste a bill or snap one and AI fills it in. Needs a free account.</span></span><span class="chev" aria-hidden="true">›</span></button>' +
-      '</div>' +
-      '<div class="promise"><span class="ic" aria-hidden="true">🛡️</span><div><b>Duly never pays a bill.</b><p>It never signs in to your bank, card or utility, and never asks for a password or an account number - it refuses them. Your providers’ own AutoPay does the paying; Duly watches.</p></div></div>' +
-      '</div>' +
-      '<div><div class="mock" aria-hidden="true"><span class="mock-flag">↑ 31% higher than usual</span>' +
+      '<h1>Every bill on time.</h1>' +
+      '<p class="lede">Each bill on its provider’s own AutoPay. Duly watches the dates and the amounts, and speaks up only when something is off.</p>' +
+      '<div class="hero-acts"><button class="btn big" type="button" data-act="sample">Try a sample household</button><button class="btn big ghost" type="button" data-act="add">Add my first bill</button></div>' +
+      '<p class="hero-more"><button class="link-btn" type="button" data-act="read">Or snap a statement' + icon('chev') + '</button></p>' +
+      '<p class="promise"><b>Duly never pays a bill.</b> It never signs in to your bank, card or utility, and never asks for a password or an account number - it refuses them. Your providers’ own AutoPay does the paying; Duly watches.</p></div>' +
+      '<div class="mock" aria-hidden="true">' +
       '<div class="mock-head"><b>Coming up</b><span>7 of 9 on AutoPay</span></div>' +
-      '<div class="mock-row"><span class="e">📶</span><span><b>Internet</b><small>Due in 2 days · AutoPay</small></span><b class="num">$91.99</b></div>' +
+      '<div class="mock-row"><span class="e">📶</span><span><b>Internet</b><small>Due in 2 days · AutoPay</small><br><span class="mock-flag">↑ 31% higher than usual</span></span><b class="num">$91.99</b></div>' +
       '<div class="mock-row"><span class="e">🏠</span><span><b>Rent</b><small>Due Nov 1 · you pay this one</small></span><b class="num">$1,850.00</b></div>' +
       '<div class="mock-row"><span class="e">⚡</span><span><b>Electric</b><small>Paid by AutoPay ✓</small></span><b class="num">$99.80</b></div></div>' +
       '<h2 class="how-title">How it works</h2><ol class="how">' +
-      '<li><span class="n" aria-hidden="true">📝</span><div><b>List your bills</b><p>Payee, typical amount (or “it varies”), the due day. No account numbers - ever.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">🔁</span><div><b>Switch on each provider’s AutoPay</b><p>Duly scores how many are on it and shows the steps for the rest - statement balance, from checking, a buffer.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">📈</span><div><b>Log what each one comes to</b><p>One tap for “same as last time”. A bill 20% over its usual gets flagged before it’s paid.</p></div></li>' +
-      '<li><span class="n" aria-hidden="true">📅</span><div><b>Put the dates in your calendar</b><p>One file with every due date and a reminder. Your phone’s calendar does the rest.</p></div></li>' +
-      '</ol></div></section>';
+      '<li><div><b>List your bills</b><p>Payee, typical amount (or “it varies”), the due day. No account numbers - ever.</p></div></li>' +
+      '<li><div><b>Switch on each provider’s AutoPay</b><p>Duly scores how many are on it and shows the steps for the rest - statement balance, from checking, a buffer.</p></div></li>' +
+      '<li><div><b>Log what each one comes to</b><p>One tap for “same as last time”, or snap the statement. A bill 20% over its usual gets flagged before it’s paid.</p></div></li>' +
+      '<li><div><b>Put the dates in your calendar</b><p>One file with every due date and a reminder. Your phone’s calendar does the rest.</p></div></li>' +
+      '</ol></section>';
   }
 
   function sampleStrip() {
     if (!hasSample()) return '';
-    return '<div class="strip" role="note"><p><b>🧪 A sample household.</b> Made-up bills and amounts to play with - nothing is saved anywhere.</p>' +
-      '<div class="row"><button class="btn small" type="button" data-act="mine">Start my own</button><button class="btn small ghost" type="button" data-act="clearsample">Clear the sample</button></div></div>';
+    return '<div class="strip" role="note"><p><b>A sample household.</b> Made-up bills and amounts to play with - nothing is saved anywhere.</p>' +
+      '<div class="row"><button class="btn small ghost" type="button" data-act="mine">Start my own</button><button class="btn small quiet" type="button" data-act="clearsample">Clear the sample</button></div></div>';
   }
 
-  var ALERT_ICON = { late: '⏰', high: '📈', due: '📌', date: '🗓️', 'new': '✨', autopay: '🔁' };
+  var ALERT_ICON = { late: 'clock', high: 'up', due: 'pin', date: 'cal', 'new': 'star', autopay: 'loop' };
   function alertActs(a) {
     var b = a.id ? billById(a.id) : null;
-    if (a.kind === 'late' || a.kind === 'due') return '<div class="row acts"><button class="btn small" type="button" data-act="paid" data-id="' + esc(a.id) + '" data-day="' + esc(a.day) + '">Mark paid</button><button class="btn small ghost" type="button" data-act="open" data-id="' + esc(a.id) + '">Open</button></div>';
+    if (a.kind === 'late' || a.kind === 'due') return '<div class="row acts"><button class="btn small ghost" type="button" data-act="paid" data-id="' + esc(a.id) + '" data-day="' + esc(a.day) + '">Mark paid</button><button class="btn small quiet" type="button" data-act="open" data-id="' + esc(a.id) + '">Open</button></div>';
     if (a.kind === 'high') return '<div class="row acts"><button class="btn small ghost" type="button" data-act="open" data-id="' + esc(a.id) + '">See its history</button></div>';
     if (a.kind === 'date') return '<div class="row acts"><button class="btn small ghost" type="button" data-act="open" data-id="' + esc(a.id) + '">Add the due date</button></div>';
     if (a.kind === 'autopay') return '<div class="row acts"><button class="btn small ghost" type="button" data-act="tab" data-tab="autopay">Show me how</button></div>';
     return b ? '<div class="row acts"><button class="btn small ghost" type="button" data-act="open" data-id="' + esc(a.id) + '">Open</button></div>' : '';
   }
-  function alertsCard() {
-    var t = today();
-    var list = C.alerts(state.bills, t, { spikePct: state.settings.spikePct, nowMs: Date.now() });
-    var html = '<section class="card" aria-labelledby="hu"><div class="sec"><h2 id="hu">Heads-up</h2><span class="ct">' + (list.length ? plural(list.length, 'thing') : '') + '</span></div>';
-    if (!list.length) return html + '<div class="quiet"><span class="e" aria-hidden="true">🌿</span><div><b>All quiet.</b><span class="small">Every bill is on AutoPay and on track. Duly will speak up if one looks wrong, late or new.</span></div></div></section>';
+  function alertList() {
+    return C.alerts(state.bills, today(), { spikePct: state.settings.spikePct, nowMs: Date.now() });
+  }
+  function alertsCard(list) {
+    var html = '<section class="sect" aria-labelledby="hu"><div class="sec"><h2 id="hu">Heads-up</h2><span class="ct">' + (list.length ? plural(list.length, 'thing') : '') + '</span></div>';
+    if (!list.length) return html + '<div class="quiet"><span class="ic" aria-hidden="true">' + icon('check') + '</span><div><b>All quiet.</b><span class="small">Every bill is on AutoPay and on track. Duly will speak up if one looks wrong, late or new.</span></div></div></section>';
     return html + '<div class="alerts">' + list.map(function (a) {
-      return '<div class="alert ' + esc(a.kind) + '"><span class="ic" aria-hidden="true">' + ALERT_ICON[a.kind] + '</span><div><b>' + esc(a.title) + '</b><p>' + esc(a.text) + '</p>' + alertActs(a) + '</div></div>';
+      return '<div class="alert ' + esc(a.kind) + '"><span class="ic" aria-hidden="true">' + icon(ALERT_ICON[a.kind]) + '</span><div><b>' + esc(a.title) + '</b><p>' + esc(a.text) + '</p>' + alertActs(a) + '</div></div>';
     }).join('') + '</div></section>';
   }
   function itemRow(it) {
@@ -290,26 +304,26 @@
     return '<div class="brow' + (it.status === 'overdue' ? ' is-late' : '') + (it.status === 'paid' ? ' is-paid' : '') + '">' + tile(b) +
       '<button class="open" type="button" data-act="open" data-id="' + esc(b.id) + '"><span class="t">' + esc(b.payee) + '</span><span class="chips">' + statusChip(it, t) + (it.status === 'paid' ? '' : b.pay === 'auto' ? '<span class="chip auto">AutoPay</span>' : b.pay === 'off' ? '<span class="chip off">AutoPay off</span>' : '<span class="chip manual">By hand</span>') + '</span></button>' +
       '<div class="r"><span class="amt">' + amt + '</span>' +
-      (canPay ? '<button class="btn small" type="button" data-act="paid" data-id="' + esc(b.id) + '" data-day="' + esc(it.day) + '">Mark paid</button>' : '') +
+      (canPay ? '<button class="btn small ghost" type="button" data-act="paid" data-id="' + esc(b.id) + '" data-day="' + esc(it.day) + '">Mark paid</button>' : '') +
       (undo ? '<button class="link-btn small" type="button" data-act="unpaid" data-id="' + esc(b.id) + '" data-day="' + esc(it.day) + '">Undo</button>' : '') +
       '</div></div>';
   }
   function scoreCard(big) {
     var h = C.health(state.bills);
     var all = h.total && h.on === h.total;
-    return '<section class="card"><div class="score' + (big ? ' big' : '') + '">' + ring(h, big) + '<div><h2>' + esc(h.words) + '</h2>' +
+    return '<section class="sect"><div class="score' + (big ? ' big' : '') + '">' + ring(h, big) + '<div><h2>' + esc(h.words) + '</h2>' +
       '<p>' + (all ? 'Every bill pays itself. Duly keeps watching the amounts and the dates.' : h.off.length === 1 ? 'One to go. It takes a few minutes in the provider’s own app.' : h.off.length + ' to go. Each takes a few minutes in the provider’s own app.') + '</p>' +
-      (big || all ? '' : '<button class="btn small soft" type="button" data-act="tab" data-tab="autopay">Turn on the rest</button>') + '</div></div></section>';
+      (big || all ? '' : '<button class="btn small ghost" type="button" data-act="tab" data-tab="autopay">Turn on the rest</button>') + '</div></div></section>';
   }
   function monthTotalsHtml(mv) {
     return '<div class="totals"><div class="tot"><b>' + C.fmtMoney(mv.total, { round: true }) + '</b><span>This month</span></div>' +
       '<div class="tot"><b>' + C.fmtMoney(mv.paid, { round: true }) + '</b><span>Paid</span></div>' +
       '<div class="tot come"><b>' + C.fmtMoney(mv.toCome, { round: true }) + '</b><span>Still to come</span></div></div>' +
-      (mv.unknown ? '<p class="small muted" style="margin:8px 0 0">Plus ' + plural(mv.unknown, 'bill') + ' that ' + (mv.unknown === 1 ? 'varies' : 'vary') + ' with no amount logged yet.</p>' : '');
+      (mv.unknown ? '<p class="small muted">Plus ' + plural(mv.unknown, 'bill') + ' that ' + (mv.unknown === 1 ? 'varies' : 'vary') + ' with no amount logged yet.</p>' : '');
   }
   function calendarCard() {
-    return '<section class="card"><h2>Put the dates in your calendar</h2><p class="small muted">One file with every due date, repeating, and a reminder ' + esc(remindWords()) + '. Your phone’s calendar does the rest - nothing in the cloud writes to it.</p>' +
-      '<div class="row"><button class="btn" type="button" data-act="ics">📅 Download all due dates</button><button class="btn small ghost" type="button" data-act="settings">Reminder &amp; flag settings</button></div></section>';
+    return '<section class="sect"><div class="sec"><h2>In your calendar</h2></div><p class="small muted">One file with every due date, repeating, and a reminder ' + esc(remindWords()) + '. Your phone’s calendar does the rest - nothing in the cloud writes to it.</p>' +
+      '<div class="row"><button class="btn ghost" type="button" data-act="ics">' + icon('cal') + 'Download all due dates</button><button class="link-btn small" type="button" data-act="settings">Reminder and flag settings</button></div></section>';
   }
   function remindWords() { var n = state.settings.remindDays; return n === 0 ? 'on the day' : n === 1 ? 'the day before' : n + ' days before'; }
 
@@ -317,13 +331,18 @@
     var t = today();
     var up = C.upcoming(state.bills, t, 30);
     var mv = C.monthView(state.bills, t.slice(0, 7), t);
-    var left = alertsCard() +
-      '<section class="card"><div class="sec"><h2>Coming up</h2><span class="ct">next 30 days</span></div>' +
-      (up.length ? '<div class="rows">' + up.slice(0, 8).map(itemRow).join('') + '</div>' + (up.length > 8 ? '<p class="small muted" style="margin:10px 0 0">And ' + plural(up.length - 8, 'more') + ' - see the Month tab.</p>' : '') : '<p class="muted">Nothing due in the next 30 days.</p>') + '</section>';
+    var list = alertList();
+    var late = list.filter(function (a) { return a.kind === 'late'; }).length;
+    var title = late ? plural(late, 'bill') + ' late' : list.length ? plural(list.length, 'thing') + ' to look at' : 'All quiet';
+    var headHtml = '<div class="page-head"><p class="eyebrow">' + esc(C.fmtDay(t, t)) + ' · ' + esc(C.health(state.bills).words) + '</p><h1>' + esc(title) + '</h1>' +
+      '<div class="quick"><button class="btn" type="button" data-act="read">' + icon('camera') + 'Snap a statement</button><button class="btn ghost" type="button" data-act="add">' + icon('plus') + 'Add a bill</button></div></div>';
+    var left = alertsCard(list) +
+      '<section class="sect"><div class="sec"><h2>Coming up</h2><span class="ct">next 30 days</span></div>' +
+      (up.length ? '<div class="rows">' + up.slice(0, 8).map(itemRow).join('') + '</div>' + (up.length > 8 ? '<p class="small muted mt">And ' + plural(up.length - 8, 'more') + ' - see the Month tab.</p>' : '') : '<p class="muted">Nothing due in the next 30 days.</p>') + '</section>';
     var right = scoreCard(false) +
-      '<section class="card"><div class="sec"><h2>' + esc(C.fmtMonth(t.slice(0, 7))) + '</h2><button class="link-btn" type="button" data-act="tab" data-tab="month">Open the month</button></div>' + monthTotalsHtml(mv) + '</section>' +
+      '<section class="sect"><div class="sec"><h2>' + esc(C.fmtMonth(t.slice(0, 7))) + '</h2><button class="link-btn" type="button" data-act="tab" data-tab="month">Open the month</button></div>' + monthTotalsHtml(mv) + '</section>' +
       calendarCard();
-    return '<div class="dk-split dk-split-aside"><div>' + left + '</div><div class="dk-sticky">' + right + '</div></div>';
+    return headHtml + '<div class="dk-split dk-split-aside"><div>' + left + '</div><div class="dk-sticky">' + right + '</div></div>';
   }
 
   function monthView() {
@@ -349,14 +368,16 @@
     var groups = [['overdue', 'Late', 'late'], ['today', 'Due today', 'soon'], ['soon', 'Due in the next week', 'soon'], ['later', 'Later this month', ''], ['paid', 'Paid', 'paid']];
     var list = state.selDay ? '<div class="filterbar"><span>' + esc(C.fmtDay(state.selDay, t)) + '</span><button class="btn small ghost" type="button" data-act="day" data-day="' + esc(state.selDay) + '">Show the whole month</button></div>' : '';
     if (!items.length) list += '<p class="muted">' + (state.selDay ? 'Nothing due that day.' : 'Nothing due this month.') + '</p>';
+    var first = true;
     groups.forEach(function (g) {
       var gi = items.filter(function (x) { return x.status === g[0]; });
       if (!gi.length) return;
-      list += '<div class="sec ' + g[2] + '"><h2>' + g[1] + '</h2><span class="ct">' + plural(gi.length, 'bill') + '</span></div><div class="rows">' + gi.map(itemRow).join('') + '</div>';
+      list += '<div class="sec ' + g[2] + (first ? '' : ' sub') + '"><h2>' + g[1] + '</h2><span class="ct">' + plural(gi.length, 'bill') + '</span></div><div class="rows">' + gi.map(itemRow).join('') + '</div>';
+      first = false;
     });
     return '<div class="monthbar"><button class="navbtn" type="button" data-act="month" data-step="-1" aria-label="Previous month">‹</button><h1>' + esc(C.fmtMonth(ym)) + '</h1><button class="navbtn" type="button" data-act="month" data-step="1" aria-label="Next month">›</button></div>' +
-      (ym !== t.slice(0, 7) ? '<p class="center" style="margin-top:-6px"><button class="link-btn" type="button" data-act="month" data-step="0">Back to this month</button></p>' : '') +
-      '<div class="dk-split"><div><section class="card">' + cal + '</section><section class="card">' + monthTotalsHtml(mv) + '</section></div><div>' + list + '</div></div>';
+      (ym !== t.slice(0, 7) ? '<p class="center back-now"><button class="link-btn" type="button" data-act="month" data-step="0">Back to this month</button></p>' : '') +
+      '<div class="dk-split"><div>' + cal + '<section class="sect">' + monthTotalsHtml(mv) + '</section></div><div class="sect">' + list + '</div></div>';
   }
 
   function billCard(b) {
@@ -366,7 +387,7 @@
     var typ = C.typical(b);
     var last = C.lastAmount(b);
     var shown = last !== null ? last : typ;
-    return '<article class="bcard">' + tile(b) + '<div style="min-width:0"><button class="open" type="button" data-act="open" data-id="' + esc(b.id) + '"><span class="t">' + esc(b.payee) + '</span><span class="w">' + esc(C.describeCycle(b.cycle)) + '</span></button>' +
+    return '<article class="bcard">' + tile(b) + '<div class="mw0"><button class="open" type="button" data-act="open" data-id="' + esc(b.id) + '"><span class="t">' + esc(b.payee) + '</span><span class="w">' + esc(C.describeCycle(b.cycle)) + '</span></button>' +
       '<div class="chips">' + payChip(b) + (nx ? '<span class="chip ghost">Next ' + esc(C.fmtDay(nx, t)) + '</span>' : (b.cycle.kind === 'statement' ? '<span class="chip new">Add the next due date</span>' : '')) + (lf && lf.high ? '<span class="chip high">↑ ' + lf.over + '% higher than usual</span>' : '') + '</div>' +
       '<div class="line"><span class="amt">' + (shown !== null ? money(shown) : '<span class="muted">varies</span>') + (last !== null ? ' <small>last</small>' : b.varies ? '' : ' <small>usually</small>') + '</span>' + spark(b, false) + '</div></div></article>';
   }
@@ -375,38 +396,38 @@
     var list = state.bills.slice().sort(function (a, b) { var x = C.nextDue(a, t) || '9999', y = C.nextDue(b, t) || '9999'; return x < y ? -1 : x > y ? 1 : a.payee.localeCompare(b.payee); });
     var monthly = 0, unknown = 0;
     state.bills.forEach(function (b) { var m = C.perMonth(b, t); if (m === null) unknown++; else monthly += m; });
-    return '<div class="page-title"><div><h1>Your bills</h1><p class="small muted" style="margin:2px 0 0">' + plural(state.bills.length, 'bill') + ' · about <b class="num">' + C.fmtMoney(monthly, { round: true }) + '</b> a month all told' + (unknown ? ' (plus ' + unknown + ' with no amount yet)' : '') + '</p></div></div>' +
-      '<div class="toolbar"><button class="btn ghost" type="button" data-act="read">📄 Read a bill</button><button class="btn ghost" type="button" data-act="ics">📅 To calendar</button></div>' +
+    return '<div class="page-head"><h1>Your bills</h1><p class="sub">' + plural(state.bills.length, 'bill') + ' · about <b class="num">' + C.fmtMoney(monthly, { round: true }) + '</b> a month all told' + (unknown ? ' (plus ' + unknown + ' with no amount yet)' : '') + '</p>' +
+      '<div class="quick"><button class="btn" type="button" data-act="read">' + icon('camera') + 'Snap a statement</button><button class="btn ghost" type="button" data-act="ics">' + icon('cal') + 'To calendar</button></div></div>' +
       '<div class="bills dk-grid">' + list.map(billCard).join('') + '</div>' +
-      '<p class="small muted" style="margin-top:14px">Amounts are what you log - Duly never sees a statement unless you ask it to read one. <button class="link-btn small" type="button" data-act="settings">Settings</button></p>';
+      '<p class="small muted foot-note">Amounts are what you log - Duly never sees a statement unless you ask it to read one. <button class="link-btn small" type="button" data-act="settings">Settings</button></p>';
   }
 
   function autopayView() {
     var h = C.health(state.bills);
     var off = h.off;
     var on = state.bills.filter(function (b) { return b.pay === 'auto'; });
-    var html = '<div class="page-title"><h1>AutoPay health</h1></div>' +
-      '<p class="muted" style="max-width:62ch">The safe way to never pay a bill yourself: let each provider take it on the due date, from your checking account - and let Duly watch for the one that’s wrong. Duly can’t switch it on for you, and will never ask for your login.</p>' +
+    var html = '<div class="page-head"><h1>AutoPay health</h1>' +
+      '<p class="sub measure">The safe way to never pay a bill yourself: let each provider take it on the due date, from your checking account - and let Duly watch for the one that’s wrong. Duly can’t switch it on for you, and will never ask for your login.</p></div>' +
       '<div class="dk-split dk-split-aside"><div>';
     if (off.length) {
       html += '<div class="sec"><h2>Not on AutoPay yet</h2><span class="ct">' + plural(off.length, 'bill') + '</span></div><div class="checks">' + off.map(function (b, i) {
         var c = C.checklist(b);
-        return '<details class="check"' + (i === 0 ? ' open' : '') + '><summary>' + tile(b) + '<span style="min-width:0"><span class="t">' + esc(c.title) + '</span><span class="w">' + esc(C.categoryOf(b.category).label) + ' · ' + esc(b.pay === 'off' ? 'AutoPay is off' : 'you pay it by hand') + '</span></span><span class="chev" aria-hidden="true">›</span></summary>' +
+        return '<details class="check"' + (i === 0 ? ' open' : '') + '><summary>' + tile(b) + '<span class="mw0"><span class="t">' + esc(c.title) + '</span><span class="w">' + esc(C.categoryOf(b.category).label) + ' · ' + esc(b.pay === 'off' ? 'AutoPay is off' : 'you pay it by hand') + '</span></span><span class="chev" aria-hidden="true">' + icon('chev') + '</span></summary>' +
           '<div class="check-body"><ol class="steps">' + c.steps.map(function (s) { return '<li><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
           '<ul class="honest">' + c.notes.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' +
-          '<div class="row"><button class="btn" type="button" data-act="seton" data-id="' + esc(b.id) + '">It’s on now ✓</button>' + (b.pay === 'off' ? '<button class="btn ghost" type="button" data-act="setmanual" data-id="' + esc(b.id) + '">I’ll pay this one by hand</button>' : '') + '</div></div></details>';
+          '<div class="row"><button class="btn" type="button" data-act="seton" data-id="' + esc(b.id) + '">It’s on now</button>' + (b.pay === 'off' ? '<button class="btn ghost" type="button" data-act="setmanual" data-id="' + esc(b.id) + '">I’ll pay this one by hand</button>' : '') + '</div></div></details>';
       }).join('') + '</div>';
     } else {
-      html += '<div class="quiet"><span class="e" aria-hidden="true">🎉</span><div><b>Every bill is on AutoPay.</b><span class="small">Keep a buffer in the account they pay from, and log amounts as they come - Duly will flag one that jumps.</span></div></div>';
+      html += '<div class="quiet"><span class="ic" aria-hidden="true">' + icon('check') + '</span><div><b>Every bill is on AutoPay.</b><span class="small">Keep a buffer in the account they pay from, and log amounts as they come - Duly will flag one that jumps.</span></div></div>';
     }
     html += '</div><div class="dk-sticky">' + scoreCard(true);
     if (on.length) {
-      html += '<section class="card"><h2>On AutoPay</h2><ul class="onlist">' + on.map(function (b) {
+      html += '<section class="sect"><div class="sec"><h2>On AutoPay</h2><span class="ct">' + on.length + '</span></div><ul class="onlist">' + on.map(function (b) {
         var nx = C.nextDue(b, today());
         return '<li><span aria-hidden="true">' + esc(C.emojiOf(b)) + '</span><button class="open" type="button" data-act="open" data-id="' + esc(b.id) + '"><b>' + esc(b.payee) + '</b></button><span class="small muted">' + (nx ? esc(C.fmtDay(nx, today())) : '') + '</span></li>';
       }).join('') + '</ul></section>';
     }
-    html += '<section class="card"><h2>Before you switch one on</h2><ul class="honest" style="margin:0">' +
+    html += '<section class="sect"><div class="sec"><h2>Before you switch one on</h2></div><ul class="honest flush">' +
       '<li>For a credit card, AutoPay the <b>statement balance</b>, not the minimum.</li><li>Pay from checking, and keep a buffer there.</li><li>Check the first payment went through.</li></ul></section></div></div>';
     return html;
   }
@@ -464,20 +485,20 @@
     var dflt = defaultCycle(b);
     var last = C.lastAmount(b);
     var html = head(b.payee) +
-      '<div class="detail-top">' + tile(b) + '<div><p class="muted" style="margin:0">' + esc(C.categoryOf(b.category).label) + ' · ' + esc(C.describeCycle(b.cycle)) + '</p><div class="chips">' + payChip(b) + '</div></div></div>' +
+      '<div class="detail-top">' + tile(b) + '<div><p class="muted">' + esc(C.categoryOf(b.category).label) + ' · ' + esc(C.describeCycle(b.cycle)) + '</p><div class="chips">' + payChip(b) + '</div></div></div>' +
       '<div class="facts"><div class="fact"><div class="k">Usually</div><div class="v">' + (typ !== null ? money(typ) : 'Varies') + '</div><div class="s">' + (b.varies ? 'Median of what you logged' : 'The amount you set') + '</div></div>' +
       '<div class="fact"><div class="k">Next due</div><div class="v">' + (nx ? esc(C.fmtDay(nx, t)) : '—') + '</div><div class="s">' + (nx ? esc(C.relDay(nx, t)) : b.cycle.kind === 'statement' ? 'Add it from the statement' : '') + '</div></div></div>' +
-      (b.note ? '<p class="note small" style="margin-top:10px">' + esc(b.note) + '</p>' : '');
+      (b.note ? '<p class="note small mt">' + esc(b.note) + '</p>' : '');
     if (b.cycle.kind === 'statement') {
-      html += '<div class="logbox"><b>This statement’s due date</b><p class="small muted" style="margin:2px 0 8px">A card’s due date moves a little each month - add it when the statement comes.</p><div class="row"><input class="input" type="date" id="stDate" aria-label="Due date" style="flex:1 1 160px"><button class="btn" type="button" data-act="adddate" data-id="' + esc(b.id) + '">Add</button></div>' +
-        (b.cycle.dates.length ? '<p class="small muted" style="margin:8px 0 0">Entered: ' + b.cycle.dates.slice(-4).map(function (d) { return esc(C.fmtDay(d, t)); }).join(', ') + '</p>' : '') + '</div>';
+      html += '<div class="logbox"><b>This statement’s due date</b><p class="small muted">A card’s due date moves a little each month - add it when the statement comes.</p><div class="row"><input class="input grow" type="date" id="stDate" aria-label="Due date"><button class="btn" type="button" data-act="adddate" data-id="' + esc(b.id) + '">Add</button></div>' +
+        (b.cycle.dates.length ? '<p class="small muted">Entered: ' + b.cycle.dates.slice(-4).map(function (d) { return esc(C.fmtDay(d, t)); }).join(', ') + '</p>' : '') + '</div>';
     }
     html += '<h3>Amounts over time</h3>';
-    if (flags.length >= 2) html += spark(b, true) + '<p class="small muted" style="margin:4px 0 0">Dashed line: the usual (median). ' + (flags.some(function (x) { return x.high; }) ? 'Orange dots: more than ' + state.settings.spikePct + '% over the usual.' : 'Nothing over ' + state.settings.spikePct + '% higher than usual.') + '</p>';
+    if (flags.length >= 2) html += spark(b, true) + '<p class="small muted">Dashed line: the usual (median). ' + (flags.some(function (x) { return x.high; }) ? 'Orange dots: more than ' + state.settings.spikePct + '% over the usual.' : 'Nothing over ' + state.settings.spikePct + '% higher than usual.') + '</p>';
     else html += '<p class="small muted">Log a couple of amounts and a chart appears here, with a flag when one is more than ' + state.settings.spikePct + '% over the usual.</p>';
     html += '<div class="logbox"><b>Log an amount</b>' + (occ.length ? '<div class="field"><span>For the bill due</span><select class="input" id="logDay">' + occ.map(function (d) { return '<option value="' + d + '"' + (d === dflt ? ' selected' : '') + '>' + esc(C.fmtDay(d, t)) + ((b.history || []).some(function (h) { return h.d === d; }) ? ' (logged)' : '') + '</option>'; }).join('') + '</select></div>' : '<p class="small muted">Add the due date first.</p>') +
       (occ.length ? (last !== null ? '<button class="btn soft block" type="button" data-act="logsame" data-id="' + esc(b.id) + '">Same as last time · ' + money(last) + '</button>' : '') +
-        '<div class="row" style="margin-top:8px"><label class="money" style="flex:1 1 140px"><span class="vh">Amount</span><input class="input" id="logAmt" inputmode="decimal" autocomplete="off" placeholder="' + (typ !== null ? esc((typ / 100).toFixed(2)) : '0.00') + '"></label><button class="btn" type="button" data-act="log" data-id="' + esc(b.id) + '">Log it</button></div><div id="logErr"></div>' : '') + '</div>';
+        '<div class="row mt"><label class="money grow"><span class="vh">Amount</span><input class="input" id="logAmt" inputmode="decimal" autocomplete="off" placeholder="' + (typ !== null ? esc((typ / 100).toFixed(2)) : '0.00') + '"></label><button class="btn" type="button" data-act="log" data-id="' + esc(b.id) + '">Log it</button></div><div id="logErr"></div>' : '') + '</div>';
     if (flags.length) {
       html += '<ul class="hist" aria-label="Logged amounts">' + flags.slice().reverse().map(function (f) {
         return '<li><span>' + esc(C.fmtDay(f.d, t)) + (f.high ? ' <span class="chip high">↑ ' + f.over + '%</span>' : '') + '</span><span class="amt">' + money(f.a) + '</span><button class="del" type="button" data-act="unlog" data-id="' + esc(b.id) + '" data-day="' + f.d + '" aria-label="Remove the amount for ' + esc(C.fmtDay(f.d, t)) + '">×</button></li>';
@@ -485,7 +506,7 @@
     }
     html += '<div class="stack">' +
       (b.pay !== 'auto' ? '<button class="btn" type="button" data-act="howto" data-id="' + esc(b.id) + '">How to turn on AutoPay</button>' : '') +
-      '<div class="two"><button class="btn ghost" type="button" data-act="icsone" data-id="' + esc(b.id) + '">📅 Add to calendar</button><button class="btn ghost" type="button" data-act="edit" data-id="' + esc(b.id) + '">Edit</button></div>' +
+      '<div class="two"><button class="btn ghost" type="button" data-act="icsone" data-id="' + esc(b.id) + '">Add to calendar</button><button class="btn ghost" type="button" data-act="edit" data-id="' + esc(b.id) + '">Edit</button></div>' +
       '<button class="btn danger" type="button" data-act="delete" data-id="' + esc(b.id) + '">Delete this bill</button></div>';
     sheet(html, function (root) {
       var a = $('#logAmt', root);
@@ -539,7 +560,7 @@
     saveBill(copy);
     var h = C.health(state.bills);
     if (pay === 'auto') {
-      toast(h.on === h.total ? 'Every bill is on AutoPay. 🎉 Duly will keep watching.' : h.words + '. ' + (h.on > before.on ? 'Nice.' : ''), 4200);
+      toast(h.on === h.total ? 'Every bill is on AutoPay. Duly will keep watching.' : h.words + '. ' + (h.on > before.on ? 'Nice.' : ''), 4200);
       say(h.words);
     } else toast('Noted - Duly will remind you when it’s due.');
     draw();
@@ -592,7 +613,7 @@
     else when = '<label class="field"><span>This statement’s due date <span class="hint">(optional)</span></span><input class="input" type="date" id="fDate" value="' + esc(f.date) + '"><span class="hint">Cards and some utilities move the date each cycle. Add each one as the statement comes.</span></label>';
     var pays = [['auto', 'AutoPay on', 'The provider takes it on the due date'], ['off', 'AutoPay off', 'They offer it, it isn’t switched on'], ['manual', 'I pay it by hand', 'A check, a portal, a transfer']];
     sheet(head(f.id ? 'Edit bill' : 'Add a bill') +
-      (f.id ? '' : '<p class="small muted" style="margin:0 0 4px">Got the bill handy? <button class="link-btn small" type="button" data-act="read">Read a statement instead</button></p>') +
+      (f.id ? '' : '<p class="small muted">Got the bill handy? <button class="link-btn small" type="button" data-act="read">Snap a statement instead</button></p>') +
       '<form id="billForm" novalidate>' +
       '<label class="field"><span>Who is it from?</span><input class="input" id="fPayee" autocomplete="off" maxlength="' + C.LIMITS.payee + '" placeholder="City Power, Rent, Visa card…" value="' + esc(f.payee) + '"' + (f.id ? '' : ' autofocus') + '></label>' +
       '<div class="guess" id="guess">' + guessLine(f) + '</div>' +
@@ -601,9 +622,9 @@
       '<div class="field"><span>When is it due?</span><div class="seg" role="group" aria-label="How often">' +
       [['monthly', 'Monthly'], ['months', 'Every few months'], ['yearly', 'Yearly'], ['statement', 'Per statement']].map(function (k) { return '<button type="button" data-act="kind" data-kind="' + k[0] + '" aria-pressed="' + (f.kind === k[0]) + '">' + k[1] + '</button>'; }).join('') + '</div></div>' +
       when +
-      '<div class="field"><span>How is it paid?</span><div class="payopt" role="group" aria-label="How it is paid">' + pays.map(function (p) { return '<button type="button" data-act="pay" data-pay="' + p[0] + '" aria-pressed="' + (f.pay === p[0]) + '"><span aria-hidden="true">' + (p[0] === 'auto' ? '✅' : p[0] === 'off' ? '⏸️' : '✍️') + '</span><span><b>' + p[1] + '</b><small>' + p[2] + '</small></span></button>'; }).join('') + '</div></div>' +
+      '<div class="field"><span>How is it paid?</span><div class="payopt" role="group" aria-label="How it is paid">' + pays.map(function (p) { return '<button type="button" data-act="pay" data-pay="' + p[0] + '" aria-pressed="' + (f.pay === p[0]) + '"><span class="radio" aria-hidden="true"></span><span><b>' + p[1] + '</b><small>' + p[2] + '</small></span></button>'; }).join('') + '</div></div>' +
       '<label class="field"><span>Note <span class="hint">(optional)</span></span><input class="input" id="fNote" maxlength="' + C.LIMITS.note + '" autocomplete="off" placeholder="Paid from the joint account" value="' + esc(f.note) + '"></label>' +
-      '<p class="refuse"><span aria-hidden="true">🛡️</span><span>No account, card or routing numbers - Duly refuses them. “Ending 4421” is fine.</span></p>' +
+      '<p class="refuse">' + icon('shield') + '<span>No account, card or routing numbers - Duly refuses them. “Ending 4421” is fine.</span></p>' +
       '<div id="formErr">' + (f.err ? '<p class="err" role="alert">' + esc(f.err) + '</p>' : '') + '</div>' +
       '<button class="btn big block" type="submit">' + (f.id ? 'Save changes' : 'Add the bill') + '</button></form>', function (root) {
       $('#fPayee', root).addEventListener('input', function (e) { f.payee = e.target.value; $('#guess', root).innerHTML = guessLine(f); });
@@ -661,26 +682,27 @@
   /* ---------------- read a statement (the one model call) ---------------- */
 
   function openRead() {
-    state.read = state.read || { mode: 'text', text: '', photo: null, busy: false, proposal: null };
+    state.read = state.read || { mode: 'photo', text: '', photo: null, busy: false, proposal: null, pick: null };
     drawRead();
   }
+  function readerName() { return state.me && state.me.reader === 'gemini' ? 'Google’s Gemini' : 'Claude'; }
   function drawRead() {
     var r = state.read;
-    var gate = signedIn() ? '' : '<div class="note"><p style="margin:0 0 8px">Reading a statement uses AI, so it needs a free account - it comes with $2 of AI credit (each read is about a cent). Adding a bill by hand is free and always will be.</p><div class="row"><button class="btn small" type="button" data-act="signup">Create a free account</button><button class="btn small ghost" type="button" data-act="signin">Sign in</button><button class="btn small ghost" type="button" data-act="add">Add it by hand</button></div></div>';
-    sheet(head('Read a statement') +
-      '<p class="small muted" style="margin:0 0 10px">Paste the text of a bill, or a photo of it. AI reads who it’s from, the amount, the due date and whether it says AutoPay - you check it and tap Add. Nothing is saved until you do.</p>' +
-      '<div class="seg" role="group" aria-label="Paste or photo"><button type="button" data-act="rmode" data-mode="text" aria-pressed="' + (r.mode === 'text') + '">Paste text</button><button type="button" data-act="rmode" data-mode="photo" aria-pressed="' + (r.mode === 'photo') + '">Photo</button></div>' +
+    var gate = signedIn() ? '' : '<div class="note gate"><p>Reading a statement uses AI, so it needs a free account - it comes with $2 of AI credit (each read is about a cent). Adding a bill by hand is free and always will be.</p><div class="row"><button class="btn small" type="button" data-act="signup">Create a free account</button><button class="btn small ghost" type="button" data-act="signin">Sign in</button><button class="btn small ghost" type="button" data-act="add">Add it by hand</button></div></div>';
+    sheet(head('Snap a statement') +
+      '<p class="intro">A photo of a bill, or its text. AI reads four things - the due date, the amount due, the minimum, and whether it says AutoPay - and you confirm before anything is saved.</p>' +
+      '<div class="seg" role="group" aria-label="Photo or text"><button type="button" data-act="rmode" data-mode="photo" aria-pressed="' + (r.mode === 'photo') + '">Photo</button><button type="button" data-act="rmode" data-mode="text" aria-pressed="' + (r.mode === 'text') + '">Paste text</button></div>' +
       (r.mode === 'text'
         ? '<label class="field"><span class="vh">The bill’s text</span><textarea class="input" id="rText" maxlength="' + C.LIMITS.pasteChars + '" placeholder="Paste from the email or the provider’s website: the part with the amount due and the due date.">' + esc(r.text) + '</textarea></label>'
-        : '<div class="field"><span class="filebtn btn ghost block">📷 ' + (r.photo ? 'Choose another photo' : 'Take or choose a photo') + '<input type="file" id="rPhoto" accept="image/*" aria-label="Photo of the bill"></span>' + (r.photo ? '<div class="photo-prev"><img alt="" src="' + esc(r.photo.url) + '"><span class="small muted">Shrunk on this phone. Read once, never kept.</span></div>' : '') + '</div>') +
-      '<p class="refuse"><span aria-hidden="true">🛡️</span><span>Anything that looks like an account or card number is taken out before the text is read, and again from the answer. A photo is read once and not kept.</span></p>' +
+        : '<div class="field"><span class="filebtn snap">' + icon('camera') + '<span>' + (r.photo ? 'Choose another photo' : 'Take or choose a photo') + '</span><small>The whole page, flat and in good light</small><input type="file" id="rPhoto" accept="image/*" aria-label="Photo of the bill"></span>' + (r.photo ? '<div class="photo-prev"><img alt="" src="' + esc(r.photo.url) + '"><span class="small muted">Shrunk on this phone to ' + Math.max(1, Math.round(r.photo.bytes / 1024)) + ' KB. Read once, never kept.</span></div>' : '') + '</div>') +
+      '<p class="refuse">' + icon('shield') + '<span>Read once by ' + readerName() + ', then dropped: the photo is never stored. Account and card numbers are never asked for, and anything shaped like one is taken out of pasted text before it is read.</span></p>' +
       (gate || '<button class="btn big block" type="button" data-act="doread"' + (r.busy ? ' disabled' : '') + '>' + (r.busy ? 'Reading…' : 'Read it') + '</button>') +
-      '<div id="readOut" aria-live="polite">' + proposalHtml() + '</div>', function (root) {
+      '<div id="readOut" aria-live="polite">' + (r.busy ? '<p class="reading"><i aria-hidden="true"></i>Reading the due date, the amount and the AutoPay line…</p>' : proposalHtml()) + '</div>', function (root) {
       var tx = $('#rText', root); if (tx) tx.addEventListener('input', function (e) { r.text = e.target.value; });
       var ph = $('#rPhoto', root); if (ph) ph.addEventListener('change', function (e) {
         var file = e.target.files && e.target.files[0];
         if (!file) return;
-        shrink(file).then(function (p) { r.photo = p; r.proposal = null; drawRead(); }, function () { toast('That photo could not be read. Try a JPEG or PNG.'); });
+        shrink(file).then(function (p) { r.photo = p; r.proposal = null; drawRead(); }, function (err) { toast(err && err.tooBig ? 'That photo is too large even after shrinking. Try a closer shot of just the bill.' : 'That photo could not be read. Try a JPEG or PNG.'); });
       });
     });
   }
@@ -696,21 +718,67 @@
     });
     return best;
   }
+  /** Which bill the reading is for: the name when the reader gave one,
+   *  otherwise a guess from the due date and the amount (duly-core.js). The
+   *  person can change it; nothing is saved until they tap. */
+  function guessPick(p) {
+    var m = matchBill(p.payee);
+    if (m) return m.id;
+    return C.guessBill(state.bills, p, today()) || 'new';
+  }
+  /** The day of this bill the reading belongs to: the statement's own date
+   *  for a statement bill, else the bill's nearest due date to it. */
+  function cycleDayFor(b, p) {
+    var t = today();
+    if (b.cycle.kind === 'statement') return p.dueDate;
+    var near = C.occurrences(b, C.addDays(p.dueDate || t, -20), C.addDays(p.dueDate || t, 20));
+    return near.length ? near.reduce(function (a, x) { return Math.abs(C.daysBetween(x, p.dueDate || t)) < Math.abs(C.daysBetween(a, p.dueDate || t)) ? x : a; }) : null;
+  }
+  /** What the reading means for the chosen bill - sums done here, on the
+   *  phone, from the bill's own history: never by the model. */
+  function insights(p, b) {
+    var out = [], t = today();
+    var usual = C.typical(b);
+    if (p.amount !== null && usual) {
+      var pct = Math.round(((p.amount - usual) / usual) * 100);
+      if (pct > state.settings.spikePct) out.push(['high', 'up', pct + '% higher than usual - it’s usually ' + money(usual) + '. Worth a look before it’s paid.']);
+      else if (pct < -state.settings.spikePct) out.push(['', 'info', Math.abs(pct) + '% lower than the usual ' + money(usual) + '.']);
+      else out.push(['ok', 'check', 'In line with the usual ' + money(usual) + '.']);
+    }
+    var day = p.dueDate ? cycleDayFor(b, p) : null;
+    if (p.dueDate && day && day !== p.dueDate) out.push(['', 'cal', 'Duly has it due ' + C.fmtDay(day, t) + '; the statement says ' + C.fmtDay(p.dueDate, t) + '. The amount goes on that bill.']);
+    if (p.autopay === 'on') out.push(b.pay === 'auto' ? ['ok', 'check', 'AutoPay is on, and the statement agrees.'] : ['ok', 'loop', 'The statement says AutoPay is on. Saving marks this bill AutoPay on.']);
+    else if (p.autopay === 'off') out.push(b.pay === 'auto' ? ['warn', 'info', 'The statement says AutoPay is off, but Duly has it on. Saving marks it off - check the provider’s app.'] : ['', 'info', 'The statement says AutoPay is off.']);
+    else if (b.pay === 'auto') out.push(['', 'info', 'The statement doesn’t mention AutoPay. Duly still has it on.']);
+    if (p.minimumDue !== null) out.push(['', 'info', 'Minimum due ' + money(p.minimumDue) + '. On AutoPay, pay the statement balance, not the minimum.']);
+    return out;
+  }
   function proposalHtml() {
     var r = state.read;
     if (!r || !r.proposal) return '';
     var p = r.proposal, t = today();
-    var m = matchBill(p.payee);
-    var cat = C.categoryOf(p.category);
-    return '<div class="proposal"><h3><span aria-hidden="true">' + cat.emoji + '</span> ' + esc(p.payee || 'A bill') + '</h3>' +
-      '<div class="facts"><div class="fact"><div class="k">Amount due</div><div class="v">' + (p.amount !== null ? money(p.amount) : '—') + '</div>' + (p.minimumDue !== null ? '<div class="s">Minimum ' + money(p.minimumDue) + '</div>' : '') + '</div>' +
-      '<div class="fact"><div class="k">Due</div><div class="v">' + (p.dueDate ? esc(C.fmtDay(p.dueDate, t)) : '—') + '</div><div class="s">' + (p.dueDate ? esc(C.relDay(p.dueDate, t)) : 'Not found') + '</div></div>' +
-      '<div class="fact"><div class="k">Kind</div><div class="v">' + esc(cat.label) + '</div></div>' +
-      '<div class="fact"><div class="k">AutoPay</div><div class="v">' + ({ on: 'Says it’s on', off: 'Says it’s off', unknown: 'Doesn’t say' })[p.autopay] + '</div></div></div>' +
+    if (!r.pick || (r.pick !== 'new' && !billById(r.pick))) r.pick = guessPick(p);
+    var b = r.pick === 'new' ? null : billById(r.pick);
+    var guessed = b && !p.payee;
+    var row = function (k, v, sub) { return '<div><dt>' + k + '</dt><dd' + (v ? '' : ' class="none"') + '>' + (v || 'Not shown') + (sub ? '<small>' + sub + '</small>' : '') + '</dd></div>'; };
+    var ins = b ? insights(p, b) : (p.minimumDue !== null ? [['', 'info', 'Minimum due ' + money(p.minimumDue) + '. On AutoPay, pay the statement balance, not the minimum.']] : []);
+    return '<div class="proposal"><p class="eyebrow">Read from the statement</p>' +
+      '<dl class="read-list">' +
+      (p.payee ? row('From', esc(p.payee)) : '') +
+      row('Due date', p.dueDate ? esc(C.fmtDay(p.dueDate, t)) : '', p.dueDate ? esc(C.relDay(p.dueDate, t)) : '') +
+      row('Amount due', p.amount !== null ? money(p.amount) : '') +
+      row('Minimum', p.minimumDue !== null ? money(p.minimumDue) : '') +
+      row('AutoPay', ({ on: 'Says it’s on', off: 'Says it’s off', unknown: '' })[p.autopay]) +
+      '</dl>' +
       (p.stripped ? '<p class="note warn small"><b>Taken out:</b> something that looked like an account or card number. Duly never keeps them.</p>' : '') +
-      '<p class="small muted" style="margin:10px 0">Check it against the bill - AI can misread.</p><div class="stack">' +
-      (m ? '<button class="btn" type="button" data-act="rupdate" data-id="' + esc(m.id) + '">Update ' + esc(m.payee) + '</button>' : '') +
-      '<button class="btn' + (m ? ' ghost' : '') + '" type="button" data-act="radd">' + (m ? 'Add as a new bill instead' : 'Check and add it') + '</button></div></div>';
+      (state.bills.length ? '<label class="field"><span>Which bill is this?</span><select class="input" id="rPick">' +
+        state.bills.map(function (x) { return '<option value="' + esc(x.id) + '"' + (r.pick === x.id ? ' selected' : '') + '>' + esc(x.payee) + '</option>'; }).join('') +
+        '<option value="new"' + (r.pick === 'new' ? ' selected' : '') + '>A new bill</option></select>' +
+        (guessed ? '<span class="hint">Duly’s guess, from the date and the amount. Change it if it’s wrong.</span>' : '') + '</label>' : '') +
+      (ins.length ? '<ul class="insights">' + ins.map(function (x) { return '<li class="' + x[0] + '">' + icon(x[1]) + '<span>' + esc(x[2]) + '</span></li>'; }).join('') + '</ul>' : '') +
+      '<p class="confirm">Check it against the bill - AI can misread. Nothing is saved until you tap.</p>' +
+      (b ? '<button class="btn big block" type="button" data-act="rupdate" data-id="' + esc(b.id) + '">Save to ' + esc(b.payee) + '</button>'
+        : '<button class="btn big block" type="button" data-act="radd">Check and add it</button>') + '</div>';
   }
   function doRead() {
     var r = state.read;
@@ -723,11 +791,12 @@
       if (!r.photo) return toast('Choose a photo first.');
       body.photo = { type: r.photo.type, data: r.photo.data };
     }
-    r.busy = true; r.proposal = null; drawRead();
+    r.busy = true; r.proposal = null; r.pick = null; drawRead();
     api('POST', 'api/read', body).then(function (res) {
       if (state.read !== r) return;
       r.busy = false; r.proposal = res.proposal; drawRead();
-      say('Read. Check it, then add it.');
+      var out = $('#readOut'); if (out && out.scrollIntoView) out.scrollIntoView({ block: 'nearest' });
+      say('Read. Check it, then save it.');
     }).catch(function (e) {
       if (state.read !== r) return;
       r.busy = false; drawRead();
@@ -740,49 +809,56 @@
   /** The proposal into the add form, prefilled - the person still taps Add. */
   function proposalToForm() {
     var p = state.read.proposal, t = today();
-    var isCard = p.category === 'card';
+    var isCard = p.category === 'card' || (!p.payee && p.minimumDue !== null);
     var preset = {
-      payee: p.payee, category: p.category, amount: isCard ? null : p.amount, varies: isCard,
+      payee: p.payee, category: p.payee ? p.category : (isCard ? 'card' : null), amount: isCard ? null : p.amount, varies: isCard,
       kind: isCard ? 'statement' : 'monthly', day: p.dueDate ? Number(p.dueDate.slice(8)) : Number(t.slice(8)),
       date: isCard ? (p.dueDate || '') : '', pay: p.autopay === 'on' ? 'auto' : p.autopay === 'off' ? 'off' : 'manual',
     };
     openForm(null, preset);
     state.form.preset = { logAmount: p.amount, logDay: p.dueDate };
   }
-  /** Update a bill already on the list: the amount for that cycle, the
-   *  statement's due date, and AutoPay when the bill says. On a tap. */
+  /** Save the reading to a bill already on the list: the amount for that
+   *  cycle, the statement's due date, and AutoPay as the statement says it
+   *  (on, or off when it clearly says so). On a tap, never before. */
   function proposalUpdate(id) {
-    var p = state.read.proposal, b = billById(id), t = today();
+    var p = state.read.proposal, b = billById(id);
     if (!b) return;
     var copy = JSON.parse(JSON.stringify(b));
     if (copy.cycle.kind === 'statement' && p.dueDate && copy.cycle.dates.indexOf(p.dueDate) < 0) copy.cycle.dates.push(p.dueDate);
-    var day = p.dueDate;
-    if (copy.cycle.kind !== 'statement') {
-      var near = C.occurrences(copy, C.addDays(p.dueDate || t, -20), C.addDays(p.dueDate || t, 20));
-      day = near.length ? near.reduce(function (a, x) { return Math.abs(C.daysBetween(x, p.dueDate || t)) < Math.abs(C.daysBetween(a, p.dueDate || t)) ? x : a; }) : null;
-    }
+    var day = cycleDayFor(copy, p);
     if (p.amount !== null && day) { copy.history = (copy.history || []).filter(function (h) { return h.d !== day; }); copy.history.push({ d: day, a: p.amount }); copy.history.sort(function (x, y) { return x.d < y.d ? -1 : 1; }); }
     if (p.autopay === 'on') copy.pay = 'auto';
+    else if (p.autopay === 'off' && copy.pay === 'auto') copy.pay = 'off';
     saveBill(copy);
     closeSheet(true); draw();
     var lf = lastFlag(billById(id));
-    toast('Updated ' + b.payee + (p.amount !== null ? ' - ' + money(p.amount) : '') + (lf && lf.high && lf.d === day ? '. That’s ' + lf.over + '% over the usual.' : '.'), 5200);
+    toast('Saved to ' + b.payee + (p.amount !== null ? ' - ' + money(p.amount) : '') + (lf && lf.high && lf.d === day ? '. That’s ' + lf.over + '% over the usual.' : '.'), 5200);
   }
   /** A photo shrunk to ~1600px on its long side, as a JPEG, redrawn through
-   *  a canvas (which also drops its EXIF, location included). */
+   *  a canvas (which also drops its EXIF, location included). If that is
+   *  still over the cap it is drawn smaller and softer, a few times; a photo
+   *  that will not fit is not sent at all. The original never leaves here. */
   function shrink(file) {
     return new Promise(function (resolve, reject) {
       if (!file || !/^image\//.test(file.type || '')) return reject(new Error('not an image'));
       var url = URL.createObjectURL(file);
       var img = new Image();
       img.addEventListener('load', function () {
-        var s = Math.min(1, PHOTO_PX / Math.max(img.naturalWidth, img.naturalHeight));
-        var c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        var dataUrl = c.toDataURL('image/jpeg', 0.85);
+        var tries = [[PHOTO_PX, 0.85], [PHOTO_PX, 0.7], [1280, 0.7], [1024, 0.6]];
+        var dataUrl = '', bytes = 0;
+        for (var i = 0; i < tries.length; i++) {
+          var s = Math.min(1, tries[i][0] / Math.max(img.naturalWidth, img.naturalHeight));
+          var c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          dataUrl = c.toDataURL('image/jpeg', tries[i][1]);
+          bytes = Math.floor((dataUrl.length - dataUrl.indexOf(',') - 1) * 3 / 4);
+          if (bytes <= PHOTO_MAX_BYTES) break;
+        }
         URL.revokeObjectURL(url);
-        resolve({ type: 'image/jpeg', data: dataUrl.split(',')[1], url: dataUrl });
+        if (bytes > PHOTO_MAX_BYTES) return reject(Object.assign(new Error('too big'), { tooBig: true }));
+        resolve({ type: 'image/jpeg', data: dataUrl.split(',')[1], url: dataUrl, bytes: bytes });
       });
       img.addEventListener('error', function () { URL.revokeObjectURL(url); reject(new Error('bad image')); });
       img.src = url;
@@ -796,9 +872,9 @@
     sheet(head('Settings') +
       '<label class="field"><span>Flag a bill as higher than usual when it’s more than</span><select class="input" id="sPct">' + [10, 15, 20, 25, 30, 40, 50].map(function (n) { return '<option value="' + n + '"' + (n === s.spikePct ? ' selected' : '') + '>' + n + '% over its median</option>'; }).join('') + '</select></label>' +
       '<label class="field"><span>Calendar reminder</span><select class="input" id="sRemind">' + [[0, 'On the day, 9 am'], [1, '1 day before, 9 am'], [2, '2 days before'], [3, '3 days before'], [5, '5 days before'], [7, 'A week before']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === s.remindDays ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select><span class="hint">Applies to the next calendar file you download.</span></label>' +
-      '<div class="stack"><button class="btn ghost" type="button" data-act="ics">📅 Download all due dates</button>' +
+      '<div class="stack"><button class="btn ghost" type="button" data-act="ics">Download all due dates</button>' +
       '<button class="btn danger" type="button" data-act="wipe">Clear every bill on this phone</button></div>' +
-      '<p class="small muted" style="margin-top:12px">Settings stay on this phone. ' + (signedIn() ? 'Clearing this phone leaves your account’s copy alone.' : '') + '</p>', function (root) {
+      '<p class="small muted mt">Settings stay on this phone. ' + (signedIn() ? 'Clearing this phone leaves your account’s copy alone.' : '') + '</p>', function (root) {
       $('#sPct', root).addEventListener('change', function (e) { s.spikePct = Number(e.target.value); keep(K_SET, s); draw(); });
       $('#sRemind', root).addEventListener('change', function (e) { s.remindDays = Number(e.target.value); keep(K_SET, s); draw(); });
     });
@@ -806,7 +882,7 @@
 
   /* ---------------- the account ---------------- */
 
-  var FREE_LINE = 'Duly works without an account. A free account keeps your bills on all your phones and unlocks “Read a statement”, with $2 of AI credit. One account works across every app on this site. Duly never asks for a bank, card or utility login.';
+  var FREE_LINE = 'Duly works without an account. A free account keeps your bills on all your phones and unlocks “Snap a statement”, with $2 of AI credit. One account works across every app on this site. Duly never asks for a bank, card or utility login.';
   function loadMe() {
     return api('GET', 'api/me').then(function (me) { state.me = me; drawTop(); return me; })
       .catch(function () { state.me = { signedIn: false }; drawTop(); return state.me; });
@@ -823,8 +899,8 @@
         '<p class="small muted">This is a password for this site only - never your bank’s.</p>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -846,11 +922,11 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet(head('Account') + '<p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><b>Your bills</b><p class="small muted" style="margin:4px 0 0">' + (syncOn() ? 'Kept in your account, so they follow you to any phone you sign in on. Never an account number, never a password.' : 'Syncing isn’t available right now - your bills are safe on this phone.') + '</p></div>' +
-      '<div class="note"><div class="row" style="justify-content:space-between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">“Read a statement” costs about a cent. Everything else in Duly is free.</p><div id="billing"></div></div>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:14px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>' +
-      '<p class="small muted" style="margin-top:8px">Signing out keeps this phone’s copy of your bills.</p>',
+      '<div class="note"><b>Your bills</b><p class="small muted">' + (syncOn() ? 'Kept in your account, so they follow you to any phone you sign in on. Never an account number, never a password.' : 'Syncing isn’t available right now - your bills are safe on this phone.') + '</p></div>' +
+      '<div class="note"><div class="row between"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted">“Snap a statement” costs about a cent. Everything else in Duly is free.</p><div id="billing"></div></div>' +
+      (pkOk() ? '<button class="btn ghost block mt" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt" id="signOut" type="button">Sign out</button>' +
+      '<p class="small muted mt">Signing out keeps this phone’s copy of your bills.</p>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () {
@@ -911,7 +987,7 @@
       case 'sample':
         state.bills = C.sample(today(), Date.now()).concat(state.bills.filter(function (b) { return !b.sample; }));
         state.tab = 'home'; saveLocal(); draw(); scrollTo(0, 0);
-        toast('🧪 A made-up household to play with. Nothing is saved anywhere.');
+        toast('A made-up household to play with. Nothing is saved anywhere.');
         break;
       case 'clearsample':
         state.bills = state.bills.filter(function (b) { return !b.sample; });
@@ -983,6 +1059,15 @@
       case 'signin': { var r2 = state.read; openAccount(null, function () { state.read = r2; openRead(); }, true); break; }
       default: break;
     }
+  });
+
+  // The reader's "Which bill is this?" - the one control drawn after the
+  // sheet is bound, so it is heard here.
+  document.addEventListener('change', function (e) {
+    if (!e.target || e.target.id !== 'rPick' || !state.read) return;
+    state.read.pick = e.target.value;
+    $('#readOut').innerHTML = proposalHtml();
+    var sel = $('#rPick'); if (sel) sel.focus();
   });
 
   /* ---------------- start ---------------- */

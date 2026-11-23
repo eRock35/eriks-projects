@@ -6,8 +6,8 @@
   <title>Duly — every bill on time</title>
   <meta name="description" content="Every bill on time - without paying them yourself. List your household's bills, see which are on the provider's own AutoPay and how to switch the rest on, get a month calendar, a flag when a bill is higher than usual, and every due date in your own calendar. Duly never pays, never signs in to a bank and never holds an account number. Free, no account needed.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#0f1412" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f7f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Duly">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -36,19 +36,21 @@
 <body class="dk">
   <a class="skip" href="#main">Skip to your bills</a>
   <header class="top">
-    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28"><rect x="3" y="5" width="26" height="24" rx="6" fill="currentColor"/><rect x="3" y="5" width="26" height="7" rx="3" fill="#000" opacity=".18"/><path d="M10 19.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="2" width="3" height="7" rx="1.5" fill="currentColor"/><rect x="20" y="2" width="3" height="7" rx="1.5" fill="currentColor"/></svg></span>Duly</a>
-    <nav class="top-links" aria-label="Account">
-      <button class="btn small top-add" id="topAdd" type="button" data-act="add" hidden>+ Add a bill</button>
-      <button class="btn small ghost" id="acct" type="button">Sign in</button>
-    </nav>
+    <div class="top-in">
+      <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="24" height="24"><rect x="3" y="5" width="26" height="24" rx="6" fill="currentColor"/><rect x="3" y="5" width="26" height="7" rx="3" fill="#000" opacity=".18"/><path d="M10 19.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="2" width="3" height="7" rx="1.5" fill="currentColor"/><rect x="20" y="2" width="3" height="7" rx="1.5" fill="currentColor"/></svg></span>Duly</a>
+      <nav class="top-links" aria-label="Account">
+        <button class="btn small ghost top-add" id="topAdd" type="button" data-act="add" hidden>Add a bill</button>
+        <button class="btn small quiet" id="acct" type="button">Sign in</button>
+      </nav>
+    </div>
   </header>
 
   <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
     <div class="tabbar-inner">
-      <button type="button" data-act="tab" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Home</span></button>
-      <button type="button" data-act="tab" data-tab="month"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Month</span></button>
-      <button type="button" data-act="tab" data-tab="bills"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Bills</span></button>
-      <button type="button" data-act="tab" data-tab="autopay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 12.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>AutoPay</span></button>
+      <button type="button" data-act="tab" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Home</span></button>
+      <button type="button" data-act="tab" data-tab="month"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Month</span></button>
+      <button type="button" data-act="tab" data-tab="bills"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Bills</span></button>
+      <button type="button" data-act="tab" data-tab="autopay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 12.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>AutoPay</span></button>
     </div>
   </nav>
 
