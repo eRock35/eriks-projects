@@ -1322,10 +1322,10 @@
     var conf = function (c) { return '<span class="pill ' + (c === 'high' ? 's-delivered' : c === 'medium' ? 's-unpacked' : 's-loaded') + '">' + esc(c) + ' confidence</span>'; };
     var line = function (t, i, c, typed) {
       var dup = have.some(function (x) { return C.itemKey(x) === C.itemKey(t); });
-      var why = (c ? '<span class="sure c-' + esc(c) + '">' + esc(SURE[c] || SURE.low) + '</span>' : '') +
-        (dup ? '<span>Already listed - left unticked</span>' : c === 'low' ? '<span>Left unticked - tick it if it’s really there</span>' : typed ? '<span>Added by you</span>' : '');
+      var sure = c ? '<span class="sure c-' + esc(c) + '">' + esc(SURE[c] || SURE.low) + '</span>' : '<span></span>';
+      var why = dup ? 'Already listed - left unticked' : c === 'low' ? 'Left unticked - tick it if it’s really there' : typed ? 'Added by you' : '';
       return '<div class="irow"><label class="tick"><input type="checkbox" data-pi="' + i + '"' + (dup || c === 'low' ? '' : ' checked') + ' aria-label="Add ' + esc(t) + '"></label>' +
-        '<input class="input" data-pn="' + i + '" maxlength="' + C.LIMITS.item + '" value="' + esc(t) + '" aria-label="Thing ' + (i + 1) + '">' +
+        '<input class="input" data-pn="' + i + '" maxlength="' + C.LIMITS.item + '" value="' + esc(t) + '" aria-label="Thing ' + (i + 1) + '">' + sure +
         '<button class="rm" type="button" data-prm="' + i + '" aria-label="Remove ' + esc(t) + '">×</button>' +
         (why ? '<span class="why">' + why + '</span>' : '') + '</div>';
     };
