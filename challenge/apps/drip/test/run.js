@@ -928,6 +928,54 @@ test('with DRIP_AI_PROVIDER=gemini: a Gemini failure falls back to the Claude re
   } finally { console.log = orig; delete process.env.DRIP_AI_PROVIDER; delete global.LAB_AI_GUARD; }
 });
 
+test('with DRIP_AI_PROVIDER=claude-first: Claude reads first; a throw, no rows or the Claude cap go to Gemini; a burst refusal does not', async () => {
+  const cleo = await register('cleo.claudefirst@example.com');
+  const seen = [];
+  let verdict = () => ({ ok: true });
+  const rows = { items: [{ merchant: 'Streamio', amount: 17.99, cadence: 'monthly', nextDate: '', lastDate: '', confidence: 0.9 }] };
+  process.env.DRIP_AI_PROVIDER = 'claude-first';
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.push(['allow', a.provider]); return verdict(a.provider); },
+    record: async (a) => { seen.push(['record', a.provider]); return true; },
+    priceUsd: () => 0.001,
+    gemini: { generate: async () => { seen.push(['generate']); return { json: rows, usage: { inputTokens: 900, outputTokens: 100 } }; } },
+  };
+  const logs = [];
+  const orig = console.log;
+  console.log = (...a) => logs.push(a.join(' '));
+  const snap = (s) => cleo('POST', '/api/snap', { photos: [{ type: 'image/png', data: png(s) }] });
+  try {
+    assert.strictEqual((await cleo('GET', '/api/me')).data.snap, 'subscriptions', 'the page offers what Claude reads');
+    // Claude answers: no Gemini call.
+    let r = await snap();
+    assert.deepStrictEqual([r.status, r.data.items.length, 'reader' in r.data, seen], [200, 4, false, [['allow', 'claude'], ['record', 'claude']]]);
+    // Claude throws -> Gemini answers, 200, both recorded.
+    seen.length = 0;
+    r = await snap('UPSTREAM500');
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.items.length, /Gemini|Vertex|fake_upstream/.test(r.text)], [200, 'statement', 1, false], r.text.slice(0, 200));
+    assert.deepStrictEqual(seen, [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]);
+    assert.ok(logs.includes('[drip] claude failed (500); used gemini'), logs.join('|'));
+    // Claude finds nothing usable -> Gemini (the billed Claude call recorded first).
+    seen.length = 0;
+    r = await snap('BLANK');
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'statement', [['allow', 'claude'], ['record', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]]);
+    assert.ok(logs.includes('[drip] claude failed (422); used gemini'));
+    // The Claude month is capped -> Gemini, no Claude call.
+    seen.length = 0;
+    verdict = (p) => (p === 'claude' ? { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } : { ok: true });
+    r = await snap();
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'statement', [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]]);
+    assert.ok(logs.includes('[drip] claude failed (monthly-cap); used gemini'));
+    // A burst refusal is the guard's 429: no Gemini call.
+    seen.length = 0;
+    verdict = () => ({ ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' });
+    const calls = await modelCalls();
+    r = await snap();
+    await settle();
+    assert.deepStrictEqual([r.status, r.data.code, seen, await modelCalls()], [429, 'burst-minute', [['allow', 'claude']], calls]);
+  } finally { console.log = orig; delete process.env.DRIP_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+});
+
 /* ---------------- run ---------------- */
 
 (async () => {

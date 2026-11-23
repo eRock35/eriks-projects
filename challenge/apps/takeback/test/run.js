@@ -779,7 +779,7 @@ test('the provider switch: Claude unless TAKEBACK_AI_PROVIDER=gemini, read per r
     try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', v); } finally { delete process.env.TAKEBACK_AI_PROVIDER; }
   }
   await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
-  assert.match(read('server.js'), /process\.env\.TAKEBACK_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  assert.match(read('server.js'), /v === 'gemini' \|\| v === 'claude-first' \? v : 'claude'/);
   assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
   assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['store', 'purchase_date', 'delivery_date', 'order_number', 'currency', 'items', 'return_policy']);
   assert.deepStrictEqual(gemini.SCHEMA.required, Object.keys(gemini.SCHEMA.properties));
@@ -793,7 +793,7 @@ test('the provider switch: Claude unless TAKEBACK_AI_PROVIDER=gemini, read per r
   assert.strictEqual(gemini.priceUsd({ inputTokens: 1e6, outputTokens: 1e6, at: new Date('2027-01-01T00:00:00Z') }), 9);
   assert.ok(!/fetch\(|https?:\/\//.test(read('lib/gemini.js')), 'the app makes no Vertex call of its own: the guard’s helper does');
   const js = read('public/app.js');
-  assert.match(js, /function transcribes\(\) \{ return Boolean\(state\.me && state\.me\.reader === 'gemini'\); \}/, 'the page offers pasting only when the server says so');
+  assert.match(js, /function transcribes\(\) \{ return Boolean\(state\.me && \(state\.me\.reader === 'gemini' \|\| state\.me\.reader === 'claude-first'\)\); \}/, 'the page offers pasting only when the server says so');
   assert.match(js, /api\('POST', 'api\/ai\/receipt', \{ text: r\.text \}\)/, 'pasted text is sent alone');
   assert.match(js, /add\.disabled = !n \|\| left > 0;/, 'nothing can be added while an unsure field is unchecked');
   assert.match(js, /Worked out by Takeback, not by AI/);
@@ -1025,6 +1025,65 @@ test('Snap a photo on Gemini falls back to the Claude reader: a thrown call, an 
   // Switch off: Claude as always, no reader field added.
   const off = await fb('POST', '/api/ai/receipt', receiptBody());
   assert.deepStrictEqual([off.status, 'reader' in off.data], [200, false]);
+});
+
+async function withMode(mode, guard, fn) {
+  process.env.TAKEBACK_AI_PROVIDER = mode;
+  global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.TAKEBACK_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: a photo is Claude\u2019s, and Gemini answers when Claude throws, is unusable or capped - never on a burst; pasted email is on and Gemini-only', async () => {
+  const cf = await register('cleo.claudefirst');
+  const logs = [];
+  const orig = console.log;
+  const quiet = async (fn) => { console.log = (...a) => logs.push(a.join(' ')); try { return await fn(); } finally { console.log = orig; } };
+  assert.strictEqual((await withMode('claude-first', undefined, () => client()('GET', '/api/me'))).data.reader, 'claude-first');
+  // Claude answers: one Claude call, no Gemini call.
+  let g = fakeGuard();
+  let before = fakeClient.calls.length;
+  let r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', receiptBody()));
+  assert.deepStrictEqual([r.status, r.data.reader, fakeClient.calls.length, g.log.requests.length, g.log.allow.map((a) => a.provider)], [200, 'claude', before + 1, 0, ['claude']]);
+  const viaGemini = async (setup, label) => {
+    const gg = fakeGuard(setup.guard);
+    if (setup.mode) fakeClient.mode = setup.mode;
+    const res = await quiet(() => withMode('claude-first', gg, () => cf('POST', '/api/ai/receipt', receiptBody())));
+    fakeClient.mode = '';
+    await settle();
+    assert.strictEqual(res.status, 200, `${label}: ${res.text}`);
+    assert.deepStrictEqual([res.data.reader, res.data.proposal.reader, gg.log.requests.length], ['gemini', 'transcribe', 1], label);
+    return gg;
+  };
+  // Claude throws (a provider error) -> Gemini, both recorded.
+  g = await viaGemini({ mode: 'upstream500' }, 'thrown');
+  assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+  assert.ok(g.log.record.some((x) => x.provider === 'gemini'));
+  assert.ok(logs.includes('[takeback] claude failed (500); used gemini'), logs.join('|'));
+  // Claude's answer is unusable -> Gemini; the billed Claude call is still recorded.
+  g = await viaGemini({ mode: 'blank' }, 'unusable');
+  assert.deepStrictEqual(g.log.record.map((x) => x.provider), ['claude', 'gemini']);
+  // The Claude month is capped -> Gemini, with no Claude call.
+  before = fakeClient.calls.length;
+  g = await viaGemini({ guard: { denyOnly: 'claude', deny: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } }, 'cap');
+  assert.strictEqual(fakeClient.calls.length, before);
+  assert.ok(logs.includes('[takeback] claude failed (monthly-cap); used gemini'));
+  // A burst refusal is final: the guard's 429, no Gemini call.
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  before = fakeClient.calls.length;
+  r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', receiptBody()));
+  assert.deepStrictEqual([r.status, r.data.code, g.log.order, fakeClient.calls.length], [429, 'burst-minute', ['allow'], before]);
+  // Pasted email is on and goes to Gemini alone; failing there is its friendly error, never Claude.
+  const text = 'Northwind Home\nOrder date: 2026-11-01\nDesk lamp $75.00\nReturns within 30 days of purchase.';
+  g = fakeGuard();
+  before = fakeClient.calls.length;
+  r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', { text }));
+  assert.deepStrictEqual([r.status, r.data.reader, g.log.allow.map((a) => a.provider), fakeClient.calls.length], [200, 'gemini', ['gemini'], before]);
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('x'), { name: 'VertexError', code: 'timeout' }); } });
+  r = await withMode('claude-first', g, () => cf('POST', '/api/ai/receipt', { text }));
+  assert.deepStrictEqual([r.status, fakeClient.calls.length], [503, before]);
+  assert.ok(!/Gemini|Vertex|Claude/.test(r.text));
+  // Unset: pasted text is still a 400 with no call.
+  assert.strictEqual((await cf('POST', '/api/ai/receipt', { text })).status, 400);
 });
 
 /* ---------------- run ---------------- */

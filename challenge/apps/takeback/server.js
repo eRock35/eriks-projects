@@ -43,8 +43,10 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // on Vertex AI (through the lab's AI guard), where it only transcribes and
 // can also take a pasted order email; anything else - unset included - is
 // the provider Takeback has always used, so shipping this code changes
-// nothing until the setting is made. Read per request, never cached.
-const providerNow = () => (process.env.TAKEBACK_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// nothing until the setting is made. `claude-first` reads a photo with Claude
+// and goes to Gemini only when Claude fails, and turns the Gemini-only pasted
+// email on. Read per request, never cached.
+const providerNow = () => { const v = process.env.TAKEBACK_AI_PROVIDER; return v === 'gemini' || v === 'claude-first' ? v : 'claude'; };
 
 const LIMITS = {
   listWrites: 120,                 // list saves per account...
@@ -298,25 +300,48 @@ async function chargeGemini(req, usage) {
   } catch (e) { console.error('usage: gemini charge failed'); }
 }
 
+/** Why a Claude read failed, as a short code for the one log line. A burst
+ *  refusal is null: it never falls back. */
+function claudeFailure(err) {
+  const code = err && err.code;
+  if (code === 'burst-minute' || code === 'burst-day') return null;
+  return String(code || (err && err.status) || 'error').slice(0, 20);
+}
+
 app.post('/api/ai/receipt', ...spend, aiJson, route(READ_FALLBACK, async (req, res) => {
-  const viaGemini = providerNow() === 'gemini';
-  const b = viaGemini ? ai.briefAny(req.body) : ai.brief(req.body);
+  const mode = providerNow();
+  const viaGemini = mode === 'gemini';
+  const transcribes = mode !== 'claude';
+  const b = transcribes ? ai.briefAny(req.body) : ai.brief(req.body);
   const today = serverDay();
-  let reader = viaGemini ? 'gemini' : 'claude';
+  // claude-first: a photo is Claude's first; pasted text has only Gemini.
+  const geminiFirst = viaGemini || (mode === 'claude-first' && !b.image);
+  let reader = geminiFirst ? 'gemini' : 'claude';
   let out;
   try {
-    out = viaGemini ? await readWithGemini(req, b, today) : await readWithClaude(req, b, today);
+    out = geminiFirst ? await readWithGemini(req, b, today) : await readWithClaude(req, b, today);
   } catch (err) {
-    // A photo Gemini could not read goes to the Claude reader, unchanged (its
-    // own guard, meter and record). Pasted text has no Claude reader, and a
-    // burst refusal never falls back.
-    if (!viaGemini || !b.image || !err || !err.fallback) throw err;
-    console.log(`[takeback] gemini failed (${err.fallback}); used claude`);
-    out = await readWithClaude(req, b, today);
-    reader = 'claude';
+    if (mode === 'claude-first') {
+      // A photo Claude could not read (a thrown call, an unusable answer, the
+      // Claude cap, no key) goes to the Gemini reader, unchanged. A burst
+      // refusal is final, and pasted text was Gemini's already.
+      const why = !geminiFirst && claudeFailure(err);
+      if (!why) throw err;
+      console.log(`[takeback] claude failed (${why}); used gemini`);
+      out = await readWithGemini(req, b, today);
+      reader = 'gemini';
+    } else {
+      // A photo Gemini could not read goes to the Claude reader, unchanged (its
+      // own guard, meter and record). Pasted text has no Claude reader, and a
+      // burst refusal never falls back.
+      if (!viaGemini || !b.image || !err || !err.fallback) throw err;
+      console.log(`[takeback] gemini failed (${err.fallback}); used claude`);
+      out = await readWithClaude(req, b, today);
+      reader = 'claude';
+    }
   }
   res.set('Cache-Control', 'no-store');
-  res.json(reader === 'gemini' ? { proposal: out.proposal, stripped: b.stripped || 0, reader } : { ...out, ...(viaGemini ? { reader } : {}) });
+  res.json(reader === 'gemini' ? { proposal: out.proposal, stripped: b.stripped || 0, reader } : { ...out, ...(transcribes ? { reader } : {}) });
 }));
 
 /* ------------------------------------------------------------------ *

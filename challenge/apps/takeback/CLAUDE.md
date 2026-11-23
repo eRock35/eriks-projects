@@ -294,6 +294,11 @@ not set the switch without Erik's yes** (it also needs Vertex AI enabled and
   `[takeback] gemini failed (<code>); used claude`. A billed Gemini failure
   is still recorded and charged. **Pasted text is Gemini-only** (Claude reads
   one image) and burst refusals never fall back: both answer as before.
+- **Claude first (2026-11-23).** `TAKEBACK_AI_PROVIDER=claude-first`: a
+  photo goes to the Claude reader first; if it throws, is unusable, hits the
+  Claude cap or has no key, the Gemini reader answers (`reader: 'gemini'`, log
+  `[takeback] claude failed (<code>); used gemini`). Burst refusals are final.
+  Pasted email is ON and Gemini-only; `/api/me` says `reader: 'claude-first'`.
 - **Stand-in**: `lib/fakeai.js` `gemini(body)` (an image is a fixed made-up
   receipt with an unsure date and item; text is read the dumb way; triggers
   `BLANK`, `INJECT`, `CARDNUM`, `MADEUPQUOTE`, `UPSTREAMnnn`). Local:
@@ -340,7 +345,7 @@ force a tool, keeps every request (`fakeClient.calls`), and takes
 the tests and the fake are built at run time, so no file carries one
 (tested).
 
-`test/run.js` (33 tests; the last five hold the Gemini reader: the switch
+`test/run.js` (35 tests; the last seven hold the Gemini reader, its fallback and claude-first: the switch
 and its default, the schema with no deadline field, `windowFromQuote`,
 `cleanReading`, the scrub and caps, and over HTTP with a fake guard the gate
 order, allow -> generate -> record, the ledger charge, refusals and provider
