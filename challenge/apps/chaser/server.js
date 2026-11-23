@@ -85,6 +85,33 @@ const spend = [identity.requireUser, identity.requireBudget, identity.requireDai
 const user = identity.requireUser;
 
 /* ------------------------------------------------------------------ *
+ * The lab's AI guard (challenge/CLAUDE.md, "Lab AI guard")
+ * ------------------------------------------------------------------ */
+
+// Inside the lab the host sets global.LAB_AI_GUARD: a monthly cap per
+// provider and burst limits per person, on top of the identity gates. On
+// its own (tests, `npm run dev`) there is no guard and the gates stand
+// alone. `aiAllowed` answers the request itself when the guard says no, with
+// the guard's own sentence and where the free path is; `aiRecord` tells it
+// what a call that came back cost, whether or not its answer was usable.
+const PROVIDER = 'claude';
+async function aiAllowed(req, res, freePath) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return true;
+  const g = await guard.allow({ provider: PROVIDER, req, app: 'chaser' });
+  if (g && g.ok) return true;
+  res.status((g && g.status) || 429).json({ error: `${(g && g.message) || 'The AI is resting for now.'} ${freePath}`, code: (g && g.code) || 'ai-guard' });
+  return false;
+}
+async function aiRecord(model, used) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !used) return;
+  try {
+    await guard.record({ provider: PROVIDER, app: 'chaser', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) });
+  } catch (e) { console.error('ai guard: record failed'); }
+}
+
+/* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
 
@@ -558,16 +585,19 @@ app.post('/api/invoices', user, async (req, res) => {
  * spent, read once, and dropped with the request.
  */
 app.post('/api/invoices/read', ...spend, bigJson, async (req, res) => {
+  const model = modelFor(req);
+  let used = null;
   try {
     const image = photo.validate((req.body || {}).image);
+    if (!(await aiAllowed(req, res, 'You can still type the invoice in.'))) return;
     const settings = await loadSettings(req.user.id);
     const client = await clientFor(req);
-    const proposal = await ai.readInvoice(client, modelFor(req), image, { currency: settings.currency });
+    const proposal = await ai.readInvoice(client, model, image, { currency: settings.currency }, (u) => { used = u; });
     if (!proposal) throw httpError(422, 'That doesn’t look like an invoice we can read. Try a flatter, closer photo - or type it in.');
     const clients = await store.list(clientsOf(req.user.id), { limit: B.LIMITS.clients + 1 });
     const match = proposal.client.name && clients.find((c) => c.name.toLowerCase() === proposal.client.name.toLowerCase());
     res.json({ ...proposal, matchedClientId: match ? match.id : null });
-  } catch (err) { fail(res, err, 'Could not read that photo. Try again, or type it in.'); }
+  } catch (err) { fail(res, err, 'Could not read that photo. Try again, or type it in.'); } finally { await aiRecord(model, used); }
 });
 
 app.get('/api/invoices/:id', user, async (req, res) => {
@@ -740,13 +770,31 @@ const draftOut = (text, f, to, source) => ({
   fee: f.fee,
 });
 
+/**
+ * "Write it in my voice": two or three wordings of ONE rung. The rung is the
+ * ladder's (or the person's pick in the sheet), the facts are filled in here
+ * from the invoice record, and the model writes wording only (lib/ai.js).
+ * The optional sample of the person's own writing rides in the request and
+ * is dropped with it - never stored, never logged. Order: sign-in, budget,
+ * daily cap (`spend`), the invoice's own checks, the lab's AI guard, the
+ * call, then the guard is told what it cost. The answer keeps its old shape
+ * (subject, body, sms = the first option) and adds `options`.
+ */
 app.post('/api/invoices/:id/draft', ...spend, async (req, res) => {
+  const model = modelFor(req);
+  let used = null;
   try {
     const { f, to } = await draftContext(req);
+    const voice = ai.cleanVoice((req.body || {}).voice);
+    if (!(await aiAllowed(req, res, 'The free template still works.'))) return;
     const client = await clientFor(req);
-    const text = await ai.chase(client, modelFor(req), f);
-    res.json(draftOut(text, f, to, 'ai'));
-  } catch (err) { fail(res, err, 'Could not write that chase. Try again, or use the template.'); }
+    const raw = await ai.chase(client, model, f, voice, (u) => { used = u; });
+    const options = ai.cleanOptions(raw, f);
+    if (!options.length) throw httpError(422, 'Nothing usable came back. Try again, or use the template.');
+    const { subject, body, sms } = options[0];
+    res.set('Cache-Control', 'no-store');
+    res.json({ ...draftOut({ subject, body, sms }, f, to, 'ai'), options, voiced: Boolean(voice) });
+  } catch (err) { fail(res, err, 'Could not write that chase. Try again, or use the template.'); } finally { await aiRecord(model, used); }
 });
 
 /** Free, always: the no-model draft from the same facts and voice. */

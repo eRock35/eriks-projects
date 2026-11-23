@@ -455,8 +455,10 @@ test('a provider failure is a plain sentence: 502, or 503 when it is overloaded 
   const quiet = console.error; console.error = () => {};
   let a, b;
   try {
-    a = await alice('POST', `/api/invoices/${inv.data.id}/draft`, {});
-    b = await alice('POST', `/api/invoices/${inv2.data.id}/draft`, {});
+    // The model is no longer sent the client's name (2026-11-23), so the stand-in's
+    // trigger rides in the one free-text field it does see: the voice sample.
+    a = await alice('POST', `/api/invoices/${inv.data.id}/draft`, { voice: 'UPSTREAM401' });
+    b = await alice('POST', `/api/invoices/${inv2.data.id}/draft`, { voice: 'UPSTREAM529' });
   } finally { console.error = quiet; }
   assert.deepStrictEqual([a.status, b.status], [502, 503], 'an upstream 401 is not "sign in"');
   assert.strictEqual(a.data.error, 'Could not write that chase. Try again, or use the template.');
@@ -470,8 +472,10 @@ test('a chase draft: metered, forced tool, markup stripped, fee only when ticked
   const inv = await alice('POST', '/api/invoices', { clientId: c.data.id, amount: 2000, issued: day(-50), due: day(-20) });
   const before = await spentBy('alice@example.com');
   const calls = await modelCalls();
-  const r = await alice('POST', `/api/invoices/${inv.data.id}/draft`, { kind: 'followup' });
+  const r = await alice('POST', `/api/invoices/${inv.data.id}/draft`, { kind: 'followup', voice: 'INJECT' });
   assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.deepStrictEqual(r.data.options.map((o) => o.angle), ['plain', 'brief'], 'the option that came back with markup in its body is dropped whole');
+  assert.ok(!/[<>]|script|onerror/.test(JSON.stringify(r.data)), 'and a subject that carried markup fell back to the template’s');
   assert.strictEqual(r.data.source, 'ai');
   assert.strictEqual(r.data.kind, 'followup');
   assert.ok(!/[<>]/.test(r.data.subject + r.data.body + r.data.sms), 'model markup is stripped');
@@ -662,6 +666,231 @@ test('wins: the streak, the collected total and the badges add up', async () => 
   const got = w.data.badges.filter((b) => b.earnedAt).map((b) => b.key);
   assert.ok(got.includes('first_chase') && got.includes('first_paid'));
   assert.ok(!got.includes('five_paid'));
+});
+
+/* ---------------- the chase in your voice (2026-11-23) ---------------- */
+
+const ai = require('../lib/ai');
+const factsOf = (over = {}, opts = {}) => {
+  const settings = { ...B.SETTINGS_DEFAULTS, businessName: 'Studio', yourName: 'Ana', signOff: 'Cheers,', paymentLink: 'https://pay.example/x', lateFee: { mode: 'flat', flatCents: 2500, graceDays: 7 }, ...(opts.settings || {}) };
+  const d = B.derive(mk('INV-77', 'c1', 1200, B.addDays(T, -45), over), T);
+  return L.factsFor(d, { name: 'Harbor & Pine', contactName: 'Dana Lee' }, settings, T, { kind: opts.kind, includeFee: opts.fee });
+};
+
+test('voice: the model is sent the step and the slots - never a name, an amount, a date or the link', () => {
+  const f = factsOf({ promises: [{ date: B.addDays(T, -5), note: 'on the phone' }] });
+  const p = ai.chasePrompt(f, 'hey - quick one from me');
+  for (const secret of ['Harbor', 'Dana', '1,200', '$', 'pay.example', 'INV-77', f.due, 'Ana', 'Studio', 'on the phone']) assert.ok(!p.includes(secret), `the prompt carries ${secret}`);
+  assert.ok(/^STEP: Friendly nudge$/m.test(p), 'the step is the ladder’s, stated as a fact');
+  assert.ok(p.includes('{balance}') && p.includes('{payment_link}') && p.includes('{promise_date}'));
+  assert.ok(!p.includes('{late_fee} -'), 'no fee slot unless the person ticked it');
+  assert.ok(p.includes('<<<VOICE\nhey - quick one from me\nVOICE>>>'));
+  assert.strictEqual(ai.CHASE_TOOL.input_schema.properties.options.maxItems, 3);
+  assert.strictEqual(ai.CHASE_TOOL.input_schema.properties.options.minItems, 2);
+  assert.ok(!ai.chasePrompt(factsOf(), '').includes('VOICE'));
+});
+
+test('voice: wording that adds a number, date, deadline, fee, interest, threat, link or abuse is refused', () => {
+  const nudge = factsOf();
+  const firm = factsOf({}, { kind: 'firm' });
+  const withFee = factsOf({}, { fee: true });
+  const ok = 'Hi {first_name}, invoice {invoice_number} for {balance} was due on {due_date} and is {days_overdue} overdue.';
+  assert.strictEqual(ai.refuse(ok, nudge), null);
+  const bad = {
+    'Please pay the 1200 owed.': 'number',
+    'That is twelve hundred dollars.': 'number',
+    'It comes to $ {balance} plus more.': 'number',
+    'Please pay by Friday.': 'date',
+    'It was due back in September.': 'date',
+    'Please pay within 3 days.': 'deadline',
+    'Please pay within seven days.': 'deadline',
+    'Please settle this by the end of the week.': 'deadline',
+    'I need this paid today.': 'deadline',
+    'You have two weeks.': 'deadline',
+    'A late fee will be added.': 'fee',
+    'Interest accrues from now.': 'interest',
+    'We charge 5% a month.': 'number',
+    'Otherwise we will take legal action.': 'threat',
+    'This will go to a collections agency.': 'threat',
+    'It will affect your credit rating.': 'threat',
+    'I am fed up with chasing you.': 'abuse',
+    'Pay up or else.': 'abuse',
+    'Pay at https://evil.example/pay': 'address',
+    'Send it to billing@evil.example': 'address',
+    'Pay here: [link]': 'address',
+    'Our account is {bank_account}.': 'slot',
+    'A fee of {late_fee} applies.': 'slot',
+  };
+  for (const [text, why] of Object.entries(bad)) assert.strictEqual(ai.refuse(text, nudge), why, text);
+  // The ladder's own deadline is the app's to give - on a firm reminder or a final notice only.
+  for (const t of ['Please pay within 7 days.', 'Please pay within seven days.', 'Payment is needed in the next 7 days.', 'Please settle it within a week.']) {
+    assert.strictEqual(ai.refuse(t, firm), null, t);
+    assert.strictEqual(ai.refuse(t, factsOf({}, { kind: 'final' })), null, t);
+    assert.ok(ai.refuse(t, nudge), `a nudge has no deadline: ${t}`);
+    assert.ok(ai.refuse(t, factsOf({}, { kind: 'plan' })), `nor a plan offer: ${t}`);
+  }
+  assert.strictEqual(ai.refuse('Please pay within 14 days.', firm), 'deadline');
+  assert.strictEqual(ai.refuse('Please pay within 7 days or 10 at most.', firm), 'number');
+  // A ticked fee has slots; wording about it is then allowed, a made-up rate still is not.
+  assert.strictEqual(ai.refuse('A late fee of {late_fee} now applies ({fee_rule}), making {total_with_fee}.', withFee), null);
+  assert.strictEqual(ai.refuse('A late fee of {late_fee} applies, plus interest.', withFee), 'interest');
+});
+
+test('voice: options are filled from the record, signed by the server, and dropped whole when they fail', () => {
+  const f = factsOf({ payments: [{ id: 'p', cents: 20000, date: B.addDays(T, -3) }] });
+  const good = { angle: 'plain', subject: 'Invoice {invoice_number}', body: 'Hi {first_name},\n\nInvoice {invoice_number} has {balance} outstanding, {days_overdue} past {due_date}. Thanks for the {paid_so_far}.\n\n{payment_link}', sms: 'Hi {first_name}, {balance} on {invoice_number} is open.' };
+  const out = ai.cleanOptions({ options: [
+    good,
+    { ...good, angle: 'warm', body: good.body.replace('Thanks', 'Please pay by Friday. Thanks') },
+    { ...good, angle: 'brief', body: 'Hi {first_name}, {balance} is open.\n\n{payment_link}' },          // no invoice number
+    { ...good, angle: 'brief', body: good.body.replace('\n\n{payment_link}', '') },                        // no link though one is set
+    { ...good, angle: 'brief', body: `${good.body}\n\nLast thing, a short one.`, subject: 'Pay by Friday', sms: 'x'.repeat(30) },
+    good,                                                                                                 // a repeat
+  ] }, f);
+  assert.strictEqual(out.length, 2);
+  const [a, b] = out;
+  assert.strictEqual(a.angle, 'plain');
+  assert.strictEqual(a.label, 'Straight');
+  assert.strictEqual(a.subject, 'Invoice INV-77');
+  assert.ok(a.body.startsWith('Hi Dana,'));
+  assert.ok(a.body.includes('INV-77 has $1,000 outstanding, 45 days past') && a.body.includes('Thanks for the $200.') && a.body.includes('https://pay.example/x'));
+  assert.ok(a.body.endsWith('Cheers,\nAna\nStudio'), 'the saved sign-off, appended by the server');
+  assert.ok(!/[{}]/.test(a.subject + a.body + a.sms), 'no slot is left unfilled');
+  assert.strictEqual(b.angle, 'brief');
+  assert.strictEqual(b.subject, L.template(f).subject, 'a bad subject falls back to the template’s');
+  assert.strictEqual(b.sms, L.template(f).sms, 'and a bad text message to the template’s');
+  assert.deepStrictEqual(ai.cleanOptions({ options: 'nope' }, f), []);
+  assert.deepStrictEqual(ai.cleanOptions(null, f), []);
+  // A long link makes the filled text too long for one message: the template's text stands in.
+  const long = factsOf({}, { settings: { paymentLink: `https://pay.example/${'a'.repeat(280)}` } });
+  const o = ai.cleanOptions({ options: [{ ...good, body: good.body.replace(' Thanks for the {paid_so_far}.', ''), sms: 'Hi {first_name}, {balance} on {invoice_number}: {payment_link} - thank you so much for sorting this out.' }] }, long);
+  assert.strictEqual(o.length, 1);
+  assert.strictEqual(o[0].sms, L.template(long).sms);
+});
+
+test('voice over HTTP: two or three options for the ladder’s own step, the sample never stored', async () => {
+  const sample = 'Hiya - just me again with the boring money bit. Shout if anything looks off! ZEBRASAMPLE';
+  const r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { voice: sample });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+  assert.strictEqual(r.data.options.length, 3);
+  assert.deepStrictEqual(r.data.options.map((o) => o.label), ['Warmer', 'Straight', 'Shortest']);
+  assert.strictEqual(r.data.voiced, true);
+  const inv = (await alice('GET', `/api/invoices/${ids.bigInv}`)).data;
+  assert.strictEqual(r.data.kind, inv.nextKind, 'the step comes from the ladder, not the model');
+  for (const o of r.data.options) {
+    assert.ok(o.body.includes(inv.number) && o.body.includes(B.fmtMoney(inv.balanceCents, inv.currency)), 'the invoice and the balance are the record’s');
+    assert.ok(o.body.includes('https://pay.example/alpine'));
+    assert.ok(!/[{}<>]/.test(o.subject + o.body + o.sms));
+    assert.ok(o.sms.length <= 320);
+  }
+  assert.deepStrictEqual([r.data.subject, r.data.body, r.data.sms], [r.data.options[0].subject, r.data.options[0].body, r.data.options[0].sms], 'the old shape is the first option');
+  assert.ok(!JSON.stringify(store._dump ? store._dump() : await Promise.all(['settings', `invoices/${uidOf('alice@example.com')}/items`, `clients/${uidOf('alice@example.com')}/items`].map((c) => store.list(c)))).includes('ZEBRASAMPLE'), 'the sample is not in the app’s store');
+  assert.ok(!JSON.stringify([await identityStore.list('users'), await identityStore.list('usage')]).includes('ZEBRASAMPLE'), 'nor in the account’s');
+  assert.strictEqual((await alice('GET', `/api/invoices/${ids.bigInv}`)).data.stage, inv.stage, 'drafting never climbs the ladder');
+  assert.strictEqual((await alice('POST', `/api/invoices/${ids.bigInv}/draft`, {})).data.voiced, false);
+});
+
+test('voice over HTTP: a broken option is dropped; all broken is a 422 that was still metered; a huge sample is a 400 before the model', async () => {
+  let r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { voice: 'BADDEADLINE BADFEE' });
+  assert.deepStrictEqual(r.data.options.map((o) => o.angle), ['brief'], 'the made-up day and the made-up fee went');
+  assert.ok(!/Friday|5%/.test(JSON.stringify(r.data)));
+  r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { voice: 'BADTHREAT BADSLOT' });
+  assert.deepStrictEqual(r.data.options.map((o) => o.angle), ['warm']);
+  assert.ok(!/legal action|bank_account/.test(JSON.stringify(r.data)));
+  const before = await spentBy('alice@example.com');
+  let calls = await modelCalls();
+  r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { voice: 'ALLBAD' });
+  assert.strictEqual(r.status, 422);
+  assert.strictEqual(r.data.error, 'Nothing usable came back. Try again, or use the template.');
+  assert.ok(await spentBy('alice@example.com') > before, 'a call that came back is paid for');
+  calls = await modelCalls();
+  r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { voice: 'x'.repeat(ai.VOICE_MAX * 3 + 1) });
+  assert.strictEqual(r.status, 400);
+  assert.strictEqual(await modelCalls(), calls, 'no model call for a sample that is too long');
+  // The firm rung's own "within 7 days" survives the check end to end.
+  r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { kind: 'firm' });
+  assert.ok(r.data.options.length === 3 && r.data.options.every((o) => /within 7 days/.test(o.body)));
+});
+
+test('the lab AI guard: asked after the gates and before the model, told the cost after; off when the lab is not there', async () => {
+  const seen = { allow: [], record: [], price: [] };
+  let answer = { ok: true };
+  global.LAB_AI_GUARD = {
+    allow: async (a) => { seen.allow.push({ provider: a.provider, app: a.app, uid: a.req.user && a.req.user.id }); return answer; },
+    priceUsd: (a) => { seen.price.push(a); return 0.0123; },
+    record: async (a) => { seen.record.push(a); return true; },
+  };
+  try {
+    let calls = await modelCalls();
+    let r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, {});
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(seen.allow, [{ provider: 'claude', app: 'chaser', uid: uidOf('alice@example.com') }]);
+    assert.deepStrictEqual(seen.record, [{ provider: 'claude', app: 'chaser', usd: 0.0123 }]);
+    assert.strictEqual(seen.price[0].provider, 'claude');
+    assert.ok(/^claude-/.test(seen.price[0].model) && seen.price[0].inputTokens > 0 && seen.price[0].outputTokens > 0);
+    assert.strictEqual(await modelCalls(), calls + 1);
+    // A read goes through it too.
+    r = await alice('POST', '/api/invoices/read', { image: { type: 'image/jpeg', data: JPEG } });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(seen.allow.length, 2);
+    assert.strictEqual(seen.record.length, 2);
+    // An unusable answer was still billed, so it is still recorded.
+    r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, { voice: 'ALLBAD' });
+    assert.strictEqual(r.status, 422);
+    assert.strictEqual(seen.record.length, 3);
+    // The guard says no: its sentence, the free path, and no model call.
+    answer = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+    calls = await modelCalls();
+    r = await alice('POST', `/api/invoices/${ids.bigInv}/draft`, {});
+    assert.strictEqual(r.status, 503);
+    assert.deepStrictEqual(r.data, { error: 'AI answers are resting until next month; everything else still works. The free template still works.', code: 'monthly-cap' });
+    r = await alice('POST', '/api/invoices/read', { image: { type: 'image/jpeg', data: JPEG } });
+    assert.strictEqual(r.status, 503);
+    assert.strictEqual(r.data.code, 'monthly-cap');
+    assert.strictEqual(await modelCalls(), calls);
+    assert.strictEqual(seen.record.length, 3, 'nothing to record for a call that was not made');
+    assert.strictEqual((await alice('POST', `/api/invoices/${ids.bigInv}/template`, {})).status, 200, 'the template never asks the guard');
+    // The identity gates and the route's own checks come first: none of these reach the guard.
+    const n = seen.allow.length;
+    assert.strictEqual((await client()('POST', `/api/invoices/${ids.bigInv}/draft`, {})).status, 401);
+    const bobWas = await spentBy('bob@example.com');
+    await identityStore.merge('users', uidOf('bob@example.com'), { spentUsd: 100 });
+    assert.strictEqual((await bob('POST', '/api/invoices/nope/draft', {})).status, 402);
+    await identityStore.merge('users', uidOf('bob@example.com'), { spentUsd: bobWas });
+    assert.strictEqual((await alice('POST', '/api/invoices/nope/draft', {})).status, 404);
+    assert.strictEqual((await alice('POST', '/api/invoices/read', { image: { type: 'image/gif', data: JPEG } })).status, 400);
+    assert.strictEqual(seen.allow.length, n);
+  } finally { delete global.LAB_AI_GUARD; }
+  assert.strictEqual((await alice('POST', `/api/invoices/${ids.bigInv}/draft`, {})).status, 200, 'with no guard the gates stand alone');
+});
+
+test('the Claude path is unchanged: models by plan, one forced tool, no provider switch', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server.js'), 'utf8');
+  assert.ok(/identityLib\.planFor\(req\.user, MODELS\)\.model/.test(src));
+  assert.ok(/MODELS = \{ free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' \}/.test(src));
+  assert.ok(!/CHASER_AI_PROVIDER|vertex|gemini/i.test(src + require('fs').readFileSync(require('path').join(__dirname, '..', 'lib', 'ai.js'), 'utf8')), 'no second provider was wired');
+  assert.ok(/app\.post\('\/api\/invoices\/:id\/draft', \.\.\.spend, async/.test(src), 'sign-in, budget and the daily cap stand in front of the draft');
+  assert.ok(/app\.post\('\/api\/invoices\/read', \.\.\.spend, bigJson, async/.test(src), 'and in front of the snap route’s parser');
+});
+
+test('the page: no inline style or script, system type, motion only where it is welcome, the voice sample kept on the device', () => {
+  const fs = require('fs'); const path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+  const html = read('index.html'); const js = read('app.js'); const css = read('app.css');
+  assert.ok(!/\sstyle=|<style|\son[a-z]+=/i.test(html), 'index.html carries no style attribute, style block or inline handler');
+  assert.ok(!/<script(?![^>]*\ssrc=)/i.test(html), 'and no inline script');
+  assert.ok(!/style="|\.style\.|\.cssText|setAttribute\('style'/.test(js), 'the script writes no style attribute');
+  assert.ok(!/desktop\.css/.test(html), 'the rail stylesheet is no longer loaded');
+  assert.ok(/<script src="verify-banner\.js" data-mount="api\/auth" defer>/.test(html));
+  assert.ok(!/@font-face|@import|url\(/.test(css), 'system fonts only, nothing fetched');
+  const calm = css.slice(0, css.indexOf('@media (prefers-reduced-motion: no-preference)'));
+  assert.ok(css.includes('@media (prefers-reduced-motion: no-preference)') && !/\b(?:animation|transition)\s*:/.test(calm), 'every animation and transition sits inside no-preference');
+  assert.ok(/--bg: #ffffff;/.test(css) && /--bg: #000000;/.test(css), 'a white page, true black in the dark');
+  assert.ok(!/gradient\(/.test(css), 'no gradients');
+  for (const nav of ['today', 'invoices', 'add', 'clients', 'wins']) assert.strictEqual((html.match(new RegExp(`data-nav="${nav}"`, 'g')) || []).length, 2, `${nav} is in the bar and the top nav`);
+  assert.ok(/localStorage\.setItem\(VOICE_KEY/.test(js) && /body\.voice = voiceSample\(\)/.test(js), 'the sample lives in this browser and rides in the draft request');
+  assert.ok(!/voice/.test(JSON.stringify(Object.keys(B.SETTINGS_DEFAULTS))) || !('voiceSample' in B.SETTINGS_DEFAULTS), 'settings gained no sample field');
 });
 
 /* ---------------- run ---------------- */
