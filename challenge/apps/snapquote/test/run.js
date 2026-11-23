@@ -538,7 +538,7 @@ const usageRows = async (route) => (await identityStore.list('usage')).filter((x
 
 test('the provider switch defaults to Claude: unset, the read is off, nothing calls Gemini and the draft is unchanged', async () => {
   assert.strictEqual(process.env.SNAPQUOTE_AI_PROVIDER, undefined);
-  assert.match(read('server.js'), /process\.env\.SNAPQUOTE_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  assert.match(read('server.js'), /v === 'gemini' \|\| v === 'claude-first' \? v : 'claude'/);
   const me = await alice('GET', '/api/me');
   assert.deepStrictEqual([me.data.ai, me.data.voice], ['claude', false]);
   assert.deepStrictEqual((await client()('GET', '/api/me')).data, { signedIn: false, ai: 'claude', voice: false });
@@ -761,6 +761,31 @@ test('read failures are plain sentences: not a job is a 422, a provider error a 
     // with no guard and no stand-in helper the app still answers through the local stand-in
     await withGemini(null, async () => assert.strictEqual((await alice('POST', '/api/quotes/read', { note: 'Repaint the living room' })).status, 200));
   } finally { console.error = quiet; }
+});
+
+test('claude-first turns Read the job on, Gemini-only with its friendly errors; Claude\u2019s draft and polish stay Claude', async () => {
+  const quiet = console.error; console.error = () => {};
+  process.env.SNAPQUOTE_AI_PROVIDER = 'claude-first';
+  try {
+    assert.deepStrictEqual((await client()('GET', '/api/me')).data, { signedIn: false, ai: 'claude-first', voice: true });
+    let g = fakeGuard();
+    global.LAB_AI_GUARD = g;
+    const r = await alice('POST', '/api/quotes/read', { note: 'Repaint the living room, walls only', audio: { type: 'audio/webm', data: webm() } });
+    assert.strictEqual(r.status, 200, r.text);
+    assert.ok(r.data.lines.length > 0 && r.data.hadVoice);
+    assert.deepStrictEqual([g.log.order, g.log.allow[0].provider, g.log.record[0].provider], [['allow', 'generate', 'record'], 'gemini', 'gemini']);
+    // A Gemini failure keeps the read's friendly sentence; no Claude call.
+    g = fakeGuard();
+    global.LAB_AI_GUARD = g;
+    const up = await alice('POST', '/api/quotes/read', { note: 'Repaint UPSTREAM500' });
+    assert.deepStrictEqual([up.status, up.data.error, g.log.allow.map((x) => x.provider)], [502, 'Could not read that job. Try again.', ['gemini']]);
+    // Claude's draft is unchanged: Claude through the guard, no Gemini.
+    g = fakeGuard();
+    global.LAB_AI_GUARD = g;
+    const d = await alice('POST', '/api/quotes/draft', { description: 'Paint a bedroom, two coats', trade: 'painter' });
+    assert.deepStrictEqual([d.status, g.log.order, g.log.allow[0].provider], [200, ['allow', 'record'], 'claude']);
+    await alice('DELETE', `/api/quotes/${d.data.id}`);
+  } finally { console.error = quiet; delete process.env.SNAPQUOTE_AI_PROVIDER; delete global.LAB_AI_GUARD; }
 });
 
 test('Claude calls go through the lab guard too: allow, the call, then record at the Claude price', async () => {

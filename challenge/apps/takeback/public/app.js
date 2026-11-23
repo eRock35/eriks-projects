@@ -149,7 +149,7 @@
   function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'purchase'; }
   function signedIn() { return Boolean(state.me && state.me.signedIn); }
   /** Which reader the server runs: the transcribing one also takes pasted text. */
-  function transcribes() { return Boolean(state.me && state.me.reader === 'gemini'); }
+  function transcribes() { return Boolean(state.me && (state.me.reader === 'gemini' || state.me.reader === 'claude-first')); }
   function pkOk() { return Boolean(window.Passkey && Passkey.supported() && !/\.run\.app$/.test(location.hostname)); }
   function initial(s) { var a = Array.from(String(s || '').replace(/[^\p{L}\p{N}]/gu, '')); return (a[0] || '?').toUpperCase(); }
 

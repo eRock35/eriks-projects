@@ -229,6 +229,10 @@ so it is a Cloud Run setting and nothing else; `/api/me` reports `ai` and
   "Snap my quote" is a different request (no audio, prices, saves a quote), so
   a Gemini failure keeps the read's friendly 502/503/422 and the guard's
   message, and the person can still draft or build by hand. Tested.
+- **Claude first (2026-11-23).** `SNAPQUOTE_AI_PROVIDER=claude-first` turns
+  Read the job on exactly as `gemini` does (Gemini-only, same friendly
+  errors; `/api/me` says `ai: 'claude-first', voice: true`). Draft, polish and
+  follow-up stay Claude, unchanged.
 - **Claude's three calls now ask the guard too** (`withClaude`: `allow`
   `claude`, the call, `record` at the Claude price unless the member's own
   key paid). With no guard loaded (the app on its own) nothing changes.

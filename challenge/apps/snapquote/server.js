@@ -32,8 +32,11 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // beside it: photos and a voice note become line items on Gemini (Vertex AI,
 // through the lab's AI guard), priced from the pro's own rate card. Read per
 // request, so the switch is a Cloud Run setting and nothing else. Polish and
-// follow-up stay on Claude either way.
-const providerNow = () => (process.env.SNAPQUOTE_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// follow-up stay on Claude either way. `claude-first` switches Read the job
+// on exactly as `gemini` does (it has no Claude path); everything else stays
+// Claude.
+const providerNow = () => { const v = process.env.SNAPQUOTE_AI_PROVIDER; return v === 'gemini' || v === 'claude-first' ? v : 'claude'; };
+const readsJobs = () => providerNow() !== 'claude';
 
 const MAX_QUOTES_LISTED = 500;
 const MAX_TEMPLATES = 50;
@@ -350,7 +353,7 @@ app.get('/api/me', async (req, res) => {
   try {
     // `ai` says which reader is switched on; `voice` that the page may offer
     // the voice note and the line-item review (Gemini only).
-    const flags = { ai: providerNow(), voice: providerNow() === 'gemini' };
+    const flags = { ai: providerNow(), voice: readsJobs() };
     if (!req.user) return res.json({ signedIn: false, ...flags });
     const p = await loadProfile(req.user);
     res.json({
@@ -446,7 +449,7 @@ app.post(DRAFT_ROUTE, ...spend, bigJson, async (req, res) => {
  */
 const READ_OFF = 'Reading a job from a voice note isn’t switched on yet. “Snap my quote” and building one by hand both work.';
 const READ_LEAD = 'Quantities were estimated from photos and a voice note; final measurements are confirmed on site.';
-const readOn = (req, res, next) => (providerNow() === 'gemini' ? next() : res.status(404).json({ error: READ_OFF, code: 'ai-off' }));
+const readOn = (req, res, next) => (readsJobs() ? next() : res.status(404).json({ error: READ_OFF, code: 'ai-off' }));
 
 app.post(READ_ROUTE, identity.requireUser, readOn, identity.requireBudget, identity.requireDailyCap, readJson, async (req, res) => {
   try {

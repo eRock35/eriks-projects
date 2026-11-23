@@ -38,9 +38,10 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // to Gemini on Vertex AI (through the lab's AI guard), which also returns
 // its transcription and holds every question to a sentence of it; anything
 // else - unset included - is Claude, as it has been since the app shipped.
-// Pasted text is always Claude. Read per request, so the switch is an env
-// change, not a deploy of new code.
-const providerNow = () => (process.env.POPQUIZ_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// Pasted text is always Claude. `claude-first` reads a photo with Claude and
+// goes to Gemini only when Claude fails. Read per request, so the switch is
+// an env change, not a deploy of new code.
+const providerNow = () => { const v = process.env.POPQUIZ_AI_PROVIDER; return v === 'gemini' || v === 'claude-first' ? v : 'claude'; };
 
 const app = express();
 app.set('trust proxy', 1);
@@ -572,6 +573,14 @@ async function chargeGemini(req, usage) {
   } catch (e) { console.error('usage: gemini charge failed'); }
 }
 
+/** Why a Claude read failed, as a short code for the one log line. A burst
+ *  refusal is null: it never falls back. */
+function claudeFailure(err) {
+  const code = err && err.code;
+  if (code === 'burst-minute' || code === 'burst-day') return null;
+  return String(code || (err && err.status) || 'error').slice(0, 20);
+}
+
 app.post('/api/teams/:id/generate', ...spend, async (req, res) => {
   try {
     const t = await loadTeam(req, { manager: true });
@@ -601,19 +610,32 @@ app.post('/api/teams/:id/generate/photo', ...spend, bigJson, async (req, res) =>
     const image = photo.validate(b.image);
     const title = T.clean(b.title, T.LIMITS.deckTitle);
     const ask = { image, title, count: b.count };
-    const viaGemini = providerNow() === 'gemini';
-    let reader = viaGemini ? 'gemini' : 'claude'; // sent only when Claude stood in
+    const mode = providerNow();
+    const viaGemini = mode === 'gemini';
+    let reader = viaGemini ? 'gemini' : 'claude'; // sent only when the other one stood in
     let proposal;
     try {
       proposal = viaGemini ? await readWithGemini(req, ask) : await writeWithClaude(req, ask);
+      if (!proposal && mode === 'claude-first') throw Object.assign(new Error('claude answer unusable'), { status: 422, code: 'unusable' });
     } catch (err) {
-      // Gemini could not read it (a thrown call, an unusable answer, its
-      // monthly cap, no helper): Claude's reader, unchanged. A burst refusal
-      // is the person's across both providers: no fallback.
-      if (!viaGemini || !err || !err.fallback) throw err;
-      console.log(`[popquiz] gemini failed (${err.fallback}); used claude`);
-      proposal = await writeWithClaude(req, ask);
-      reader = 'claude';
+      if (mode === 'claude-first') {
+        // Claude could not read it (a thrown call, an unusable answer, its
+        // monthly cap, no key): Gemini's reader, unchanged. A burst refusal
+        // is the person's across both providers: no fallback.
+        const why = claudeFailure(err);
+        if (!why) throw err;
+        console.log(`[popquiz] claude failed (${why}); used gemini`);
+        proposal = await readWithGemini(req, ask);
+        reader = 'gemini';
+      } else {
+        // Gemini could not read it (a thrown call, an unusable answer, its
+        // monthly cap, no helper): Claude's reader, unchanged. A burst refusal
+        // is the person's across both providers: no fallback.
+        if (!viaGemini || !err || !err.fallback) throw err;
+        console.log(`[popquiz] gemini failed (${err.fallback}); used claude`);
+        proposal = await writeWithClaude(req, ask);
+        reader = 'claude';
+      }
     }
     if (!proposal) throw httpError(422, 'We couldn’t read training material in that photo. Try a sharper, closer shot of one page - or paste the text.');
     res.set('Cache-Control', 'no-store');

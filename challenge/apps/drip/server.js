@@ -40,9 +40,10 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // Which model reads a snap. DRIP_AI_PROVIDER=gemini moves it to Gemini on
 // Vertex AI (through the lab's guard), which also reads a photo of a
 // statement; anything else - unset included - is Claude, as it has always
-// been. Read per request, so the switch is a Cloud Run setting and never a
+// been. `claude-first` is Claude's reader with Gemini's only when Claude
+// fails. Read per request, so the switch is a Cloud Run setting and never a
 // code change.
-const providerNow = () => (process.env.DRIP_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+const providerNow = () => { const v = process.env.DRIP_AI_PROVIDER; return v === 'gemini' || v === 'claude-first' ? v : 'claude'; };
 
 const app = express();
 app.set('trust proxy', 1);
@@ -237,20 +238,36 @@ async function chargeGemini(req, usage) {
   } catch (e) { console.error('usage: gemini charge failed'); }
 }
 
+/** Why a Claude read failed, as a short code for the one log line. A burst
+ *  refusal is null: it never falls back. */
+function claudeFailure(err) {
+  const code = err && err.code;
+  if (code === 'burst-minute' || code === 'burst-day') return null;
+  return String(code || (err && err.status) || 'error').slice(0, 20);
+}
+
 app.post('/api/snap', ...spend, snapJson, async (req, res) => {
   let photos;
-  let viaGemini = providerNow() === 'gemini';
+  const mode = providerNow();
+  const claudeFirst = mode === 'claude-first';
+  let viaGemini = mode === 'gemini';
   try {
     photos = photo.validateAll((req.body || {}).photos);
     try {
       await guardAllow(viaGemini ? 'gemini' : 'claude', req);
     } catch (err) {
-      // The Gemini month is capped: Claude's reader, through its own guard.
-      // A burst refusal is the person's, across both providers: no fallback.
-      if (!viaGemini || !err || err.code !== 'monthly-cap') throw err;
-      console.log('[drip] gemini failed (monthly-cap); used claude');
-      viaGemini = false;
-      await guardAllow('claude', req);
+      // One provider's month is capped: the other's reader, through its own
+      // guard. A burst refusal is the person's, across both: no fallback.
+      if (claudeFirst && err && err.code === 'monthly-cap') {
+        console.log('[drip] claude failed (monthly-cap); used gemini');
+        viaGemini = true;
+        await guardAllow('gemini', req);
+      } else {
+        if (!viaGemini || !err || err.code !== 'monthly-cap') throw err;
+        console.log('[drip] gemini failed (monthly-cap); used claude');
+        viaGemini = false;
+        await guardAllow('claude', req);
+      }
     }
   } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
@@ -260,12 +277,22 @@ app.post('/api/snap', ...spend, snapJson, async (req, res) => {
     try {
       out = viaGemini ? await snapWithGemini(req, photos, day) : await snapWithClaude(req, photos, day);
     } catch (err) {
-      // Gemini could not read it (a thrown call, an unusable answer, no
-      // helper): the same photos go to the Claude reader, unchanged.
-      if (!viaGemini || !err || !err.fallback) throw err;
-      console.log(`[drip] gemini failed (${err.fallback}); used claude`);
-      await guardAllow('claude', req);
-      out = await snapWithClaude(req, photos, day);
+      if (claudeFirst && !viaGemini) {
+        // Claude could not read it (a thrown call, no rows, no key): the same
+        // photos go to the Gemini reader, unchanged.
+        const why = claudeFailure(err);
+        if (!why) throw err;
+        console.log(`[drip] claude failed (${why}); used gemini`);
+        await guardAllow('gemini', req);
+        out = await snapWithGemini(req, photos, day);
+      } else {
+        // Gemini could not read it (a thrown call, an unusable answer, no
+        // helper): the same photos go to the Claude reader, unchanged.
+        if (mode !== 'gemini' || !err || !err.fallback) throw err;
+        console.log(`[drip] gemini failed (${err.fallback}); used claude`);
+        await guardAllow('claude', req);
+        out = await snapWithClaude(req, photos, day);
+      }
     }
     send(out);
   } catch (err) { send(failure(err, SNAP_FALLBACK).body); }

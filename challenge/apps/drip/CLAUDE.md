@@ -235,6 +235,11 @@ branch, **off until switched on**.
   still recorded and charged. Burst refusals answer as before. The schema
   has **no `maxItems`**: live Vertex answered 400 to every snap with it at 60
   (fine at 20); `cleanReading` still keeps at most 60 rows.
+- **Claude first (2026-11-23).** `DRIP_AI_PROVIDER=claude-first`: Claude
+  reads the snap; a thrown call, no rows, the Claude cap or no key sends the
+  same photos to Gemini (`reader: 'statement'`, log `[drip] claude failed
+  (<code>); used gemini`). Burst refusals are final. `/api/me` keeps `snap:
+  'subscriptions'`, so the page words stay Claude's (no provider named).
 - **The stand-in** (`lib/fakeai.js` `gemini`): triggers in image bytes
   `BLANK`, `INJECT`, `STATEMENT`, `UPSTREAMnnn`, else a subscriptions page
   with one blurred price. `DRIP_FAKE_SCENE=STATEMENT` picks a scene for a

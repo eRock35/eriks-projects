@@ -191,6 +191,11 @@ so Claude stays the default and Gemini sits beside it.
   review), one log line `[popquiz] gemini failed (<code>); used claude`. A
   billed Gemini failure is still recorded and charged. Burst refusals do not
   fall back.
+- **Claude first (2026-11-23).** `POPQUIZ_AI_PROVIDER=claude-first`: a photo
+  goes to Claude first; a thrown call, an unusable answer, the Claude cap or
+  no key sends it to Gemini (`reader: 'gemini'`, with its transcription; log
+  `[popquiz] claude failed (<code>); used gemini`). Bursts are final; pasted
+  text stays Claude only. `/api/me` says `photoReader: 'claude-first'`.
 - **The stand-in** (`lib/fakeai.js` `gemini`, under `POPQUIZ_FAKE_AI=1`)
   answers with a closing checklist and eight questions quoting it. Triggers
   in the photo's bytes: `BLANK`, `UPSTREAMnnn`, `INJECT` (invented facts and

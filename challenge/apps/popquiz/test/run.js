@@ -941,6 +941,48 @@ test('gemini snap fallback: only the Gemini cap -> Claude answers, logged once; 
   assert.deepStrictEqual([off.status, 'reader' in off.data], [200, false]);
 });
 
+test('claude-first: Claude reads the photo; a throw, an unusable answer or the Claude cap -> Gemini answers; a burst -> 429 and no Gemini; text stays Claude', async () => {
+  const body = { image: { type: 'image/jpeg', data: JPEG } };
+  const logs = [];
+  const orig = console.log;
+  const quiet = async (fn) => { console.log = (...a) => logs.push(a.join(' ')); try { return await fn(); } finally { console.log = orig; } };
+  // Claude answers: no Gemini call, no reader field.
+  let g = fakeGuard();
+  let r = await withProvider('claude-first', g, async () => {
+    assert.strictEqual((await gio('GET', '/api/me')).data.photoReader, 'claude-first');
+    return gio('POST', snapPath(), body);
+  });
+  assert.deepStrictEqual([r.status, 'reader' in r.data, g.log.order], [200, false, ['allow', 'record']]);
+  // Claude throws -> Gemini answers with its transcription.
+  g = fakeGuard();
+  r = await quiet(() => withProvider('claude-first', g, () => gio('POST', snapPath(), { ...body, title: 'UPSTREAM500' })));
+  assert.deepStrictEqual([r.status, r.data.reader, r.data.grounded, g.log.allow.map((a) => a.provider), g.log.record.map((x) => x.provider)], [200, 'gemini', true, ['claude', 'gemini'], ['gemini']], r.text);
+  assert.ok(!/stand-in|fake_upstream/.test(r.text));
+  assert.ok(logs.includes('[popquiz] claude failed (500); used gemini'), logs.join('|'));
+  // Claude finds nothing readable (billed, recorded) -> Gemini.
+  g = fakeGuard({ generate: async (q) => ({ json: await q.fake({ contents: [{ parts: [{ inlineData: { mimeType: 'image/jpeg', data: JPEG } }, q.contents[0].parts[1]] }], generationConfig: { ...q.generationConfig, responseMimeType: 'application/json', responseSchema: q.responseSchema } }), usage: { inputTokens: 2000, outputTokens: 1500 } }) });
+  r = await quiet(() => withProvider('claude-first', g, () => gio('POST', snapPath(), { image: { type: 'image/jpeg', data: BLANK } })));
+  assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'gemini', ['allow', 'record', 'allow', 'generate', 'record']], r.text);
+  assert.ok(logs.includes('[popquiz] claude failed (unusable); used gemini'));
+  // The Claude month is capped -> Gemini, no Claude call.
+  const cap = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+  g = fakeGuard();
+  g.allow = async (a) => { g.log.order.push('allow:' + a.provider); return a.provider === 'claude' ? cap : { ok: true }; };
+  r = await quiet(() => withProvider('claude-first', g, () => gio('POST', snapPath(), body)));
+  assert.deepStrictEqual([r.status, r.data.reader, g.log.order], [200, 'gemini', ['allow:claude', 'allow:gemini', 'generate', 'record']]);
+  assert.ok(logs.includes('[popquiz] claude failed (monthly-cap); used gemini'));
+  // A burst refusal is final.
+  const calls = await modelCalls();
+  g = fakeGuard({ deny: { ok: false, status: 429, code: 'burst-minute', message: 'Lots of people are using AI right now - try again in a minute.' } });
+  r = await withProvider('claude-first', g, () => gio('POST', snapPath(), body));
+  await settle();
+  assert.deepStrictEqual([r.status, r.data.code, g.log.order, await modelCalls()], [429, 'burst-minute', ['allow'], calls]);
+  // Pasted text stays Claude's, with no Gemini behind it.
+  g = fakeGuard();
+  r = await withProvider('claude-first', g, () => gio('POST', `/api/teams/${team.id}/generate`, { text: MATERIAL }));
+  assert.deepStrictEqual([r.status, g.log.order, g.log.allow[0].provider], [200, ['allow', 'record'], 'claude']);
+});
+
 test('gemini is refused without the lab: no guard and no stand-in means no call', () => {
   const dir = path.join(__dirname, '..');
   const code = `process.env.POPQUIZ_MEMORY='1';process.env.POPQUIZ_AI_PROVIDER='gemini';
