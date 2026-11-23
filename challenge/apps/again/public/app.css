@@ -353,7 +353,7 @@ details.more > summary::-webkit-details-marker { display: none; }
 .mrow .nm small { color: var(--muted); font-size: var(--t-cap); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .mrow.pick .nm input { border-color: var(--love); }
 .tag-pick { font-size: var(--t-cap); font-weight: 600; color: var(--love); background: var(--love-bg); border-radius: 999px; padding: 1px 10px; justify-self: start; }
-.plate-top { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 16px; align-items: center; margin: 8px 0 16px; }
+.plate-top { clear: both; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 16px; align-items: center; margin: 20px 0 16px; }
 .plate-top img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px; display: block; }
 .plate-top p { margin: 0; display: grid; gap: 4px; justify-items: start; }
 .plate-top .looks { overflow-wrap: anywhere; }
