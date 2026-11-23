@@ -119,7 +119,8 @@ function create() {
  *                "Tuesday at 3pm", a link, the card's email in the draft,
  *                a made-up temperature and interest
  *   UPSTREAMnnn  the call fails the way the helper's VertexError does
- *   otherwise    Riley Chen's card; with a memo, a summary, "hot", a call,
+ *   otherwise    Riley Chen's card, the email read with medium confidence
+ *                (small print); with a memo, a summary, "hot", a call,
  *                the event's first interest and a draft from those facts
  * The draft request answers as the Claude stand-in does.
  */
@@ -144,7 +145,7 @@ async function gemini(body) {
   if (!props.readable) return draft({ messages: [{ content: text }] }).content[0].input;
 
   const F = (value, confidence) => ({ value, confidence: confidence || (value ? 'high' : 'low') });
-  let card = { readable: true, kind: 'card', name: F('Riley Chen'), company: F('Cedar & Pine Grocers'), title: F('Head of Purchasing'), email: F('Riley.Chen@example.com'), phone: F('(404) 555-0188') };
+  let card = { readable: true, kind: 'card', name: F('Riley Chen'), company: F('Cedar & Pine Grocers'), title: F('Head of Purchasing'), email: F('Riley.Chen@example.com', 'medium'), phone: F('(404) 555-0188') };
   if (/BLANK/.test(bytes)) card = { readable: false, kind: 'card', name: F(null), company: F(null), title: F(null), email: F(null), phone: F(null) };
   else if (/BADGE/.test(bytes)) card = { readable: true, kind: 'badge', name: F('Jordan Blake'), company: F('Harbor Provisions'), title: F('Category Buyer'), email: F(null), phone: F(null) };
   else if (/MESSY/.test(bytes)) card = { readable: true, kind: 'card', name: F('<b>Sam</b> Ortiz', 'medium'), company: F('Ortiz <i>Deli</i>'), title: F('Owner'), email: F('sam(at)ortiz-deli', 'low'), phone: F('12', 'certain') };

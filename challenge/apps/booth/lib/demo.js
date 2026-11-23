@@ -108,6 +108,26 @@ function build(now) {
   return { event, leads, nowMs };
 }
 
+// A made-up scan for the sample's "See a sample scan": what a card photo and
+// a ten-second memo come back as. Written by hand, never by a model, and put
+// through the same validateScan a real one gets - so the sample shows a
+// field that needs checking, a phone that was not readable, and a draft that
+// passes the invented-fact guard untouched.
+const SCAN = {
+  readable: true,
+  kind: 'card',
+  name: { value: 'Noor Haddad', confidence: 'high' },
+  company: { value: 'Saltmarsh Market', confidence: 'high' },
+  title: { value: 'Grocery Buyer', confidence: 'high' },
+  email: { value: 'noor@saltmarsh.example.com', confidence: 'medium' },
+  phone: { value: null, confidence: 'low' },
+  memo: { heard: true, summary: 'Wants wholesale pricing on the house blend for 2 stores. Asked for a call next week.', temp: 'hot', next: 'call', interests: [CHIPS[0]] },
+  draft: {
+    subject: 'Great to meet you at Southeast Food & Bev Expo 2026',
+    body: 'Hi Noor,\n\nIt was great to talk at our booth at Southeast Food & Bev Expo 2026. You asked about wholesale pricing on the house blend for 2 stores.\n\nWould a short call next week work? Tell me a time that suits and I will ring you then - [add: your direct number].\n\nThanks,\nMaya Okafor · Brightline Coffee Roasters',
+  },
+};
+
 function demo(now) {
   const { event, leads, nowMs } = build(now);
   // `rep` names the invented teammate whose voice a sample draft uses.
@@ -132,7 +152,8 @@ function demo(now) {
     scorecard: sc,
     goingCold: B.goingCold(leads, nowMs).map((r) => ({ id: r.lead.id, name: r.lead.name, company: r.lead.company, temp: r.lead.temp, capturedByName: r.lead.capturedByName, clock: r.clock })),
     drafts,
+    scan: ai.validateScan(SCAN, { memo: true, event, rep: MEMBERS[0], chips: event.chips }),
   };
 }
 
-module.exports = { demo, build, MEMBERS, ROWS, DRAFTS, CHIPS };
+module.exports = { demo, build, MEMBERS, ROWS, DRAFTS, CHIPS, SCAN };
