@@ -207,9 +207,9 @@ const REPLY_ANGLES = [
   { key: 'straight', label: 'Straightforward' },
 ];
 const COOL_ANGLES = [
-  { key: 'calm', label: 'Calm and brief' },
+  { key: 'calm', label: 'Calm' },
   { key: 'warm', label: 'Warm' },
-  { key: 'firm', label: 'Polite but firm' },
+  { key: 'firm', label: 'Firm' },
 ];
 const angleOf = (list, k) => list.find((a) => a.key === String(k || '').toLowerCase());
 
