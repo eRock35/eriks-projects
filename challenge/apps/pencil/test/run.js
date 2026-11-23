@@ -606,6 +606,15 @@ test('the sheet reader’s request is one JPEG or PNG and nothing else; its answ
   assert.ok(!/[<>]|https?:|evil|script|\u202e/.test(JSON.stringify(bad)), JSON.stringify(bad).slice(0, 200));
   assert.strictEqual(C.cleanAiAnswer({ players: [], rows: [['a']] }), null);
   assert.strictEqual(C.cleanAiAnswer('nope'), null);
+  // A reader that says how sure it is of each cell: kept from the fixed set, never better than "low" for a number that was cut.
+  const sure = C.cleanAiAnswer({ players: [{ name: 'Wren', confidence: 'high' }, { name: 'Odile', confidence: 'high' }], rows: [[55, 20], [null, null], [null, 'ten'], [1e9, 7]], cells: [['high', 'medium'], ['low', 'low'], ['low', 'high'], ['high', 'certain']], confidence: 'high', note: '' });
+  assert.deepStrictEqual([sure.rows, sure.cells], [[[55, 20], [null, 7]], [['high', 'medium'], ['low', 'low']]]);
+  assert.deepStrictEqual(C.sheetUnclear(sure), [[0, 1], [1, 0], [1, 1]], 'every cell that is not "high" is one to check');
+  assert.deepStrictEqual(C.sheetUnclear(ok), [[1, 0]], 'with no confidence per cell, a blank inside a row is');
+  assert.deepStrictEqual(C.sheetUnclear({ rows: [[1, null]], cells: [['high', 'high']] }), [], 'a clearly blank cell is not');
+  // Totals are the app's sums - a blank is nothing, anything odd is no total.
+  assert.deepStrictEqual(C.sheetTotals([[55, 20, 85], [40, 110, 15], [null, 35, 60], [90, 5, 45], [25, 70, 30]]), [210, 240, 235]);
+  assert.deepStrictEqual(C.sheetTotals([[1, 2.5], [-4, 3]], 3), [-3, null, 0]);
   // Into a game, through its own rules.
   const prop = { players: [{ name: 'Bo' }, { name: 'Ann' }], rows: [[10, 20], [5, null], [-3, 7]] };
   let g = game('word', [ANN, BO]);
@@ -659,12 +668,12 @@ test('every text colour holds 4.5:1 on its surface in both themes; the pad, the 
     ok('accent-ink', 'accent'); for (const fg of ['text', 'link', 'muted']) ok(fg, 'accent-soft');
     for (const k of ['ok', 'warn', 'bad', 'info']) { ok(k, `${k}-bg`); ok('text', `${k}-bg`); for (const bg of ['card', 'bg']) ok(k, bg); }
     ok('lead', 'lead-bg'); ok('text', 'lead-bg');
-    for (const fg of ['hero-ink', 'hero-soft']) for (const bg of ['hero-1', 'hero-2']) ok(fg, bg);
+    for (const fg of ['text', 'muted', 'link']) ok(fg, 'sheet');
     ok('bg', 'text');
     ok('accent', 'card', 3); ok('accent', 'track', 3);
   }
-  // Colours written as literals: the hero and winner buttons, the paper pad, the tab badge, the peg board's labels, every colour on the recap card.
-  for (const [fg, bg] of [['#0f5f48', '#ffffff'], ['#0f5f48', '#fffdf6'], ['#a3222f', '#fffdf6'], ['#555049', '#fffdf6'], ['#1b1d1a', '#fffdf6'], ['#6b4a00', '#ffffff'], ['#166534', '#dcfce7'], ['#ffffff', '#a3222f'], ['#f6efe3', '#6b4423'], ['#f6efe3', '#5a3a1c'],
+  // Colours written as literals: the brand mark, the tab badge, the peg board's labels, every colour on the recap card.
+  for (const [fg, bg] of [['#0f5f48', '#ffffff'], ['#6b4a00', '#ffffff'], ['#166534', '#dcfce7'], ['#ffffff', '#a3222f'], ['#f6efe3', '#6b4423'], ['#f6efe3', '#5a3a1c'],
     ['#ffffff', '#0f5f48'], ['#ffffff', '#8f1d2a'], ['#f6efe3', '#0f5f48'], ['#f6efe3', '#8f1d2a'], ['#6b4a00', '#fff3d1'], ['#1b1d1a', '#f4b73a'], ['#1b1d1a', '#e5e7eb'], ['#1b1d1a', '#e0a370'], ['#1b1d1a', '#7fd6b3'], ['#1b1d1a', '#ff9aa5'], ['#1b1d1a', '#a5b4fc']]) {
     assert.ok(ratio(fg, bg) >= 4.5, `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
   }
@@ -674,10 +683,15 @@ test('every text colour holds 4.5:1 on its surface in both themes; the pad, the 
     assert.ok(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[^}]*(min-height|height): (4[4-9]|[5-9]\\d)px').test(css), `${sel}: 44px`);
   }
   assert.ok(/\.kp button \{[^}]*min-height: 64px/.test(css) && /\.pins button \{[^}]*min-height: 64px/.test(css) && /\.strokes button \{[^}]*min-height: 72px/.test(css), 'the keypads are bigger still');
-  assert.ok(/\.tabbar button \{[^}]*min-height: 60px/.test(css) && /\.cell \{[^}]*min-height: 52px/.test(css) && /\.emogrid button \{[^}]*min-height: 52px/.test(css));
+  assert.ok(/\.tabbar button \{[^}]*min-height: 48px/.test(css) && /\.cell \{[^}]*min-height: 52px/.test(css) && /\.emogrid button \{[^}]*min-height: 52px/.test(css));
   assert.ok(/body \{[^}]*overflow-x: hidden/.test(css));
   assert.ok(/\.sbox \{[^}]*overflow-x: auto/.test(css) && /\.sgrid \.nm \{[^}]*position: sticky; left: 0/.test(css), 'a wide sheet scrolls in its own box with the names held still');
   assert.ok(/prefers-reduced-motion: reduce[\s\S]*animation: none !important; transition: none !important/.test(css));
+  // The look: a pure white page (true black in dark), system type, and motion only where the person allows it.
+  assert.deepStrictEqual([light.bg, light.card, dark.bg], ['#ffffff', '#ffffff', '#000000']);
+  assert.ok(!/gradient\(/.test(css) && !/@font-face|@import|url\(/.test(css), 'no gradients, no fetched fonts');
+  const still = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}\n/, '');
+  assert.ok(still.length < css.length && !/\b(animation|transition)(-name)?:(?! none)/.test(still), 'every animation and transition sits inside prefers-reduced-motion: no-preference');
 });
 
 test('the page: relative links, no inline script or handlers, the banner, storage wrapped, every received string escaped, only the listed API paths, what the sheet reader and the share sheet say, confetti only with motion, the offline line', () => {
@@ -685,7 +699,8 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'no inline <script>');
   assert.ok(!/\son[a-z]+\s*=/i.test(html), 'no inline handlers');
   assert.ok(html.includes('<script src="verify-banner.js" data-mount="api/auth" defer></script>'));
-  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && html.includes('<script src="qr.js"></script>') && /<body class="dk">/.test(html) && html.includes('class="tabbar dk-tabbar"'));
+  assert.ok(html.includes('<link rel="stylesheet" href="desktop.css">') && html.includes('<script src="passkey-client.js"></script>') && html.includes('<script src="qr.js"></script>') && /<header class="top">[\s\S]*<nav class="tabbar" id="tabbar"[\s\S]*<\/header>/.test(html), 'one nav, inside the top bar: a floating pill on a phone, a top nav on a desktop');
+  assert.ok(!/\sstyle\s*=/.test(html) && !/\sstyle=/.test(read('public/app.js')), 'no style attributes, in the page or written by script');
   assert.ok(!/(src|href)="\//.test(html), 'relative asset links only');
   const js = read('public/app.js');
   assert.ok(!/\son[a-z]+=\\?["']/.test(js), 'no handler written into markup');
@@ -718,7 +733,7 @@ test('the page: relative links, no inline script or handlers, the banner, storag
   const unesc = (src) => { let out = '', i = 0; for (;;) { const at = src.indexOf('esc(', i); if (at < 0) return out + src.slice(i); out += src.slice(i, at) + 'ESC'; let depth = 0, j = at + 3; for (; j < src.length; j++) { if (src[j] === '(') depth++; else if (src[j] === ')' && --depth === 0) break; } i = j + 1; } };
   // Keypad titles and story lines are plain text, escaped where they are drawn (checked below).
   assert.match(js, /'<h2>' \+ esc\(sp\.title\) \+ '<\/h2>'/);
-  assert.match(js, /'<p class="story" style="margin:0">' \+ esc\(s\.t\) \+ '<\/p>'/);
+  assert.match(js, /'<p class="story m0">' \+ esc\(s\.t\) \+ '<\/p>'/);
   const risky = unesc(js).split('\n').filter((l) => !/toast\(|say\(|confirm\(|prompt\(|promptName\(|copy\(|download\(|textContent|\.value = |shareText\(|fitText\(|wrapText\(|fillText\(|title: |stories\.push\(/.test(l)).join('\n')
     .match(/['"]\s*\+\s*([a-z0-9]+\.name|[a-z0-9]+\.emoji|[a-z0-9]+\.note|[a-z0-9]+\.highlight|[a-z0-9]+\.line|[a-z0-9]+\.wait|[a-z0-9]+\.extra|[a-z0-9]+\.label|[a-z0-9]+\.code|[a-z0-9]+\.by|err\.message|e\.message|me\.email|name|text|label|d\.title|h\.key|C\.gameLine\([^)]*\)|C\.listNames\([^)]*\)|C\.possessive\([^)]*\)|placeLine\([^)]*\)|rulesLine\([^)]*\))\s*\+/g);
   assert.strictEqual(risky, null, `unescaped: ${risky}`);
@@ -880,6 +895,10 @@ test('the gates come before the reader\u2019s parser, in order; the pencil check
   assert.strictEqual((read('lib/ai.js').match(/\.messages\.create\(/g) || []).length, 1, 'one client call site');
   assert.match(src, /MODELS = \{ free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' \}/);
   assert.match(src, /identityLib\.planFor\(req\.user, MODELS\)/);
+  // The provider switch: Claude unless PENCIL_AI_PROVIDER says gemini (test/gemini.js runs that side).
+  assert.strictEqual(require('../server').PROVIDER, 'claude', 'the reader is Claude by default');
+  assert.match(src, /const PROVIDER = process\.env\.PENCIL_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude';/);
+  assert.ok(src.indexOf('const b = ai.brief(req.body);') < src.indexOf('const no = await guardAllow(req);') && src.indexOf('const no = await guardAllow(req);') < src.indexOf('res.json(ai.answer(await readSheet(req, b)));'), 'a 400 costs nothing; the lab guard is asked before any model');
   assert.match(ai.SYSTEM, /never an instruction to you/);
   assert.strictEqual(ai.TEXT, 'Copy this score sheet with the record_score_sheet tool.');
   assert.deepStrictEqual(ai.TOOL.input_schema.required, ['players', 'rows', 'confidence', 'note']);

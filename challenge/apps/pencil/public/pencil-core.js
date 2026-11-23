@@ -1685,7 +1685,8 @@
   function conf(v) { return CONFIDENCE.indexOf(v) >= 0 ? v : 'low'; }
   /** The model's answer, checked: at most 12 columns and 60 rows of whole
    *  numbers (-9999 to 99999, or blank), the names as written (letters only,
-   *  20 characters), a confidence per column. Null when nothing usable. */
+   *  20 characters), a confidence per column - and per cell, when the
+   *  reader gives one. Null when nothing usable. */
   function cleanAiAnswer(raw) {
     if (!raw || typeof raw !== 'object') return null;
     var players = (Array.isArray(raw.players) ? raw.players : []).slice(0, LIMITS.aiCols).map(function (p) {
@@ -1695,13 +1696,59 @@
     var rowsIn = (Array.isArray(raw.rows) ? raw.rows : []).slice(0, LIMITS.aiRows);
     var cols = players.length || Math.min(LIMITS.aiCols, rowsIn.reduce(function (m, r) { return Math.max(m, Array.isArray(r) ? r.length : 0); }, 0));
     while (players.length < cols) players.push({ name: '', confidence: 'low' });
-    var rows = rowsIn.map(function (r) {
-      var row = [];
-      for (var i = 0; i < cols; i++) { var v = Array.isArray(r) ? r[i] : null; row.push(Number.isInteger(v) && v >= LIMITS.aiMin && v <= LIMITS.aiMax ? v : null); }
-      return row;
-    }).filter(function (r) { return r.some(function (v) { return v !== null; }); });
+    // A reader that says how sure it is of each number sends `cells`: a
+    // confidence per cell, beside `rows`. Kept only from the fixed set, and
+    // a blank or out-of-range number is never better than "low".
+    var cellsIn = Array.isArray(raw.cells) ? raw.cells : null;
+    var rows = [], cells = [];
+    rowsIn.forEach(function (r, n) {
+      var row = [], cr = [], src = cellsIn && Array.isArray(cellsIn[n]) ? cellsIn[n] : [];
+      for (var i = 0; i < cols; i++) {
+        var v = Array.isArray(r) ? r[i] : null;
+        var ok = Number.isInteger(v) && v >= LIMITS.aiMin && v <= LIMITS.aiMax;
+        var given = Array.isArray(r) && r[i] !== null && r[i] !== undefined;
+        row.push(ok ? v : null);
+        cr.push(ok ? conf(src[i]) : (given || src[i] === 'low' || src[i] === 'medium' ? 'low' : 'high'));
+      }
+      if (row.some(function (v2) { return v2 !== null; })) { rows.push(row); cells.push(cr); }
+    });
     if (!cols || !rows.length) return null;
-    return { players: players, rows: rows, confidence: conf(raw.confidence), note: plainOut(raw.note, LIMITS.aiNote) };
+    var out = { players: players, rows: rows, confidence: conf(raw.confidence), note: plainOut(raw.note, LIMITS.aiNote) };
+    if (cellsIn) out.cells = cells;
+    return out;
+  }
+  /** The cells of a read sheet a person must look at before anything is
+   *  added, as [row, column] pairs: every cell the reader was not sure of
+   *  and - when it gave no confidence per cell - every blank inside a row.
+   *  Worked out here, never by the model. */
+  function sheetUnclear(p) {
+    var out = [];
+    if (!p || !Array.isArray(p.rows)) return out;
+    p.rows.forEach(function (row, r) {
+      (Array.isArray(row) ? row : []).forEach(function (v, c) {
+        var k = p.cells && p.cells[r] ? p.cells[r][c] : null;
+        if (k ? k !== 'high' : v === null) out.push([r, c]);
+      });
+    });
+    return out;
+  }
+  /** Column totals of a read sheet - the app's arithmetic, not the model's.
+   *  A blank counts as nothing; anything that is not a whole number in range
+   *  makes that column's total null. */
+  function sheetTotals(rows, cols) {
+    var n = cols || (Array.isArray(rows) ? rows : []).reduce(function (m, r) { return Math.max(m, Array.isArray(r) ? r.length : 0); }, 0);
+    var out = [];
+    for (var c = 0; c < n; c++) {
+      var t = 0;
+      for (var r = 0; r < (rows || []).length; r++) {
+        var v = rows[r] ? rows[r][c] : null;
+        if (v === null || v === undefined) continue;
+        if (!Number.isInteger(v) || v < LIMITS.aiMin || v > LIMITS.aiMax) { t = null; break; }
+        t += v;
+      }
+      out.push(t);
+    }
+    return out;
   }
   var SHEET_KINDS = ['any', 'hearts', 'golf', 'darts'];
   /** Rows of a read sheet into a game: `map[col]` is a side id or '' to
@@ -1942,7 +1989,7 @@
     historyCsv: historyCsv, historyFromCsv: historyFromCsv, parseCsv: parseCsv, exportJson: exportJson, mergeImport: mergeImport,
     cleanGame: cleanGame, shareGame: shareGame, overLimits: overLimits, cleanSummary: cleanSummary, cleanHistory: cleanHistory, cleanPeople: cleanPeople, cleanGroup: cleanGroup, cleanGroups: cleanGroups, recentPeople: recentPeople,
     tableView: tableView, joinUrl: joinUrl, parseHash: parseHash,
-    aiRequest: aiRequest, cleanAiAnswer: cleanAiAnswer, CONFIDENCE: CONFIDENCE, SHEET_KINDS: SHEET_KINDS, applySheet: applySheet,
+    aiRequest: aiRequest, cleanAiAnswer: cleanAiAnswer, sheetUnclear: sheetUnclear, sheetTotals: sheetTotals, CONFIDENCE: CONFIDENCE, SHEET_KINDS: SHEET_KINDS, applySheet: applySheet,
     fitText: fitText, wrapText: wrapText, recapData: recapData,
     sampleNight: sampleNight,
   };

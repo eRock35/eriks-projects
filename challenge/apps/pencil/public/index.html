@@ -6,8 +6,8 @@
   <title>Pencil — keep score at game night</title>
   <meta name="description" content="A scorekeeper that knows the rules of Hearts, Five dice, Bowling, Darts 501, Cribbage, Mini golf, Rummy and any game you make up: it does the maths, calls the winner, and keeps the bragging rights across nights. Free, no sign-up, and it all stays on your phone.">
   <meta name="referrer" content="no-referrer">
-  <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f5f1e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Pencil">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -33,30 +33,30 @@
   <meta name="twitter:image:alt" content="Pencil, drop #59 in the Challenge Lab: Keep score at game night - every game, every round, and who’s ahead all year.">
   <!-- /lab:og -->
 </head>
-<body class="dk">
+<body>
   <a class="skip-link" href="#main" id="skip">Skip to the page</a>
   <header class="top">
-    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L15.6 5a2 2 0 012.8 0l.6.6a2 2 0 010 2.8L8.6 18.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M13.6 7l3.4 3.4M4 20l4.6-1.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="word">Pencil</span></a>
-    <nav class="top-links" aria-label="Account">
+    <a class="brand" href="./" data-act="home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L15.6 5a2 2 0 012.8 0l.6.6a2 2 0 010 2.8L8.6 18.8z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><path d="M13.6 7l3.4 3.4M4 20l4.6-1.2" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></span><span class="word">Pencil</span></a>
+    <!-- One nav, two shapes: a floating pill on a phone, part of this bar on a desktop (app.css). -->
+    <nav class="tabbar" id="tabbar" aria-label="Views" hidden>
+      <div class="tabbar-inner">
+        <button type="button" data-act="tab" data-tab="games"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.75" y="3.75" width="6.5" height="6.5" rx="1.75"/><rect x="13.75" y="3.75" width="6.5" height="6.5" rx="1.75"/><rect x="3.75" y="13.75" width="6.5" height="6.5" rx="1.75"/><path d="M17 14v6M14 17h6"/></svg><span>Games</span></button>
+        <button type="button" data-act="tab" data-tab="score" id="tabScore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.6L15.6 5a2 2 0 012.8 0l.6.6a2 2 0 010 2.8L8.6 18.8z"/><path d="M13.6 7l3.4 3.4"/></svg><span>Score</span><b class="tab-badge" id="liveBadge" hidden>Live</b></button>
+        <button type="button" data-act="tab" data-tab="table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4h9v4.5a4.5 4.5 0 01-9 0z"/><path d="M7.5 6H5a2.5 2.5 0 002.7 3.3M16.5 6H19a2.5 2.5 0 01-2.7 3.3M12 13v4M8.5 20h7"/></svg><span>Our table</span></button>
+        <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="18.5" cy="12" r="1.25"/></svg><span>More</span></button>
+      </div>
+    </nav>
+    <div class="top-links">
       <span class="offline-pill" id="offlinePill" hidden>✓ Works offline</span>
       <button class="gamepill" id="gamePill" type="button" data-act="games" hidden><span id="gamePillName"></span></button>
       <button class="btn small ghost" id="acct" type="button">Sign in</button>
-    </nav>
-  </header>
-
-  <nav class="tabbar dk-tabbar" id="tabbar" aria-label="Views" hidden>
-    <div class="tabbar-inner">
-      <button type="button" data-act="tab" data-tab="games"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 13.5v7M13.5 17h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Games</span></button>
-      <button type="button" data-act="tab" data-tab="score" id="tabScore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.6L15.6 5a2 2 0 012.8 0l.6.6a2 2 0 010 2.8L8.6 18.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Score</span><b class="tab-badge" id="liveBadge" hidden>Live</b></button>
-      <button type="button" data-act="tab" data-tab="table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 01-10 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7 6H4.5a2.5 2.5 0 002.8 3.4M17 6h2.5a2.5 2.5 0 01-2.8 3.4M12 13v4M8 20h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Our table</span></button>
-      <button type="button" data-act="tab" data-tab="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg><span>More</span></button>
     </div>
-  </nav>
+  </header>
 
   <main class="wrap" id="main" tabindex="-1"></main>
 
   <div class="sheet-back" id="sheetBack" hidden></div>
-  <div class="sheet dk-sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dialog" hidden></div>
   <div class="vh" id="live" aria-live="polite"></div>
   <div class="confetti" id="confetti" aria-hidden="true"></div>
 

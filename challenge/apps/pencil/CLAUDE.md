@@ -128,7 +128,7 @@ fails if a brand name appears in any source file.
 recap card, the CSV and showing the table are free, need no account and
 make no model call. A **free** account adds one metered thing: reading a
 paper score sheet (Haiku free, Sonnet for members via
-`identityLib.planFor`), about a cent.
+`identityLib.planFor`; or Gemini behind a switch - below), about a cent.
 
 **How it becomes an iPhone app.** A widget with tonight's leader and "Next
 to beat"; a Live Activity on the Lock Screen while a game runs ("Hearts ·
@@ -236,6 +236,52 @@ blank, all-blank rows dropped, names as written (letters only, 20
 characters, no links or markup), confidences from high / medium / low;
 nothing usable is a 422.
 
+**Two readers, one switch (2026-11-23).** `PENCIL_AI_PROVIDER=gemini`
+moves the reader to **Gemini on Vertex AI** (`gemini-3.8-flash`); unset or
+anything else is **Claude, exactly as before** - so merging changed nothing
+live, and switching is one Cloud Run setting made only with Erik's yes
+(it also needs Vertex AI enabled and `aiplatform.user` for the runtime
+account - a step only Erik can take). Why Gemini here: handwriting.
+
+- `lib/gemini.js` has **no client of its own**: the call is
+  `global.LAB_AI_GUARD.gemini.generate(...)` (the lab's one Vertex helper),
+  told the same stripped photo and one fixed sentence ("Copy this score
+  sheet."), answering through a `responseSchema`: the names, and per round
+  one cell per player as `{v, c}` - the number (or null) and **how sure the
+  reader is of that cell** (high / medium / low). `shape()` only moves it
+  into the form `cleanAiAnswer` checks; the proposal then carries `cells`
+  beside `rows`. A number that was cut (a word, out of range) is a blank
+  marked low. **The model is asked for no sums and its totals row is never
+  copied**: `PencilCore.sheetTotals` adds the columns up on the phone.
+- **The lab's AI guard, for both providers** (`challenge/CLAUDE.md`, "Lab AI
+  guard"): the identity gates and the parser, then `ai.brief` (a 400 costs
+  nothing and counts no burst), then `guard.allow({provider, req, app:
+  'pencil'})` - its 429 / 503 message and code go to the page, no model
+  call - then the call, then `guard.record` with `guard.priceUsd`. A call
+  that failed after it was billed (`err.usage`) is recorded too. No guard
+  (the app on its own) means no cap; a guard that throws is logged and
+  allows.
+- **The person's ledger.** Claude is metered by the shared account's
+  client wrapper as before. That wrapper prices Claude models only, so a
+  Gemini call writes the same two things itself (`chargeGemini`): a usage
+  row (`provider: 'gemini'`, tokens, `costUsd` at $0.75 / $3.75 per 1M
+  through 2026-12-31, $1.50 / $7.50 after) and the cost added to the
+  person's `spentUsd` by increment. **Not done:** the free tier's shared
+  daily counter is private to the shared account file and is not moved by
+  a Gemini call - the guard's $25 a month and burst limits bound it.
+- **Unclear cells are checked before anything is added.**
+  `PencilCore.sheetUnclear` lists them - every cell the reader did not mark
+  high; with Claude (no confidence per cell), every blank inside a row.
+  The proposal walks them one at a time ("Round 3, Wren - the reader could
+  not make this one out", a big field, "That's right" / "Save"), marks them
+  amber in the grid, and **Add stays disabled ("Check 2 numbers first")
+  until each is confirmed or edited**. A live totals row sits under the
+  grid.
+- The stand-in (`fakeai.createGemini`, `PENCIL_FAKE_AI=1`) is passed to the
+  helper as its `fake` (or called directly with no guard): the same rummy
+  sheet with Wren's third round blank and low, Jules's first medium; modes
+  `blank`, `inject`, `junk`, `upstreamNNN`, `billedfail`.
+
 Nothing is stored. The sheet says what is sent before the tap ("this one
 photo, shrunk on this phone with its location removed. Nothing else - not
 this game, the players' names or your history"), labels the answer
@@ -249,6 +295,48 @@ Signed out it explains and offers a free account; Try it says it is for
 your own sheets; 401 opens sign-in, 402 the credit sheet, 403
 `verify-email` its sentence and "Send the link again"; sheets size
 themselves below the confirm-your-email banner.
+
+## Design (2026-11-23): Erik's app style
+
+Redesigned in the HOA Desk look; the rules are at the top of `app.css` and
+held by the suite.
+
+- **A pure white page** (true black in dark; sheets and the tab pill
+  `#1c1c1e`), hairlines (`#e5e5ea`), **no gradients, no shadows** except a
+  barely-there one on the floating pill, sheets and the toast. 12 px cards,
+  10 px inputs and tiles, pill buttons and chips. System type only, five
+  sizes (13, 15, 16, 20, 28+), tabular numbers.
+- **Lists over boxes.** `.card` is a section with a heading, not a box;
+  games, players, the leaderboard, records and history are hairline rows. A
+  box is kept only for one object: the score grid, a darts card, the
+  paper-sheet grid, a note.
+- **One accent**: the lab card's felt green (`#0f5f48`; mint in dark) for
+  the primary action, links and the active tab. The card's red is only the
+  moon and the Live badge; amber, green and blue only say status (the
+  leader, sums that add up, playing). The cribbage board stays a drawing
+  of a wooden board. The recap card (a picture people share) and `lab.js`
+  are unchanged.
+- **Navigation is one `<nav id="tabbar">` inside the top bar**: under
+  900 px a slim floating translucent pill (1.5 px line icons, a label only
+  on the active tab, a small accent mark, safe-area aware, 48 px targets);
+  from 900 px a top nav with a quiet underline. `desktop.css` is still
+  loaded (a synced file) but `<body>` no longer opts into it, so there is
+  no left rail.
+- **The first run** is a centred hero on white: the headline, one line,
+  two pill buttons (Try a game night, Start a game), two text links (Join
+  a table, Read a paper sheet) and the app's own scoreboard in miniature.
+- **No `style=` attribute anywhere**, in the page or written by script
+  (tested): one-purpose classes in `app.css`, a `<progress>` for the win
+  rate. Confetti and the sheet's height are set through the CSSOM.
+- **Motion** (press states, a view rising in, sheets sliding up) sits only
+  inside `prefers-reduced-motion: no-preference` (tested); every page is
+  whole at rest.
+- **Taps from the Games page:** start a game 1 (the picker; 2 to its
+  set-up), open a game 1, Our table 1, join a table 1, read a paper sheet
+  1, show the table 2; in a game a score is a cell and the keypad.
+- Measured in headless Chrome at 390, 320 and 1440 px, both themes, over
+  every view and the reader: lowest text contrast 4.66:1 light, 6.61:1
+  dark; nothing scrolls sideways; no console error or CSP violation.
 
 ## On the phone
 
@@ -289,6 +377,13 @@ suite's gate test and by the lab's). The fake refuses a call that does not
 force a tool, keeps every request (`fakeClient.calls`), answers with a
 made-up rummy sheet (Wren, Odile, Jules), and takes `fakeClient.mode` for
 one call: `blank`, `inject`, `maxtokens`, `upstreamNNN`.
+
+`test/gemini.js` (6 tests, run by `npm test` with `PENCIL_AI_PROVIDER=gemini`
+and a fake lab guard; it fails on any request leaving the machine): the
+switch and the schema; signed out 401 with the guard never asked; allow,
+one schema call carrying only the photo, record, the cells and the app's
+totals, the person's ledger, nothing stored; the guard's no; hostile,
+empty and broken answers and a billed failure; no guard at all.
 
 `test/run.js` (34 tests): text and hostile input; codes; every engine
 against hand-worked cases (Any game high and low, target, rounds and open,
@@ -370,7 +465,8 @@ Public: `GET /api/health`, `/healthz`, `/api/me`, the page, `sw.js`. No
 account: `POST /api/tables`, `GET|POST /api/join/:code`. Members
 (`/api/t/:id`): `GET` (`?since=v&m=mv`), `DELETE me`. The pencil: `PUT
 game` (`{game, v}`), `POST pencil` (`{to}`), `DELETE members/:mid`,
-`DELETE /api/t/:id`. Metered: `POST /api/ai/sheet`. The shared account at
+`DELETE /api/t/:id`. Metered: `POST /api/ai/sheet` (Claude, or Gemini behind
+`PENCIL_AI_PROVIDER=gemini`). The shared account at
 `/api/auth`.
 
 ## What is deliberately not built

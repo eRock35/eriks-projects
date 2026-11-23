@@ -26,6 +26,7 @@ const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const Core = require('./public/pencil-core');
 const K = require('./lib/tables');
 const ai = require('./lib/ai');
+const gemini = require('./lib/gemini');
 const identityLib = require('./lib/identity');
 
 const PORT = process.env.PORT || 8080;
@@ -253,15 +254,75 @@ app.get('/api/me', (req, res) => {
  * Metered: "Read a paper score sheet"
  * ------------------------------------------------------------------ */
 
+/** Which model reads the sheet. PENCIL_AI_PROVIDER=gemini moves it to
+ *  Gemini on Vertex AI (through the lab's AI guard); anything else - unset
+ *  included - is Claude, as it has been since the app shipped. */
+const PROVIDER = process.env.PENCIL_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude';
+const fakeGemini = FAKE_AI ? require('./lib/fakeai').createGemini() : null;
+
+/** The lab's monthly cap and burst limits, when the host has a guard. An
+ *  app run on its own has none. A guard that throws is logged and allows:
+ *  the identity gates have already passed. */
+async function guardAllow(req) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard) return null;
+  let a;
+  try { a = await guard.allow({ provider: PROVIDER, req, app: 'pencil' }); } catch (e) { console.error('[pencil] ai guard: allow failed'); return null; }
+  if (a && a.ok) return null;
+  return ai.httpError((a && a.status) || 503, (a && a.message) || 'Reading a score sheet is resting for now. Typing the scores always works.', { code: (a && a.code) || 'ai-guard' });
+}
+/** What a call cost, to the lab's month. Never fails the answer. */
+async function guardRecord(model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  if (!guard || !usage) return;
+  try { await guard.record({ provider: PROVIDER, app: 'pencil', usd: guard.priceUsd({ provider: PROVIDER, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) }); } catch (e) { console.error('[pencil] ai guard: record failed'); }
+}
+/** A Gemini call on the person's own ledger. The shared account's meter
+ *  wraps an Anthropic client and prices Claude models only, so the same two
+ *  writes it makes are made here: one usage row, and the cost added to the
+ *  person's spend by increment. Never fails the answer. */
+async function chargeGemini(req, model, usage) {
+  const guard = global.LAB_AI_GUARD;
+  let usd = null;
+  try { usd = guard ? guard.priceUsd({ provider: 'gemini', model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }) : gemini.priceUsd(usage); } catch (e) { usd = gemini.priceUsd(usage); }
+  const cols = identity.collections;
+  const uid = req.user && req.user.id;
+  try { await identityStore.add(cols.USAGE, { at: new Date().toISOString(), app: 'pencil', provider: 'gemini', model, route: 'sheet', uid: uid || null, calls: 1, batch: false, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: usd, byok: false }); } catch (e) { /* never break the call it measured */ }
+  if (uid && usd > 0 && identityStore.bump) { try { await identityStore.bump(cols.USERS, uid, { spentUsd: usd, callCount: 1 }); } catch (e) { /* same */ } }
+}
+
+/** One sheet, read by whichever provider is switched on. Resolves the raw
+ *  answer for `ai.answer` to check. */
+async function readSheet(req, b) {
+  if (PROVIDER === 'gemini') {
+    try {
+      const out = await gemini.ask(global.LAB_AI_GUARD, b, fakeGemini && fakeGemini.generate);
+      await Promise.all([guardRecord(out.model, out.usage), chargeGemini(req, out.model, out.usage)]);
+      return out.raw;
+    } catch (err) {
+      // Billed although it failed (an answer that could not be parsed).
+      if (err && err.usage) await Promise.all([guardRecord(gemini.MODEL, err.usage), chargeGemini(req, gemini.MODEL, err.usage)]);
+      if (err && err.name === 'VertexError' && !Number.isInteger(err.status)) err.status = err.code === 'timeout' ? 503 : 502;
+      throw err;
+    }
+  }
+  const model = modelFor(req);
+  const out = await ai.ask(await clientFor(req), model, b);
+  await guardRecord(model, out.usage);
+  return out.input;
+}
+
 /** Gates, then the parser, then the request rebuilt (only the photo,
- *  checked by its bytes - a 400 costs nothing), then one forced tool, then
- *  the answer checked. Nothing here writes to any store, and nothing logged
- *  carries a byte of the photo. */
+ *  checked by its bytes - a 400 costs nothing), then the lab's AI guard,
+ *  then one forced tool (Claude) or one schema (Gemini), then the answer
+ *  checked. Nothing here writes a photo or a score to any store, and
+ *  nothing logged carries a byte of the photo. */
 app.post('/api/ai/sheet', ...spend, aiJson, route('Reading a score sheet isn’t available right now. Try again in a minute - typing the scores always works.', async (req, res) => {
-  const b = ai.brief(req.body);
-  const raw = await ai.ask(await clientFor(req), modelFor(req), b);
   res.set('Cache-Control', 'no-store');
-  res.json(ai.answer(raw));
+  const b = ai.brief(req.body);
+  const no = await guardAllow(req);
+  if (no) throw no;
+  res.json(ai.answer(await readSheet(req, b)));
 }));
 
 /* ------------------------------------------------------------------ *
@@ -499,7 +560,7 @@ if (require.main === module) {
     server.use(mount, app);
     server.get('/', (_req, res) => res.redirect(302, `${mount}/`));
   }
-  server.listen(PORT, () => console.log(`pencil listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''}`));
+  server.listen(PORT, () => console.log(`pencil listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}${FAKE_AI ? ' (fake AI)' : ''} (reader: ${PROVIDER})`));
 }
 
-module.exports = { app, identity, identityStore, store, fakeClient, LIMITS: K.LIMITS };
+module.exports = { app, identity, identityStore, store, fakeClient, fakeGemini, PROVIDER, LIMITS: K.LIMITS };

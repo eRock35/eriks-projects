@@ -72,7 +72,8 @@ function brief(body) {
 /** What the model is told besides the photo: nothing about the person. */
 const TEXT = 'Copy this score sheet with the record_score_sheet tool.';
 
-/** The one place a model is called. */
+/** The one place Claude is called. Resolves the tool's input and the
+ *  token counts (for the lab's AI guard). */
 async function ask(client, model, req) {
   const res = await client.messages.create({
     model,
@@ -88,7 +89,8 @@ async function ask(client, model, req) {
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That sheet ran long. Try a photo of half of it - or type the scores.');
   const block = (res && Array.isArray(res.content) ? res.content : []).find((b) => b && b.type === 'tool_use' && b.name === TOOL.name);
   if (!block || !block.input || typeof block.input !== 'object') throw httpError(502, 'The answer did not come back in the expected shape. Try again.');
-  return block.input;
+  const u = (res && res.usage) || {};
+  return { input: block.input, usage: { inputTokens: Number(u.input_tokens) || 0, outputTokens: Number(u.output_tokens) || 0 } };
 }
 
 /** The answer, checked. Nothing usable is a 422 with a way forward. */
