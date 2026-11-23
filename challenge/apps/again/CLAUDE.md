@@ -375,6 +375,8 @@ Erik's call, and needs Vertex AI enabled for `challenge-run@` (see the lab's
   answers `reader: 'claude'` (else `'gemini'`; switch off: no `reader`); one
   log line `[again] gemini failed (<code>); used claude`. Bursts are sent as
   is. "Snap my plate" has no Claude path and keeps its own errors.
+  The menu schema's `dishes` has no `maxItems` (Vertex answered 400 to 80;
+  the limit is in its description and `Core.cleanMenu` clamps).
 
 ## Local run and tests
 

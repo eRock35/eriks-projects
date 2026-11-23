@@ -1084,6 +1084,12 @@ test('Gemini over HTTP: gates and 400s before the guard; allow, the call, record
   assert.strictEqual((src.match(/generate\(\{ \.\.\.request/g) || []).length, 1, 'one place Gemini is asked');
 });
 
+test('the Gemini menu schema has no dishes maxItems over 40 (Vertex answered 400 to 80 in the real check)', () => {
+  const d = gemini.MENU_SCHEMA.properties.dishes;
+  assert.ok(!(d.maxItems > 40), String(d.maxItems));
+  assert.ok(d.description.startsWith(`At most ${C.LIMITS.aiDishes}.`));
+});
+
 test('the menu reader falls back to Claude: Gemini throws, unusable or capped -> Claude answers 200 with reader claude; a burst refusal -> the guard’s 429 and no Claude call; switch off unchanged; the plate keeps its own error', async () => {
   const fin = await register('fin.fallback');
   const gThrow = async () => { throw Object.assign(new Error('Gemini gave no answer. SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked', usage: { inputTokens: 900, outputTokens: 0 } }); };
