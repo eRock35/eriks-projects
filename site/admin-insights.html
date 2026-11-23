@@ -140,6 +140,7 @@
     <a href="/admin/writing">Writing</a>
     <a href="/admin/views">Trending</a>
     <a href="/admin/inbox">Inbox</a>
+    <a href="/admin/ai">AI</a>
   </nav>
 </div>
 
@@ -288,6 +289,7 @@
     if (b.unlimited) return '<span style="color:var(--text-muted)">' + esc(b.reason === 'owner' ? 'owner' : 'pro') + '</span>';
     var left = Number(b.remainingUsd || 0), all = Number(b.allowanceUsd || 0);
     return '<span title="$' + left.toFixed(2) + ' of $' + all.toFixed(2) + ' left">$' + left.toFixed(2) + '</span>' +
+      (b.grantedUsd ? ' <span style="color:var(--text-muted)" title="Owner-granted AI credit (/admin/ai), not bought">incl. $' + Number(b.grantedUsd).toFixed(2) + ' granted</span>' : '') +
       ' <button class="chip" data-credit="' + esc(u.uid) + '" title="Give this account credit">+$5</button>';
   }
 

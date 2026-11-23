@@ -63,6 +63,7 @@ const GEMINI_PRICES = {
 // --check keeps them identical) - so read the first app's copy, falling back
 // to shared/ in a checkout. Loaded on first use: by then the host's
 // SHARED_DEPS hook is in place, so the copy's dependencies are the host's.
+const CACHE_CHARGED = Symbol.for('lab.claudeCache.charged');
 let identityLib = null;
 function identity() {
   if (identityLib) return identityLib;
@@ -85,9 +86,13 @@ function identity() {
 /**
  * Dollars for one call. Throws on an unknown provider or model - a call is
  * never priced as zero.
- * Claude may also pass cacheWriteTokens, cacheReadTokens and webSearches.
+ * Claude may also pass cacheWriteTokens, cacheReadTokens and webSearches,
+ * and `iterations` (usage.iterations) so the advisor tool's consultations are
+ * charged at the advisor model's rates on top of the executor's tokens - or
+ * simply `usage`, the response's whole usage object, which then wins over the
+ * separate counts (per-TTL cache writes and all).
  */
-function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new Date(), cacheWriteTokens = 0, cacheReadTokens = 0, webSearches = 0 } = {}) {
+function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new Date(), cacheWriteTokens = 0, cacheReadTokens = 0, webSearches = 0, iterations = null, usage = null } = {}) {
   const n = (v, name) => {
     const x = Number(v);
     if (!Number.isFinite(x) || x < 0) throw new TypeError(`ai-guard: ${name} must be a non-negative number`);
@@ -107,17 +112,48 @@ function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new
   if (provider === 'claude') {
     const lib = identity();
     if (!Object.prototype.hasOwnProperty.call(lib.PRICES, model)) throw new Error(`ai-guard: no Claude price for model "${model}"`);
-    const usd = lib.priceOf(model, {
-      input_tokens: inTok,
-      output_tokens: outTok,
-      cache_creation_input_tokens: n(cacheWriteTokens, 'cacheWriteTokens'),
-      cache_read_input_tokens: n(cacheReadTokens, 'cacheReadTokens'),
-      server_tool_use: { web_search_requests: n(webSearches, 'webSearches') },
-    });
+    let u;
+    if (usage && typeof usage === 'object') {
+      for (const k of ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) n(usage[k] || 0, k);
+      u = usage;
+      // The host's prompt cache (lib/claude-cache.js) already recorded the
+      // cache part of a breakpoint it added; count it once.
+      if (usage[CACHE_CHARGED]) u = { ...usage, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: undefined };
+    } else {
+      u = {
+        input_tokens: inTok,
+        output_tokens: outTok,
+        cache_creation_input_tokens: n(cacheWriteTokens, 'cacheWriteTokens'),
+        cache_read_input_tokens: n(cacheReadTokens, 'cacheReadTokens'),
+        server_tool_use: { web_search_requests: n(webSearches, 'webSearches') },
+      };
+      if (Array.isArray(iterations)) u.iterations = iterations;
+    }
+    // An advisor on a model the table does not know is never priced as free:
+    // priceOf returns null and this throws, like an unknown executor.
+    const usd = lib.priceOf(model, u);
     if (typeof usd !== 'number' || !Number.isFinite(usd)) throw new Error(`ai-guard: no Claude price for model "${model}"`);
     return usd;
   }
   throw new Error(`ai-guard: unknown provider "${provider}"`);
+}
+
+/* ---------------- an owner's grant ---------------- */
+
+/** The burst part of req.user.aiGrant while it stands (until in the future,
+ *  or none), else null. The same rule as identity's activeAiGrant, kept here
+ *  so the burst check never depends on loading the price table. */
+function activeGrant(user, at = Date.now()) {
+  const g = user && user.aiGrant;
+  if (!g || typeof g !== 'object') return null;
+  if (g.until) {
+    const end = Date.parse(g.until);
+    if (!Number.isFinite(end) || end <= at) return null;
+  }
+  const whole = (v, max) => { const x = Math.floor(Number(v)); return Number.isFinite(x) && x > 0 ? Math.min(x, max) : 0; };
+  const perMinute = whole(g.perMinute, 1000);
+  const perDay = whole(g.perDay, 100000);
+  return perMinute || perDay ? { perMinute, perDay } : null;
 }
 
 /* ---------------- addresses ---------------- */
@@ -286,13 +322,20 @@ function create({ store = memoryStore(), env = process.env, now = Date.now, fetc
       const own = Object.prototype.hasOwnProperty.call(appBurst, app) ? appBurst[app] : null;
       const uid = req.user && req.user.id;
       const ip = ipKey(req.ip || (req.socket && req.socket.remoteAddress));
-      if (own) {
-        if (uid) keys.push({ key: `a:${uid}:${app}`, perMinute: own.perMinute, perDay: own.perDay });
-        if (ip) keys.push({ key: `i:${ip}:${app}`, perMinute: own.perMinute, perDay: own.perDay });
-      } else {
-        if (uid) keys.push({ key: `a:${uid}`, perMinute: burst.accountMinute, perDay: burst.accountDay });
-        if (ip) keys.push({ key: `i:${ip}`, perMinute: burst.ipMinute, perDay: burst.ipDay });
-      }
+      // An owner's grant (req.user.aiGrant, CLAUDE.md "Owner AI grants")
+      // raises this person's numbers, never lowers them. Their address is
+      // counted in a book of its own (`ig:`) at the same raised numbers: the
+      // shared per-address book is what stops one actor with many accounts,
+      // and a granted account is one Erik approved - so housemates are not
+      // stopped by its calls, and the grant is not stopped by theirs. Only a
+      // request signed in as that account gets any of it.
+      const g = uid ? activeGrant(req.user, now()) : null;
+      const raise = (m, d) => (g ? { perMinute: Math.max(m, g.perMinute || 0), perDay: Math.max(d, g.perDay || 0) } : { perMinute: m, perDay: d });
+      const suffix = own ? `:${app}` : '';
+      const acct = own ? raise(own.perMinute, own.perDay) : raise(burst.accountMinute, burst.accountDay);
+      const addr = own ? raise(own.perMinute, own.perDay) : raise(burst.ipMinute, burst.ipDay);
+      if (uid) keys.push({ key: `a:${uid}${suffix}`, ...acct });
+      if (ip) keys.push({ key: `${g ? 'ig' : 'i'}:${ip}${suffix}`, ...addr });
       const code = takeBurst(keys);
       if (code) return deny(code);
     } catch (err) {
@@ -344,4 +387,4 @@ function create({ store = memoryStore(), env = process.env, now = Date.now, fetc
   return { allow, record, priceUsd, status, gemini, caps: { ...caps }, burst: { ...burst }, MESSAGES };
 }
 
-module.exports = { create, priceUsd, ipKey, monthOf, memoryStore, GEMINI_PRICES, PROVIDERS, COLLECTION, MESSAGES };
+module.exports = { create, priceUsd, activeGrant, ipKey, monthOf, memoryStore, GEMINI_PRICES, PROVIDERS, COLLECTION, MESSAGES };

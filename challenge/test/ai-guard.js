@@ -196,6 +196,24 @@ process.on('exit', (code) => { if (!finished && code === 0) { console.error('ai-
     assert.strictEqual(P({ provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 2000, outputTokens: 1000 }), (2000 * 1 + 1000 * 5) / m);
     assert.ok(Math.abs(P({ provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 0, outputTokens: 0, webSearches: 3 }) - 0.03) < 1e-12);
     ok('Claude prices come from the identity table (searches included)');
+    const near = (a, b) => Math.abs(a - b) < 1e-12;
+    assert.ok(near(P({ provider: 'claude', model: 'claude-opus-5-5', inputTokens: m, outputTokens: m }), 24));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-fable-5-2', inputTokens: 0, cacheReadTokens: m, cacheWriteTokens: m }), 10.2));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-haiku-5-5', inputTokens: 200000, outputTokens: 0 }), 0.1));
+    ok('new models and per-model cache rates (Opus 5.5 $4/$20, Fable 5.2 read $0.20 / write $10, Haiku 5.5 long card)');
+    const iterations = [{ type: 'advisor_message', model: 'claude-opus-5-5', input_tokens: 10000, output_tokens: 1000 }];
+    const exec = (5000 * 2 + 500 * 10) / m;
+    const adv = (10000 * 4 + 1000 * 20) / m;
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', inputTokens: 5000, outputTokens: 500, iterations }), exec + adv));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: { input_tokens: 5000, output_tokens: 500, iterations } }), exec + adv));
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', inputTokens: 5000, outputTokens: 500 }), exec), 'without iterations: the executor only');
+    assert.throws(() => P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: { input_tokens: 1, iterations: [{ type: 'advisor_message', model: 'claude-future-9', input_tokens: 1 }] } }), /no Claude price/);
+    assert.throws(() => P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: { input_tokens: -1 } }), TypeError);
+    // A usage object whose cache part the host already recorded counts only the rest.
+    const marked = { input_tokens: 10, output_tokens: 0, cache_read_input_tokens: m };
+    Object.defineProperty(marked, Symbol.for('lab.claudeCache.charged'), { value: true });
+    assert.ok(near(P({ provider: 'claude', model: 'claude-sonnet-5-5', usage: marked }), 20 / m));
+    ok('the advisor (usage.iterations) is charged at its own model; an unknown advisor throws; host-charged cache counts once');
     assert.throws(() => P({ provider: 'gemini', model: 'gemini-9-ultra', inputTokens: 1 }), /no Gemini price/);
     assert.throws(() => P({ provider: 'claude', model: 'claude-unknown-1', inputTokens: 1 }), /no Claude price/);
     assert.throws(() => P({ provider: 'claude', model: 'constructor', inputTokens: 1 }), /no Claude price/);
@@ -341,6 +359,38 @@ process.on('exit', (code) => { if (!finished && code === 0) { console.error('ai-
     const g3 = aiGuard.create({ store, env: env({ LAB_AI_BURST_APP_SPAR: '15/150' }), now: c.now, log: quiet });
     assert.strictEqual((await g3.allow({ provider: 'claude', req: req('192.0.2.1', 'u9'), app: 'spar' })).code, 'monthly-cap');
     ok('LAB_AI_BURST_APP_<SLUG>="m/d" gives one app its own burst book (Spar 15/150); bad values ignored; caps still apply');
+  }
+
+  /* ---------------- an owner's grant raises one person's bursts ---------------- */
+  {
+    const c = clock('2026-11-23T10:00:00Z');
+    const g = aiGuard.create({ env: env(), now: c.now, log: quiet });
+    const granted = (until) => ({ ip: '198.51.100.50', user: { id: 'vip', aiGrant: { perMinute: 20, perDay: 200, extraUsd: 5, until } } });
+    // Without a grant: unchanged, 5 a minute.
+    for (let i = 0; i < 5; i++) assert.ok((await g.allow({ provider: 'claude', req: req('198.51.100.60', 'plain'), app: 'x' })).ok);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: req('198.51.100.61', 'plain'), app: 'x' })).code, 'burst-minute');
+    // With one: 20 a minute, from one address.
+    for (let i = 0; i < 20; i++) assert.ok((await g.allow({ provider: 'claude', req: granted('2026-12-01T00:00:00Z'), app: 'x' })).ok, `granted call ${i}`);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: granted('2026-12-01T00:00:00Z'), app: 'x' })).code, 'burst-minute');
+    // Someone else at that address still has their own 5: the grant has its own address book.
+    assert.ok((await g.allow({ provider: 'claude', req: req('198.51.100.50', 'housemate'), app: 'x' })).ok);
+    // Expired: back to the shared numbers on the next read (it already used 20 of them).
+    c.t += 61 * 1000;
+    const late = granted('2026-11-23T10:00:30Z');
+    assert.strictEqual(aiGuard.activeGrant(late.user, c.now()), null);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: late, app: 'x' })).ok, true, 'a fresh minute under the shared 5');
+    for (let i = 0; i < 4; i++) await g.allow({ provider: 'claude', req: late, app: 'x' });
+    assert.strictEqual((await g.allow({ provider: 'claude', req: late, app: 'x' })).code, 'burst-minute');
+    // A grant never lowers a limit, and bad values are ignored.
+    assert.strictEqual(aiGuard.activeGrant({ aiGrant: { perMinute: 'lots' } }), null);
+    assert.strictEqual(aiGuard.activeGrant({ aiGrant: { perMinute: 2, until: 'not a date' } }), null);
+    const low = aiGuard.create({ env: env(), now: c.now, log: quiet });
+    const lowReq = { ip: '203.0.113.90', user: { id: 'low', aiGrant: { perMinute: 2 } } };
+    for (let i = 0; i < 5; i++) assert.ok((await low.allow({ provider: 'claude', req: lowReq, app: 'x' })).ok);
+    // The monthly cap is not lifted by any grant.
+    const capped = aiGuard.create({ store: { async get() { return { usd: 25 }; }, async bump() {} }, env: env(), now: c.now, log: quiet });
+    assert.strictEqual((await capped.allow({ provider: 'claude', req: granted('2027-01-01T00:00:00Z'), app: 'x' })).code, 'monthly-cap');
+    ok("an owner's grant raises that person's burst limits (own address book), expires on read, never lowers, never lifts the cap");
   }
 
   finished = true;

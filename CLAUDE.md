@@ -350,6 +350,63 @@ page, and for the page to be redesigned well. `test/home.js` holds the rules.
   form's traps are unchanged. With `data-counts` removed, the standings,
   "Live now" and "Most used this week" come back, styled for this design.
 
+## What a Claude call costs (2026-11-23)
+
+`shared/identity.js` `PRICES` / `priceOf` / `priceParts` (synced everywhere;
+the lab guard's `priceUsd` reads the same table). `test/pricing.js` pins it.
+
+- **Prices only from the Claude API docs** (the skill's `shared/models.md`
+  and `model-migration.md`); each row's comment quotes its line. Never guess
+  one: an unknown model prices as `null` (the guard throws), and so does a
+  dated id such as `claude-haiku-4-5-20251001` - add the row if an app uses one.
+- **Cache rates are per model**, not a flat 1.25x/0.1x: a row may give
+  `cacheRead`, `cacheWrite5m`, `cacheWrite1h`; missing ones fall back to
+  0.1x / 1.25x / 2x input. `usage.cache_creation`
+  (`ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`) splits a write
+  by TTL; without it a write is 5-minute. Haiku 5.5 has a second card
+  (`above`: $0.50/$2.50 once the prompt, cached tokens included, passes
+  100K), and its cache multipliers apply to whichever card it is on.
+- **The advisor tool**: top-level usage is the executor's only; every
+  `usage.iterations` entry of `type: 'advisor_message'` is priced at its own
+  `model`'s rates on top (an unknown advisor model makes the call `null`).
+  `recordUsage` rows add `advisorCalls`, `advisorModels`, advisor tokens and
+  `advisorUsd`. Batch halves executor and advisor tokens, never searches.
+
+## Owner AI grants: /admin/ai (2026-11-23)
+
+Erik can let one person use more AI. `aiGrant: { extraUsd, perMinute,
+perDay, until, by, at, note }` on `users/<uid>`, written only by `/admin/ai`'s
+API (`server.js`, behind `adminGate` / `requireAdmin`, same-origin JSON
+writes, a form post is 415) through `patchUser`. Tests: `test/ai-grant.js`.
+
+- **Credit.** `budgetFor` adds an active grant's `extraUsd` (at most $500) to
+  the allowance and reports it as `grantedUsd` (plus `grantUntil`), so
+  `requireBudget` honours it and the overview shows "incl. $X granted". It
+  is **owner-given, not bought**: it does not count as `toppedUpUsd`, does not
+  make anyone a payer (`spendsOwnMoney`, so the free tier's daily ceiling
+  still applies to them), and does not skip the confirm-your-email rule.
+  `/api/admin/credit` (+$5 on the overview) is the older, different thing: it
+  writes `toppedUpUsd` as if bought.
+- **Limits.** `perMinute` / `perDay` raise that person's Lab AI guard bursts
+  (challenge/CLAUDE.md "Lab AI guard"). Never lower them; never the monthly
+  provider caps.
+- **Ends on read.** `until` (a date from the page = the end of that day UTC,
+  within a year) is checked by `activeAiGrant` every time; no timer. An
+  ended grant stays on the record, shown "(ended)", until revoked or replaced.
+- **The page** finds a person by the address they signed up with and shows
+  their spend this month (the `usage` ledger by uid; BYOK calls counted
+  apart), budget and grant; presets +$5, +$20, 20/min 200/day; custom
+  values, end date, note; Save replaces the grant, Revoke clears it. It also
+  shows the Lab's month-to-date against each provider cap, read server-side
+  from the lab's public `/api/lab/ai-guard` (`LAB_URL` overrides the host).
+  No inline script; the email shows only in the owner's signed-in page.
+- **Audit.** Every grant and revoke is an `ai.grant` / `ai.grant.revoked`
+  event (who: the owner's session, or `admin-password`; target uid, what,
+  until, note).
+- **"Ask for more" is not built**: the 402/429 messages are unchanged. The
+  access-request mechanism is per app and keyed to `GRANTABLE`, so routing
+  AI asks through it was not trivial.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
