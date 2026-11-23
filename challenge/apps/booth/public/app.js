@@ -235,7 +235,7 @@
     var b = me.budget || {};
     var remaining = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     var pct = b.unlimited ? 100 : Math.max(0, Math.min(100, (b.remainingUsd / (b.allowanceUsd || 1)) * 100));
-    var model = me.ai === 'gemini' ? 'Gemini reads and drafts' : (me.tier === 'paid' ? 'Member model (Sonnet)' : 'Free model (Haiku)');
+    var model = me.ai === 'gemini' ? 'Gemini reads and drafts' : me.ai === 'claude-first' ? 'Claude drafts (Gemini if Claude is busy); Gemini scans' : (me.tier === 'paid' ? 'Member model (Sonnet)' : 'Free model (Haiku)');
     sheet(
       '<h2>Your account</h2>' +
       '<p class="muted small">' + esc(me.email) + ' · ' + esc(model) + '</p>' +

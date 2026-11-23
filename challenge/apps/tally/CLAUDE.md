@@ -303,6 +303,11 @@ processor or Z report to reconcile card sales and payouts."**
   'zreport'` so the page draws the old banner (`geminiElseClaude`; log
   `[tally] gemini failed (<code>); used claude`). Pasted text is Gemini's
   alone: its failure stays the app's own sentence. Bursts go out as they are.
+- **Claude first (`TALLY_AI_PROVIDER=claude-first`, 2026-11-23).** A photo
+  goes to the Claude Z-report reader first (`reader: 'zreport'`), then
+  Gemini's report reader on any failure but a burst (`claudeElseGemini`; log
+  `[tally] claude failed (<code>); used gemini`). `/api/me` says `reader:
+  'report'`, so pasted text (Gemini only) is on.
 - **The sample shows it without a model.** `lib/demo.js` hand-writes
   Saturday's batch report as a reading (through the real cleaner): tips hard
   to read, the fee printed at the crept 2.9%. With the reader switched on,

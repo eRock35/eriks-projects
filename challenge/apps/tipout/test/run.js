@@ -808,6 +808,45 @@ test('Gemini fails, Claude answers: a thrown call, unusable output or the Gemini
   assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[tipout] gemini failed (http); used claude', '[tipout] gemini failed (unusable); used claude', '[tipout] gemini failed (monthly-cap); used claude']);
 });
 
+test('claude-first: Claude reads the snap, Gemini answers when Claude throws, is unusable or capped - not a burst', async () => {
+  const ivy = await register('ivy.claudefirst@example.com');
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const guard = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'claude' && o.denyClaude) || { ok: true }; },
+      record: async (a) => { seen.push(['record', a.provider]); return true; },
+      priceUsd: () => 0.002,
+      // Gemini reads a clean photo, so the stand-in's failure words stay Claude's.
+      gemini: { generate: async (r) => { seen.push(['generate']); return { json: await r.fake({ contents: [{ ...r.contents[0], parts: r.contents[0].parts.map((p) => (p.inlineData ? { inlineData: { ...p.inlineData, data: jpeg('TIPREPORT') } } : p)) }] }), usage: { inputTokens: 2000, outputTokens: 400 } }; } },
+    } };
+  };
+  const snap = async (o, s = 'TIPREPORT') => { const { seen, g } = guard(o); global.LAB_AI_GUARD = g; try { return { r: await ivy('POST', '/api/snap', { image: { type: 'image/jpeg', data: jpeg(s) } }, { 'x-local-date': DAY }), seen }; } finally { delete global.LAB_AI_GUARD; } };
+  process.env.TIPOUT_AI_PROVIDER = 'claude-first';
+  try {
+    assert.strictEqual((await ivy('GET', '/api/me')).data.snap, 'totals', 'the page says what Claude reads');
+    let { r, seen } = await snap({});
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'totals', [['allow', 'claude'], ['record', 'claude']]], r.text);
+    // Claude throws: Gemini answers 200.
+    ({ r, seen } = await snap({}, 'TIPREPORT UPSTREAM500'));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'report', [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], r.text);
+    assert.ok(!/fake_upstream/.test(r.text));
+    // Claude unusable: Gemini; Claude's billed call still recorded.
+    ({ r, seen } = await snap({}, 'BLANK'));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'report', [['allow', 'claude'], ['record', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], r.text);
+    // Claude's monthly cap: Gemini.
+    ({ r, seen } = await snap({ denyClaude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.reader, seen], [200, 'report', [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]]);
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await snap({ denyClaude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'claude']]]);
+    }
+  } finally { delete process.env.TIPOUT_AI_PROVIDER; console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[tipout] claude failed (500); used gemini', '[tipout] claude failed (unusable); used gemini', '[tipout] claude failed (monthly-cap); used gemini']);
+});
+
 test('the page keeps the strict rules: no inline script, handler or style attribute, in the HTML or written by script', () => {
   const fs = require('fs');
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');

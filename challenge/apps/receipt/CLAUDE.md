@@ -66,6 +66,10 @@ the whiteboard for decisions, owners, dates." Built on the redesign branch,
   (`geminiElseClaude`; log `[receipt] gemini failed (<code>); used claude`).
   Bursts go out as they are. "Record or snap" has no Claude path (the recap's
   whiteboard read is a different request): its failure stays its own error.
+- **Claude first (`RECEIPT_AI_PROVIDER=claude-first`, 2026-11-23).** The
+  sharpener and the recap run Claude first and fall back to Gemini on any
+  failure but a burst (`claudeElseGemini` via `byProvider`; log `[receipt]
+  claude failed (<code>); used gemini`). "Record or snap" is on, Gemini only.
 - **`POST /api/meetings/:id/minutes`**: `...spend, ownerOnly, minutesOn,
   mediaJson` - sign-in, budget, daily cap, the ownership 404, the switch, and
   only then the 12 MB parser. One recording **or** one whiteboard photo.

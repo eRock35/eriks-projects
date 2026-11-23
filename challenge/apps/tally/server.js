@@ -40,7 +40,9 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // processor's payout report, figure by figure with a confidence each.
 // Anything else - unset included - is Claude, exactly as before, so merging
 // the code changes nothing until the switch is set. Read per request.
-const providerNow = () => (process.env.TALLY_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// TALLY_AI_PROVIDER=claude-first (2026-11-23): a photo goes to Claude first,
+// Gemini when Claude fails; pasted text (Gemini only) is on.
+const providerNow = () => (process.env.TALLY_AI_PROVIDER === 'claude-first' ? 'claude-first' : process.env.TALLY_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -175,7 +177,7 @@ app.get('/api/me', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     // Which reader a snap gets: 'report' (Gemini: figures with a confidence
     // each, checked by rules.checkReport) or 'zreport' (Claude, as before).
-    const reader = providerNow() === 'gemini' ? 'report' : 'zreport';
+    const reader = providerNow() !== 'claude' ? 'report' : 'zreport';
     if (!req.user) return res.json({ signedIn: false, reader });
     const s = await loadSettings(req.user.id);
     res.json({
@@ -376,10 +378,29 @@ async function geminiElseClaude(viaGemini, viaClaude) {
   return viaClaude();
 }
 
+/** Claude first (TALLY_AI_PROVIDER=claude-first): the same two paths in the
+ *  other order. If Claude's own path fails for any reason but a burst
+ *  refusal - a thrown SDK error, a reading the validator rejects (a 422), the
+ *  month's Claude cap, no key - Gemini's own path answers the same photo. */
+async function claudeElseGemini(viaClaude, viaGemini) {
+  let code;
+  try {
+    const out = await viaClaude();
+    if (out) return out;
+    code = 'unusable';
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    code = String((err && (err.status === 422 ? 'unusable' : (err.code || err.status))) || 'error').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || 'error';
+  }
+  console.log(`[tally] claude failed (${code}); used gemini`);
+  return viaGemini();
+}
+
 app.post('/api/days/snap', ...spend, snapJson, async (req, res) => {
   try {
     const b = req.body || {};
-    const viaGemini = providerNow() === 'gemini';
+    const mode = providerNow();
+    const viaGemini = mode !== 'claude';
     const today = todayOf(req);
     let input;
     if (viaGemini && b.image === undefined && typeof b.text === 'string') {
@@ -396,7 +417,10 @@ app.post('/api/days/snap', ...spend, snapJson, async (req, res) => {
     const viaGeminiNow = async () => { await guardAllow('gemini', req); return snapWithGemini(req, input, today); };
     // Pasted text is Gemini's alone: no Claude path to fall back to. A photo
     // falls back to the Z-report reader, and says so (`reader: 'zreport'`).
-    res.json(input.text !== undefined ? await viaGeminiNow() : await geminiElseClaude(viaGeminiNow, async () => ({ reader: 'zreport', ...(await viaClaude()) })));
+    // Claude first: the Z-report reader, then Gemini's report reader if it fails.
+    const viaZ = async () => ({ reader: 'zreport', ...(await viaClaude()) });
+    if (input.text !== undefined) return res.json(await viaGeminiNow());
+    res.json(mode === 'claude-first' ? await claudeElseGemini(viaZ, viaGeminiNow) : await geminiElseClaude(viaGeminiNow, viaZ));
   } catch (err) { fail(res, err, SNAP_FALLBACK); }
 });
 

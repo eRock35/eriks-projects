@@ -1398,6 +1398,55 @@ test('Gemini fails, Claude answers the sharpener and the recap: a thrown call, u
   assert.deepStrictEqual(lines.filter((l) => /gemini failed/.test(l)), ['[receipt] gemini failed (http); used claude', '[receipt] gemini failed (http); used claude', '[receipt] gemini failed (unusable); used claude', '[receipt] gemini failed (monthly-cap); used claude']);
 });
 
+test('claude-first: the sharpener and the recap run on Claude, Gemini answers when Claude throws, is unusable or capped - not a burst; Record or snap is on', async () => {
+  const lines = [];
+  const quietLog = console.log; const quietErr = console.error;
+  console.log = (m) => lines.push(String(m)); console.error = () => {};
+  const mk = (o = {}) => {
+    const seen = [];
+    return { seen, g: {
+      allow: async (a) => { seen.push(['allow', a.provider]); return (a.provider === 'claude' && o.denyClaude) || { ok: true }; },
+      record: async (r) => { seen.push(['record', r.provider]); return true; },
+      priceUsd: () => 0.001,
+      // Gemini reads a copy with the stand-in's failure words defused.
+      gemini: { generate: async (r) => { seen.push(['generate']); return { json: await r.fake({ contents: JSON.parse(JSON.stringify(r.contents).replace(/UPSTREAM/g, 'UP-STREAM').replace(/EMPTY/g, 'E-MPTY')), generationConfig: { responseSchema: r.responseSchema } }), usage: { inputTokens: 100, outputTokens: 10 } }; } },
+    } };
+  };
+  const cf = async (fn, g) => { process.env.RECEIPT_AI_PROVIDER = 'claude-first'; global.LAB_AI_GUARD = g; try { return await fn(); } finally { delete process.env.RECEIPT_AI_PROVIDER; delete global.LAB_AI_GUARD; } };
+  const sharpen = (o) => { const x = mk(o); return cf(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/sharpen`, {}), seen: x.seen }), x.g); };
+  const recap = (notes, o) => { const x = mk(o); return cf(async () => ({ r: await maya('POST', `/api/meetings/${MT.next}/recap`, { notes }), seen: x.seen }), x.g); };
+  try {
+    const me = await cf(() => maya('GET', '/api/me'), mk().g);
+    assert.deepStrictEqual([me.data.ai.provider, me.data.ai.minutes], ['claude-first', true]);
+    // Claude answers when it can.
+    let { r, seen } = await sharpen();
+    assert.deepStrictEqual([r.status, seen], [200, [['allow', 'claude'], ['record', 'claude']]]);
+    // Claude throws: Gemini answers 200.
+    ({ r, seen } = await recap('Sam will book the room. UPSTREAM500'));
+    assert.deepStrictEqual([r.status, Array.isArray(r.data.actions), seen], [200, true, [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], JSON.stringify(r.data));
+    assert.ok(!JSON.stringify(r.data).includes('fake_upstream'));
+    // Claude unusable: Gemini (the Claude call that billed is still recorded).
+    ({ r, seen } = await recap('EMPTY. Sam will book the room.'));
+    assert.deepStrictEqual([r.status, seen], [200, [['allow', 'claude'], ['record', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]], JSON.stringify(r.data));
+    // Claude's monthly cap: Gemini.
+    ({ r, seen } = await sharpen({ denyClaude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } }));
+    assert.deepStrictEqual([r.status, r.data.proposal.items.length >= 2, seen], [200, true, [['allow', 'claude'], ['allow', 'gemini'], ['generate'], ['record', 'gemini']]]);
+    // A burst refusal goes out as it is.
+    const before = await modelCalls();
+    for (const code of ['burst-minute', 'burst-day']) {
+      ({ r, seen } = await sharpen({ denyClaude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } }));
+      assert.deepStrictEqual([r.status, r.data.code, seen], [429, code, [['allow', 'claude']]]);
+    }
+    await settle();
+    assert.strictEqual(await modelCalls(), before, 'a burst: no Gemini call, nobody charged');
+    // Record or snap (Gemini only) is on.
+    const x = mk();
+    r = await cf(() => maya('POST', `/api/meetings/${MT.next}/minutes`, { audio: { type: 'audio/wav', data: wav() } }), x.g);
+    assert.deepStrictEqual([r.status, x.seen], [200, [['allow', 'gemini'], ['generate'], ['record', 'gemini']]], JSON.stringify(r.data));
+  } finally { console.log = quietLog; console.error = quietErr; }
+  assert.deepStrictEqual(lines.filter((l) => /claude failed/.test(l)), ['[receipt] claude failed (500); used gemini', '[receipt] claude failed (unusable); used gemini', '[receipt] claude failed (monthly-cap); used gemini']);
+});
+
 test('out of credit: 402 before any model call, while everything else stays free', async () => {
   await identityStore.merge('users', uidOf('maya@example.com'), { spentUsd: 100 });
   const calls = await modelCalls();
