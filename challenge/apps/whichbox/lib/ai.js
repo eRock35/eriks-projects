@@ -77,7 +77,7 @@ function brief(body) {
 const TEXT = 'List what is in this open box with the record_contents tool.';
 
 /** The one place a model is called. */
-async function ask(client, model, req) {
+async function ask(client, model, req, onUsage) {
   const res = await client.messages.create({
     model,
     max_tokens: 1500,
@@ -89,17 +89,20 @@ async function ask(client, model, req) {
       { type: 'text', text: TEXT },
     ] }],
   }, { timeout: 60000, maxRetries: 1 });
+  if (onUsage && res && res.usage) onUsage({ inputTokens: res.usage.input_tokens || 0, outputTokens: res.usage.output_tokens || 0 });
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That box ran long. Try a photo of the top layer - or type the list.');
   const block = (res && Array.isArray(res.content) ? res.content : []).find((b) => b && b.type === 'tool_use' && b.name === TOOL.name);
   if (!block || !block.input || typeof block.input !== 'object') throw httpError(502, 'The answer did not come back in the expected shape. Try again.');
   return block.input;
 }
 
+const NOTHING = 'Nothing could be made out in that photo. Try one from above with the box open and the light on - or type the list.';
+
 /** The answer, checked. Nothing usable is a 422 with a way forward. */
 function answer(raw) {
   const out = Core.cleanAiAnswer(raw);
-  if (!out || !out.items.length) throw httpError(422, 'Nothing could be made out in that photo. Try one from above with the box open and the light on - or type the list.');
+  if (!out || !out.items.length) throw httpError(422, NOTHING);
   return { proposal: out };
 }
 
-module.exports = { httpError, brief, ask, answer, TEXT, TOOL, SYSTEM };
+module.exports = { httpError, brief, ask, answer, TEXT, TOOL, SYSTEM, NOTHING };

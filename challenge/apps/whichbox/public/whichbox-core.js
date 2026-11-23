@@ -1099,20 +1099,24 @@
    * The model's answer, checked: at most 40 short plain item names (no
    * links, no markup, no long numbers, no repeats), a room KIND from the
    * fixed list or "unsure", flags only from {fragile, heavy}, confidences
-   * from the fixed set. Null when nothing usable came back.
+   * from the fixed set. Null when nothing usable came back. An item may be
+   * a string or {name, confidence}; with `opts.perItem` the answer also
+   * carries `itemConfidence`, one of the fixed set per kept item.
    */
-  function cleanAiAnswer(raw) {
+  function cleanAiAnswer(raw, opts) {
     if (!raw || typeof raw !== 'object') return null;
+    const conf = (v) => (CONFIDENCE.indexOf(v) >= 0 ? v : 'low');
     const items = [];
+    const itemConfidence = [];
     const seen = {};
     for (const v of (Array.isArray(raw.items) ? raw.items : []).slice(0, LIMITS.aiItems * 3)) {
       const s = plainOut(typeof v === 'string' ? v : (v && typeof v.name === 'string' ? v.name : ''), LIMITS.aiItem).replace(/\d{6,}/g, '').replace(/\s+/g, ' ').replace(/^[,.\s-]+|[,.\s-]+$/g, '').trim();
       const k = itemKey(s);
       if (!hasWord(s) || seen[k]) continue;
       seen[k] = 1; items.push(cleanItem(s));
+      itemConfidence.push(conf(v && typeof v === 'object' ? v.confidence : ''));
       if (items.length >= LIMITS.aiItems) break;
     }
-    const conf = (v) => (CONFIDENCE.indexOf(v) >= 0 ? v : 'low');
     const room = ROOM_KINDS.indexOf(raw.room) >= 0 ? raw.room : 'unsure';
     const flags = [];
     for (const f of Array.isArray(raw.flags) ? raw.flags.slice(0, 10) : []) {
@@ -1121,7 +1125,11 @@
       flags.push({ id, confidence: conf(f && f.confidence) });
     }
     if (!items.length && room === 'unsure') return null;
-    return { items, room, roomConfidence: room === 'unsure' ? 'low' : conf(raw.room_confidence), flags, confidence: items.length ? conf(raw.confidence) : 'low', note: plainOut(raw.note, LIMITS.aiNote) };
+    const out = { items, room, roomConfidence: room === 'unsure' ? 'low' : conf(raw.room_confidence), flags, confidence: items.length ? conf(raw.confidence) : 'low', note: plainOut(raw.note, LIMITS.aiNote) };
+    // A reader that says how sure it is of each thing (one confidence per
+    // item, in step with `items`); anything it did not say is "low".
+    if (opts && opts.perItem) out.itemConfidence = itemConfidence;
+    return out;
   }
   /** The move's room for a suggested kind: the first room of that kind. */
   function roomForKind(move, kind) { return kind && kind !== 'unsure' ? move.rooms.find((r) => r.kind === kind) || null : null; }
