@@ -81,4 +81,30 @@ function readLabels(file) {
   return out;
 }
 
-module.exports = { readInstance, readLabels, unescape };
+// Tags tried for each annual number, in order of preference when one filing
+// reports two of them for the same period (tools/build.js).
+const TAGS = {
+  revenue: ['us-gaap:Revenues', 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', 'us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax', 'us-gaap:SalesRevenueNet', 'ifrs-full:Revenue', 'ifrs-full:RevenueFromContractsWithCustomers'],
+  cost: ['us-gaap:CostOfRevenue', 'us-gaap:CostOfGoodsAndServicesSold', 'us-gaap:CostOfGoodsSold', 'ifrs-full:CostOfSales'],
+  gross: ['us-gaap:GrossProfit', 'ifrs-full:GrossProfit'],
+  rd: ['us-gaap:ResearchAndDevelopmentExpense', 'us-gaap:ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost', 'us-gaap:ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost', 'ifrs-full:ResearchAndDevelopmentExpense'],
+  capex: ['us-gaap:PaymentsToAcquirePropertyPlantAndEquipment', 'us-gaap:PaymentsToAcquireProductiveAssets', 'ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities'],
+  inventory: ['us-gaap:InventoryNet', 'ifrs-full:Inventories', 'ifrs-full:CurrentInventories'],
+};
+
+/** Company facts (data.sec.gov) cut down to the tags above, same shape.
+ *  The build and the verifier read nothing else from it, so the cache keeps
+ *  a few hundred kilobytes a company instead of several megabytes. */
+function slimFacts(facts) {
+  const keep = new Set([].concat(...Object.values(TAGS)));
+  const out = { cik: facts.cik, entityName: facts.entityName, slim: true, facts: {} };
+  for (const [tax, tags] of Object.entries(facts.facts || {})) {
+    for (const [tag, body] of Object.entries(tags)) {
+      if (!keep.has(`${tax}:${tag}`)) continue;
+      (out.facts[tax] = out.facts[tax] || {})[tag] = body;
+    }
+  }
+  return out;
+}
+
+module.exports = { readInstance, readLabels, unescape, TAGS, slimFacts };

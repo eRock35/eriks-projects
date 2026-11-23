@@ -17,8 +17,12 @@ const Core = require('../public/asfiled-core');
 const V = require('../tools/verify');
 const T = require('../tools/text');
 const { FILERS, OTHERS, byId } = require('../tools/companies');
-const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'data', 'dataset.json'), 'utf8'));
+const Dataset = require('../tools/dataset');
+const data = Dataset.load();
+const DATA = path.join(ROOT, 'public', 'data');
+const readPart = (rel) => JSON.parse(fs.readFileSync(path.join(DATA, rel), 'utf8'));
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const INDEX_MAX = 500 * 1024;          // the phone's first data load
 let n = 0;
 const ok = (m) => { n += 1; console.log(`  ok ${n} - ${m}`); };
 
@@ -33,8 +37,10 @@ function walk(dir, out = []) {
 
 (async () => {
   /* ---------- the dataset: figures ---------- */
-  assert.strictEqual(data.companies.length, 19);
+  assert.strictEqual(data.companies.length, 81);
   assert.deepStrictEqual(data.companies.map((c) => c.id).sort(), FILERS.map((c) => c.id).sort());
+  // The original nineteen are all still here.
+  for (const id of ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'DELL', 'HPQ', 'CSCO', 'NVDA', 'AMD', 'INTC', 'QCOM', 'AVGO', 'MU', 'TXN', 'TSM', 'AMAT', 'LRCX', 'ASML']) assert.ok(data.companies.some((c) => c.id === id), id);
   const ACCN = /^\d{10}-\d{2}-\d{6}$/;
   const FILING_URL = /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/\d{10}-\d{2}-\d{6}-index\.htm$/;
   for (const [id, f] of Object.entries(data.figures)) {
@@ -42,7 +48,7 @@ function walk(dir, out = []) {
     const filing = data.filings[f.a];
     assert.ok(filing && /^(10-K|20-F)$/.test(filing.form) && /^\d{4}-\d\d-\d\d$/.test(filing.filed), `${id}: filing`);
     assert.strictEqual(filing.c, f.c, `${id}: the filing is that company's own`);
-    assert.ok(Number.isFinite(f.v) && /^\d{4}-\d\d-\d\d$/.test(f.end) && f.fy === Number(f.end.slice(0, 4)) && f.tag, `${id}: value, period, tag`);
+    assert.ok(Number.isFinite(f.v) && /^\d{4}-\d\d-\d\d$/.test(f.end) && f.fy === Core.fiscalYear(f.end) && f.tag, `${id}: value, period, tag`);
     const src = Core.figureSource(data, id);
     assert.ok(FILING_URL.test(src.url), `${id}: link ${src.url}`);
     assert.ok(src.url.includes(`/${byId[f.c].cik}/`), `${id}: link is under the company's own CIK`);
@@ -50,9 +56,14 @@ function walk(dir, out = []) {
   ok(`all ${Object.keys(data.figures).length} figures carry a form, a fiscal period, an accession number and a sec.gov filing link under the company's own CIK`);
   for (const c of data.companies) {
     assert.ok(Core.fig(data, c.id, 'revenue', c.latest), `${c.id}: latest revenue`);
-    assert.ok(c.years.length >= 10, `${c.id}: ten or more fiscal years`);
+    // Twelve fiscal years where company facts holds them; a recent listing
+    // or spin-off shows every year its registrant has filed.
+    assert.ok(c.years.length === Math.min(12, c.periods) && (c.years.length >= 10 || c.periods < 10), `${c.id}: ${c.years.length} fiscal years of ${c.periods}`);
+    assert.strictEqual(new Set(c.years).size, c.years.length, `${c.id}: one figure per fiscal year`);
   }
-  ok('every company has ten or more fiscal years and a latest revenue figure');
+  assert.ok(data.companies.filter((c) => c.years.length >= 10).length >= 72);
+  assert.strictEqual(Core.fiscalYear('2016-01-02'), 2015); assert.strictEqual(Core.fiscalYear('2026-01-25'), 2026);
+  ok(`every company has a latest revenue figure and twelve fiscal years, or every year its registrant has (${data.companies.filter((c) => c.years.length < 10).map((c) => `${c.id} ${c.years.length}`).join(', ')})`);
 
   /* ---------- the dataset: edges ---------- */
   const SOURCE_URL = /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/[A-Za-z0-9._-]+\.htm$|^https:\/\/www\.apple\.com\/supply-chain\/pdf\/Apple-Supplier-List\.pdf$/;
@@ -86,7 +97,7 @@ function walk(dir, out = []) {
     const e = data.edges.filter((x) => x.from === a && x.to === b);
     assert.ok(e.length && e.every((x) => data.sources[x.source].kind === 'supplier-list' || x.by === b || x.by === a));
   }
-  ok('a company outside the nineteen appears only because an edge names it; the Apple supplier links rest on Apple\'s own list');
+  ok('a company outside the set appears only because an edge names it; the Apple supplier links rest on Apple\'s own list');
 
   /* ---------- the insights ---------- */
   const fresh = Core.writeAll(data);
@@ -164,10 +175,53 @@ function walk(dir, out = []) {
   const secjs = fs.readFileSync(path.join(ROOT, 'tools', 'sec.js'), 'utf8');
   assert.ok(/process\.env\.SEC_USER_AGENT/.test(secjs) && /process\.exit\(2\)/.test(secjs) && !/User-Agent'\]\s*=\s*'[^']*@/.test(secjs));
   ok('only tools/sec.js reads SEC_USER_AGENT, from the environment, and refuses to run without it');
-  assert.ok(fs.statSync(path.join(ROOT, 'public', 'data', 'dataset.json')).size < 900 * 1024);
   assert.ok(Math.max(...data.edges.map((e) => e.quote.length)) <= 620);
-  assert.deepStrictEqual(fs.readdirSync(path.join(ROOT, 'public', 'data')), ['dataset.json']);
-  ok('only the derived dataset is committed: no filing text beyond short quotes');
+  assert.deepStrictEqual(fs.readdirSync(DATA).sort(), ['c', 'index.json', 'patterns.json']);
+  assert.deepStrictEqual(fs.readdirSync(path.join(DATA, 'c')).sort(), data.companies.map((c) => `${c.id}.json`).sort());
+  ok('only the derived dataset is committed: an index, the patterns and one file per company; no filing text beyond short quotes');
+
+  /* ---------- the split: a small index, the rest on demand ---------- */
+  const index = readPart('index.json');
+  const sizeOf = (rel) => fs.statSync(path.join(DATA, rel)).size;
+  const biggest = Math.max(...data.companies.map((c) => sizeOf(`c/${c.id}.json`)));
+  assert.ok(sizeOf('index.json') < INDEX_MAX, `index.json is ${sizeOf('index.json')} bytes`);
+  assert.ok(sizeOf('patterns.json') < 600 * 1024, 'patterns.json');
+  assert.ok(biggest < 64 * 1024, `largest company file ${biggest} bytes`);
+  ok(`the first load is small: index.json ${(sizeOf('index.json') / 1024).toFixed(0)} KB; patterns.json ${(sizeOf('patterns.json') / 1024).toFixed(0)} KB and company files up to ${(biggest / 1024).toFixed(0)} KB load only when opened`);
+  const fresh2 = Core.split(data);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.index)), index);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.patterns)), readPart('patterns.json'));
+  for (const c of data.companies) assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.companies[c.id])), readPart(`c/${c.id}.json`), c.id);
+  ok('splitting the merged dataset again gives the committed files byte for byte in content: nothing is lost or added between the parts');
+  for (const c of index.companies) {
+    for (const fid of Core.headIds(c)) if (data.figures[fid]) assert.deepStrictEqual(index.figures[fid], data.figures[fid], `${fid} in the index`);
+    assert.deepStrictEqual(c.spark, c.years.map((fy) => { const f = Core.fig(data, c.id, 'revenue', fy); return f ? f.v : null; }), `${c.id}: spark is its revenue figures`);
+    const part = readPart(`c/${c.id}.json`);
+    assert.ok(Object.values(part.figures).every((f) => f.c === c.id), `${c.id}: only its own figures`);
+    assert.strictEqual(Object.keys(part.figures).length, Object.values(data.figures).filter((f) => f.c === c.id).length, `${c.id}: all its figures`);
+    for (const f of Object.values(part.figures)) assert.ok(part.filings[f.a], `${c.id}: the filing of every figure`);
+  }
+  for (const e of index.edges) if (e.fig) assert.ok(index.figures[e.fig], `${e.id}: its tagged figure is in the index`);
+  const edgeFigs = new Set(index.edges.map((e) => e.fig).filter(Boolean));
+  assert.ok(!Object.keys(index.figures).some((k) => /\.(rd|capex|inventory|mix|conc)\./.test(k) && !edgeFigs.has(k)), 'the index carries only headline figures and those an edge cites');
+  assert.deepStrictEqual([index.counts.figures, index.counts.sources, index.counts.filings], [Object.keys(data.figures).length, Object.keys(data.sources).length, Object.keys(data.filings).length]);
+  ok('the index holds every company with its headline figures and sparkline, every edge and source; each company file holds exactly that company\'s figures and their filings');
+  // The loader: the page merges parts in whatever order they arrive.
+  {
+    const parts = [readPart('patterns.json')].concat(data.companies.map((c) => readPart(`c/${c.id}.json`)));
+    const rev = Core.start(index); parts.slice().reverse().forEach((p) => Core.merge(rev, p));
+    const fwd = Core.start(index); parts.forEach((p) => Core.merge(fwd, p));
+    assert.strictEqual(Core.integrity(rev, sha), index.integrity);
+    assert.strictEqual(Core.integrity(fwd, sha), index.integrity);
+    const only = Core.merge(Core.start(index), readPart('c/NVDA.json'));
+    assert.ok(Core.fig(only, 'NVDA', 'rd', only.companies.find((c) => c.id === 'NVDA').latest) && !Core.fig(only, 'AMD', 'rd', 2024) && only.patterns === null);
+    assert.ok(Core.companyInsights(only, only.companies.find((c) => c.id === 'NVDA')).length >= 4, 'a company page has what it needs from the index and its own file');
+    for (const good of ['index', 'patterns', 'c/NVDA', 'c/P', 'c/GOOGL']) assert.strictEqual(Core.partPath(good), `data/${good}.json`);
+    for (const bad of ['dataset', 'c/nvda', '../index', 'c/NVDA/../x', 'c/ABCDEFG', 'index.json', '', 'https://x.example.com/index']) assert.throws(() => Core.partPath(bad), bad);
+    const twice = Core.merge(Core.merge(Core.start(index), readPart('c/AAPL.json')), readPart('c/AAPL.json'));
+    assert.deepStrictEqual(twice.insights.AAPL, data.insights.AAPL);
+  }
+  ok('the loader: parts merge in any order to the same integrity hash, a company page works from the index plus its own file, and only data/index.json, patterns.json or c/<TICKER>.json can be requested');
 
   /* ---------- the server, mounted as the lab mounts it ---------- */
   process.env.K_SERVICE = 'x'; process.env.ASFILED_FAKE_AI = '1';
@@ -197,13 +251,14 @@ function walk(dir, out = []) {
     const js = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
     assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\.style\.|setAttribute\('style'|eval\(/.test(js));
     const fetches = js.match(/fetch\([^)]*\)/g) || [];
-    assert.deepStrictEqual(fetches, ["fetch(BASE + 'data/dataset.json')"]);
+    assert.deepStrictEqual(fetches, ['fetch(BASE + Core.partPath(part)']);
     assert.ok(!/XMLHttpRequest|WebSocket|sendBeacon|EventSource/.test(js));
-    ok('the page script builds with textContent only, writes no style, and makes one request: its own dataset');
-    for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/dataset.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
+    ok('the page script builds with textContent only, writes no style, and requests only its own data parts');
+    for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
+    assert.strictEqual((await fetch(`${base}/asfiled/data/dataset.json`)).headers.get('content-type').startsWith('text/html'), true, 'the old single file is gone');
     r = await fetch(`${base}/asfiled/api/meta`);
     const meta = await r.json();
-    assert.deepStrictEqual([meta.companies, meta.edges, meta.integrity], [19, data.edges.length, data.integrity]);
+    assert.deepStrictEqual([meta.companies, meta.edges, meta.figures, meta.integrity], [81, data.edges.length, Object.keys(data.figures).length, data.integrity]);
     assert.strictEqual((await fetch(`${base}/asfiled/api/auth/me`)).status, 200);
     assert.strictEqual((await fetch(`${base}/asfiled/api/nope`)).status, 404);
     assert.strictEqual((await fetch(`${base}/asfiled/c/NVDA`)).status, 200);

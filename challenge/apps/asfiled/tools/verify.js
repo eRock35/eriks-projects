@@ -134,7 +134,7 @@ function recheck(data) {
 module.exports = { TYPES, proof, expand, checkEdge, recheck, names, aliasRe };
 
 if (require.main === module) {
-  const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'public', 'data', 'dataset.json'), 'utf8'));
+  const data = require('./dataset').load();
   const problems = recheck(data);
   if (problems.length) { console.error(problems.slice(0, 40).join('\n')); console.error(`${problems.length} problem(s).`); process.exit(1); }
   console.log(`verified against the cache: ${data.edges.length} edges, ${Object.keys(data.figures).length} figures, ${Object.keys(data.sources).length} sources`);

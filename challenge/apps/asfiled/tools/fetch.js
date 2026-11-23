@@ -6,20 +6,32 @@
 //   - that annual report's main document and its XBRL instance
 //
 // Nothing is written inside the repo. Run with SEC_USER_AGENT set.
+//
+// FILINGS_ONLY=KLAC,TER,... fetches just those companies (batches); the
+// manifest keeps every other company's entry. The cache is kept small:
+// company facts are cut down to the tags the build reads (xbrl.slimFacts),
+// and a report's main document is not fetched again once its text has been
+// extracted (tools/extract.js deletes the raw document after reading it).
 
 const fs = require('fs');
 const path = require('path');
 const { FILERS } = require('./companies');
+const { slimFacts } = require('./xbrl');
 const sec = require('./sec');
 
 const ANNUALS = Number(process.env.FILINGS_ANNUALS || 1);   // how many annual reports' text to read
 
 async function main() {
   sec.agent();
-  const manifest = {};
+  const manFile = path.join(sec.CACHE, 'manifest.json');
+  const manifest = fs.existsSync(manFile) ? JSON.parse(fs.readFileSync(manFile, 'utf8')) : {};
+  const only = process.env.FILINGS_ONLY ? new Set(process.env.FILINGS_ONLY.split(',').map((x) => x.trim())) : null;
   for (const c of FILERS) {
+    if (only && !only.has(c.id)) continue;
     const cik10 = sec.pad10(c.cik);
-    await sec.cached(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, `facts/${c.id}.json`);
+    const factsFile = await sec.cached(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, `facts/${c.id}.json`);
+    const facts = JSON.parse(fs.readFileSync(factsFile, 'utf8'));
+    if (!facts.slim) fs.writeFileSync(factsFile, JSON.stringify(slimFacts(facts)));
     const subsFile = await sec.cached(`https://data.sec.gov/submissions/CIK${cik10}.json`, `subs/${c.id}.json`);
     const subs = JSON.parse(fs.readFileSync(subsFile, 'utf8'));
     const r = subs.filings.recent;
@@ -31,7 +43,7 @@ async function main() {
     if (!annual.length) throw new Error(`${c.id}: no ${c.form} found`);
     for (const a of annual) {
       const dir = `docs/${c.id}/${a.accn}`;
-      await sec.cached(sec.docUrl(c.cik, a.accn, a.doc), `${dir}/${a.doc}`);
+      if (!fs.existsSync(path.join(sec.CACHE, 'text', `${c.id}-${a.accn}.txt`))) await sec.cached(sec.docUrl(c.cik, a.accn, a.doc), `${dir}/${a.doc}`);
       const idx = await sec.cached(`https://www.sec.gov/Archives/edgar/data/${c.cik}/${sec.nodash(a.accn)}/index.json`, `${dir}/index.json`);
       const items = JSON.parse(fs.readFileSync(idx, 'utf8')).directory.item.map((x) => x.name);
       const inst = items.find((n) => /_htm\.xml$/.test(n)) || null;
@@ -47,9 +59,8 @@ async function main() {
   }
   // Apple's own Supplier List, from apple.com (not the SEC: no declared
   // identity is sent there, only a generic client name).
-  await sec.cached('https://www.apple.com/supply-chain/pdf/Apple-Supplier-List.pdf', 'apple/Apple-Supplier-List.pdf', { binary: true });
-  console.log('Apple Supplier List: cached');
-  fs.writeFileSync(path.join(sec.CACHE, 'manifest.json'), JSON.stringify(manifest, null, 1));
+  if (!only || only.has('AAPL')) await sec.cached('https://www.apple.com/supply-chain/pdf/Apple-Supplier-List.pdf', 'apple/Apple-Supplier-List.pdf', { binary: true });
+  fs.writeFileSync(manFile, JSON.stringify(manifest, null, 1));
 }
 
 main().catch((e) => { console.error(e.message); process.exit(1); });

@@ -24,6 +24,13 @@
   // Supply runs from -> to for these; the others have no direction.
   var DIRECTED = { supplier: true, customer: true, service: true, investor: true };
 
+  /** The fiscal year a period belongs to: the year it ends in, except that
+   *  a 52/53-week year ending in the first week of January (Cadence's ended
+   *  on 2016-01-02) belongs to the year before. */
+  function fiscalYear(end) {
+    var y = Number(String(end).slice(0, 4));
+    return /^\d{4}-01-0[1-7]$/.test(end) ? y - 1 : y;
+  }
   function fig(data, c, m, fy) { return data.figures[c + '.' + m + '.' + fy] || null; }
   function id(c, m, fy) { return c + '.' + m + '.' + fy; }
   function company(data, cid) {
@@ -188,19 +195,19 @@
       var cells = years.map(function (fy) { var d = derived(data, c.id, 'inventoryDays', fy); return d ? { fy: fy, v: d.v, cites: d.cites } : null; });
       if (cells.filter(Boolean).length >= 5) rows.push({ c: c.id, layer: c.layer, cells: cells });
     });
-    var order = { equipment: 0, chips: 1, devices: 2, cloud: 3 };
+    var order = {}; data.layers.forEach(function (l, i) { order[l.id] = i; });
     rows.sort(function (a, b) { return order[a.layer] - order[b.layer]; });
     var sent = [];
-    var peakCount = {};
-    ['equipment', 'chips', 'devices'].forEach(function (layer) {
-      var parts = []; var cites = [];
-      rows.filter(function (r) { return r.layer === layer; }).forEach(function (r) {
-        var peak = r.cells.filter(Boolean).reduce(function (a, b) { return b.v > a.v ? b : a; });
-        peakCount[peak.fy] = (peakCount[peak.fy] || 0) + 1;
-        parts.push(nameOf(data, r.c) + ' (about ' + Math.round(peak.v) + ' days, FY' + peak.fy + ')');
-        cites = cites.concat(peak.cites);
-      });
-      if (parts.length) sent.push(S('inventory', layerName[layer] + ': the most inventory each company carried in these years, in days of cost of revenue, was ' + list(parts) + '.', cites));
+    // Per layer, the three companies whose most inventory (in days) was the
+    // highest; every company's own peak is in its row of the table.
+    data.layers.forEach(function (l) {
+      var peaks = rows.filter(function (r) { return r.layer === l.id; }).map(function (r) {
+        return { c: r.c, p: r.cells.filter(Boolean).reduce(function (a, b) { return b.v > a.v ? b : a; }) };
+      }).sort(function (a, b) { return b.p.v - a.p.v; });
+      if (peaks.length < 2) return;
+      var top3 = peaks.slice(0, 3);
+      var cites = []; top3.forEach(function (x) { cites = cites.concat(x.p.cites); });
+      sent.push(S('inventory', layerName[l.id] + ': of ' + peaks.length + ' companies, the most inventory any held at a year end in these years, in days of cost of revenue, was at ' + list(top3.map(function (x) { return nameOf(data, x.c) + ' (about ' + Math.round(x.p.v) + ' days, FY' + x.p.fy + ')'; })) + '.', cites));
     });
     out.push({
       id: 'inventory', title: 'Inventory moves through the chain',
@@ -234,7 +241,7 @@
     var groups = [
       { name: 'Cloud capital spending', who: ['MSFT', 'GOOGL', 'AMZN', 'META'], m: 'capex' },
       { name: 'Chip makers’ capital spending', who: ['INTC', 'MU', 'TXN', 'TSM'], m: 'capex' },
-      { name: 'Equipment makers’ revenue', who: ['AMAT', 'LRCX'], m: 'revenue' },
+      { name: 'Equipment makers’ revenue', who: ['AMAT', 'LRCX', 'KLAC'], m: 'revenue' },
     ];
     var series = []; var s3 = [];
     groups.forEach(function (g) {
@@ -257,7 +264,7 @@
     });
     out.push({
       id: 'capex', title: 'Capital spending waves',
-      lede: 'What the cloud companies and the chip makers spent on property and equipment, beside what two equipment makers took in as revenue.',
+      lede: 'What four cloud companies and four chip makers spent on property and equipment, beside what three equipment makers took in as revenue.',
       method: 'Sums of each company’s own reported figure for its own fiscal year; fiscal years end in different months. TSMC’s figure is its own US-dollar translation, tagged in its 20-F. ASML reports in euros and is not in the equipment sum. A year appears only when every company in the group has a figure for it.',
       chart: { type: 'lines', unit: 'USD', series: series }, sentences: s3,
     });
@@ -290,15 +297,109 @@
     return { insights: insights, patterns: patterns(data) };
   }
 
+  /** JSON with every object's keys in sorted order, so a hash does not
+   *  depend on the order parts were loaded and merged in. */
+  function canonical(x) {
+    if (Array.isArray(x)) return '[' + x.map(canonical).join(',') + ']';
+    if (x && typeof x === 'object') return '{' + Object.keys(x).sort().filter(function (k) { return x[k] !== undefined; }).map(function (k) { return JSON.stringify(k) + ':' + canonical(x[k]); }).join(',') + '}';
+    return JSON.stringify(x);
+  }
   /** One hash over everything a reader is shown as fact. */
   function integrity(data, sha) {
-    return sha(JSON.stringify([data.figures, data.edges, data.insights, data.patterns, data.mixes, data.concentration]));
+    return sha(canonical([data.figures, data.edges, data.insights, data.patterns, data.mixes, data.concentration]));
+  }
+
+  /* ---------------- the published files ----------------
+   * The dataset is published in parts, so a phone's first load is small:
+   *   data/index.json     companies (with their headline figures), the
+   *                       stated relationships and their sources
+   *   data/patterns.json  the cross-company patterns and the figures they cite
+   *   data/c/<ID>.json    one company's figures, revenue mix, customer
+   *                       concentration and insight sentences
+   * The page loads index.json first and the others when a view needs them,
+   * merging each into one object the functions above read. */
+  var PART = /^(index|patterns|c\/[A-Z]{1,6})$/;
+  function partPath(part) {
+    if (!PART.test(String(part))) throw new Error('not a data part: ' + part);
+    return 'data/' + part + '.json';
+  }
+  function pick(data, ids) {
+    var figures = {}; var filings = {};
+    ids.forEach(function (fid) {
+      var f = data.figures[fid];
+      if (!f) return;
+      figures[fid] = f;
+      if (data.filings[f.a]) filings[f.a] = data.filings[f.a];
+    });
+    return { figures: figures, filings: filings };
+  }
+  function chartCites(p) {
+    var out = [];
+    var c = p.chart;
+    if (c.type === 'heat') c.rows.forEach(function (r) { r.cells.forEach(function (x) { if (x) out = out.concat(x.cites); }); });
+    if (c.type === 'scatter') c.points.forEach(function (q) { out = out.concat(q.cites); });
+    if (c.type === 'lines') c.series.forEach(function (x) { x.points.forEach(function (q) { out = out.concat(q.cites); }); });
+    if (c.type === 'bars') c.rows.forEach(function (r) { out.push(r.cite); r.all.forEach(function (z) { out.push(z.cite); }); });
+    p.sentences.forEach(function (st) { out = out.concat(st.cites); });
+    return out;
+  }
+  /** The headline figures a company's row and map circle show. */
+  function headIds(c) {
+    return ['revenue', 'revenueUsd', 'gross', 'cost'].map(function (m) { return id(c.id, m, c.latest); });
+  }
+  /** A whole dataset -> its published parts. */
+  function split(data) {
+    var head = [];
+    data.companies.forEach(function (c) { head = head.concat(headIds(c)); });
+    data.edges.forEach(function (e) { if (e.fig) head.push(e.fig); });
+    var hp = pick(data, head);
+    var index = {
+      app: data.app, schema: 2, built: data.built, disclaimer: data.disclaimer, layers: data.layers,
+      companies: data.companies.map(function (c) {
+        var o = {}; Object.keys(c).forEach(function (k) { o[k] = c[k]; });
+        o.spark = c.years.map(function (fy) { var f = fig(data, c.id, 'revenue', fy); return f ? f.v : null; });
+        return o;
+      }),
+      others: data.others, sources: data.sources, edges: data.edges,
+      figures: hp.figures, filings: hp.filings,
+      counts: { figures: Object.keys(data.figures).length, filings: Object.keys(data.filings).length, sources: Object.keys(data.sources).length },
+      integrity: data.integrity,
+    };
+    var pc = [];
+    data.patterns.forEach(function (p) { pc = pc.concat(chartCites(p)); });
+    var pp = pick(data, pc);
+    var patternsPart = { part: 'patterns', patterns: data.patterns, figures: pp.figures, filings: pp.filings };
+    var companies = {};
+    data.companies.forEach(function (c) {
+      var mine = Object.keys(data.figures).filter(function (k) { return data.figures[k].c === c.id; });
+      var cp = pick(data, mine);
+      var one = function (o) { var x = {}; x[c.id] = o[c.id] || []; return x; };
+      companies[c.id] = { part: 'c/' + c.id, id: c.id, figures: cp.figures, filings: cp.filings, mixes: one(data.mixes), concentration: one(data.concentration), insights: one(data.insights) };
+    });
+    return { index: index, patterns: patternsPart, companies: companies };
+  }
+  /** The index as the page starts from it, ready for parts to merge into. */
+  function start(index) {
+    var d = {};
+    Object.keys(index).forEach(function (k) { d[k] = index[k]; });
+    d.figures = Object.assign({}, index.figures); d.filings = Object.assign({}, index.filings);
+    d.mixes = {}; d.concentration = {}; d.insights = {}; d.patterns = d.patterns || null;
+    return d;
+  }
+  /** Merge one loaded part into the page's dataset. */
+  function merge(d, part) {
+    Object.assign(d.figures, part.figures || {});
+    Object.assign(d.filings, part.filings || {});
+    ['mixes', 'concentration', 'insights'].forEach(function (k) { if (part[k]) Object.assign(d[k], part[k]); });
+    if (part.patterns) d.patterns = part.patterns;
+    return d;
   }
 
   return {
     METRICS: METRICS, TYPE_NAMES: TYPE_NAMES, DIRECTED: DIRECTED, SYMBOL: SYMBOL,
-    fig: fig, derived: derived, company: company, money: money, pct: pct, times: times,
+    fiscalYear: fiscalYear, fig: fig, derived: derived, company: company, money: money, pct: pct, times: times,
     filingUrl: filingUrl, figureSource: figureSource, quoteUrl: quoteUrl, pad10: pad10,
-    companyInsights: companyInsights, patterns: patterns, writeAll: writeAll, integrity: integrity,
+    companyInsights: companyInsights, patterns: patterns, writeAll: writeAll, integrity: integrity, canonical: canonical,
+    partPath: partPath, split: split, start: start, merge: merge, headIds: headIds,
   };
 }));

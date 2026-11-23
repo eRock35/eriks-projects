@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Step 3: build the dataset the app ships (public/data/dataset.json) from
+// Step 3: build the dataset the app ships (public/data/: index.json,
+// patterns.json and one c/<ID>.json per company) from
 // the cache, and only from the cache.
 //
 //   figures   - each company's annual numbers from its XBRL company facts,
@@ -23,21 +24,13 @@ const X = require('./xbrl');
 const V = require('./verify');
 const Core = require('../public/asfiled-core');
 
-const OUT = path.join(__dirname, '..', 'public', 'data', 'dataset.json');
+const OUT = path.join(__dirname, '..', 'public', 'data');
 const REPORT = path.join(__dirname, 'build-report.json');
 const YEARS = 12;                       // fiscal years kept per company
 const ANNUAL = new Set(['10-K', '20-F']);
 
-// Tags tried for each number, in order of preference when one filing
-// reports two of them for the same period.
-const TAGS = {
-  revenue: ['us-gaap:Revenues', 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', 'us-gaap:SalesRevenueNet', 'ifrs-full:Revenue', 'ifrs-full:RevenueFromContractsWithCustomers'],
-  cost: ['us-gaap:CostOfRevenue', 'us-gaap:CostOfGoodsAndServicesSold', 'us-gaap:CostOfGoodsSold', 'ifrs-full:CostOfSales'],
-  gross: ['us-gaap:GrossProfit', 'ifrs-full:GrossProfit'],
-  rd: ['us-gaap:ResearchAndDevelopmentExpense', 'us-gaap:ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost', 'ifrs-full:ResearchAndDevelopmentExpense'],
-  capex: ['us-gaap:PaymentsToAcquirePropertyPlantAndEquipment', 'us-gaap:PaymentsToAcquireProductiveAssets', 'ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities'],
-  inventory: ['us-gaap:InventoryNet', 'ifrs-full:Inventories', 'ifrs-full:CurrentInventories'],
-};
+// Tags tried for each number, in order of preference: tools/xbrl.js.
+const { TAGS } = X;
 const INSTANT = new Set(['inventory']);
 const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
@@ -91,7 +84,7 @@ const SMALL = new Set(['of', 'and', 'the']);
 const cleanLabel = (s) => String(s || '').replace(/\s*\[Member\]\s*$/i, '').replace(/\s+/g, ' ').trim()
   .replace(/\b[A-Z]{4,}\b|\b(OF|AND|THE)\b/g, (w) => (SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w[0] + w.slice(1).toLowerCase()));
 // "Three largest customers", "Four customers": a group, not one customer.
-const isGroup = (s) => /\b(two|three|four|five|six|ten|\d+)\s+(largest\s+)?(customers|distributors)\b|largest customers/i.test(s);
+const isGroup = (s) => /\b(two|three|four|five|six|ten|\d+)\s+(largest\s+)?(customers|distributors)\b|largest customers|\band\b.*\bcustomers$/i.test(s);
 
 function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
@@ -105,6 +98,7 @@ function main() {
 
   for (const c of FILERS) {
     const man = manifest[c.id];
+    if (!man) { report.notes.push(`${c.id}: not fetched yet; left out of this build.`); continue; }
     const a = man.annual[0];
     const facts = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${c.id}.json`), 'utf8'));
     const currency = c.id === 'TSM' ? 'TWD' : c.id === 'ASML' ? 'EUR' : 'USD';
@@ -129,9 +123,20 @@ function main() {
       return s;
     };
     const rev = series('revenue', currency);
+    // A later report sometimes restates a year under a slightly different
+    // period end (Ciena's FY2018 ended 2018-10-31 in its own report and
+    // 2018-11-03 two reports later). Two ends within ten days are one
+    // fiscal year: the one from the earlier filing is kept, as everywhere.
+    const sortedEnds = Object.keys(rev).sort();
+    for (let i = 1; i < sortedEnds.length; i += 1) {
+      const a0 = sortedEnds[i - 1]; const b0 = sortedEnds[i];
+      if (!rev[a0] || days(a0, b0) > 10) continue;
+      delete rev[rev[b0].filed < rev[a0].filed ? a0 : b0];
+    }
     const ends = Object.keys(rev).sort().slice(-YEARS);
+    if (new Set(ends.map(Core.fiscalYear)).size !== ends.length) throw new Error(`${c.id}: two periods fall in one fiscal year (${ends.join(', ')})`);
     const endSet = new Set(ends);
-    const fyOf = (end) => Number(end.slice(0, 4));
+    const fyOf = Core.fiscalYear;
     const put = (metric, row, unit) => {
       const id = `${c.id}.${metric}.${fyOf(row.end)}`;
       data.figures[id] = { c: c.id, m: metric, fy: fyOf(row.end), end: row.end, v: row.val, u: unit, tag: row.tag, a: row.accn };
@@ -241,7 +246,10 @@ function main() {
     });
 
     const fys = ends.map(fyOf);
-    data.companies.push({ id: c.id, name: c.name, legal: c.legal, layer: c.layer, filer: true, cik: c.cik, form: c.form, currency, years: fys, latest: fys[fys.length - 1], annual: { accn: a.accn, period: a.period, filed: a.filed, source: docId } });
+    // `periods`: how many fiscal years of revenue company facts holds for
+    // this registrant at all (a recent listing or spin-off has fewer than
+    // the YEARS shown for everyone else).
+    data.companies.push({ id: c.id, name: c.name, legal: c.legal, layer: c.layer, filer: true, cik: c.cik, form: c.form, currency, years: fys, periods: Object.keys(rev).length, latest: fys[fys.length - 1], annual: { accn: a.accn, period: a.period, filed: a.filed, source: docId } });
     report.companies += 1;
   }
 
@@ -284,14 +292,22 @@ function main() {
 
   report.figures = Object.keys(data.figures).length;
   data.integrity = Core.integrity(data, (s) => T.sha(s));
-  fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  fs.writeFileSync(OUT, JSON.stringify(data));
+  // Published in parts (see Core.split): a small index, the patterns, and
+  // one file per company that the page loads when it is opened.
+  const parts = Core.split(data);
+  fs.rmSync(OUT, { recursive: true, force: true });
+  fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
+  const write = (rel, obj) => { fs.writeFileSync(path.join(OUT, rel), JSON.stringify(obj)); return fs.statSync(path.join(OUT, rel)).size; };
+  const sizes = { index: write('index.json', parts.index), patterns: write('patterns.json', parts.patterns) };
+  let biggest = ['', 0];
+  for (const [cid, part] of Object.entries(parts.companies)) { const n = write(`c/${cid}.json`, part); if (n > biggest[1]) biggest = [cid, n]; }
+  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] } };
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 1)}\n`);
   console.log(`${report.companies} companies, ${report.figures} figures, ${Object.keys(data.filings).length} filings cited`);
   console.log(`edges: ${report.edges.kept} kept of ${report.edges.curated} curated; ${report.edges.dropped.length} dropped`);
   for (const d of report.edges.dropped) console.log(`  dropped ${d.from} -> ${d.to} (${d.type}, said by ${d.by}): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   console.log(`insight sentences: ${report.insights.kept} kept, ${report.insights.dropped} dropped`);
-  console.log(`${(fs.statSync(OUT).size / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
+  console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
 }
 
 main();

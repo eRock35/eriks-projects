@@ -197,6 +197,9 @@ tbody th { font-weight: 650; }
 .chip.k-rival[aria-pressed="true"]::before { background: var(--c2); }
 .input { min-height: 44px; border-radius: 10px; border: 0; background: var(--fill); color: var(--ink); padding: 0 12px; font: inherit; max-width: 100%; }
 .map-card { overflow: hidden; }
+.wide-input { flex: 1 1 220px; min-width: 0; width: 100%; }
+.find { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.scope-note { margin: 0; padding-top: 12px; }
 .map-host { padding: 8px 4px 0; }
 .m-head { fill: var(--ink-2); font: 700 12px var(--font); letter-spacing: .06em; text-transform: uppercase; }
 .edge { fill: none; stroke-width: 1.4; stroke-linecap: round; opacity: .7; }

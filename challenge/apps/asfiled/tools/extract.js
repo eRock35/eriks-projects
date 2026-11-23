@@ -23,11 +23,21 @@ function main() {
   fs.mkdirSync(path.join(sec.CACHE, 'text'), { recursive: true });
   const candidates = [];
   for (const c of FILERS) {
+    if (!manifest[c.id]) { console.log(`${c.id}: not fetched yet`); continue; }
     const a = manifest[c.id].annual[0];
-    const html = fs.readFileSync(path.join(sec.CACHE, 'docs', c.id, a.accn, a.doc), 'utf8');
-    const text = T.htmlToText(html);
     const doc = `${c.id}-${a.accn}`;
-    fs.writeFileSync(path.join(sec.CACHE, 'text', `${doc}.txt`), text);
+    const raw = path.join(sec.CACHE, 'docs', c.id, a.accn, a.doc);
+    const txtFile = path.join(sec.CACHE, 'text', `${doc}.txt`);
+    // The raw document is read once, turned into text, and deleted: the
+    // text is all the later steps read (and it is what quotes are checked
+    // against). Its XBRL instance and labels stay for the build.
+    let text;
+    if (fs.existsSync(raw)) {
+      text = T.htmlToText(fs.readFileSync(raw, 'utf8'));
+      fs.writeFileSync(txtFile, text);
+      fs.unlinkSync(raw);
+    } else if (fs.existsSync(txtFile)) text = fs.readFileSync(txtFile, 'utf8');
+    else throw new Error(`${doc}: neither the document nor its text is in the cache. Run tools/fetch.js.`);
     const secs = T.sections(text, a.form);
     // Sentences: split each line on a full stop followed by a capital.
     let pos = 0; let n = 0;
@@ -51,15 +61,17 @@ function main() {
   // a report names only in its tagged data is quoted from here.
   const { unescape } = require('./xbrl');
   for (const c of FILERS) {
+    if (!manifest[c.id]) continue;
     const a = manifest[c.id].annual[0];
     if (!a.labels) continue;
+    if (fs.existsSync(path.join(sec.CACHE, 'text', `${c.id}-${a.accn}.labels.txt`))) continue;
     const xml = fs.readFileSync(path.join(sec.CACHE, 'docs', c.id, a.accn, a.labels), 'utf8');
     const lines = [...xml.matchAll(/<link:label\b[^>]*>([\s\S]*?)<\/link:label>/g)].map((m) => T.norm(unescape(m[1].replace(/<[^>]+>/g, ''))));
     fs.writeFileSync(path.join(sec.CACHE, 'text', `${c.id}-${a.accn}.labels.txt`), [...new Set(lines)].join('\n'));
   }
   // Apple's Supplier List (a PDF): pages separated by a form feed.
   const pdf = path.join(sec.CACHE, 'apple', 'Apple-Supplier-List.pdf');
-  if (fs.existsSync(pdf)) {
+  if (fs.existsSync(pdf) && !manifest['APPLE-SUPPLIER-LIST']) {
     const buf = fs.readFileSync(pdf);
     const pages = require('./pdftext').pdfText(buf);
     const text = pages.map((p) => p.join('\n')).join('\f');

@@ -5,7 +5,8 @@
 // worked out at build time by the tools in tools/, from public sources
 // cached outside this repo, and checked by tools/verify.js: a relationship
 // whose quote is not in its source word for word never reaches
-// public/data/dataset.json. At run time this server:
+// public/data/ (index.json, patterns.json, c/<ID>.json). At run time
+// this server:
 //
 //   - serves the page and the dataset;
 //   - mounts the shared account at /api/auth (the lab's usual identity, so
@@ -55,11 +56,11 @@ identity.mount(app);
 
 // The dataset is read once. A missing or unreadable file is a 503 on the
 // data routes, never a crash: one broken app must not take the lab down.
-const DATA_FILE = path.join(__dirname, 'public', 'data', 'dataset.json');
+const DATA_FILE = path.join(__dirname, 'public', 'data', 'index.json');
 let summary = null;
 try {
   const d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  summary = { built: d.built, companies: d.companies.length, figures: Object.keys(d.figures).length, edges: d.edges.length, sources: Object.keys(d.sources).length, integrity: d.integrity, disclaimer: d.disclaimer };
+  summary = { built: d.built, companies: d.companies.length, figures: d.counts.figures, edges: d.edges.length, sources: d.counts.sources, integrity: d.integrity, disclaimer: d.disclaimer };
 } catch (e) { console.error('asfiled: dataset not readable'); }
 
 app.get(['/api/health', '/healthz'], (_req, res) => res.json({ ok: true, store: store.kind, data: Boolean(summary) }));

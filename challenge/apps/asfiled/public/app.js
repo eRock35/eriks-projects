@@ -1,5 +1,7 @@
-// As Filed - the page. It draws what is in data/dataset.json and nothing
-// else: no model, no request to any other origin (links open the sources).
+// As Filed - the page. It draws what is in data/ and nothing else: no
+// model, no request to any other origin (links open the sources). The data
+// comes in parts (see AsFiledCore.split): data/index.json first, then
+// data/patterns.json or data/c/<ID>.json when a view needs it.
 // Everything is built with createElement/textContent; no inline script, no
 // handlers in markup, no style attributes (sizes are SVG attributes, colour
 // and state are classes).
@@ -13,7 +15,20 @@
   var sheet = document.getElementById('sheet');
   var data = null;
   var lastWidth = 0;
-  var mapState = { types: { supplier: true, customer: true, service: true, partner: true, investor: true, competitor: false }, layers: { equipment: true, chips: true, devices: true, cloud: true }, focus: null, view: 'map' };
+  var mapState = { types: { supplier: true, customer: true, service: true, partner: true, investor: true, competitor: false }, layers: {}, focus: null, view: 'map', scope: 'linked' };
+  var TOP = 24;          // companies shown by default on the map: the most stated links
+  var loaded = {};       // data part -> its promise
+  var ready = {};        // data part -> true once merged in
+
+  /** Load one part of the dataset (once) and merge it in. */
+  function load(part) {
+    if (!loaded[part]) {
+      loaded[part] = fetch(BASE + Core.partPath(part)).then(function (r) { if (!r.ok) throw new Error('no data'); return r.json(); })
+        .then(function (p) { if (part !== 'index') Core.merge(data, p); ready[part] = true; return p; });
+      loaded[part].catch(function () { delete loaded[part]; });
+    }
+    return loaded[part];
+  }
 
   function h(tag, attrs) {
     var el = document.createElement(tag);
@@ -212,36 +227,59 @@
   /* ---------------- home ---------------- */
 
   function spark(c) {
-    var vals = c.years.map(function (fy) { var f = Core.fig(data, c.id, 'revenue', fy); return f ? f.v : null; }).filter(function (v) { return v !== null; });
+    var vals = (c.spark || []).filter(function (v) { return v !== null; });
     if (vals.length < 3) return null;
     var max = Math.max.apply(null, vals);
     var d = vals.map(function (v, i) { return (i ? 'L' : 'M') + r1(2 + (i / (vals.length - 1)) * 60) + ' ' + r1(22 - (v / max) * 20); }).join('');
     return s('svg', { cls: 'spark', width: 64, height: 24, viewBox: '0 0 64 24', 'aria-hidden': 'true' }, s('path', { d: d }));
   }
   function home() {
-    var nFig = Object.keys(data.figures).length;
+    var nFig = data.counts.figures;
+    var groupsEl = [];
+    var find = h('input', { type: 'search', id: 'find', cls: 'input wide-input', placeholder: 'Name or ticker', autocomplete: 'off', spellcheck: 'false' });
+    var none = h('p', { cls: 'none card pad', hidden: true, text: 'No company here matches that.' });
+    find.addEventListener('input', function () {
+      var q = find.value.trim().toLowerCase();
+      var any = false;
+      groupsEl.forEach(function (g) {
+        var n = 0;
+        g.rows.forEach(function (r) { var on = !q || r.key.indexOf(q) >= 0; r.li.hidden = !on; if (on) n += 1; });
+        g.el.hidden = n === 0; if (n) any = true;
+      });
+      none.hidden = any;
+    });
     var page = h('div', { cls: 'page' },
       h('section', { cls: 'hero center' },
         h('p', { cls: 'eyebrow', text: 'From public filings' }),
         h('h1', { text: 'What the filings say.' }),
-        h('p', { cls: 'lede', text: 'Nineteen big technology companies, in their own reported numbers and their own words. Every figure opens its filing. Every relationship shows the exact quote.' }),
+        h('p', { cls: 'lede', text: data.companies.length + ' technology companies - the S&P 500’s information technology sector, with Amazon, Alphabet, Meta, TSMC and ASML - in their own reported numbers and their own words. Every figure opens its filing. Every relationship shows the exact quote.' }),
         h('div', { cls: 'cta' }, h('a', { cls: 'pill', href: '#/map', text: 'Open the map' }), h('a', { cls: 'pill line', href: '#/patterns', text: 'See the patterns' })),
         h('ul', { cls: 'stats' },
           h('li', null, h('strong', { text: String(data.companies.length) }), 'companies'),
           h('li', null, h('strong', { text: nFig.toLocaleString('en-US') }), 'reported figures'),
-          h('li', null, h('strong', { text: String(data.edges.length) }), 'quoted relationships'))));
+          h('li', null, h('strong', { text: String(data.edges.length) }), 'quoted relationships'))),
+      h('div', { cls: 'find' }, h('label', { cls: 'ctl-l', for: 'find', text: 'Find a company' }), find), none);
     data.layers.slice().reverse().forEach(function (l) {
-      var cs = data.companies.filter(function (c) { return c.layer === l.id; });
-      page.appendChild(h('section', { cls: 'group' },
-        h('h2', { text: l.name }), h('p', { cls: 'group-sub', text: l.blurb }),
+      var cs = data.companies.filter(function (c) { return c.layer === l.id; }).sort(function (a, b) {
+        var fa = Core.fig(data, a.id, a.currency === 'TWD' ? 'revenueUsd' : 'revenue', a.latest); var fb = Core.fig(data, b.id, b.currency === 'TWD' ? 'revenueUsd' : 'revenue', b.latest);
+        return (fb ? fb.v : 0) - (fa ? fa.v : 0);
+      });
+      if (!cs.length) return;
+      var rows = [];
+      var el = h('section', { cls: 'group' },
+        h('h2', { text: l.name }), h('p', { cls: 'group-sub', text: l.blurb + ' · ' + cs.length + (cs.length === 1 ? ' company' : ' companies') }),
         h('ul', { cls: 'rows card' }, cs.map(function (c) {
           var rev = Core.fig(data, c.id, 'revenue', c.latest);
           var gm = Core.derived(data, c.id, 'grossMargin', c.latest);
-          return h('li', null, h('a', { href: '#/c/' + c.id, cls: 'row' },
+          var li = h('li', null, h('a', { href: '#/c/' + c.id, cls: 'row' },
             h('span', { cls: 'tile', 'aria-hidden': 'true', text: c.name.replace(/[^A-Za-z]/g, '').slice(0, 2) }),
-            h('span', { cls: 'row-main' }, h('span', { cls: 'row-t', text: c.name }), h('span', { cls: 'row-s', text: 'FY' + c.latest + ' revenue ' + (rev ? Core.money(rev.v, c.currency) : 'n/a') + (gm ? ' · gross margin ' + Core.pct(gm.v, 0) : '') })),
+            h('span', { cls: 'row-main' }, h('span', { cls: 'row-t', text: c.name }), h('span', { cls: 'row-s', text: c.id + ' · FY' + c.latest + ' revenue ' + (rev ? Core.money(rev.v, c.currency) : 'n/a') + (gm ? ' · gross margin ' + Core.pct(gm.v, 0) : '') })),
             spark(c), h('span', { cls: 'chev', 'aria-hidden': 'true', text: '›' })));
-        }))));
+          rows.push({ li: li, key: (c.name + ' ' + c.id + ' ' + c.legal).toLowerCase() });
+          return li;
+        })));
+      groupsEl.push({ el: el, rows: rows });
+      page.appendChild(el);
     });
     return page;
   }
@@ -250,7 +288,7 @@
 
   function companyPage(id) {
     var c = Core.company(data, id);
-    if (!c || !c.filer) return h('div', { cls: 'page' }, h('p', { cls: 'none', text: 'That company is not one of the nineteen.' }), h('p', null, h('a', { href: '#/', text: 'All companies' })));
+    if (!c || !c.filer) return h('div', { cls: 'page' }, h('p', { cls: 'none', text: 'That company is not one of the ' + data.companies.length + ' here.' }), h('p', null, h('a', { href: '#/', text: 'All companies' })));
     var ins = data.insights[id] || [];
     var by = function (topic) { return ins.filter(function (x) { return x.topic === topic; }); };
     var src = data.sources[c.annual.source];
@@ -501,43 +539,74 @@
     walk(focus, up, 'up'); walk(focus, down, 'down');
     return { up: up, down: down };
   }
-  function nodeSize(c, max) {
-    if (!c.filer) return 6;
+  function revenueOf(c) {
+    if (!c.filer) return 0;
     var f = Core.fig(data, c.id, c.currency === 'TWD' ? 'revenueUsd' : 'revenue', c.latest);
-    return 9 + 19 * Math.sqrt((f ? f.v : 0) / max);
+    return f ? f.v : 0;
   }
-  function drawMap(host) {
+  function degrees(gs) {
+    var d = {};
+    gs.forEach(function (g) { d[g.from] = (d[g.from] || 0) + 1; d[g.to] = (d[g.to] || 0) + 1; });
+    return d;
+  }
+  /** Which companies the map shows: around the followed company, or the
+   *  most-linked ones, or every company in the layers that are on. */
+  function shownSet(gs, deg) {
+    var set = {}; var f = mapState.focus;
+    var inLayer = function (c) { return c && mapState.layers[c.layer]; };
+    if (f) {
+      set[f] = true;
+      gs.forEach(function (g) { if (g.from === f) set[g.to] = true; if (g.to === f) set[g.from] = true; });
+      var fl = flow(f);
+      Object.keys(fl.up).concat(Object.keys(fl.down)).forEach(function (id) { if (inLayer(Core.company(data, id))) set[id] = true; });
+      return set;
+    }
+    if (mapState.scope === 'all') {
+      data.companies.forEach(function (c) { if (inLayer(c)) set[c.id] = true; });
+      Object.keys(deg).forEach(function (id) { set[id] = true; });
+      return set;
+    }
+    Object.keys(deg).sort(function (a, b) { return deg[b] - deg[a] || nameOf(a).localeCompare(nameOf(b)); }).slice(0, TOP).forEach(function (id) { set[id] = true; });
+    return set;
+  }
+  function fit(name, px) {
+    var n = Math.max(4, Math.floor(px / 6.4));
+    return name.length <= n ? name : name.slice(0, n - 1) + '…';
+  }
+  function drawMap(host, gs, shown, deg) {
     clear(host);
-    var W = Math.max(300, host.clientWidth);
-    var cols = W >= 760;
-    var max = Math.max.apply(null, data.companies.map(function (c) { var f = Core.fig(data, c.id, c.currency === 'TWD' ? 'revenueUsd' : 'revenue', c.latest); return f ? f.v : 0; }));
-    var layers = data.layers.filter(function (l) { return mapState.layers[l.id]; });
-    var pos = {}; var H = 0; var heads = [];
+    var W = Math.max(280, host.clientWidth);
+    var wide = W >= 760;
+    var max = Math.max.apply(null, data.companies.map(revenueOf));
     var all = data.companies.concat(data.others);
-    var gs = groups();
-    var used = {};
-    gs.forEach(function (g) { used[g.from] = true; used[g.to] = true; });
-    if (cols) {
-      var cw = W / layers.length;
-      layers.forEach(function (l, i) {
-        var fs = all.filter(function (c) { return c.layer === l.id && c.filer; });
-        var os = all.filter(function (c) { return c.layer === l.id && !c.filer && used[c.id]; });
-        heads.push({ x: cw * i + cw / 2, y: 22, text: l.name });
-        fs.forEach(function (c, j) { pos[c.id] = { x: cw * i + cw * 0.3, y: 78 + j * 78, c: c, r: nodeSize(c, max), lab: 'below' }; });
-        os.forEach(function (c, j) { pos[c.id] = { x: cw * i + cw * 0.68, y: 62 + j * 34, c: c, r: 6, lab: 'right' }; });
-        H = Math.max(H, 78 + fs.length * 78, 62 + os.length * 34 + 10);
+    var cols = data.layers.filter(function (l) { return mapState.layers[l.id]; }).map(function (l) {
+      var cs = all.filter(function (c) { return c.layer === l.id && shown[c.id]; });
+      cs.sort(function (a, b) { return (b.filer ? 1 : 0) - (a.filer ? 1 : 0) || (deg[b.id] || 0) - (deg[a.id] || 0) || revenueOf(b) - revenueOf(a); });
+      return { l: l, cs: cs };
+    }).filter(function (x) { return x.cs.length; });
+    var pos = {}; var H = 0; var heads = [];
+    var radius = function (c, k) { return c.filer ? (5 + 13 * Math.sqrt(revenueOf(c) / max)) * k : 4.5; };
+    if (wide) {
+      var cw = W / cols.length;
+      cols.forEach(function (x, i) {
+        var two = x.cs.length > 8 && cw >= 130;
+        heads.push({ x: cw * i + cw / 2, y: 22, text: x.l.name });
+        x.cs.forEach(function (c, j) {
+          var cx = two ? cw * i + cw * (j % 2 ? 0.73 : 0.27) : cw * i + cw / 2;
+          var y = 66 + (two ? j * 31 : j * 62);
+          pos[c.id] = { x: cx, y: y, c: c, r: radius(c, 1), lw: two ? cw * 0.52 : cw * 0.9 };
+          H = Math.max(H, y + 40);
+        });
       });
     } else {
-      var y = 0; var per = 3; var cellW = W / per;
-      layers.forEach(function (l) {
-        var fs = all.filter(function (c) { return c.layer === l.id && c.filer; });
-        var os = all.filter(function (c) { return c.layer === l.id && !c.filer && used[c.id]; });
-        heads.push({ x: 12, y: y + 22, text: l.name, left: true });
-        y += 38;
-        fs.forEach(function (c, j) { pos[c.id] = { x: cellW * (j % per) + cellW / 2, y: y + Math.floor(j / per) * 84 + 30, c: c, r: nodeSize(c, max) * 0.85, lab: 'below' }; });
-        y += Math.ceil(fs.length / per) * 84;
-        os.forEach(function (c, j) { pos[c.id] = { x: cellW * (j % per) + 14, y: y + Math.floor(j / per) * 32 + 16, c: c, r: 5, lab: 'right' }; });
-        y += Math.ceil(os.length / per) * 32 + 22;
+      var per = W >= 400 ? 4 : 3; var cellW = W / per; var y = 0;
+      cols.forEach(function (x) {
+        heads.push({ x: 12, y: y + 22, text: x.l.name, left: true });
+        y += 34;
+        x.cs.forEach(function (c, j) {
+          pos[c.id] = { x: cellW * (j % per) + cellW / 2, y: y + Math.floor(j / per) * 66 + 26, c: c, r: radius(c, 0.85), lw: cellW * 0.94 };
+        });
+        y += Math.ceil(x.cs.length / per) * 66 + 10;
       });
       H = y;
     }
@@ -545,7 +614,7 @@
     var defs = s('defs');
     ['supply', 'tie'].forEach(function (f) { defs.appendChild(s('marker', { id: 'arr-' + f, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }, s('path', { cls: 'arr m-' + f, d: 'M0 0L10 5L0 10z' }))); });
     svg.appendChild(defs);
-    if (cols) layers.forEach(function (l, i) { if (i) svg.appendChild(s('line', { cls: 'grid', x1: r1((W / layers.length) * i), x2: r1((W / layers.length) * i), y1: 8, y2: H - 8 })); });
+    if (wide) cols.forEach(function (x, i) { if (i) svg.appendChild(s('line', { cls: 'grid', x1: r1((W / cols.length) * i), x2: r1((W / cols.length) * i), y1: 8, y2: H - 8 })); });
     heads.forEach(function (hd) { svg.appendChild(s('text', { cls: 'm-head', x: hd.x, y: hd.y, 'text-anchor': hd.left ? 'start' : 'middle', text: hd.text })); });
     var fl = mapState.focus && pos[mapState.focus] ? flow(mapState.focus) : null;
     var inFlow = function (id) { return fl && (id === mapState.focus || fl.up[id] || fl.down[id]); };
@@ -556,10 +625,9 @@
       var dx = b.x - a.x; var dy = b.y - a.y; var dist = Math.sqrt(dx * dx + dy * dy) || 1;
       var x1 = a.x + (dx / dist) * (a.r + 2); var y1 = a.y + (dy / dist) * (a.r + 2);
       var x2 = b.x - (dx / dist) * (b.r + 5); var y2 = b.y - (dy / dist) * (b.r + 5);
-      var d;
       var bend = g.fam === 'rival' ? 0.18 : g.fam === 'tie' ? -0.14 : 0.06;
       var mxp = (x1 + x2) / 2 - (y2 - y1) * bend; var myp = (y1 + y2) / 2 + (x2 - x1) * bend;
-      d = 'M' + r1(x1) + ' ' + r1(y1) + 'Q' + r1(mxp) + ' ' + r1(myp) + ' ' + r1(x2) + ' ' + r1(y2);
+      var d = 'M' + r1(x1) + ' ' + r1(y1) + 'Q' + r1(mxp) + ' ' + r1(myp) + ' ' + r1(x2) + ' ' + r1(y2);
       var lit = !fl ? true : (g.from === mapState.focus || g.to === mapState.focus) || (g.fam === 'supply' && ((fl.up[g.from] || g.from === mapState.focus) && (fl.up[g.to] || g.to === mapState.focus) || (fl.down[g.from] || g.from === mapState.focus) && (fl.down[g.to] || g.to === mapState.focus)));
       gEdges.appendChild(s('path', { cls: 'edge e-' + g.fam + (lit ? '' : ' dim') + (fl && lit ? ' lit' : ''), d: d, 'marker-end': g.directed ? 'url(#arr-' + (g.fam === 'tie' ? 'tie' : 'supply') + ')' : null }));
       var label = g.edges.map(edgeLine).filter(function (x, i, arr) { return arr.indexOf(x) === i; }).join('; ') + '. ' + g.edges.length + (g.edges.length === 1 ? ' statement' : ' statements') + '. Open the quote.';
@@ -572,10 +640,10 @@
     Object.keys(pos).forEach(function (id) {
       var p = pos[id]; var c = p.c;
       var dim = fl && !inFlow(id) && !gs.some(function (g) { return (g.from === id && g.to === mapState.focus) || (g.to === id && g.from === mapState.focus); });
-      var g = s('g', { cls: 'node' + (c.filer ? '' : ' other') + (dim ? ' dim' : '') + (id === mapState.focus ? ' focus' : ''), tabindex: 0, role: 'button', 'aria-pressed': id === mapState.focus ? 'true' : 'false', 'aria-label': c.name + (c.filer ? '' : ' (not one of the nineteen; named by others)') + '. Follow the flow from here.' },
+      var g = s('g', { cls: 'node' + (c.filer ? '' : ' other') + (dim ? ' dim' : '') + (id === mapState.focus ? ' focus' : ''), tabindex: 0, role: 'button', 'aria-pressed': id === mapState.focus ? 'true' : 'false', 'aria-label': c.name + (c.filer ? '' : ' (not in the set; named by others)') + ', ' + (deg[id] || 0) + ' stated ' + ((deg[id] || 0) === 1 ? 'link' : 'links') + ' shown. Follow the flow from here.' },
         s('circle', { cx: r1(p.x), cy: r1(p.y), r: r1(p.r) }),
-        p.lab === 'below' ? s('text', { x: r1(p.x), y: r1(p.y + p.r + 14), 'text-anchor': 'middle', text: c.name }) : s('text', { cls: 'small', x: r1(p.x + p.r + 5), y: r1(p.y + 4), text: cols || c.name.length <= 15 ? c.name : c.name.slice(0, 14) + '…' }),
-        s('rect', { cls: 'nhit', x: r1(p.x - Math.max(22, p.r)), y: r1(p.y - Math.max(22, p.r)), width: r1(Math.max(44, p.r * 2)), height: r1(Math.max(44, p.r * 2)) }));
+        s('text', { cls: c.filer ? null : 'small', x: r1(p.x), y: r1(p.y + p.r + 13), 'text-anchor': 'middle', text: fit(c.name, p.lw) }),
+        s('rect', { cls: 'nhit', x: r1(p.x - 22), y: r1(p.y - 22), width: 44, height: 44 }));
       var go = function () { mapState.focus = mapState.focus === id ? null : id; renderMapPart(); };
       g.addEventListener('click', go);
       g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
@@ -585,38 +653,71 @@
     host.appendChild(svg);
   }
   var renderMapPart = function () {};
+  function findCompany(q) {
+    q = String(q || '').trim().toLowerCase();
+    if (!q) return null;
+    var all = data.companies.concat(data.others);
+    var exact = all.filter(function (c) { return c.name.toLowerCase() === q || c.id.toLowerCase() === q; })[0];
+    if (exact) return exact;
+    var part = all.filter(function (c) { return c.name.toLowerCase().indexOf(q) === 0 || (c.legal || '').toLowerCase().indexOf(q) === 0; });
+    return part.length === 1 ? part[0] : null;
+  }
   function mapPage(focus) {
+    if (!Object.keys(mapState.layers).length) data.layers.forEach(function (l) { mapState.layers[l.id] = true; });
     if (focus && Core.company(data, focus)) mapState.focus = focus;
     var host = h('div', { cls: 'map-host' });
     var listHost = h('div', { cls: 'list-host' });
     var info = h('div', { cls: 'flow-info', 'aria-live': 'polite' });
+    var scopeNote = h('p', { cls: 'note pad scope-note', 'aria-live': 'polite' });
     var chip = function (label, on, fn, extra) { return h('button', { type: 'button', cls: 'chip' + (extra ? ' ' + extra : ''), 'aria-pressed': on ? 'true' : 'false', on: { click: fn } }, label); };
     var typeBar = h('div', { cls: 'chips', role: 'group', 'aria-label': 'Relationship types' });
     var layerBar = h('div', { cls: 'chips', role: 'group', 'aria-label': 'Layers' });
+    var scopeBar = h('div', { cls: 'seg', role: 'group', 'aria-label': 'Which companies' });
     var viewBar = h('div', { cls: 'seg', role: 'group', 'aria-label': 'View' });
-    var select = h('select', { id: 'flow', cls: 'input', on: { change: function () { mapState.focus = select.value || null; renderMapPart(); } } });
+    var dl = h('datalist', { id: 'co-list' });
+    data.companies.concat(data.others).forEach(function (c) { dl.appendChild(h('option', { value: c.name })); });
+    var search = h('input', { type: 'search', id: 'flow', cls: 'input wide-input', list: 'co-list', placeholder: 'Search ' + (data.companies.length + data.others.length) + ' companies', autocomplete: 'off', spellcheck: 'false' });
+    var miss = h('p', { cls: 'note', 'aria-live': 'polite' });
+    var pickFrom = function () {
+      var q = search.value;
+      if (!q.trim()) { if (mapState.focus) { mapState.focus = null; renderMapPart(); } miss.textContent = ''; return; }
+      var c = findCompany(q);
+      if (!c) { miss.textContent = 'No company here matches “' + q.trim() + '”.'; return; }
+      miss.textContent = '';
+      mapState.focus = c.id; renderMapPart();
+    };
+    search.addEventListener('change', pickFrom);
+    search.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); pickFrom(); } });
     var bars = function () {
-      clear(typeBar); clear(layerBar); clear(viewBar);
+      clear(typeBar); clear(layerBar); clear(viewBar); clear(scopeBar);
       Object.keys(Core.TYPE_NAMES).forEach(function (t) { typeBar.appendChild(chip(Core.TYPE_NAMES[t], mapState.types[t], function () { mapState.types[t] = !mapState.types[t]; renderMapPart(); }, 'k-' + family(t))); });
       data.layers.forEach(function (l) { layerBar.appendChild(chip(l.name, mapState.layers[l.id], function () { mapState.layers[l.id] = !mapState.layers[l.id]; renderMapPart(); })); });
+      scopeBar.appendChild(chip('Most linked', mapState.scope === 'linked', function () { mapState.scope = 'linked'; renderMapPart(); }));
+      scopeBar.appendChild(chip('All companies', mapState.scope === 'all', function () { mapState.scope = 'all'; renderMapPart(); }));
       ['map', 'list'].forEach(function (v) { viewBar.appendChild(chip(v === 'map' ? 'Map' : 'List', mapState.view === v, function () { mapState.view = v; renderMapPart(); })); });
-      clear(select);
-      select.appendChild(h('option', { value: '', text: 'No company (show everything)' }));
-      data.companies.concat(data.others).forEach(function (c) { select.appendChild(h('option', { value: c.id, selected: c.id === mapState.focus, text: c.name })); });
-      select.value = mapState.focus || '';
+      var co = mapState.focus ? Core.company(data, mapState.focus) : null;
+      if (document.activeElement !== search) search.value = co ? co.name : '';
     };
     renderMapPart = function () {
       bars();
       var gs = groups();
+      var deg = degrees(gs);
+      var shown = shownSet(gs, deg);
+      var nShown = Object.keys(shown).length;
+      var visible = gs.filter(function (g) { return shown[g.from] && shown[g.to]; });
+      clear(scopeNote);
+      scopeNote.textContent = mapState.focus ? 'Showing ' + nameOf(mapState.focus) + ', every company a document links it to under these filters, and its supply chain as far as the documents go: ' + nShown + ' companies, ' + visible.length + (visible.length === 1 ? ' line.' : ' lines.')
+        : mapState.scope === 'all' ? 'Showing every company in the layers that are on (' + nShown + '), with ' + visible.length + ' lines. Search a company to follow it.'
+          : 'Showing the ' + nShown + ' companies with the most stated links under these filters (' + visible.length + ' lines). Choose “All companies”, or search one to follow it.';
       host.hidden = mapState.view !== 'map'; listHost.hidden = mapState.view !== 'list';
-      if (mapState.view === 'map') drawMap(host);
+      if (mapState.view === 'map') drawMap(host, visible, shown, deg);
       else {
         clear(listHost);
-        var shown = mapState.focus ? gs.filter(function (g) { return g.from === mapState.focus || g.to === mapState.focus; }) : gs;
+        var rows = [].concat.apply([], (mapState.focus ? gs.filter(function (g) { return g.from === mapState.focus || g.to === mapState.focus; }) : visible).map(function (g) { return g.edges; }));
         listHost.appendChild(h('div', { cls: 'scroll card' }, h('table', { cls: 'etable' },
           h('caption', { cls: 'sr', text: 'Stated relationships' }),
           h('thead', null, h('tr', null, ['From', 'Relationship', 'To', 'Said by', 'Quote'].map(function (t) { return h('th', { scope: 'col', text: t }); }))),
-          h('tbody', null, [].concat.apply([], shown.map(function (g) { return g.edges; })).map(function (e) {
+          h('tbody', null, rows.map(function (e) {
             return h('tr', null, h('th', { scope: 'row', text: nameOf(e.from) }), h('td', { text: Core.TYPE_NAMES[e.type] }), h('td', { text: nameOf(e.to) }), h('td', { text: nameOf(e.by) }),
               h('td', null, h('button', { type: 'button', cls: 'cite', on: { click: function () { openSheet(pairTitle(e), [edgeCard(e)]); } } }, 'Read it')));
           })))));
@@ -638,17 +739,18 @@
     };
     var page = h('div', { cls: 'page wide' },
       h('section', { cls: 'hero small' }, h('p', { cls: 'eyebrow', text: 'Stated relationships' }), h('h1', { text: 'The map' }),
-        h('p', { cls: 'lede', text: 'Supply runs left to right on a wide screen and top to bottom on a phone: equipment, chips, devices, cloud. A line is drawn only where a company’s own document names the other. Tap a line for the quote; tap a company to follow the flow.' })),
+        h('p', { cls: 'lede', text: 'Supply runs left to right on a wide screen and top to bottom on a phone: equipment, chips, components, devices, software, cloud, IT services. A line is drawn only where a company’s own document names the other. Tap a line for the quote; tap or search a company to follow the flow.' })),
       h('section', { cls: 'card pad controls' },
+        h('div', { cls: 'ctl' }, h('label', { cls: 'ctl-l', for: 'flow', text: 'Follow the flow from' }), search, dl, miss),
         h('div', { cls: 'ctl' }, h('span', { cls: 'ctl-l', text: 'Show' }), typeBar),
         h('div', { cls: 'ctl' }, h('span', { cls: 'ctl-l', text: 'Layers' }), layerBar),
-        h('div', { cls: 'ctl' }, h('label', { cls: 'ctl-l', for: 'flow', text: 'Follow the flow from' }), select, viewBar)),
-      h('section', { cls: 'card map-card' }, host, listHost,
+        h('div', { cls: 'ctl' }, h('span', { cls: 'ctl-l', text: 'Companies' }), scopeBar, viewBar)),
+      h('section', { cls: 'card map-card' }, scopeNote, host, listHost,
         h('ul', { cls: 'legend pad' },
           h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-supply', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Supply, sales or service (arrow shows direction)'),
           h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-tie', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Partner or investor'),
           h('li', null, s('svg', { width: 26, height: 10, 'aria-hidden': 'true' }, s('line', { cls: 'edge e-rival', x1: 1, x2: 25, y1: 5, y2: 5 })), 'Competitor, as stated'),
-          h('li', null, s('svg', { width: 14, height: 14, 'aria-hidden': 'true', cls: 'node' }, s('circle', { cx: 7, cy: 7, r: 6 })), 'One of the nineteen, sized by latest revenue'),
+          h('li', null, s('svg', { width: 14, height: 14, 'aria-hidden': 'true', cls: 'node' }, s('circle', { cx: 7, cy: 7, r: 6 })), 'A company in the set, sized by latest revenue'),
           h('li', null, s('svg', { width: 14, height: 14, 'aria-hidden': 'true', cls: 'node other' }, s('circle', { cx: 7, cy: 7, r: 5 })), 'Another company, shown only because a document names it')),
         h('p', { cls: 'note pad', text: 'Circle sizes use US-dollar revenue; TSMC’s is its own dollar translation and ASML’s is its euro figure, unconverted. A missing line means no document in this set states the link - not that there is none.' })),
       info);
@@ -658,10 +760,29 @@
 
   /* ---------------- routing ---------------- */
 
+  function needs(parts) {
+    if (parts[0] === 'patterns') return 'patterns';
+    if (parts[0] === 'c' && parts[1]) {
+      var c = Core.company(data, parts[1].toUpperCase());
+      return c && c.filer ? 'c/' + c.id : null;
+    }
+    return null;
+  }
   function route() {
     if (!data) return;
     if (sheet.open) sheet.close();
-    var parts = location.hash.replace(/^#\/?/, '').split('/');
+    var hash = location.hash;
+    var parts = hash.replace(/^#\/?/, '').split('/');
+    var part = needs(parts);
+    if (part && !ready[part]) {
+      clear(main); main.appendChild(h('p', { cls: 'loading', text: 'Loading…' }));
+      load(part).then(function () { if (location.hash === hash) route(); }, function () {
+        if (location.hash !== hash) return;
+        clear(main);
+        main.appendChild(h('div', { cls: 'page' }, h('p', { cls: 'none', text: 'That part of the data could not be loaded.' }), h('p', null, h('button', { type: 'button', cls: 'pill', on: { click: route } }, 'Try again'))));
+      });
+      return;
+    }
     var page; var tab = 'home';
     if (parts[0] === 'c' && parts[1]) page = companyPage(parts[1].toUpperCase());
     else if (parts[0] === 'patterns') { page = patternsPage(); tab = 'patterns'; } else if (parts[0] === 'map') { page = mapPage(parts[1] ? parts[1].toUpperCase() : null); tab = 'map'; } else page = home();
@@ -675,12 +796,12 @@
   var timer = null;
   window.addEventListener('resize', function () {
     clearTimeout(timer);
-    timer = setTimeout(function () { if (data && main.clientWidth !== lastWidth && !sheet.open) route(); }, 200);
+    timer = setTimeout(function () { if (data && main.clientWidth !== lastWidth && !sheet.open && document.activeElement && document.activeElement.tagName !== 'INPUT') route(); }, 200);
   });
 
-  fetch(BASE + 'data/dataset.json').then(function (r) { if (!r.ok) throw new Error('no data'); return r.json(); }).then(function (d) {
-    data = d;
-    document.getElementById('built').textContent = 'Dataset built ' + d.built + ' from ' + Object.keys(d.sources).length + ' primary documents and ' + Object.keys(d.filings).length + ' filings.';
+  load('index').then(function (d) {
+    data = Core.start(d);
+    document.getElementById('built').textContent = 'Dataset built ' + d.built + ' from ' + d.counts.sources + ' primary documents and ' + d.counts.filings + ' filings.';
     route();
   }).catch(function () {
     clear(main);
