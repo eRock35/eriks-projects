@@ -492,7 +492,7 @@
       '<div class="tools">' +
       '<button class="tool" id="hintBtn" type="button">' + ic('bulb') + 'Whisper · <span id="hintLeft">' + (r.maxHints - r.hintsUsed) + '</span></button>' +
       (synth ? '<button class="tool" id="voiceBtn" type="button" aria-pressed="' + voiceOn() + '">' + ic('sound') + 'Voice</button>' : '') +
-      '<button class="tool end" id="endBtn" type="button">' + ic('flag') + 'End and score</button></div>' +
+      '<button class="tool end" id="endBtn" type="button">' + ic('flag') + 'End<span class="wide">&nbsp;and score</span></button></div>' +
       '<div class="line">' +
       (SR ? '<button class="icon-btn" id="micBtn" type="button" aria-label="Speak">' + ic('mic') + '</button>' : '') +
       '<textarea id="say" rows="1" maxlength="700" aria-label="Your line" placeholder="Say something to ' + esc(s.them.name.split(' ')[0]) + '…"></textarea>' +
