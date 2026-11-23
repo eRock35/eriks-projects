@@ -59,6 +59,8 @@
     aiQuote: 160,
     aiNote: 160,
     aiBackDays: 730,         // an order date older than two years is not believed
+    aiTextChars: 6000,       // a pasted order email, after trimming
+    aiTextMin: 20,
   };
 
   /* ------------------------------------------------------------------ *
@@ -989,7 +991,7 @@
       if (Number.isInteger(q) && q >= 2 && q <= 99) name = line(`${name} ×${q}`, LIMITS.item);
       const pr = it.price;
       const price = typeof pr === 'number' && Number.isFinite(pr) && pr >= 0 && pr * 100 <= LIMITS.priceCents ? Math.round(pr * 100) : null;
-      items.push({ item: name, price });
+      items.push(o.perItem ? { item: name, price, confidence: CONFIDENCE.includes(it.confidence) ? it.confidence : 'low' } : { item: name, price });
     }
     let window = null;
     let quote = '';
@@ -1011,6 +1013,174 @@
       confidence: CONFIDENCE.includes(raw.confidence) ? raw.confidence : 'low',
       note: plainOut(scrubRuns(raw.note), LIMITS.aiNote),
     };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The reader that only transcribes (the Gemini path). The model copies
+   * what is printed - the store, the dates, the items, and the return
+   * wording in the document's own words - with a confidence on each. It is
+   * never asked for a deadline: `windowFromQuote` works the window out here,
+   * from the quoted words and the day the person confirms.
+   * ------------------------------------------------------------------ */
+
+  /** {image: {type, data}} or {text} - one of them and nothing else, or null. */
+  function readingRequest(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+    const keys = Object.keys(body);
+    if (keys.length !== 1) return null;
+    if (keys[0] === 'image') return receiptRequest(body);
+    if (keys[0] !== 'text' || typeof body.text !== 'string') return null;
+    const text = body.text.replace(/\r\n?/g, '\n').replace(INVISIBLE, '').replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    if (Array.from(text).length < LIMITS.aiTextMin || Array.from(text).length > LIMITS.aiTextChars) return null;
+    return { text };
+  }
+
+  const STREET = /^\s*\d{1,6}\s+[\p{L}0-9 .'-]{2,40}\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|court|ct|way|place|pl|terrace|circle|cir|highway|hwy|parkway|pkwy)\b\.?(?:[ ,]+(?:apt|unit|suite|ste|#)\.?\s*[\w-]+)?\s*,?\s*$/iu;
+  const CITY_ZIP = /^\s*[\p{L} .'-]{2,40},\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$/u;
+  /**
+   * Obvious personal details out of a pasted order email BEFORE it is sent:
+   * email addresses, phone numbers, card numbers and "ending in 1234" tails,
+   * any other run of 12+ digits, street lines and "City, ST 12345" lines.
+   * Returns the text and how many things were taken out.
+   */
+  function scrubPersonal(text) {
+    let removed = 0;
+    const cut = (s, re, put) => s.replace(re, (m) => { removed++; return typeof put === 'function' ? put(m) : put; });
+    let t = String(text || '');
+    t = cut(t, /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g, '[email removed]');
+    t = cut(t, /\b\d{4}([ -])\d{4}\1\d{4}\1\d{1,7}\b|\b\d{4}([ -])\d{6}\2\d{4,5}\b/g, '[number removed]');
+    t = cut(t, /((?:ending in|ending with|card ending|last four|last 4)\D{0,12})\d{4}\b/gi, (m) => m.replace(/\d{4}$/, '[removed]'));
+    t = cut(t, /(?:\+?1[ .-]?)?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b/g, '[phone removed]');
+    t = cut(t, /\+\d{1,3}[ .-]?\d{2,4}(?:[ .-]?\d{2,4}){2,3}\b/g, '[phone removed]');
+    t = cut(t, /\d{12,}/g, '[number removed]');
+    t = t.split('\n').map((l) => {
+      if (STREET.test(l) || CITY_ZIP.test(l)) { removed++; return '[address removed]'; }
+      return l;
+    }).join('\n');
+    return { text: t, removed };
+  }
+
+  const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const NUMBER_WORDS = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, ten: 10, fourteen: 14, fifteen: 15, twenty: 20, 'twenty-one': 21, 'twenty-eight': 28, thirty: 30, 'forty-five': 45, sixty: 60, ninety: 90 };
+  const monthOf = (w) => { const k = String(w).toLowerCase().replace(/\.$/, ''); const i = MONTHS.findIndex((m) => m === k || (k.length >= 3 && m.slice(0, 3) === k.slice(0, 3) && m.startsWith(k.slice(0, Math.min(k.length, m.length))))); return i < 0 ? 0 : i + 1; };
+  const ymd = (y, m, d) => { const s = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; return isDay(s) ? s : ''; };
+  /** Every calendar date written in a line of return wording. A date with no
+   *  year is the first such day on or after `from`. 03/04/2027 could be two
+   *  days, so it is no date at all. */
+  function datesIn(text, from) {
+    const out = [];
+    const add = (d) => { if (d && !out.includes(d)) out.push(d); };
+    const t = String(text);
+    for (const m of t.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) add(ymd(m[1], m[2], m[3]));
+    const noYear = (mo, d) => { if (!mo) return ''; const y = Number(from.slice(0, 4)); const a = ymd(y, mo, d); return a && a >= from ? a : ymd(y + 1, mo, d); };
+    // "may" in lower case is nearly always the verb ("items may 30 days..."),
+    // so it is a month only with a year after it.
+    const month = (w, year) => (w === 'may' && !year ? 0 : monthOf(w));
+    for (const m of t.matchAll(/\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/g)) { const mo = month(m[1], m[3]); if (mo) add(m[3] ? ymd(m[3], mo, m[2]) : noYear(mo, m[2])); }
+    for (const m of t.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([A-Za-z]{3,9})\.?(?:,?\s+(\d{4}))?\b/g)) { const mo = month(m[2], m[3]); if (mo) add(m[3] ? ymd(m[3], mo, m[1]) : noYear(mo, m[1])); }
+    for (const m of t.matchAll(/\b(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})\b/g)) {
+      const a = Number(m[1]), b = Number(m[2]), y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+      if (a > 12 && b <= 12) add(ymd(y, b, a));
+      else if (b > 12 && a <= 12) add(ymd(y, a, b));
+      else if (a === b) add(ymd(y, a, b));
+      else out.push('?');
+    }
+    return out;
+  }
+  /**
+   * The return window, worked out by the app from the document's own words
+   * and the day the window counts from. One date -> {until}; otherwise one
+   * number of days (or weeks) -> {days}. Anything that could mean two things
+   * - two different day counts, two dates, business days, months - is null
+   * with the reason, and the person picks.
+   * @returns {window, basis, why} basis: 'date' | 'days' | ''
+   */
+  function windowFromQuote(quote, from) {
+    const q = String(quote || '');
+    const none = (why) => ({ window: null, basis: '', why });
+    if (!hasWord(q) || !isDay(from)) return none('none');
+    // A day on or before the day it was bought is that day being mentioned,
+    // not a deadline.
+    const dates = datesIn(q, from).filter((d) => d === '?' || d > from);
+    if (dates.includes('?')) return none('unclear-date');
+    if (dates.length > 1) return none('several');
+    if (dates.length === 1) {
+      const w = cleanWindow({ until: dates[0] }, from);
+      return w && w.until ? { window: w, basis: 'date', why: '' } : none('date-out-of-range');
+    }
+    if (/\b(business|working)\s+days?\b/i.test(q)) return none('business-days');
+    const counts = [];
+    const push = (n) => { if (!counts.includes(n)) counts.push(n); };
+    for (const m of q.matchAll(/\b(\d{1,3})(?:\s*-\s*|\s+)?(?:calendar\s+)?(day|week)s?\b/gi)) push(Number(m[1]) * (m[2].toLowerCase() === 'week' ? 7 : 1));
+    for (const m of q.matchAll(/\b([a-z]+(?:-[a-z]+)?)(?:\s*-\s*|\s+)(?:calendar\s+)?(day|week)s?\b/gi)) { const n = NUMBER_WORDS[m[1].toLowerCase()]; if (n) push(n * (m[2].toLowerCase() === 'week' ? 7 : 1)); }
+    if (counts.length > 1) return none('several');
+    if (counts.length === 1) {
+      const w = cleanWindow({ days: counts[0] }, from);
+      return w && w.days ? { window: w, basis: 'days', why: '' } : none('days-out-of-range');
+    }
+    return none(/\bmonths?\b/i.test(q) ? 'months' : 'no-number');
+  }
+
+  const squash = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  /** Is this quote really in the text it was read from? (Pasted text only -
+   *  a photo's words cannot be checked, so the person reads them.) */
+  function quoteInSource(quote, source) {
+    const q = squash(quote);
+    return q.length >= 4 && squash(source).includes(q);
+  }
+
+  /**
+   * A transcription, checked. The same door as cleanReceipt (card numbers
+   * refuse it, names plain and bounded, dates real), plus:
+   *   - every field's confidence kept as low / medium / high ("low" when the
+   *     model sent anything else), so the page can ask about the unsure ones;
+   *   - the return wording kept only as a quote; from pasted text it must be
+   *     found in that text, or it is dropped (`quoteDropped`);
+   *   - no window from the model at all: `window` here is windowFromQuote's.
+   * @param o {today, source} source: the pasted text that was sent, or ''
+   */
+  function cleanReading(raw, o) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const conf = (v) => (CONFIDENCE.includes(v) ? v : 'low');
+    const field = (f) => (f && typeof f === 'object' && !Array.isArray(f) ? f : {});
+    const str = (v) => (typeof v === 'string' ? v : '');
+    const st = field(raw.store), pd = field(raw.purchase_date), dd = field(raw.delivery_date), rp = field(raw.return_policy);
+    const today = o.today;
+    const day = (v) => { const d = str(v).trim(); return isDay(d) && d <= addDays(today, 1) && d >= addDays(today, -LIMITS.aiBackDays) ? d : ''; };
+    let quote = plainOut(scrubRuns(str(rp.quote)), LIMITS.aiQuote);
+    let quoteDropped = false;
+    if (quote && o.source && !quoteInSource(quote, o.source)) { quote = ''; quoteDropped = true; }
+    const base = cleanReceipt({
+      store: str(st.value),
+      order_date: day(pd.value),
+      order_number: str(raw.order_number),
+      currency: str(raw.currency),
+      items: Array.isArray(raw.items) ? raw.items.map((it) => (it && typeof it === 'object' ? { name: it.name, price: it.price, quantity: it.quantity, confidence: it.confidence } : it)) : [],
+      return_window: { found: false, quote: '' },
+      confidence: 'low',
+      note: '',
+      // Looked at for card numbers too, though never shown as they are.
+      seen: [str(dd.value), str(rp.quote)],
+    }, { today, perItem: true });
+    if (!base || base.refused) return base;
+    const delivered = day(dd.value);
+    const from = base.bought || delivered || '';
+    const worked = quote ? windowFromQuote(quote, from || today) : { window: null, basis: '', why: 'none' };
+    const checks = {
+      store: base.store ? conf(st.confidence) : 'low',
+      bought: base.bought ? conf(pd.confidence) : 'low',
+      delivered: delivered ? conf(dd.confidence) : '',
+      window: quote ? conf(rp.confidence) : '',
+    };
+    const order = { low: 0, medium: 1, high: 2 };
+    const all = [checks.store, checks.bought].concat(quote ? [checks.window] : [], base.items.map((it) => it.confidence));
+    const overall = all.reduce((a, c) => (order[c] < order[a] ? c : a), 'high');
+    return Object.assign(base, {
+      delivered: delivered && delivered !== base.bought ? delivered : '',
+      quote, quoteDropped,
+      window: worked.window, basis: worked.basis, why: quote ? worked.why : '',
+      checks, confidence: overall, note: '', reader: 'transcribe',
+    });
   }
 
   /* ------------------------------------------------------------------ *
@@ -1056,6 +1226,7 @@
     csvCell, toCsv, purchasesCsv, parseCsv, fromCsv,
     syncPayload, cleanTombstones, cleanList, mergeLists, listBytes,
     receiptRequest, luhn, hasCardLike, cleanReceipt,
+    readingRequest, scrubPersonal, datesIn, windowFromQuote, quoteInSource, cleanReading,
     sample,
   };
 }));
