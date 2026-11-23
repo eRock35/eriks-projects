@@ -46,6 +46,7 @@ const LIMITS = {
   discount: 10000000,
   pct: 100,
   listItems: 12,
+  rates: 40,
 };
 
 /* ------------------------------------------------------------------ *
@@ -236,7 +237,22 @@ const PROFILE_DEFAULTS = {
   hourlyRate: 75,
   terms: '50% deposit to book, balance due on completion.',
   validDays: 30,
+  // The pro's own price list (2026-11-23): what a thing costs THEM, per unit.
+  // The Gemini reader never prices a line - lib/rates.js looks it up here.
+  rates: [],
 };
+
+/** A price list entry: a name, what kind of line it is, a unit and the pro's
+ *  own price for one of them. Nameless or free entries are dropped. */
+function cleanRates(a) {
+  return (Array.isArray(a) ? a : []).map((r) => {
+    if (!r || typeof r !== 'object') return null;
+    const name = clean(r.name, 80);
+    const unitPrice = num(r.unitPrice, LIMITS.unitPrice, 2, 0);
+    if (!name || unitPrice <= 0) return null;
+    return { name, category: CATEGORIES[r.category] ? r.category : 'material', unit: clean(r.unit, 12) || 'ea', unitPrice };
+  }).filter(Boolean).slice(0, LIMITS.rates);
+}
 
 function cleanColor(v) {
   const s = String(v || '').trim();
@@ -272,6 +288,7 @@ function cleanProfile(raw, prev = {}) {
     hourlyRate: pick('hourlyRate', (v) => num(v, 2000, 2)),
     terms: pick('terms', (v) => cleanText(v, 400)),
     validDays: pick('validDays', (v) => Math.max(1, Math.round(num(v, 365, 0, 30)) || 30)),
+    rates: 'rates' in r ? cleanRates(r.rates) : cleanRates(base.rates),
   };
 }
 
@@ -469,7 +486,7 @@ function stats(quotes, now = Date.now()) {
 
 module.exports = {
   CATEGORIES, TRADES, UNITS, TIER_KEYS, TIER_LABELS, STATUSES, OPEN, LIMITS, PROFILE_DEFAULTS,
-  clean, cleanText, cleanList, num, cleanItem, cleanItems, cleanTiers, cleanProfile, cleanColor, cleanLogo,
+  clean, cleanText, cleanList, num, cleanItem, cleanItems, cleanTiers, cleanProfile, cleanRates, cleanColor, cleanLogo,
   priceLines, totalsFor, computeTotals, headlineTier, valueOf, isExpired, statusOf,
   applyEdit, publicView, stats, weekKey,
 };
