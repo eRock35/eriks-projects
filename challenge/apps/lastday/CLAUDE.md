@@ -33,7 +33,10 @@ leavers.
   the device; CSV formula-safe; Markdown escaped.
 - **Signed in (free)**: the system inventory and settings follow the
   account. Never a person.
-- **Metered AI**: "Read a messy request" - masked on the device first.
+- **Metered AI**: "Read a messy request" - masked on the device first. It
+  reads the facts (who, the last day, role or team, the systems the request
+  names, what is unclear), each with the words it came from; **the checklist
+  is built by the app** from the person's own system list.
 
 Built 2026-11-03 as a **business** drop: Takeback (2026-11-02) was everyday,
 so today was the other kind. **Staging only**: no custom domain until Erik
@@ -270,6 +273,74 @@ Signed out, the sheet still shows the masked text and offers a free account;
 402 opens the credit sheet; 403 `verify-email` shows its sentence and "Send
 the link again"; sheets size themselves below the confirm-your-email banner.
 
+### A messy request becomes an offboarding checklist (2026-11-23)
+
+Erik's per-app AI plan: **Claude - "A messy leaver request becomes an
+offboarding checklist." Why: text extraction.** Built on the call above
+(same route, same gates, same masking, same forced tool - nothing new is
+sent or stored):
+
+- **The model extracts, the app builds.** `read_request` also records
+  `role` (their role or team), `systems` (every system, app, login or code
+  the request NAMES, as written) and `unclear` (`{about, from}`, `about`
+  from `LastdayCore.UNCLEAR`). The tool has no property for a step or a
+  task, and the system prompt says never to suggest one (tested).
+- **Every fact carries a quote, verified as a substring.** `aiFrom` /
+  `aiSaid` in the core: a role, a system name or an unclear passage is kept
+  only when its words are IN the masked text; one that is not is dropped
+  and counted. A system name carrying a token (a person), an `@` or markup
+  is dropped. The older fields (name, last day...) are kept without a
+  matching quote but come back `quoted: false` with the note "no matching
+  words in the request"; the page shows them **unticked**.
+- **Missing essentials** (`aiMissing`: who, the last day, voluntary or not)
+  come back as `missing` and lead the proposal ("Missing: the last day").
+- **The page** (`showProposal`) unmasks on the device and shows: each fact
+  with a tick and its quote; "Systems it names" set against the system list
+  by `matchSystems` (the list's own `systemFor` rule) - "In your systems"
+  or "Not in your system list" with **Add "x" to your systems** (a
+  two-step local-account system, through `cleanInventory(strict)`, so an
+  address can never become a system; the person taps it, the model never
+  adds one); "Unclear in the request"; its questions; and **"The checklist
+  this makes: N steps from your M systems"**, counted by `buildChecklist`
+  on the device from the ticked facts. "Use these and make the checklist"
+  (one tap) or "Use these, check the fields first".
+- The leaver keeps `role` and `named` (the list's names for the systems the
+  request named) on the device, shown in its details. The exports and
+  `lastday.checklist.v1` are unchanged.
+- **Lab AI guard**: `global.LAB_AI_GUARD?.allow({provider: 'claude', req,
+  app: 'lastday'})` after the identity gates and the free 400s, before the
+  call (a no is its status, message and code, no model call, and the sheet
+  offers "Read it without AI"); `record` with `priceUsd` after any call that
+  came back, usable or not (not for a person's own key). No guard (the app
+  on its own): it just runs.
+- **Provider**: Claude, through the lab's existing Anthropic client
+  (`identity.meter`, `clientFor`, models via `identityLib.planFor`). There
+  is no provider switch and no federation wiring here.
+- The stand-in (`LASTDAY_FAKE_AI=1`) reads the role, a few generic systems
+  and the vague passages from the masked text; its `inject` mode adds a
+  made-up role, a system the request never named, a person as a system and
+  off-list passages, none of which may come back.
+
+## The design (2026-11-23)
+
+The lab's house style (the HOA Desk rules; the header of `public/app.css`
+says them in full): a pure white page (true black in the dark theme), no
+tinted or gradient backgrounds, hairline cards with 12 px corners only
+where grouping helps, hairline-divided lists (findings, tasks, facts, the
+AI proposal), pill buttons and chips, the system font, five type sizes,
+one accent - the lab card's indigo `#312e81` (`#a5b4fc` in the dark
+theme). The first screen is a centred hero. Phones get a slim floating
+translucent pill bar (label on the active item only); from 900 px a top nav
+row with an underline (the shared `desktop.css` rail is undone in
+`app.css`, never edited). Motion only inside
+`prefers-reduced-motion: no-preference`. **The page writes no `style=`
+attribute** (helper classes `m0`, `mt12`...; tested); the two CSSOM writes
+left are the progress bar's width and the sheet's max-height under the
+confirm-your-email banner. The token names the contrast test reads are kept.
+Measured in the browser (390, 320 and 1440 px, both themes, every view):
+lowest text contrast 5.59:1 light, 7.19:1 dark; nothing wider than the
+window.
+
 ## The demo (`public/demo.js`)
 
 A **made-up** dental practice, **Harbor & Pine Dental** (14 staff,
@@ -351,7 +422,8 @@ does not force a tool, keeps every request (`fakeClient.calls`), reads the
 masked text deterministically, and takes `fakeClient.mode` (`blank`,
 `inject`, `maxtokens`, `upstream401`, `upstream529`) for one call.
 
-`test/run.js` (32 tests): CSV quoting, line endings, BOM, delimiters, `sep=`,
+`test/run.js` (37 tests - the last five hold the AI facts, the app-built
+checklist, the tool and provider, the facts over HTTP and the lab guard): CSV quoting, line endings, BOM, delimiters, `sep=`,
 a preamble, no header, ragged rows, duplicate headers; dates; Okta, Entra,
 Google Workspace and JumpCloud headers and statuses; awkward app headers
 (a status column of roles, "Is admin", a job title, a Created date, no

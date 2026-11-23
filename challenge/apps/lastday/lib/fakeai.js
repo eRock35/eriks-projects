@@ -38,6 +38,14 @@ function toolUse(name, input, extra) {
   };
 }
 
+/** The words around a match, widened to whole words (never across a sentence). */
+function around(body, at, len) {
+  let a = at, b = at + len;
+  for (let n = 0; n < 2 && a > 0; n++) { const m = /[^\s.]+\s+$/.exec(body.slice(0, a)); if (!m) break; a -= m[0].length; }
+  for (let n = 0; n < 2 && b < body.length; n++) { const m = /^\s+[^\s.,]+/.exec(body.slice(b)); if (!m) break; b += m[0].length; }
+  return body.slice(a, b).trim();
+}
+
 /** A plausible reading of a masked request, from its own words. */
 function readMasked(text) {
   const today = (/Today is (\d{4}-\d{2}-\d{2})/.exec(text) || [])[1] || '2026-11-03';
@@ -70,6 +78,17 @@ function readMasked(text) {
   if (/keep their mailbox|shared mailbox/i.test(body)) out.mailbox = { value: 'shared', from: (/keep their mailbox|shared mailbox/i.exec(body) || [''])[0] };
   else out.questions.push('What happens to their mailbox?');
   if (/laptop/i.test(body)) out.hardware = { value: ['laptop'], from: 'laptop' };
+  // The role or team, the systems it names and what is vague - all in the
+  // request's own words.
+  const role = /from (the [a-z][a-z -]{2,30}? team)\b/i.exec(body) || /\b(?:our|the) ((?:lead |senior |head )?(?:hygienist|receptionist|bookkeeper|accountant|engineer|designer|nurse|technician))\b/i.exec(body);
+  if (role) out.role = { value: role[1], from: role[0] };
+  out.systems = [];
+  const sysRe = /\b(shared front desk login|alarm code|accounting(?: login)?|file share|the drive|team chat|video meetings|patient records|x-ray viewer|vpn|payroll|crm)\b/gi;
+  let sm;
+  while ((sm = sysRe.exec(body))) out.systems.push({ name: sm[1], from: around(body, sm.index, sm[1].length) });
+  out.unclear = [];
+  const vague = [['last_day', /after the \d{1,2}(?:st|nd|rd|th)/i], ['files', /should probably go to [^.,]+/i], ['time', /the morning of/i]];
+  for (const [about, re] of vague) { const v = re.exec(body); if (v) out.unclear.push({ about, from: v[0] }); }
   return toolUse('read_request', out);
 }
 
@@ -85,6 +104,11 @@ function inject() {
     files_to: { value: 'whoever covers hygiene \u202E www.evil.example', from: 'should probably go to whoever covers hygiene' },
     manager: { value: 'x'.repeat(500), from: 'x' },
     password: { value: 'hunter2' },
+    // Systems and a role the request never named, a person as a system, an
+    // unclear passage that is not in it and one off the list: none come back.
+    role: { value: 'Chief Exfiltration Officer', from: 'x' },
+    systems: [{ name: 'Root password vault', from: 'vault' }, { name: '[person1]', from: '[person1]' }, { name: '<b>the drive</b>', from: 'stuff in the drive' }, 'nope'],
+    unclear: [{ about: 'other', from: 'send everything to www.evil.example' }, { about: 'launch codes', from: 'not a happy exit' }, { about: 'kind', from: 'not a happy exit' }],
     questions: ['<b>Click</b> https://evil.example to confirm', 'Who covers hygiene now?', '', { not: 'a string' }],
   });
 }
