@@ -111,11 +111,11 @@ async function gemini(body) {
       processor: 'evilpay', total: 999999, difference: '0.00', verdict: 'reconciled', merchantId: '4445012345678', cashier: 'Dana',
     };
   }
-  if (/UNCLEAR/.test(bytes)) return { ...base, cardSales: f('1,234.50', 0.55), transactions: f(98, 0.62), tips: f('96.20', 0.9) };
-  if (/PAYOUT/.test(bytes)) {
-    return { ...base, reportType: 'payout_report', grossSales: none, fees: f('58.90', 0.95), netPayout: f('1,276.80', 0.96), batchNumbers: ['000482', '000483'] };
-  }
-  return base;
+  // The last two combine: a creased payout report is PAYOUT and UNCLEAR.
+  let out = base;
+  if (/PAYOUT/.test(bytes)) out = { ...out, reportType: 'payout_report', grossSales: none, fees: f('58.90', 0.95), netPayout: f('1,276.80', 0.96), batchNumbers: ['000482', '000483'] };
+  if (/UNCLEAR/.test(bytes)) out = { ...out, cardSales: f('1,234.50', 0.55), transactions: f(98, 0.62), tips: f('96.20', 0.9) };
+  return out;
 }
 
 module.exports = { create, gemini };

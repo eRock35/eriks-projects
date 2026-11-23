@@ -968,7 +968,10 @@
    * confirmed arrives as null and is left out of every line).
    *
    * report: { date, cardCents, refundsCents, tipsCents, feesCents, netCents,
-   *           tx, cardTypes: [{type, cents}] }
+   *           tx, cardTypes: [{type, cents}], unknown: [keys] }
+   *         `unknown` names figures that were read but are not confirmed yet
+   *         (gross, refunds, tips, tx, fees, net): a sum that would need one
+   *         is not attempted, rather than worked out as if it were zero.
    * ctx:    { settings, days, deposits, today }
    * Returns { lines: [{key, tone: ok|warn|info, title, text}], expected, due }.
    */
@@ -982,6 +985,8 @@
     var days = c.days || []; var deposits = c.deposits || [];
     var lines = [];
     var add = function (key, tone, title, text) { lines.push({ key: key, tone: tone, title: title, text: text }); };
+    var unknown = Array.isArray(r.unknown) ? r.unknown : [];
+    var open = function (keys) { return keys.some(function (k) { return unknown.indexOf(k) >= 0; }); };
 
     // 1. Do the card-type lines add up to the card sales printed?
     var types = (Array.isArray(r.cardTypes) ? r.cardTypes : []).filter(function (t) { return t && n(t.cents) !== null; });
@@ -995,16 +1000,16 @@
 
     // 2. Does the report agree with itself?
     var charged = card !== null ? card + (tips || 0) : null;
-    if (charged !== null && net !== null && fees !== null) {
+    if (charged !== null && net !== null && fees !== null && !open(['tips', 'refunds'])) {
       var own = charged - (refunds || 0) - fees;
       if (own === net) add('sum', 'ok', 'The report adds up', 'Sales' + (tips ? ' + tips' : '') + (refunds ? ' − refunds' : '') + ' − fees = ' + money(net) + ', the payout printed.');
       else add('sum', 'warn', 'The report doesn’t add up', 'Sales' + (tips ? ' + tips' : '') + (refunds ? ' − refunds' : '') + ' − fees comes to ' + money(own) + ', but the payout printed is ' + money(net) + ' - ' + money(Math.abs(own - net)) + (net < own ? ' less. Something else was held back, or a figure was misread.' : ' more. A figure may be misread.'));
     }
 
     // 3. The fee printed (or left by the payout) against the plan.
-    var plan = charged !== null && charged > 0 && tx !== null ? expected({ grossCents: card, tipsCents: tips || 0, refundsCents: refunds || 0, txCount: tx }, s) : null;
+    var plan = charged !== null && charged > 0 && tx !== null && !open(['tips', 'refunds']) ? expected({ grossCents: card, tipsCents: tips || 0, refundsCents: refunds || 0, txCount: tx }, s) : null;
     var fee = fees !== null ? fees : (charged !== null && net !== null && charged - (refunds || 0) - net >= 0 ? charged - (refunds || 0) - net : null);
-    if (plan && fee !== null) {
+    if (plan && fee !== null && !open(['fees', 'net'])) {
       var over = fee - plan.fee;
       var high = over > Math.max(FEE_HIGH_MIN, Math.round(charged * FEE_HIGH_BPS / 10000));
       var feeWords = (fees !== null ? 'The fee printed is ' : 'The payout leaves a fee of ') + money(fee) + ' (' + pct(fee / charged) + '). Your plan, ' + feeText(s) + ', estimates ' + money(plan.fee) + ' (' + pct(plan.feeRate) + ')';
@@ -1021,7 +1026,7 @@
     // 5. Against the day already closed for that date.
     var day = date ? days.filter(function (d) { return d.date === date; })[0] || null : null;
     var same = false;
-    if (day && card !== null) {
+    if (day && card !== null && !open(['refunds', 'tips', 'tx'])) {
       var diffs = [];
       var cmp = function (label, printed, typed) { if (printed !== null && printed !== (typed || 0)) diffs.push(label + ' ' + money(printed) + ' on the report, ' + money(typed || 0) + ' in your books'); };
       cmp('card sales', card, day.grossCents); cmp('refunds', refunds, day.refundsCents); cmp('tips', tips, day.tipsCents);

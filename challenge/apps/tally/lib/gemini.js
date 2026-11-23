@@ -207,6 +207,9 @@ function cleanReading(raw, today) {
     seen.add(row.type);
     cardTypes.push({ type: row.type, cents: c, confidence: conf(row.confidence) });
   }
+  // The card-type lines are confirmed together: one doubtful line and the
+  // sum of them is doubtful.
+  if (cardTypes.some((x) => x.confidence < UNCLEAR_BELOW)) unclear.push('types');
   const batches = [];
   for (const b of (Array.isArray(r.batchNumbers) ? r.batchNumbers : []).slice(0, MAX_BATCHES * 3)) {
     const s = batch(b);
