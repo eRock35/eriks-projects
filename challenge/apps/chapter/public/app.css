@@ -6,36 +6,39 @@
    colour: it carries a lock, a count and words. */
 
 :root {
+  /* Pure white: every surface token is the page's own colour. The -bg and
+     -soft names are kept (rules and the contrast test read them) but none
+     of them is a tint any more. */
   --bg: #ffffff;
   --card: #ffffff;
-  --card2: #f5f5f7;
+  --card2: #ffffff;
   --line: #e5e5ea;
   --line-2: #d1d1d6;
   --field: #8e8e93;
   --text: #1d1d1f;
-  --muted: #5e5e63;
+  --muted: #6e6e73;
   --accent: #6d2b7a;
   --accent-ink: #ffffff;
-  --accent-soft: #f6eef8;
+  --accent-soft: #ffffff;
   --link: #6a2577;
   --focus: #6a2577;
   --bar-bg: #ffffff;
   --track: #e5e5ea;
   --ok: #166534;
-  --ok-bg: #eaf7ee;
+  --ok-bg: #ffffff;
   --warn: #7c4a03;
-  --warn-bg: #fdf3d7;
+  --warn-bg: #ffffff;
   --lock: #3f3a52;
-  --lock-bg: #f0eff5;
+  --lock-bg: #ffffff;
   --q: #1d4f80;
-  --q-bg: #eaf2fa;
+  --q-bg: #ffffff;
   --star: #8a5a00;
   --hero-1: #ffffff;
-  --hero-2: #f5f5f7;
+  --hero-2: #ffffff;
   --hero-ink: #1d1d1f;
-  --hero-soft: #5e5e63;
+  --hero-soft: #6e6e73;
   --face: #ffffff;
-  --sheet-fill: #f5f5f7;
+  --sheet-fill: #ffffff;
   --sheet-line: #e5e5ea;
   --shadow: none;
   --lift: 0 4px 24px rgba(0, 0, 0, .12);
@@ -47,23 +50,23 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #000000; --card: #000000; --card2: #1c1c1e; --line: #2c2c2e; --line-2: #3a3a3c; --field: #7c7c80; --text: #f5f5f7; --muted: #a1a1a6;
-    --accent: #d9a8e6; --accent-ink: #2a0e33; --accent-soft: #2a1b30; --link: #e6c0ef; --focus: #e6c0ef;
-    --bar-bg: #1c1c1e; --track: #2c2c2e;
-    --ok: #86efac; --ok-bg: #0f2417; --warn: #fcd34d; --warn-bg: #2b2108; --lock: #d3cde3; --lock-bg: #1f1d2a; --q: #a9cdf2; --q-bg: #13212f; --star: #f2c35b;
-    --hero-1: #000000; --hero-2: #1c1c1e; --hero-ink: #f5f5f7; --hero-soft: #a1a1a6;
-    --face: #1c1c1e; --sheet-fill: #2c2c2e; --sheet-line: #3a3a3c;
+    --bg: #000000; --card: #000000; --card2: #000000; --line: #2c2c2e; --line-2: #48484a; --field: #7c7c80; --text: #f5f5f7; --muted: #98989d;
+    --accent: #d9a8e6; --accent-ink: #2a0e33; --accent-soft: #000000; --link: #e6c0ef; --focus: #e6c0ef;
+    --bar-bg: #000000; --track: #2c2c2e;
+    --ok: #86efac; --ok-bg: #000000; --warn: #fcd34d; --warn-bg: #000000; --lock: #d3cde3; --lock-bg: #000000; --q: #a9cdf2; --q-bg: #000000; --star: #f2c35b;
+    --hero-1: #000000; --hero-2: #000000; --hero-ink: #f5f5f7; --hero-soft: #98989d;
+    --face: #000000; --sheet-fill: #000000; --sheet-line: #2c2c2e;
     --shadow: none; --lift: 0 4px 24px rgba(0, 0, 0, .5);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-    --bg: #000000; --card: #000000; --card2: #1c1c1e; --line: #2c2c2e; --line-2: #3a3a3c; --field: #7c7c80; --text: #f5f5f7; --muted: #a1a1a6;
-    --accent: #d9a8e6; --accent-ink: #2a0e33; --accent-soft: #2a1b30; --link: #e6c0ef; --focus: #e6c0ef;
-    --bar-bg: #1c1c1e; --track: #2c2c2e;
-    --ok: #86efac; --ok-bg: #0f2417; --warn: #fcd34d; --warn-bg: #2b2108; --lock: #d3cde3; --lock-bg: #1f1d2a; --q: #a9cdf2; --q-bg: #13212f; --star: #f2c35b;
-    --hero-1: #000000; --hero-2: #1c1c1e; --hero-ink: #f5f5f7; --hero-soft: #a1a1a6;
-    --face: #1c1c1e; --sheet-fill: #2c2c2e; --sheet-line: #3a3a3c;
+    --bg: #000000; --card: #000000; --card2: #000000; --line: #2c2c2e; --line-2: #48484a; --field: #7c7c80; --text: #f5f5f7; --muted: #98989d;
+    --accent: #d9a8e6; --accent-ink: #2a0e33; --accent-soft: #000000; --link: #e6c0ef; --focus: #e6c0ef;
+    --bar-bg: #000000; --track: #2c2c2e;
+    --ok: #86efac; --ok-bg: #000000; --warn: #fcd34d; --warn-bg: #000000; --lock: #d3cde3; --lock-bg: #000000; --q: #a9cdf2; --q-bg: #000000; --star: #f2c35b;
+    --hero-1: #000000; --hero-2: #000000; --hero-ink: #f5f5f7; --hero-soft: #98989d;
+    --face: #000000; --sheet-fill: #000000; --sheet-line: #2c2c2e;
     --shadow: none; --lift: 0 4px 24px rgba(0, 0, 0, .5);
     color-scheme: dark;
 }
@@ -715,6 +718,144 @@ details.more > summary::before { border-radius: 999px; background: var(--card2);
 @keyframes sheet-in { from { opacity: 0; translate: 0 24px; } to { opacity: 1; translate: 0 0; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* ---- Cleaner still (2026-11-23, Erik: "pure white, lots of space, no
+   textured or tinted backgrounds or heavy boxes"). These rules come last
+   and win:
+   - every background is the page's own (white; black in the dark theme):
+     no tinted banners, pills, chips, avatars, ribbons or fills - the only
+     filled things are the primary button, a chosen option and the logo;
+   - no boxes: a section is a heading, space and hairlines between rows -
+     never a bordered card; only fields and controls keep an outline;
+   - 40px between sections, 24px side margins, bigger tight headings,
+     lighter secondary text;
+   - state is said in words with a small dot or a thin line, never a colour
+     block. ---- */
+
+.wrap { padding: 24px 24px 56px; }
+h1 { font-size: 34px; letter-spacing: -.035em; }
+h2 { font-size: 22px; font-weight: 700; letter-spacing: -.025em; }
+.sec-head { margin-bottom: 16px; }
+.stack { gap: 40px; }
+.grid { gap: 40px; }
+@media (min-width: 1000px) { .split { gap: 40px 72px; } }
+
+/* no boxes */
+.card, .sheet .card { background: none; border: 0; border-radius: 0; padding: 0; box-shadow: none; }
+.card.center { padding: 24px 0; }
+.card.stack { gap: 16px; }
+.note, .sent { background: none; border: 1px solid var(--line); border-radius: 12px; }
+.crow, .lbook { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 12px 0; background: none; }
+.crow + .crow { margin-top: 0; }
+.crow:last-of-type, .lbooks .lbook:last-child { border-bottom: 1px solid var(--line); }
+.lbooks { gap: 0; }
+.crow .tile { background: none; border-radius: 0; }
+.ribbon { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 12px; margin-bottom: 24px; color: var(--muted); font-weight: 400; }
+.ribbon span { color: var(--muted); }
+.offline-bar { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 12px; margin-bottom: 24px; color: var(--muted); font-weight: 400; }
+.err { background: none; padding: 0; }
+
+/* controls: an outline, never a fill */
+.btn.soft { background: none; border-color: var(--line-2); color: var(--text); }
+.sheet .close { background: none; border-color: transparent; color: var(--link); }
+.pill { padding: 0; border-radius: 0; background: none; font-size: 13px; font-weight: 600; }
+.t-host, .t-special { background: none; color: var(--link); }
+.t-ok { background: none; }
+.t-warn, .t-q, .t-lock, .t-signed { background: none; }
+details.more > summary::before, .how li::before { background: none; border: 1px solid var(--line-2); }
+.emojis button[aria-pressed="true"] { background: none; }
+.reacts button[aria-pressed="true"], .rsvp button[aria-pressed="true"] { background: none; }
+.rp .reacts button { background: none; }
+.locked .chips span, .mn-lock .chips span { background: none; padding: 0; color: var(--muted); }
+.locked .chips, .mn-lock .chips { gap: 4px 16px; }
+
+/* the welcome view */
+.hero { padding: 72px 0 48px; }
+.mock { box-shadow: none; border: 1px solid var(--line); margin-top: 16px; }
+.mock .mline.warn { background: none; color: var(--text); }
+.mock .mline.warn::before, .nudge::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.mock .mline.warn::before { color: var(--warn); }
+.band { margin-top: 96px; }
+.band > h2 { font-size: 34px; letter-spacing: -.035em; margin-bottom: 32px; }
+
+/* the club's page head */
+.pagehead { margin: 16px 0 40px; }
+.pagehead h1 { font-size: 40px; line-height: 1.05; letter-spacing: -.04em; }
+.pagehead .by { font-size: 17px; margin-top: 8px; }
+@media (min-width: 900px) { .pagehead h1 { font-size: 56px; } .pagehead { margin: 24px 0 56px; } .wrap { padding: 40px 24px 80px; } }
+
+/* the club home: a number, a thin line, a list */
+.mark .big { font-size: 56px; letter-spacing: -.045em; line-height: 1; margin-top: 4px; }
+.mark .of { margin: 8px 0 20px; font-size: 17px; }
+.meter { height: 2px; border-radius: 1px; }
+.meter i { border-radius: 1px; }
+.actions { margin-top: 24px; gap: 12px; }
+.nudge { padding: 0; border-radius: 0; background: none; color: var(--text); font-size: 17px; font-weight: 400; margin-top: -8px; }
+.nudge.behind, .nudge.late, .nudge.on-track, .nudge.ready, .nudge.done, .nudge.none { background: none; color: var(--text); }
+.nudge.behind::before, .nudge.late::before { color: var(--warn); }
+.nudge.on-track::before, .nudge.ready::before, .nudge.done::before { color: var(--ok); }
+.nudge.none::before { color: var(--line-2); }
+.tasks { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: visible; }
+.task { min-height: 72px; padding: 14px 0; }
+.task:active { background: none; }
+.rsvp-line { padding: 0 0 16px 34px; }
+@media (max-width: 359px) { .rsvp-line { padding-left: 0; } }
+.headline { font-weight: 400; color: var(--muted); margin-bottom: 4px; }
+.glance { gap: 0 16px; }
+.glance span { background: none; padding: 0; border-radius: 0; color: var(--muted); font-size: 15px; }
+.glance b { color: var(--text); }
+.glance + p { display: none; }
+.spine-wrap { padding: 0 16px; margin-top: 24px; }
+.spine { height: 2px; border-radius: 1px; background: var(--line-2); }
+.spine .fill { opacity: 1; border-radius: 1px; background: var(--accent); }
+.bm .rib { width: auto; height: auto; padding: 0; clip-path: none; border-radius: 0; background: none; font-size: 20px; line-height: 1.6; }
+.bm.you .rib { box-shadow: none; }
+.bm .stem { top: 30px; width: 1px; margin-left: 0; background: var(--line-2); }
+.flag { border-left: 1px dashed var(--line-2); }
+.flag span { background: none; padding: 0 4px; color: var(--link); font-size: 13px; font-weight: 600; }
+.spine-ends { color: var(--muted); margin-top: 8px; }
+.readers { margin-top: 16px; }
+.mrow { padding: 16px 0; grid-template-columns: 32px minmax(0, 1fr) auto; }
+.mrow .av { width: 32px; height: 32px; background: none; border-radius: 0; font-size: 24px; }
+.mrow .bar { height: 2px; border-radius: 1px; background: var(--line); }
+.mrow .bar i { border-radius: 1px; }
+.mrow .ln { color: var(--muted); }
+.party, .winner { background: none; border-radius: 0; padding: 0 0 8px; text-align: left; }
+.party h2, .winner h2 { font-size: 34px; letter-spacing: -.035em; }
+.party .row { justify-content: flex-start; }
+
+/* threads and meeting notes: rows, not boxes */
+.nt { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 24px 0 16px; }
+.nt + .nt { margin-top: 0; }
+.nt.q { border-left: 0; }
+.stack:has(> .nt) { gap: 0; }
+.stack:has(> .nt) > .seg { margin: 0 0 16px; }
+.ch-head { margin: 32px 0 0; font-size: 13px; }
+.ch-head + .nt { border-top: 0; padding-top: 12px; }
+.thread { border-top: 0; padding-top: 0; }
+.rp { margin-left: 4px; padding: 4px 0 4px 16px; border-left: 1px solid var(--line-2); border-radius: 0; background: none; }
+.locked { padding: 0 0 24px; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
+.compose { padding-bottom: 8px; }
+.meet-big { font-size: 34px; letter-spacing: -.035em; line-height: 1.1; }
+.mnotes { border-top: 1px solid var(--line); padding-top: 24px; gap: 0; }
+.mnotes > .lab { margin-bottom: 8px; }
+.mn, .mn.dec { background: none; border-radius: 0; border: 0; border-bottom: 1px solid var(--line); padding: 16px 0; }
+.mn-lock { background: none; border-radius: 0; padding: 16px 0; color: var(--muted); font-weight: 400; }
+.mnotes > .btn { margin-top: 16px; }
+.aiq { padding: 16px 0; }
+
+/* the vote, the shelf, the library */
+.nom { padding: 16px 0; }
+.spineart { background: none; border: 1px solid var(--line-2); color: var(--text); }
+.lcover { background: none; border: 1px solid var(--line-2); }
+.book + .book { margin-top: 24px; padding-top: 24px; }
+.vbar { height: 2px; background: var(--line); }
+
+/* sheets and the reader */
+.sheet { box-shadow: 0 -1px 0 var(--line), 0 -8px 40px rgba(0, 0, 0, .08); padding: 24px 24px calc(28px + env(safe-area-inset-bottom)); }
+.reader-frame { background: var(--bg); }
+.tabbar { box-shadow: 0 2px 16px rgba(0, 0, 0, .06); }
+@media (min-width: 900px) { .tabbar { box-shadow: none; } }
+
 /* What used to be style attributes: one utility per declaration (data-u), so no markup carries inline style. */
 [data-u="margin-top-0"] { margin-top: 0 !important; }
 [data-u="font-size-2rem"] { font-size: 2rem !important; }
@@ -752,6 +893,13 @@ details.more > summary::before { border-radius: 999px; background: var(--card2);
 [data-u="margin-top-16px"] { margin-top: 16px !important; }
 [data-u="margin-4px-0"] { margin: 4px 0 !important; }
 [data-u="margin-10px-0-6px"] { margin: 10px 0 6px !important; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sheet { border: 1px solid var(--line-2); border-bottom: 0; }
+  :root:not([data-theme="light"]) .tabbar { border-color: var(--line-2); }
+}
+:root[data-theme="dark"] .sheet { border: 1px solid var(--line-2); border-bottom: 0; }
+:root[data-theme="dark"] .tabbar { border-color: var(--line-2); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

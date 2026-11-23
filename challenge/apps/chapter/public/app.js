@@ -594,7 +594,7 @@
     var tasks = '<nav class="card tasks" aria-label="In this club">' + talk + meetRow + voteRow + readRow + buyRow + locked + '</nav>';
     var list = B.rows.map(function (r) {
       var alt = !r.done && r.pos && r.alt ? '<small>' + esc(C.altShort(book, r.alt)) + '</small>' : '';
-      return '<div class="mrow' + (r.you ? ' you' : '') + '"><span class="av" data-bg="' + esc(colorOf(v, r.id)) + '">' + esc(r.emoji) + '</span><div data-u="min-width-0"><span class="nm">' + esc(r.name) + '</span>' + (r.host ? ' <span class="pill t-host">Host</span>' : '') +
+      return '<div class="mrow' + (r.you ? ' you' : '') + '"><span class="av">' + esc(r.emoji) + '</span><div data-u="min-width-0"><span class="nm">' + esc(r.name) + '</span>' + (r.host ? ' <span class="pill t-host">Host</span>' : '') +
         '<span class="ln">' + esc(r.short) + (r.moved && r.pos ? ' · moved ' + esc(r.moved) : '') + '</span><div class="bar"><i data-w="' + r.pct + '"></i></div></div><span class="at">' + (r.done ? '✓ Done' : esc(C.atShort(book, r.pos))) + alt + '</span></div>';
     }).join('');
     // Where's everyone, at a glance (older saved views have none: skip it).

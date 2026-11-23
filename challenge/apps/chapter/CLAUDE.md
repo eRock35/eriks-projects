@@ -375,24 +375,36 @@ and every feature of the 2026-11-22 upgrade is where it was.
 **The rules** (also at the top of the "Visual redesign" layer in `app.css`;
 keep them when adding anything):
 
-- A **white page**. Cards are white with a **1px hairline** (`#e5e5ea`) and
-  **12px corners**; fields 10px; **pills** for buttons and chips. Gray fills
-  (`--card2`, `#f5f5f7`) only where a group needs one (a reply under a
-  note, a locked count, a quiet note). **No shadows**, except a barely-there
-  one on what floats: the phone's bar, sheets, toasts, the welcome card.
-- **One accent**: Chapter's plum (`#6d2b7a`, from its lab card), used
-  sparingly - the primary button, links, the active tab, your bookmark and
-  its meter. Status colours (ready, behind, locked, a question) are the
-  only other colour.
+- **Pure white, and no boxes** (Erik's second note the same day: "a
+  cleaner background ... pure white, lots of space, no textured or tinted
+  backgrounds or heavy boxes"). Every surface is the page's own colour -
+  white, or black in the dark theme. The `--card2`, `--accent-soft` and
+  `-bg` tokens still exist (rules and the contrast test read them) but each
+  now equals the page: no tinted banner, pill, chip, avatar circle, ribbon
+  or fill. The only filled things are the primary button, a chosen option
+  and the logo. A section is a heading, space and **1px hairlines**
+  (`#e5e5ea`) between rows - never a bordered card; only fields, controls
+  and the few in-sheet notes keep an outline. State is said in words with
+  a small dot or a thin line ("The meeting is today..." is a line with a
+  dot; "Today - ch 12" is a small accent label; a decision is the word
+  "Decided"). **No shadows**, except a barely-there one on what floats:
+  the phone's bar and sheets. 40px between sections, 24px side margins.
+- **One accent**: Chapter's plum (`#6d2b7a`, from its lab card), only for
+  the primary button, links, the active tab, and your own progress line.
+  Progress is a **2px hairline track with the accent fill** - your
+  bookmark, each reader, the book's spine (readers are their emoji standing
+  on it; the coloured ribbons and avatar circles are gone).
 - **Five type sizes** - 13, 15, 17, 20, 28 - plus the welcome headline;
-  tight tracking on headlines; system fonts only. Note, reply and
+  and the bookmark's big number; tight tracking on headlines; lighter
+  secondary text (`#6e6e73`); system fonts only. Note, reply and
   meeting-note text is 17px at 1.55, capped at 66 characters a line.
 - **Spacing** on a 4/8 scale.
 - **One icon set**: 24px, a 1.5px line, no fill (`ic()` in `app.js`, the tab
   icons in `index.html`, drawn by `.ico` / `.tabbar svg`). Emoji are only
   what readers chose or wrote: their avatar, their reactions.
-- **Lists over boxes**: the club home's tasks, the readers, the welcome
-  view's points are rows with hairlines between them.
+- **Lists over boxes**: the club home's tasks, the readers, threads and
+  their replies (a thin rule down the left), meeting notes, the shelf and
+  the welcome view's points are rows with hairlines between them.
 - **Navigation is one element** (`#tabbar`, now inside the top bar's
   markup): on a phone a **slim floating translucent bar** at the bottom,
   48px buttons, only the active item labelled, a small accent mark under
@@ -411,8 +423,8 @@ keep them when adding anything):
   moves by itself; the page is complete at rest.
 - **44px targets, 48px for primary actions**; nothing sideways at 390 or
   320px; text contrast 4.5:1 or better in both themes. The dark theme is
-  designed too: a black page, `#1c1c1e` fills and sheets, the plum lifted
-  to `#d9a8e6`.
+  designed too: a true black page, hairlines at `#2c2c2e`, sheets and the
+  floating bar edged with a hairline, the plum lifted to `#d9a8e6`.
 
 **Every main task is one or two taps from the club home** (the Home tab,
 which is the old Board): the bookmark card (Update my page, +1 chapter,
@@ -463,7 +475,7 @@ it" and the Archive's reader in its frame, and the library: 72 views. No
 console error or CSP violation, nothing past the edge at 390 or 320 px,
 no style attribute in markup. **Text contrast was measured in the
 browser** on every visible text node against the background it sits on:
-the lowest is **5.68:1 in the light theme and 5.42:1 in the dark** (4.5 is
+the lowest is **5.07:1 in the light theme and 7.31:1 in the dark** (4.5 is
 the floor). The run found one 41px-wide "Delete" link on a meeting note,
 since given a 44px minimum. Not measured: emoji, and whatever the Internet
 Archive draws inside its own frame.
