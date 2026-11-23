@@ -148,8 +148,24 @@
   }
   function slug(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'purchase'; }
   function signedIn() { return Boolean(state.me && state.me.signedIn); }
+  /** Which reader the server runs: the transcribing one also takes pasted text. */
+  function transcribes() { return Boolean(state.me && state.me.reader === 'gemini'); }
   function pkOk() { return Boolean(window.Passkey && Passkey.supported() && !/\.run\.app$/.test(location.hostname)); }
   function initial(s) { var a = Array.from(String(s || '').replace(/[^\p{L}\p{N}]/gu, '')); return (a[0] || '?').toUpperCase(); }
+
+  /** Line icons: one weight, drawn from fixed paths (never from data). */
+  var ICONS = {
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    refund: '<path d="M9.5 5L4 10l5.5 5"/><path d="M4.5 10h10a5 5 0 010 10H11"/>',
+    chart: '<path d="M5 20v-8M10 20V5M15 20v-6M20 20V9"/>',
+    bell: '<path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>',
+    camera: '<path d="M4 8.5h3l1.5-2.5h7L17 8.5h3v10H4z"/><circle cx="12" cy="13" r="3.2"/>',
+    spark: '<path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+    check: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.5 2.5 4.5-5"/>',
+    store: '<path d="M4 9.5L5.5 4h13L20 9.5M5.5 12.5V20h13v-7.5M4 9.5a2.7 2.7 0 005.3 0 2.7 2.7 0 005.4 0 2.7 2.7 0 005.3 0z"/>',
+    text: '<path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/>'
+  };
+  function ico(name) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>'; }
 
   function showError(err, where) {
     if (err && err.status === 402) return openCredit(err.data);
@@ -159,7 +175,7 @@
     else toast(msg, 4200);
   }
   function verifyNote(where, e) {
-    where.innerHTML = '<div class="note" role="alert"><p class="err" style="margin-top:0">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Takeback stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
+    where.innerHTML = '<div class="note" role="alert"><p class="err">' + esc(e.message) + '</p><p class="small muted">Open the link in that email, then try again. Everything else in Takeback stays free meanwhile.</p><button class="btn small ghost" type="button" id="resend">Send the link again</button></div>';
     var b = $('#resend', where);
     b.addEventListener('click', function () {
       b.disabled = true;
@@ -298,30 +314,30 @@
   /* ---------------- the first run ---------------- */
 
   function viewFirst() {
-    var ring = function (pct, color) { var r = 25, c = 2 * Math.PI * r; return '<svg viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="' + r + '" fill="none" stroke="#e3e6f0" stroke-width="6"/><circle cx="29" cy="29" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + (c * pct).toFixed(1) + ' ' + c.toFixed(1) + '"/></svg>'; };
+    var ring = function (pct) { var r = 21, c = 2 * Math.PI * r; return '<svg viewBox="0 0 48 48" aria-hidden="true"><circle class="rt" cx="24" cy="24" r="' + r + '" fill="none" stroke-width="3"/><circle class="rv" cx="24" cy="24" r="' + r + '" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="' + (c * pct).toFixed(1) + ' ' + c.toFixed(1) + '"/></svg>'; };
     var holiday = /^(10|11|12)$/.test(today().slice(5, 7));
-    return '<section class="hero" aria-labelledby="heroTitle"><div class="hero-grid"><div>' +
-      '<p class="lab" style="color:var(--hero-soft)">Returns, refunds, done</p>' +
+    return '<section class="first" aria-labelledby="heroTitle">' +
+      '<p class="lab">Returns, refunds, done</p>' +
       '<h1 id="heroTitle">Never miss a return window.</h1>' +
-      '<p>And make sure the refund actually lands. Add what you might send back in seconds - Takeback counts down the days, walks you through the return and watches for the money.</p>' +
-      '<div class="cta"><button class="btn big white" type="button" data-act="try">Try it - a made-up list</button><button class="btn big line" type="button" data-act="addfirst">Add my first purchase</button></div>' +
-      '<p class="small" style="margin-top:12px">Free, no sign-up. It all stays on this phone.</p></div>' +
+      '<p class="lede">And make sure the refund actually lands. Takeback counts down the days, walks you through the return and watches for the money.</p>' +
+      '<div class="cta"><button class="btn big" type="button" data-act="try">Try it - a made-up list</button><button class="btn big ghost" type="button" data-act="addfirst">Add my first purchase</button></div>' +
+      '<p class="small muted mt16">Free, no sign-up. It all stays on this phone.</p>' +
       '<div class="mock" aria-hidden="true">' +
-      '<div class="mc m1"><span class="av">J</span><span><b>Boots · $89</b><small>Return by Friday</small></span><span class="ring">' + ring(0.1, '#b45309') + '<b>3<small>days</small></b></span></div>' +
-      '<div class="mc m2"><span class="av" style="background:#1e429f">B</span><span><b>Earbuds</b><small>Dropped off</small></span><span class="tag wait">Refund Mon</span></div>' +
-      '<div class="mc m3"><span class="av" style="background:#166534">C</span><span><b>Grinder</b><small>Refunded</small></span><span class="tag done">$64 back ✓</span></div>' +
-      '</div></div></section>' +
-      '<section class="card" style="margin-top:16px" aria-labelledby="howTitle"><h2 id="howTitle">How it works</h2><ol class="how">' +
+      '<div class="mc"><span><b>Boots · $89</b><small>Return by Friday</small></span><span class="ring">' + ring(0.1) + '<b>3</b></span></div>' +
+      '<div class="mc"><span><b>Earbuds</b><small>Dropped off</small></span><span class="pill t-wait">Refund Mon</span></div>' +
+      '<div class="mc"><span><b>Grinder</b><small>Refunded</small></span><span class="pill t-done">$64 back ✓</span></div>' +
+      '</div></section>' +
+      '<section class="sec narrow" aria-labelledby="howTitle"><h2 id="howTitle">How it works</h2><ol class="how">' +
       '<li><div><b>Add it while the bag is still on the floor.</b><br><span class="muted">Store, item, price and the return window from the receipt - 14, 30, 60, 90 days or a date. Several items from one order at once.</span></div></li>' +
       '<li><div><b>Decide before the window closes.</b><br><span class="muted">Everything is sorted by what needs you soonest: amber under a week, red under two days. Keep it, or send it back.</span></div></li>' +
       '<li><div><b>Follow the money home.</b><br><span class="muted">Label printed, packed, dropped off - then Takeback watches for the refund and flags the one that never arrived.</span></div></li>' +
       '</ol></section>' +
-      '<div class="grid three" style="margin-top:14px">' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">⏳</span><h3>Countdowns that nudge</h3><p class="muted small">“Return by Fri Nov 6 · 4 days left” on every purchase, and a calendar reminder 3 days before and on the morning of.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">💸</span><h3>A refund watch</h3><p class="muted small">Refunds go missing and nobody notices. Takeback expects them ten business days after drop-off and says when one is late - and what to do.</p></section>' +
-      '<section class="card feat"><span class="ic" aria-hidden="true">📊</span><h3>Money back, counted</h3><p class="muted small">What you recovered this year, what is still returnable, what is on its way - and a recap image to share.</p></section>' +
+      '<div class="sec feats">' +
+      '<section class="feat">' + ico('clock') + '<h3>Countdowns that nudge</h3><p class="muted small">“Return by Fri Nov 6 · 4 days left” on every purchase, and a calendar reminder 3 days before and on the morning of.</p></section>' +
+      '<section class="feat">' + ico('refund') + '<h3>A refund watch</h3><p class="muted small">Refunds go missing and nobody notices. Takeback expects them ten business days after drop-off and says when one is late - and what to do.</p></section>' +
+      '<section class="feat">' + ico('chart') + '<h3>Money back, counted</h3><p class="muted small">What you recovered this year, what is still returnable, what is on its way - and a recap image to share.</p></section>' +
       '</div>' +
-      (holiday ? '<p class="note small" style="margin-top:14px"><b>Holiday shopping?</b> Many stores run longer holiday return windows that start around now. If the receipt gives a date, pick “Until a date” - Takeback never guesses a store’s policy.</p>' : '');
+      (holiday ? '<p class="note small mt32 narrow"><b>Holiday shopping?</b> Many stores run longer holiday return windows that start around now. If the receipt gives a date, pick “Until a date” - Takeback never guesses a store’s policy.</p>' : '');
   }
 
   /* ---------------- try it ---------------- */
@@ -339,7 +355,7 @@
     if (!quiet) { go(''); }
   }
   function ribbon() {
-    return '<div class="ribbon" role="note"><span>Made-up purchases - tap around, nothing here is saved.</span><div class="row"><button class="btn small" type="button" data-act="tryadd">Add my own</button><button class="btn small ghost" type="button" data-act="tryleave">Leave</button></div></div>';
+    return '<div class="ribbon" role="note"><span><b>Made-up purchases</b> - tap around, nothing here is saved.</span><div class="row"><button class="btn small" type="button" data-act="tryadd">Add my own</button><button class="btn small ghost" type="button" data-act="tryleave">Leave</button></div></div>';
   }
 
   /* ---------------- the list ---------------- */
@@ -383,7 +399,7 @@
     var t = today();
     var rows = C.byNeed(l, t).filter(function (p) { var st = C.stateOf(p, t); return st === 'overdue' || st === 'waiting'; });
     var late = rows.filter(function (p) { return C.stateOf(p, t) === 'overdue'; }).length;
-    var out = '<section class="card watch' + (late ? ' alert' : '') + '" aria-labelledby="watchTitle"><h2 id="watchTitle"><span aria-hidden="true">💸</span> Refund watch</h2>';
+    var out = '<section class="watch' + (late ? ' alert' : '') + '" aria-labelledby="watchTitle"><h2 id="watchTitle">' + ico('refund') + ' Refund watch</h2>';
     if (!rows.length) {
       var done = l.filter(function (p) { return p.refund; }).length;
       return out + '<p class="muted">' + (done ? 'Nothing waiting - every refund you sent for has landed.' : 'When you drop something off, Takeback expects the refund ten business days later and tells you if it’s late.') + '</p></section>';
@@ -393,8 +409,8 @@
       var st = C.stateOf(p, t), total = Math.max(1, C.daysBetween(p.steps.dropped, p.expectBy)), gone = C.daysBetween(p.steps.dropped, t);
       var pct = Math.max(4, Math.min(100, Math.round(gone / total * 100)));
       out += '<div class="wrow"><span class="what">' + esc(p.item) + ' · ' + esc(p.store) + (p.price !== null ? ' · ' + esc(money(p.price)) : '') + '</span>' +
-        (st === 'overdue' ? '<p class="say t-red" style="padding:8px 10px;border-radius:10px">' + esc(C.overdueLine(p, t)) + '</p>' : '<p class="say small muted">Dropped off ' + esc(C.shortDay(p.steps.dropped, t)) + ' · expected by ' + esc(C.fmtDay(p.expectBy, t)) + '</p>') +
-        '<div class="bar' + (st === 'overdue' ? ' late' : '') + '" role="img" aria-label="' + esc(st === 'overdue' ? 'Past the expected date' : gone + ' of ' + total + ' days waited') + '"><i style="width:' + pct + '%"></i></div>' +
+        (st === 'overdue' ? '<p class="say t-red">' + esc(C.overdueLine(p, t)) + '</p>' : '<p class="say small muted">Dropped off ' + esc(C.shortDay(p.steps.dropped, t)) + ' · expected by ' + esc(C.fmtDay(p.expectBy, t)) + '</p>') +
+        '<svg class="bar' + (st === 'overdue' ? ' late' : '') + '" viewBox="0 0 100 4" preserveAspectRatio="none" role="img" aria-label="' + esc(st === 'overdue' ? 'Past the expected date' : gone + ' of ' + total + ' days waited') + '"><rect class="bt" width="100" height="4"></rect><rect class="bv" width="' + pct + '" height="4"></rect></svg>' +
         '<div class="row"><button class="btn small' + (st === 'overdue' ? '' : ' soft') + '" type="button" data-act="refund" data-id="' + esc(p.id) + '">Refund received</button>' +
         (st === 'overdue' ? '<button class="btn small ghost" type="button" data-act="followup" data-id="' + esc(p.id) + '">Message to send them</button>' : '<button class="btn small ghost" type="button" data-act="remind" data-id="' + esc(p.id) + '">Remind me</button>') + '</div></div>';
     });
@@ -408,25 +424,25 @@
     var nd = C.nudges(l, o).filter(function (n) { return n.kind !== 'overdue'; });
     var out = '<div class="sec-head"><h1>Returns</h1><button class="btn small" type="button" data-act="tab" data-tab="add">+ Add</button></div>' +
       '<div class="summary"><span class="big">' + esc(s.text) + '</span>' + (s.waitingCount ? '<span class="muted small">' + esc(money(s.waiting)) + ' waiting on ' + plural(s.waitingCount, 'refund') + (s.overdue ? ' · ' + s.overdue + ' late' : '') + '</span>' : '') + '</div>';
-    out += '<div class="grid home-split"><div class="stack">';
-    nd.forEach(function (n) { out += '<div class="nudge t-' + (n.kind === 'expect' ? 'wait' : n.kind === 'drop' ? 'amber' : 'red') + '" role="note"><span class="ic" aria-hidden="true">' + (n.kind === 'expect' ? '💸' : '⏰') + '</span><span>' + esc(n.text) + '</span><button class="link-btn" type="button" data-act="open" data-id="' + esc(n.id) + '">Open</button></div>'; });
+    out += '<div class="grid home-split"><div class="home-main">';
+    nd.forEach(function (n) { out += '<div class="nudge t-' + (n.kind === 'expect' ? 'wait' : n.kind === 'drop' ? 'amber' : 'red') + '" role="note">' + ico(n.kind === 'expect' ? 'refund' : 'clock') + '<span>' + esc(n.text) + '</span><button class="link-btn" type="button" data-act="open" data-id="' + esc(n.id) + '">Open</button></div>'; });
     out += '<div class="filters" role="group" aria-label="Show">' + C.FILTERS.map(function (f) { return '<button class="chip" type="button" data-act="filter" data-f="' + f.id + '" aria-pressed="' + (prefs.filter === f.id) + '">' + esc(f.label) + '<span class="ct">' + counts[f.id] + '</span></button>'; }).join('') + '</div>';
-    if (!shown.length) out += '<section class="card empty"><div class="ic" aria-hidden="true">🎉</div><p><b>Nothing here.</b></p><p class="muted small">' + (prefs.filter === 'all' ? 'Add a purchase to start the countdown.' : 'Nothing in this list right now.') + '</p></section>';
+    if (!shown.length) out += '<section class="empty">' + ico('check') + '<p class="m0"><b>Nothing here.</b></p><p class="muted small m0">' + (prefs.filter === 'all' ? 'Add a purchase to start the countdown.' : 'Nothing in this list right now.') + '</p></section>';
     var isDone = function (p) { var st = C.stateOf(p, t); return st === 'refunded' || st === 'kept' || st === 'missed'; };
     var active = shown.filter(function (p) { return !isDone(p); }), done = shown.filter(isDone);
-    active.forEach(function (p) { out += cardHtml(p); });
+    if (active.length) out += '<div class="plist">' + active.map(cardHtml).join('') + '</div>';
     if (done.length) {
-      if (active.length) out += '<h2 class="lab" style="margin:10px 0 0">Done · ' + done.length + '</h2>';
-      done.forEach(function (p) { out += doneHtml(p); });
+      if (active.length) out += '<h2 class="lab mt32">Done · ' + done.length + '</h2>';
+      out += '<div class="plist">' + done.map(doneHtml).join('') + '</div>';
     }
     var watching = l.some(function (p) { var st = C.stateOf(p, t); return st === 'waiting' || st === 'overdue'; });
-    out += '</div><aside class="stack home-aside' + (watching ? '' : ' quiet') + '">' + watchHtml(l) + moneyMini(l) + '</aside></div>';
+    out += '</div><aside class="home-aside' + (watching ? '' : ' quiet') + '">' + watchHtml(l) + moneyMini(l) + '</aside></div>';
     return out;
   }
   function moneyMini(l) {
     var t = C.tally(l, ctx());
-    return '<section class="card mini-money"><p class="lab">This year</p><div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="stat hi"><b>' + esc(money(t.recovered)) + '</b><span>recovered</span></div><div class="stat"><b>' + esc(money(t.returnable)) + '</b><span>still returnable</span></div></div>' +
-      '<button class="btn small ghost block" style="margin-top:10px" type="button" data-act="tab" data-tab="money">See the money</button></section>';
+    return '<section class="mini-money"><h2>This year</h2><div class="stats"><div class="stat hi"><b>' + esc(money(t.recovered)) + '</b><span>recovered</span></div><div class="stat"><b>' + esc(money(t.returnable)) + '</b><span>still returnable</span></div></div>' +
+      '<button class="btn small ghost mt16" type="button" data-act="tab" data-tab="money">See the money</button></section>';
   }
 
   /* ---------------- one purchase ---------------- */
@@ -434,24 +450,24 @@
   function openPurchase(id) {
     var p = find(id); if (!p) return;
     var o = ctx(), t = o.today, s = C.statusOf(p, o), st = s.state, rb = C.returnBy(p);
-    var html = '<h2>' + esc(p.item) + '</h2><p class="muted" style="margin-top:-4px">' + esc(p.store) + (p.price !== null ? ' · ' + esc(money(p.price)) : '') + ' · bought ' + esc(C.shortDay(p.bought, t)) + '</p>' +
-      '<p class="status t-' + s.tone + '" style="margin:0 0 12px">' + esc(s.text) + '</p>';
-    if (st === 'deciding') html += '<div class="row" style="margin-bottom:12px"><button class="btn keep" type="button" data-act="keep" data-id="' + esc(p.id) + '" style="flex:1">Keep it</button><button class="btn back" type="button" data-act="return" data-id="' + esc(p.id) + '" style="flex:1">Send it back</button></div>';
-    if (st === 'missed' && p.decision !== 'return') html += '<p class="note small">The window closed. If the store will still take it back, ask them - then tick the steps below as you go.</p><button class="btn small ghost" type="button" data-act="return" data-id="' + esc(p.id) + '" style="margin-bottom:12px">They took it back anyway</button>';
+    var html = '<h2>' + esc(p.item) + '</h2><p class="muted pull">' + esc(p.store) + (p.price !== null ? ' · ' + esc(money(p.price)) : '') + ' · bought ' + esc(C.shortDay(p.bought, t)) + '</p>' +
+      '<p class="status t-' + s.tone + ' mb12">' + esc(s.text) + '</p>';
+    if (st === 'deciding') html += '<div class="row mb12"><button class="btn keep grow" type="button" data-act="keep" data-id="' + esc(p.id) + '">Keep it</button><button class="btn back grow" type="button" data-act="return" data-id="' + esc(p.id) + '">Send it back</button></div>';
+    if (st === 'missed' && p.decision !== 'return') html += '<p class="note small">The window closed. If the store will still take it back, ask them - then tick the steps below as you go.</p><button class="btn small ghost mb12" type="button" data-act="return" data-id="' + esc(p.id) + '">They took it back anyway</button>';
     if (p.decision === 'return') html += checklistHtml(p);
     var ro = C.reminderOptions(p, t);
-    if (ro.length) html += '<button class="btn soft block" type="button" data-act="remind" data-id="' + esc(p.id) + '" style="margin:12px 0">🔔 Remind me</button>';
+    if (ro.length) html += '<button class="btn soft block my12" type="button" data-act="remind" data-id="' + esc(p.id) + '">' + ico('bell') + ' Remind me</button>';
     var note = C.noteFor(notes(), p.store);
-    html += '<h3 style="margin-top:14px">Details</h3><dl class="kv">' +
+    html += '<h3 class="mt16">Details</h3><dl class="kv">' +
       '<dt>Return window</dt><dd>' + esc(C.windowLabel(p.window, t)) + (rb ? ' · return by ' + esc(C.fmtDay(rb, t)) : '') + '</dd>' +
       (p.order ? '<dt>Order</dt><dd>' + esc(p.order) + '</dd>' : '') +
       (p.how ? '<dt>Goes back</dt><dd>' + esc(C.howLabel(p.how)) + '</dd>' : '') +
       (p.gift ? '<dt>A gift</dt><dd>Gift receipt - the refund usually comes as store credit</dd>' : '') +
       (p.url ? '<dt>Returns page</dt><dd><a href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">' + esc(p.url.replace(/^https:\/\//, '').slice(0, 60)) + '</a></dd>' : '') +
-      (p.note ? '<dt>Note</dt><dd style="white-space:pre-line">' + esc(p.note) + '</dd>' : '') + '</dl>' +
-      (note ? '<p class="store-note" style="margin-top:10px"><b>Your note on ' + esc(note.name) + ':</b> ' + esc(note.text) + '</p>' : '') +
-      '<div class="photo-row" id="photoRow" style="margin-top:10px"></div>' +
-      '<div class="row" style="margin-top:14px">' + (state.trying ? '' : '<button class="btn small ghost" type="button" data-act="edit" data-id="' + esc(p.id) + '">Edit</button>') +
+      (p.note ? '<dt>Note</dt><dd class="pre">' + esc(p.note) + '</dd>' : '') + '</dl>' +
+      (note ? '<p class="store-note mt12"><b>Your note on ' + esc(note.name) + ':</b> ' + esc(note.text) + '</p>' : '') +
+      '<div class="photo-row mt12" id="photoRow"></div>' +
+      '<div class="row mt16">' + (state.trying ? '' : '<button class="btn small ghost" type="button" data-act="edit" data-id="' + esc(p.id) + '">Edit</button>') +
       (p.decision ? '<button class="btn small ghost" type="button" data-act="undecide" data-id="' + esc(p.id) + '">Undecide</button>' : '') +
       '<button class="btn small ghost" type="button" data-act="delete" data-id="' + esc(p.id) + '">Delete</button></div>';
     sheet(html, function (root) {
@@ -464,7 +480,7 @@
           if (!ph) return;
           var b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Show the ' + k[1].toLowerCase());
           var im = document.createElement('img'); im.alt = ''; im.src = ph.thumb; b.appendChild(im);
-          b.addEventListener('click', function () { sheet('<h2>' + esc(k[1]) + '</h2><img class="big-photo" alt="' + esc(k[1] + ' for ' + p.item) + '" src="' + esc(ph.full) + '"><p class="tiny muted" style="margin-top:8px">Kept on this phone only.</p><button class="btn small ghost" type="button" data-act="open" data-id="' + esc(p.id) + '" style="margin-top:8px">Back</button>'); });
+          b.addEventListener('click', function () { sheet('<h2>' + esc(k[1]) + '</h2><img class="big-photo" alt="' + esc(k[1] + ' for ' + p.item) + '" src="' + esc(ph.full) + '"><p class="tiny muted mt8">Kept on this phone only.</p><button class="btn small ghost mt8" type="button" data-act="open" data-id="' + esc(p.id) + '">Back</button>'); });
           row.appendChild(b);
         });
       });
@@ -495,18 +511,18 @@
       } else if (s.id === 'dropped' && p.dropPhoto) out += '<span class="pill t-ok">Receipt ✓</span>';
       else out += '<span></span>';
       out += '</li>';
-      if (s.id === 'started' && !p.url && !state.trying) out += '<li style="grid-template-columns:minmax(0,1fr) auto"><label class="field" style="margin:0"><span class="hint">The store’s returns page (optional)</span><input class="input" id="retUrl" type="url" inputmode="url" placeholder="https://" autocomplete="off"></label><button class="btn small ghost" type="button" id="retUrlSave" style="align-self:end">Save</button><span class="err small" id="retUrlErr" style="grid-column:1/-1;margin:0"></span></li>';
+      if (s.id === 'started' && !p.url && !state.trying) out += '<li class="wide"><label class="field"><span class="hint">The store’s returns page (optional)</span><input class="input" id="retUrl" type="url" inputmode="url" placeholder="https://" autocomplete="off"></label><button class="btn small ghost" type="button" id="retUrlSave">Save</button><span class="err small span-all m0" id="retUrlErr"></span></li>';
     });
     if (p.steps.dropped) {
       var cls = p.refund ? 'done' : st === 'overdue' ? 'late' : '';
-      out += '<li class="money ' + cls + '"><span class="tick" aria-hidden="true" style="' + (p.refund ? 'background:var(--ok);border-color:var(--ok);color:var(--ok-bg)' : '') + '">' + (p.refund ? '✓' : '$') + '</span><span><span class="lbl">' +
+      out += '<li class="money ' + cls + '"><span class="tick' + (p.refund ? ' on' : '') + '" aria-hidden="true">' + (p.refund ? '✓' : '$') + '</span><span><span class="lbl">' +
         (p.refund ? esc(C.refundWord(p, ctx())) + ' on ' + esc(C.fmtDay(p.refund.day, t)) : st === 'overdue' ? esc('No refund yet - ' + plural(C.lateDays(p, t), 'day') + ' late') : 'Refund expected by') + '</span><br>' +
-        (p.refund ? '<button class="link-btn" type="button" data-act="unrefund" data-id="' + esc(p.id) + '">Not right? Undo</button>' : '<label class="when" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + (state.trying ? 'Expected by ' + esc(C.fmtDay(p.expectBy, t)) : '<input class="input" id="expectIn" type="date" value="' + esc(p.expectBy) + '" min="' + esc(p.steps.dropped) + '" style="max-width:190px;min-height:44px" aria-label="Refund expected by">') + '</label>') + '</span>' +
+        (p.refund ? '<button class="link-btn" type="button" data-act="unrefund" data-id="' + esc(p.id) + '">Not right? Undo</button>' : '<label class="when">' + (state.trying ? 'Expected by ' + esc(C.fmtDay(p.expectBy, t)) : '<input class="input" id="expectIn" type="date" value="' + esc(p.expectBy) + '" min="' + esc(p.steps.dropped) + '" aria-label="Refund expected by">') + '</label>') + '</span>' +
         (p.refund ? '<span></span>' : '<button class="btn small" type="button" data-act="refund" data-id="' + esc(p.id) + '">Received</button>') + '</li>';
     }
     out += '</ol>';
-    if (st === 'overdue') out += '<p class="note small" style="margin-top:10px">' + esc(C.overdueLine(p, t)) + ' <button class="link-btn" type="button" data-act="followup" data-id="' + esc(p.id) + '">A message to send them</button></p>';
-    if (!p.steps.dropped) out += '<p class="tiny muted" style="margin-top:8px">Once it’s dropped off, Takeback expects the refund ten business days later (you can change the date) and tells you if it’s late.</p>';
+    if (st === 'overdue') out += '<p class="note small mt12">' + esc(C.overdueLine(p, t)) + ' <button class="link-btn" type="button" data-act="followup" data-id="' + esc(p.id) + '">A message to send them</button></p>';
+    if (!p.steps.dropped) out += '<p class="tiny muted mt8">Once it’s dropped off, Takeback expects the refund ten business days later (you can change the date) and tells you if it’s late.</p>';
     return out;
   }
 
@@ -535,7 +551,7 @@
     put(C.setStep(p, step, null, ctx())); draw(); openPurchase(id);
   }
   function dateField(id, label, value, max, min) {
-    return '<label class="field" style="margin:10px 0"><span>' + esc(label) + '</span><input class="input" id="' + id + '" type="date" value="' + esc(value) + '"' + (max ? ' max="' + esc(max) + '"' : '') + (min ? ' min="' + esc(min) + '"' : '') + ' style="max-width:220px"></label>';
+    return '<label class="field my12"><span>' + esc(label) + '</span><input class="input w220" id="' + id + '" type="date" value="' + esc(value) + '"' + (max ? ' max="' + esc(max) + '"' : '') + (min ? ' min="' + esc(min) + '"' : '') + '></label>';
   }
   function openDropped(id) {
     var p = find(id); if (!p) return;
@@ -543,9 +559,9 @@
     sheet('<h2>' + esc(how) + '</h2><p class="muted">' + esc(p.item) + ' · ' + esc(p.store) + '</p>' +
       dateField('dropDay', 'When', t, t) +
       dateField('dropExpect', 'Refund expected by', C.addBusinessDays(t, C.LIMITS.refundBusinessDays), '', t) +
-      '<p class="tiny muted" style="margin-top:-4px">Ten business days after it’s dropped off - change it if the store says otherwise.</p>' +
-      (state.trying ? '' : '<div class="field" style="margin:12px 0"><span>Photo of the drop-off receipt <span class="hint">(optional - it’s your proof)</span></span><label class="btn ghost file-btn">📷 Add a photo<input class="vh" id="dropPhoto" type="file" accept="image/*"></label><span class="hint" id="dropPhotoName"></span></div><p class="tiny muted">Photos are shrunk on this phone and their location is removed. They never leave it.</p>') +
-      '<div id="dropErr"></div><button class="btn block" type="button" id="dropSave" style="margin-top:8px">Save - start the refund watch</button>', function (root) {
+      '<p class="tiny muted pull">Ten business days after it’s dropped off - change it if the store says otherwise.</p>' +
+      (state.trying ? '' : '<div class="field my12"><span>Photo of the drop-off receipt <span class="hint">(optional - it’s your proof)</span></span><label class="btn ghost file-btn">' + ico('camera') + ' Add a photo<input class="vh" id="dropPhoto" type="file" accept="image/*"></label><span class="hint" id="dropPhotoName"></span></div><p class="tiny muted">Photos are shrunk on this phone and their location is removed. They never leave it.</p>') +
+      '<div id="dropErr"></div><button class="btn block mt8" type="button" id="dropSave">Save - start the refund watch</button>', function (root) {
       var day = $('#dropDay', root), ex = $('#dropExpect', root), touched = false, dp = $('#dropPhoto', root);
       if (dp) dp.addEventListener('change', function () { $('#dropPhotoName', root).textContent = dp.files[0] ? 'Photo chosen - it is shrunk and kept on this phone when you save.' : ''; });
       ex.addEventListener('change', function () { touched = true; });
@@ -568,10 +584,10 @@
     var t = today();
     var kind = p.gift ? 'credit' : 'card';
     sheet('<h2>Refund received</h2><p class="muted">' + esc(p.item) + ' · ' + esc(p.store) + '</p>' +
-      '<label class="field" style="margin:10px 0"><span>How much came back</span><input class="input" id="rfAmt" inputmode="decimal" autocomplete="off" value="' + esc(p.price !== null ? C.decimal(p.price) : '') + '" style="max-width:200px"></label>' +
-      '<p class="small muted" id="rfPart" style="margin-top:-4px"></p>' +
+      '<label class="field my12"><span>How much came back</span><input class="input w200" id="rfAmt" inputmode="decimal" autocomplete="off" value="' + esc(p.price !== null ? C.decimal(p.price) : '') + '"></label>' +
+      '<p class="small muted pull" id="rfPart"></p>' +
       dateField('rfDay', 'When it landed', t, t, p.steps.dropped || '') +
-      '<div class="field" style="margin:10px 0"><span>As</span><div class="seg" role="group" aria-label="Refund as"><button type="button" data-k="card" aria-pressed="' + (kind === 'card') + '">Back to my card</button><button type="button" data-k="credit" aria-pressed="' + (kind === 'credit') + '">Store credit or gift card</button></div></div>' +
+      '<div class="field my12"><span>As</span><div class="seg" role="group" aria-label="Refund as"><button type="button" data-k="card" aria-pressed="' + (kind === 'card') + '">Back to my card</button><button type="button" data-k="credit" aria-pressed="' + (kind === 'credit') + '">Store credit or gift card</button></div></div>' +
       '<div id="rfErr"></div><button class="btn block" type="button" id="rfSave">Save</button>', function (root) {
       var amt = $('#rfAmt', root), part = $('#rfPart', root);
       function upd() { var c = C.readMoney(amt.value); part.textContent = c !== null && p.price && c < p.price ? 'A partial refund - ' + money(p.price - c) + ' kept back.' : ''; }
@@ -591,9 +607,9 @@
     var p = find(id); if (!p) return;
     var text = C.followUpText(p, ctx());
     sheet('<h2>Chase the refund</h2><p>' + esc(C.overdueLine(p, today()) || 'Not late yet - but here is a message if you need one.') + '</p>' +
-      '<ol class="small" style="padding-left:20px"><li>Look for it on your card statement or in your account - refunds can show up as a credit with a different name.</li><li>Find the drop-off receipt or tracking number.</li><li>Contact ' + esc(p.store) + ' with this message:</li></ol>' +
+      '<ol class="small steps"><li>Look for it on your card statement or in your account - refunds can show up as a credit with a different name.</li><li>Find the drop-off receipt or tracking number.</li><li>Contact ' + esc(p.store) + ' with this message:</li></ol>' +
       '<textarea class="input" id="fuText" rows="6">' + esc(text) + '</textarea>' +
-      '<div class="row" style="margin-top:10px"><button class="btn" type="button" id="fuCopy">Copy the message</button><button class="btn ghost" type="button" data-act="refund" data-id="' + esc(p.id) + '">It landed</button></div>', function (root) {
+      '<div class="row mt12"><button class="btn" type="button" id="fuCopy">Copy the message</button><button class="btn ghost" type="button" data-act="refund" data-id="' + esc(p.id) + '">It landed</button></div>', function (root) {
       $('#fuCopy', root).addEventListener('click', function () { copy($('#fuText', root).value, 'Copied - paste it into their contact form or chat.'); });
     });
   }
@@ -606,9 +622,9 @@
     sheet('<h2>Remind me</h2><p class="muted">' + esc(p.item) + ' · ' + esc(p.store) + '</p>' +
       '<p>This makes a calendar file on this phone. Open it and your calendar adds the reminders - so they ring even with Takeback closed. Nothing is sent anywhere.</p>' +
       (opts.length ? '<div role="group" aria-label="Reminders">' + opts.map(function (o) { return '<label class="check"><input type="checkbox" data-kind="' + esc(o.kind) + '" checked> ' + esc(o.label) + '</label>'; }).join('') + '</div>' +
-        '<label class="field" style="margin:10px 0"><span>At</span><input class="input" id="remTime" type="time" value="' + esc(prefs.time) + '" style="max-width:160px"></label>' +
+        '<label class="field my12"><span>At</span><input class="input w160" id="remTime" type="time" value="' + esc(prefs.time) + '"></label>' +
         (state.trying ? '<p class="note small">This is the made-up list, so nothing goes in your calendar - on your own list, this button makes the file.</p><button class="btn block" type="button" data-act="tryadd">Add my own purchases</button>'
-          : '<div id="remErr"></div><button class="btn block" type="button" id="remGo">Add to my calendar</button>') + '<p class="tiny muted" style="margin-top:8px">Local time on the phone - 9 AM is 9 AM wherever you are, clock changes included.</p>'
+          : '<div id="remErr"></div><button class="btn block" type="button" id="remGo">Add to my calendar</button>') + '<p class="tiny muted mt8">Local time on the phone - 9 AM is 9 AM wherever you are, clock changes included.</p>'
         : '<p class="note">Nothing left to remind you about for this one.</p>'), function (root) {
       var go2 = $('#remGo', root); if (!go2) return;
       go2.addEventListener('click', function () {
@@ -637,6 +653,10 @@
     var w = p.window, preset = w && w.days && C.WINDOW_PRESETS.indexOf(w.days) >= 0;
     return { store: p.store, bought: p.bought, win: w ? (w.until ? 'date' : (preset ? String(w.days) : 'd' + w.days)) : null, until: w && w.until ? w.until : '', items: [{ item: p.item, price: p.price !== null ? C.decimal(p.price) : '' }], order: p.order, how: p.how, gift: p.gift, url: p.url, note: p.note, photo: null, editing: p.id, picked: true };
   }
+  /** Drawn again when the account answers, so it names the reader the server runs. */
+  function aiCard() {
+    return '<div class="ai-card" id="aiCard"><p><b>Have the receipt or order email?</b><br><span class="small muted">' + (transcribes() ? 'Snap it or paste it - AI copies what is printed, Takeback works out the return-by day, and you check it before it’s added.' : 'AI can read a photo or screenshot of it - you check everything before it’s added.') + '</span></p><button class="btn" type="button" data-act="reader">' + ico('spark') + (transcribes() ? ' Snap the receipt' : ' Read my receipt') + '</button></div>';
+  }
   function viewAdd() {
     var editing = state.arg ? find(state.arg) : null;
     if (!state.form || (state.form.editing || null) !== (editing ? editing.id : null)) state.form = editing ? formFor(editing) : blankForm();
@@ -644,27 +664,27 @@
     var winBtn = function (v, label) { return '<button type="button" data-win="' + esc(v) + '" aria-pressed="' + (f.win === v) + '">' + esc(label) + '</button>'; };
     var custom = f.win && /^d\d+$/.test(f.win) ? winBtn(f.win, f.win.slice(1) + ' days') : '';
     var out = '<div class="sec-head"><h1>' + (editing ? 'Edit purchase' : 'Add a purchase') + '</h1>' + (editing ? '<button class="btn small ghost" type="button" data-act="canceledit">Cancel</button>' : '') + '</div>';
-    if (!editing) out += '<div class="ai-card" style="margin-bottom:14px"><p><b>Have the receipt or order email?</b><br><span class="small muted">AI can read a photo or screenshot of it - you check everything before it’s added.</span></p><button class="btn ai soft" type="button" data-act="reader"> Read my receipt</button></div>';
-    out += '<div class="add-grid"><form class="card stack" id="addForm" novalidate>' +
+    if (!editing) out += aiCard();
+    out += '<div class="add-grid"><form class="stack" id="addForm" novalidate>' +
       '<label class="field"><span>Store</span><input class="input" id="fStore" autocomplete="off" maxlength="60" value="' + esc(f.store) + '" placeholder="Where you bought it"></label>' +
       (stores.length ? '<div class="seg" role="group" aria-label="Stores you have used">' + stores.map(function (s) { return '<button type="button" class="chip" data-store="' + esc(s.name) + '">' + esc(s.name) + '</button>'; }).join('') + '</div>' : '') +
       '<div id="fNote"></div>' +
-      '<div class="field"><span>' + (editing ? 'Item and price' : 'What you bought') + '</span><div class="items" id="fItems"></div>' + (editing ? '' : '<button class="btn small ghost" type="button" id="fMore" style="justify-self:start">+ Another item from this order</button>') + '</div>' +
-      '<div class="field"><span>Bought</span><div class="row"><input class="input" id="fBought" type="date" value="' + esc(f.bought) + '" max="' + esc(today()) + '" style="max-width:200px"><button class="chip" type="button" data-day="0">Today</button><button class="chip" type="button" data-day="-1">Yesterday</button></div></div>' +
+      '<div class="field"><span>' + (editing ? 'Item and price' : 'What you bought') + '</span><div class="items" id="fItems"></div>' + (editing ? '' : '<button class="btn small ghost start" type="button" id="fMore">+ Another item from this order</button>') + '</div>' +
+      '<div class="field"><span>Bought</span><div class="row"><input class="input w200" id="fBought" type="date" value="' + esc(f.bought) + '" max="' + esc(today()) + '"><button class="chip" type="button" data-day="0">Today</button><button class="chip" type="button" data-day="-1">Yesterday</button></div></div>' +
       '<div class="field"><span>Return window <span class="hint">- from the receipt or the store’s returns page</span></span><div class="seg" role="group" aria-label="Return window" id="fWin">' +
       C.WINDOW_PRESETS.map(function (d) { return winBtn(String(d), d + ' days'); }).join('') + custom + winBtn('date', 'Until a date') + '</div>' +
-      '<input class="input" id="fUntil" type="date" value="' + esc(f.until) + '" style="max-width:200px"' + (f.win === 'date' ? '' : ' hidden') + ' aria-label="Return by"><span class="hint" id="fLast"></span></div>' +
+      '<input class="input w200" id="fUntil" type="date" value="' + esc(f.until) + '"' + (f.win === 'date' ? '' : ' hidden') + ' aria-label="Return by"><span class="hint" id="fLast"></span></div>' +
       '<p class="preview t-grey" id="fPreview" aria-live="polite"></p>' +
-      '<details class="more"' + (f.order || f.how || f.gift || f.url || f.note ? ' open' : '') + '><summary>More details (optional)</summary><div class="stack" style="margin-top:8px">' +
+      '<details class="more"' + (f.order || f.how || f.gift || f.url || f.note ? ' open' : '') + '><summary>More details (optional)</summary><div class="stack">' +
       '<label class="field"><span>Order number</span><input class="input" id="fOrder" autocomplete="off" maxlength="40" value="' + esc(f.order) + '"></label>' +
       '<div class="field"><span>How it goes back</span><div class="seg" role="group" aria-label="How it goes back">' + C.HOW.map(function (h) { return '<button type="button" data-how="' + h.id + '" aria-pressed="' + (f.how === h.id) + '">' + esc(h.label) + '</button>'; }).join('') + '</div></div>' +
       '<label class="check"><input type="checkbox" id="fGift"' + (f.gift ? ' checked' : '') + '> A gift (gift receipt - refunds usually come as store credit)</label>' +
       '<label class="field"><span>The store’s returns page</span><input class="input" id="fUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://" value="' + esc(f.url) + '"></label>' +
-      (editing ? '' : '<div class="field"><span>Receipt or order photo</span><label class="btn ghost file-btn">📷 Add a photo<input class="vh" id="fPhoto" type="file" accept="image/*"></label><span class="hint">Shrunk on this phone and their location is removed - kept only here.</span><div id="fPhotoPrev"></div></div>') +
+      (editing ? '' : '<div class="field"><span>Receipt or order photo</span><label class="btn ghost file-btn">' + ico('camera') + ' Add a photo<input class="vh" id="fPhoto" type="file" accept="image/*"></label><span class="hint">Shrunk on this phone and their location is removed - kept only here.</span><div id="fPhotoPrev"></div></div>') +
       '<label class="field"><span>Note</span><textarea class="input" id="fNoteIn" maxlength="300" rows="2" placeholder="Size, colour, why it might go back">' + esc(f.note) + '</textarea></label>' +
       '</div></details>' +
       '<div id="fErr"></div><button class="btn big block" type="submit" id="fSave">' + (editing ? 'Save changes' : 'Add purchase') + '</button></form>' +
-      '<aside class="stack"><section class="card"><h2>Quick tips</h2><ul class="small" style="padding-left:20px;margin:0"><li>Pick the window the receipt says - Takeback never guesses a store’s policy.</li><li>Many stores run longer holiday return windows that start around now. Use “Until a date” for those.</li><li>Several things from one order? Add them together and decide on each one.</li></ul></section></aside></div>';
+      '<aside><section><h2>Quick tips</h2><ul class="tips"><li>Pick the window the receipt says - Takeback never guesses a store’s policy.</li><li>Many stores run longer holiday return windows that start around now. Use “Until a date” for those.</li><li>Several things from one order? Add them together and decide on each one.</li></ul></section></aside></div>';
     return out;
   }
   function drawItems() {
@@ -697,7 +717,7 @@
   }
   function updateStoreHints() {
     var f = state.form, n = C.noteFor(notes(), f.store), box = $('#fNote'), last = $('#fLast');
-    if (box) box.innerHTML = n ? '<p class="store-note" style="margin:0"><b>Your note:</b> ' + esc(n.text) + '</p>' : '';
+    if (box) box.innerHTML = n ? '<p class="store-note"><b>Your note:</b> ' + esc(n.text) + '</p>' : '';
     var lw = f.editing ? null : C.lastWindowFor(list(), f.store);
     if (lw && !f.picked) { f.win = C.WINDOW_PRESETS.indexOf(lw.days) >= 0 ? String(lw.days) : 'd' + lw.days; setWinButtons(); }
     if (last) last.textContent = lw ? 'Last time at ' + f.store.trim() + ' you picked ' + lw.days + ' days.' : '';
@@ -733,7 +753,7 @@
     var ph = $('#fPhoto');
     if (ph) ph.addEventListener('change', function () {
       var file = ph.files[0]; if (!file) return;
-      prepPhoto(file).then(function (p) { f.photo = p; $('#fPhotoPrev').innerHTML = '<div class="row"><img alt="The receipt photo" src="' + esc(p.thumb) + '" style="width:72px;height:72px;object-fit:cover;border-radius:10px"><span class="small muted">Kept on this phone.</span></div>'; })
+      prepPhoto(file).then(function (p) { f.photo = p; $('#fPhotoPrev').innerHTML = '<div class="row"><img class="thumb" alt="The receipt photo" src="' + esc(p.thumb) + '"><span class="small muted">Kept on this phone.</span></div>'; })
         .catch(function (err) { showError(err, $('#fPhotoPrev')); });
     });
     form.addEventListener('submit', function (e) { e.preventDefault(); saveForm(); });
@@ -787,41 +807,169 @@
     });
   }
   function openReader() {
-    state.reader = { photo: null, proposal: null };
+    state.reader = { mode: 'photo', photo: null, text: '', proposal: null, stripped: 0 };
     sheet('<div class="body"></div>', drawReader);
   }
   function drawReader(root) {
-    var b = $('.body', root), r = state.reader;
-    var sent = '<div class="sent">' + (r.photo ? '<img alt="" src="' + esc(r.photo.thumb) + '">' : '') + '<b>What is sent:</b> this one image, shrunk on this phone with its location removed. Nothing else - not your list, your notes or your stores. <b>If a card number is printed on it, crop it out first.</b><span style="display:block;clear:both"></span></div>';
+    var b = $('.body', root), r = state.reader, tx = transcribes();
+    var title = tx ? 'Snap the receipt or order email' : 'Read my receipt or order email';
+    var sentPhoto = '<div class="sent">' + (r.photo ? '<img alt="" src="' + esc(r.photo.thumb) + '">' : '') + '<b>What is sent:</b> this one image, shrunk on this phone with its location removed. Nothing else - not your list, your notes or your stores. <b>If a card number is printed on it, crop it out first.</b><span class="clear"></span></div>';
+    var sentText = '<div class="sent"><b>What is sent:</b> the text you paste, after Takeback takes out email addresses, phone numbers, card numbers, long numbers and street lines. Nothing else - not your list, your notes or your stores.</div>';
     if (!signedIn()) {
-      b.innerHTML = '<h2>Read my receipt or order email</h2><p>Take a photo of a receipt, or a screenshot of an order email, and AI reads the store, the date, the items with their prices, the order number - and the return window, only if it’s printed on it.</p>' + sent +
-        '<p class="note" style="margin-top:12px">This needs a free account - it comes with $2 of AI credit, and one receipt costs about a cent. Adding by hand, the countdowns and the refund watch stay free with no account.</p>' +
-        '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="rdJoin">Create a free account</button><button class="btn ghost" type="button" id="rdIn">Sign in</button></div>';
+      b.innerHTML = '<h2>' + title + '</h2><p>' + (tx ? 'Take a photo of a receipt, or paste an order email. AI copies only what is printed - the store, the date, the items and any return wording, word for word. Takeback works out the return-by day, and you check it before anything is added.' : 'Take a photo of a receipt, or a screenshot of an order email, and AI reads the store, the date, the items with their prices, the order number - and the return window, only if it’s printed on it.') + '</p>' + sentPhoto +
+        '<p class="note mt12">This needs a free account - it comes with $2 of AI credit, and one receipt costs about a cent. Adding by hand, the countdowns and the refund watch stay free with no account.</p>' +
+        '<div class="row mt12"><button class="btn" type="button" id="rdJoin">Create a free account</button><button class="btn ghost" type="button" id="rdIn">Sign in</button></div>';
       $('#rdJoin', root).addEventListener('click', function () { openAccount('Create a free account to read receipts.', openReader); });
       $('#rdIn', root).addEventListener('click', function () { openAccount('Sign in to read receipts.', openReader, 'login'); });
       return;
     }
-    if (r.proposal) return drawProposal(root);
-    b.innerHTML = '<h2>Read my receipt or order email</h2>' +
-      '<div class="field" style="margin:8px 0 12px"><span>A photo of the receipt, or a screenshot of the order email</span><label class="btn ghost file-btn">' + (r.photo ? '📷 Choose another' : '📷 Choose a photo or screenshot') + '<input class="vh" id="rdFile" type="file" accept="image/*"></label></div>' + sent +
-      '<div id="rdOut" style="margin-top:12px"></div><div class="row" style="margin-top:12px"><button class="btn ai" type="button" id="rdGo"' + (r.photo ? '' : ' disabled') + '> Read it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
-    var out = $('#rdOut', root), go2 = $('#rdGo', root);
-    $('#rdFile', root).addEventListener('change', function (e) {
-      var file = e.target.files[0]; if (!file) return;
-      prepPhoto(file).then(function (p) { r.photo = p; drawReader(root); }).catch(function (err) { showError(err, out); });
+    if (r.proposal) return r.proposal.reader === 'transcribe' ? drawChecked(root) : drawProposal(root);
+    var textMode = tx && r.mode === 'text';
+    b.innerHTML = '<h2>' + title + '</h2>' +
+      (tx ? '<p class="small muted">AI copies what is printed, word for word. Takeback works out the return-by day - and you check it before anything is added.</p><div class="seg rd-tabs" role="group" aria-label="What you have"><button type="button" data-mode="photo" aria-pressed="' + !textMode + '">Photo or screenshot</button><button type="button" data-mode="text" aria-pressed="' + textMode + '">Paste the email</button></div>' : '') +
+      (textMode
+        ? '<label class="field mb12"><span>The order email, pasted <span class="hint">- the part with the store, the items, the date and anything about returns</span></span><textarea class="input" id="rdText" rows="7" maxlength="' + C.LIMITS.aiTextChars + '" placeholder="Paste it here">' + esc(r.text) + '</textarea><span class="hint num count" id="rdCount"></span></label>' + sentText
+        : '<div class="field my12"><span>A photo of the receipt, or a screenshot of the order email</span><label class="btn ghost file-btn">' + ico('camera') + (r.photo ? ' Choose another' : ' Choose a photo or screenshot') + '<input class="vh" id="rdFile" type="file" accept="image/*"></label></div>' + sentPhoto) +
+      '<div id="rdOut" class="mt12" aria-live="polite"></div><div class="row mt12"><button class="btn" type="button" id="rdGo">' + ico('spark') + ' Read it</button><span class="tiny muted">About a cent of AI credit.</span></div>';
+    var out = $('#rdOut', root), go2 = $('#rdGo', root), ta = $('#rdText', root), file = $('#rdFile', root);
+    var ready = function () { return textMode ? r.text.trim().length >= C.LIMITS.aiTextMin : Boolean(r.photo); };
+    var count = function () { var c = $('#rdCount', root); if (c) c.textContent = r.text.length + ' / ' + C.LIMITS.aiTextChars; go2.disabled = !ready(); };
+    count();
+    $$('[data-mode]', root).forEach(function (x) { x.addEventListener('click', function () { r.mode = x.getAttribute('data-mode'); drawReader(root); }); });
+    if (ta) ta.addEventListener('input', function () { r.text = ta.value.slice(0, C.LIMITS.aiTextChars); count(); });
+    if (file) file.addEventListener('change', function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      prepPhoto(f).then(function (p) { r.photo = p; drawReader(root); }).catch(function (err) { showError(err, out); });
     });
     go2.addEventListener('click', function () {
-      if (!r.photo) return;
-      go2.disabled = true; go2.textContent = 'Reading…';
-      out.innerHTML = '<p class="muted" role="status">Reading it…</p>';
-      sendable(r.photo.full).then(function (b64) {
-        return api('POST', 'api/ai/receipt', { image: { type: 'image/jpeg', data: b64 } });
-      }).then(function (res) {
-        r.proposal = res.proposal; drawReader(root); loadMe();
+      if (!ready()) return;
+      go2.disabled = true;
+      out.innerHTML = '<p class="reading" role="status"><i aria-hidden="true"></i>Reading it…</p>';
+      var ask = textMode
+        ? api('POST', 'api/ai/receipt', { text: r.text })
+        : sendable(r.photo.full).then(function (b64) {
+          return api('POST', 'api/ai/receipt', { image: { type: 'image/jpeg', data: b64 } });
+        });
+      ask.then(function (res) {
+        r.proposal = res.proposal; r.stripped = Number(res.stripped) || 0; drawReader(root); loadMe();
       }).catch(function (err) {
-        go2.disabled = false; go2.textContent = ' Read it';
+        go2.disabled = false;
         meteredError(err, out, openReader, 'Sign in to read receipts.');
       });
+    });
+  }
+
+  /* The transcribing reader's answer. AI copied what is printed and said how
+     sure it was of each part; the return-by day below is Takeback's own sum
+     (TakebackCore.windowFromQuote) from the quoted words and the day in the
+     form, redone whenever that day changes. Every part the reader was unsure
+     of is marked, and nothing can be added until each has been looked at. */
+  var WHY = {
+    several: 'The wording gives more than one window, so Takeback did not pick one - choose the one for what you bought.',
+    'business-days': 'It counts business days, which Takeback does not guess - pick the last day.',
+    months: 'It counts in months - pick the last day.',
+    'unclear-date': 'The date could be read two ways (day first or month first) - pick the last day.'
+  };
+  function drawChecked(root) {
+    var b = $('.body', root), r = state.reader, p = r.proposal, t = today(), ck = p.checks || {};
+    var picked = false, win = null, until = '';
+    var todo = {};
+    var unsure = function (c) { return c !== 'high'; };
+    if (unsure(ck.store)) todo.store = 1;
+    if (unsure(ck.bought)) todo.bought = 1;
+    p.items.forEach(function (it, i) { if (unsure(it.confidence)) todo['i' + i] = 1; });
+    var flag = function (key, words) { return todo[key] ? '<p class="flag m0" data-flag="' + key + '"><span>' + esc(words) + '</span><button class="chip" type="button" data-ok="' + key + '">Looks right</button></p>' : ''; };
+    var winKey = function (w) { return w ? (w.until ? 'date' : (C.WINDOW_PRESETS.indexOf(w.days) >= 0 ? String(w.days) : 'd' + w.days)) : null; };
+    var worked = p.quote ? C.windowFromQuote(p.quote, p.bought || p.delivered || t) : { window: null, basis: '', why: 'none' };
+    if (p.quote && (unsure(ck.window) || !worked.window)) todo.window = 1;
+    var last = !p.quote ? C.lastWindowFor(list(), p.store) : null;
+    win = worked.window ? winKey(worked.window) : (last ? winKey(last) : null);
+    until = worked.window && worked.window.until ? worked.window.until : '';
+    var winBtn = function (v, label) { return '<button type="button" data-win="' + esc(v) + '" aria-pressed="' + (win === v) + '">' + esc(label) + '</button>'; };
+    b.innerHTML = '<h2>Check it, then add</h2>' +
+      '<p class="small muted">AI copied what is printed; the return-by day is Takeback’s own sum. Nothing is added until you tap Add.' + (r.stripped ? ' ' + plural(r.stripped, 'personal detail') + ' ' + (r.stripped === 1 ? 'was' : 'were') + ' taken out before it was sent.' : '') + '</p>' +
+      '<p class="todo" id="ckTodo" role="status"></p>' +
+      (p.currency && p.currency !== cur() ? '<p class="note small mt12">These prices look like ' + esc(p.currency) + '. Takeback shows amounts in ' + esc(cur()) + ' - change the currency in Settings if that’s wrong.</p>' : '') +
+      '<div class="prop stack mt16">' +
+      '<label class="field"><span>Store</span><input class="input' + (todo.store ? ' unsure' : '') + '" id="ppStore" data-for="store" maxlength="60" value="' + esc(p.store) + '"></label>' + flag('store', p.store ? 'Hard to read - is this the store?' : 'The store could not be read - type it in.') +
+      '<div class="row"><label class="field grow160"><span>Bought</span><input class="input' + (todo.bought ? ' unsure' : '') + '" id="ppDay" data-for="bought" type="date" max="' + esc(t) + '" value="' + esc(p.bought) + '"></label><label class="field grow160"><span>Order number</span><input class="input" id="ppOrder" maxlength="40" value="' + esc(p.order) + '"></label></div>' +
+      flag('bought', p.bought ? 'Hard to read - is this the day?' : 'The day could not be read - set it.') +
+      (p.delivered ? '<div class="field"><span class="hint">It also says it was delivered on ' + esc(C.fmtDay(p.delivered, t)) + '. If the return wording counts from delivery, use that day.</span><div class="seg" role="group" aria-label="Count from">' + (p.bought ? '<button type="button" data-from="' + esc(p.bought) + '" aria-pressed="true">Ordered ' + esc(C.shortDay(p.bought, t)) + '</button>' : '') + '<button type="button" data-from="' + esc(p.delivered) + '" aria-pressed="false">Delivered ' + esc(C.shortDay(p.delivered, t)) + '</button></div></div>' : '') +
+      (p.orderDropped ? '<p class="tiny muted pull">The order number had a long run of digits that could be a card number, so it was left out - type it in if you need it.</p>' : '') +
+      '<div class="field"><span>Items <span class="hint">- as written on it</span></span><div class="items">' + p.items.map(function (it, i) {
+        return '<div class="irow"><input type="checkbox" data-pi="' + i + '" checked aria-label="Add ' + esc(it.item) + '"><input class="input' + (todo['i' + i] ? ' unsure' : '') + '" data-pn="' + i + '" data-for="i' + i + '" maxlength="80" value="' + esc(it.item) + '" aria-label="Item ' + (i + 1) + '"><input class="input" data-pp="' + i + '" data-for="i' + i + '" inputmode="decimal" value="' + esc(it.price !== null ? C.decimal(it.price) : '') + '" placeholder="Price" aria-label="Price of item ' + (i + 1) + '"></div>' + flag('i' + i, 'Hard to read - check the name' + (it.price === null ? ' and add the price.' : ' and price.'));
+      }).join('') + (p.items.length ? '' : '<p class="muted small">No items could be read - add them by hand.</p>') + '</div></div>' +
+      '<div class="field"><span>Return window</span>' +
+      (p.quote ? '<p class="small m0">Printed on it:</p><p class="quote">“' + esc(p.quote) + '”</p>' + flag('window', worked.window ? 'Hard to read - do the words above match the receipt?' : (WHY[worked.why] || 'Takeback could not work out a number of days from these words - pick the window.'))
+        : '<p class="small muted m0">' + (p.quoteDropped ? 'The return wording that came back was not in the text you pasted, so it was left out. Pick the window the store gives.' : 'Nothing about returns is printed on it - pick the window the store gives.') + '</p>') +
+      '<div class="seg" role="group" aria-label="Return window" id="ppWin">' + C.WINDOW_PRESETS.map(function (d) { return winBtn(String(d), d + ' days'); }).join('') + (win && /^d\d+$/.test(win) ? winBtn(win, win.slice(1) + ' days') : '') + winBtn('date', 'Until a date') + '</div>' +
+      '<input class="input w200" id="ppUntil" type="date" value="' + esc(until) + '"' + (win === 'date' ? '' : ' hidden') + ' aria-label="Return by"></div>' +
+      '<div class="deadline" aria-live="polite"><p class="big" id="ckBy"></p><p class="small muted" id="ckSum"></p></div>' +
+      '</div><div id="ppErr"></div><div class="row mt16"><button class="btn" type="button" id="ppAdd">Add</button><button class="btn ghost" type="button" id="ppBack">Read another</button></div>' +
+      (r.photo ? '<p class="tiny muted mt8">The receipt image is kept on this phone with the purchase.</p>' : '');
+    var dayIn = $('#ppDay', root), untilIn = $('#ppUntil', root), add = $('#ppAdd', root);
+    var current = function () { return win === 'date' ? (C.isDay(untilIn.value) ? { until: untilIn.value } : null) : (win ? { days: Number(win.replace('d', '')) } : null); };
+    var setWin = function () {
+      var box = $('#ppWin', root);
+      if (win && /^d\d+$/.test(win) && !$('[data-win="' + win + '"]', box)) {
+        var nb = document.createElement('button'); nb.type = 'button'; nb.setAttribute('data-win', win); nb.textContent = win.slice(1) + ' days';
+        box.insertBefore(nb, $('[data-win="date"]', box));
+      }
+      $$('[data-win]', box).forEach(function (y) { y.setAttribute('aria-pressed', String(y.getAttribute('data-win') === win)); });
+      untilIn.hidden = win !== 'date';
+    };
+    var refresh = function () {
+      var left = Object.keys(todo).length, n = $$('[data-pi]', root).filter(function (c) { return c.checked; }).length;
+      var td = $('#ckTodo', root);
+      td.className = 'todo ' + (left ? 't-amber' : 't-ok');
+      td.textContent = left ? plural(left, 'thing') + ' to check before adding - marked below.' : 'Everything is checked.';
+      add.disabled = !n || left > 0;
+      add.textContent = left ? 'Check ' + left + ' more to add' : (n ? 'Add ' + plural(n, 'purchase') : 'Add');
+      var day = C.isDay(dayIn.value) ? dayIn.value : '', w = day ? C.cleanWindow(current(), day) : null, by = $('#ckBy', root), sum = $('#ckSum', root);
+      if (!day) { by.textContent = 'Set the day to see the return-by date.'; sum.textContent = ''; return; }
+      if (!w) { by.textContent = win === 'date' ? 'Pick the last day to return it.' : 'Pick the return window to see the return-by date.'; sum.textContent = ''; return; }
+      var rb = C.returnBy({ bought: day, window: w }), d = C.daysBetween(t, rb);
+      by.textContent = d < 0 ? 'That window closed on ' + C.fmtDay(rb, t) + '.' : 'Return by ' + C.fmtDay(rb, t) + ' · ' + (d === 0 ? 'last day today' : plural(d, 'day') + ' left');
+      sum.textContent = 'Worked out by Takeback, not by AI: ' + (w.until ? 'the date ' + (picked || !p.quote ? 'you picked' : 'in the words above') : w.days + ' days from ' + C.fmtDay(day, t) + (picked || !p.quote ? ' - your pick' : ' - from the words above')) + '.';
+    };
+    var settle = function (key) {
+      if (!todo[key]) return;
+      delete todo[key];
+      var f = $('[data-flag="' + key + '"]', root);
+      if (f) { f.className = 'flag ok m0'; f.textContent = 'Checked ✓'; }
+      $$('[data-for="' + key + '"]', root).forEach(function (x) { x.classList.remove('unsure'); });
+      refresh();
+    };
+    var recompute = function () {
+      if (picked || !p.quote || !C.isDay(dayIn.value)) return;
+      var again = C.windowFromQuote(p.quote, dayIn.value);
+      if (again.window) { win = winKey(again.window); if (again.window.until) untilIn.value = again.window.until; setWin(); }
+    };
+    b.addEventListener('click', function (e) {
+      var ok = e.target.closest('[data-ok]'); if (ok) { settle(ok.getAttribute('data-ok')); return; }
+      var x = e.target.closest('[data-win]');
+      if (x) { win = x.getAttribute('data-win'); picked = true; setWin(); settle('window'); refresh(); if (win === 'date') untilIn.focus(); return; }
+      var fr = e.target.closest('[data-from]');
+      if (fr) { dayIn.value = fr.getAttribute('data-from'); $$('[data-from]', root).forEach(function (y) { y.setAttribute('aria-pressed', String(y === fr)); }); settle('bought'); recompute(); refresh(); }
+    });
+    b.addEventListener('input', function (e) { var k = e.target.getAttribute('data-for'); if (k) settle(k); });
+    b.addEventListener('change', function (e) {
+      var pi = e.target.getAttribute('data-pi');
+      if (pi !== null && !e.target.checked) settle('i' + pi);
+      if (e.target === dayIn) { settle('bought'); recompute(); }
+      refresh();
+    });
+    refresh();
+    $('#ppBack', root).addEventListener('click', function () { openReader(); });
+    add.addEventListener('click', function () {
+      if (Object.keys(todo).length) return;
+      var items = $$('[data-pi]', root).filter(function (c) { return c.checked; }).map(function (c) { var i = c.getAttribute('data-pi'); return { item: $('[data-pn="' + i + '"]', root).value, price: $('[data-pp="' + i + '"]', root).value }; });
+      if (state.trying) leaveTry(true);
+      var res = C.newPurchases({ store: $('#ppStore', root).value, bought: dayIn.value, window: current(), items: items, order: $('#ppOrder', root).value, photo: Boolean(r.photo) }, ctx());
+      if (res.error) { $('#ppErr', root).innerHTML = '<p class="err" role="alert">' + esc(res.error) + '</p>'; return; }
+      closeSheet(true);
+      addAll(res.purchases, r.photo);
+      state.reader = null;
     });
   }
   function drawProposal(root) {
@@ -834,20 +982,20 @@
       (p.currency && p.currency !== cur() ? '<p class="note small">These prices look like ' + esc(p.currency) + '. Takeback shows amounts in ' + esc(cur()) + ' - change the currency in Settings if that’s wrong.</p>' : '') +
       '<div class="prop stack">' +
       '<label class="field"><span>Store</span><input class="input" id="ppStore" maxlength="60" value="' + esc(p.store) + '"></label>' +
-      '<div class="row"><label class="field" style="flex:1 1 160px"><span>Bought</span><input class="input" id="ppDay" type="date" max="' + esc(t) + '" value="' + esc(p.bought || t) + '"></label><label class="field" style="flex:1 1 160px"><span>Order number</span><input class="input" id="ppOrder" maxlength="40" value="' + esc(p.order) + '"></label></div>' +
-      (p.orderDropped ? '<p class="tiny muted" style="margin:-4px 0 0">The order number had a long run of digits that could be a card number, so it was left out - type it in if you need it.</p>' : '') +
+      '<div class="row"><label class="field grow160"><span>Bought</span><input class="input" id="ppDay" type="date" max="' + esc(t) + '" value="' + esc(p.bought || t) + '"></label><label class="field grow160"><span>Order number</span><input class="input" id="ppOrder" maxlength="40" value="' + esc(p.order) + '"></label></div>' +
+      (p.orderDropped ? '<p class="tiny muted pull">The order number had a long run of digits that could be a card number, so it was left out - type it in if you need it.</p>' : '') +
       '<div class="field"><span>Items</span><div class="items">' + p.items.map(function (it, i) {
         return '<div class="irow"><input type="checkbox" data-pi="' + i + '" checked aria-label="Add ' + esc(it.item) + '"><input class="input" data-pn="' + i + '" maxlength="80" value="' + esc(it.item) + '" aria-label="Item ' + (i + 1) + '"><input class="input" data-pp="' + i + '" inputmode="decimal" value="' + esc(it.price !== null ? C.decimal(it.price) : '') + '" placeholder="Price" aria-label="Price of item ' + (i + 1) + '"></div>';
       }).join('') + (p.items.length ? '' : '<p class="muted small">No items could be read - add them by hand.</p>') + '</div></div>' +
-      '<div class="field"><span>Return window</span>' + (p.window ? '<p class="small" style="margin:0">Printed on it:</p><p class="quote">“' + esc(p.quote) + '”</p>' : '<p class="small muted" style="margin:0">No return window is printed on it - pick the one the store gives.</p>') +
+      '<div class="field"><span>Return window</span>' + (p.window ? '<p class="small m0">Printed on it:</p><p class="quote">“' + esc(p.quote) + '”</p>' : '<p class="small muted m0">No return window is printed on it - pick the one the store gives.</p>') +
       '<div class="seg" role="group" aria-label="Return window" id="ppWin">' + C.WINDOW_PRESETS.map(function (d) { return winBtn(String(d), d + ' days'); }).join('') + (win && /^d\d+$/.test(win) ? winBtn(win, win.slice(1) + ' days') : '') + winBtn('date', 'Until a date') + '</div>' +
-      '<input class="input" id="ppUntil" type="date" value="' + esc(until) + '" style="max-width:200px"' + (win === 'date' ? '' : ' hidden') + ' aria-label="Return by"></div>' +
-      '</div><div id="ppErr"></div><div class="row" style="margin-top:12px"><button class="btn" type="button" id="ppAdd">Add</button><button class="btn ghost" type="button" id="ppBack">Read another</button></div>' +
-      '<p class="tiny muted" style="margin-top:8px">The receipt image is kept on this phone with the purchase.</p>';
+      '<input class="input w200" id="ppUntil" type="date" value="' + esc(until) + '"' + (win === 'date' ? '' : ' hidden') + ' aria-label="Return by"></div>' +
+      '</div><div id="ppErr"></div><div class="row mt12"><button class="btn" type="button" id="ppAdd">Add</button><button class="btn ghost" type="button" id="ppBack">Read another</button></div>' +
+      '<p class="tiny muted mt8">The receipt image is kept on this phone with the purchase.</p>';
     var cnt = function () { var n = $$('[data-pi]', root).filter(function (c) { return c.checked; }).length; $('#ppAdd', root).textContent = n ? 'Add ' + plural(n, 'purchase') : 'Add'; $('#ppAdd', root).disabled = !n; };
     $$('[data-pi]', root).forEach(function (c) { c.addEventListener('change', cnt); }); cnt();
     $('#ppWin', root).addEventListener('click', function (e) { var x = e.target.closest('[data-win]'); if (!x) return; win = x.getAttribute('data-win'); $$('[data-win]', root).forEach(function (y) { y.setAttribute('aria-pressed', String(y === x)); }); $('#ppUntil', root).hidden = win !== 'date'; });
-    $('#ppBack', root).addEventListener('click', function () { state.reader = { photo: null, proposal: null }; drawReader(root); });
+    $('#ppBack', root).addEventListener('click', function () { openReader(); });
     $('#ppAdd', root).addEventListener('click', function () {
       var items = $$('[data-pi]', root).filter(function (c) { return c.checked; }).map(function (c) { var i = c.getAttribute('data-pi'); return { item: $('[data-pn="' + i + '"]', root).value, price: $('[data-pp="' + i + '"]', root).value }; });
       var w = win === 'date' ? ($('#ppUntil', root).value ? { until: $('#ppUntil', root).value } : null) : (win ? { days: Number(win.replace('d', '')) } : null);
@@ -879,11 +1027,11 @@
   function viewMoney() {
     var l = list(), t = C.tally(l, ctx());
     var out = '<div class="sec-head"><h1>Money</h1><span class="muted">' + esc(t.year) + '</span></div>';
-    out += '<p class="muted" style="margin:-4px 0 12px">' + esc(t.headline) + '</p>';
-    out += '<div class="stats"><div class="stat hi"><b>' + esc(money(t.recovered)) + '</b><span>recovered this year</span></div><div class="stat"><b>' + esc(money(t.returnable)) + '</b><span>still returnable (' + t.returnableCount + ')</span></div><div class="stat"><b>' + esc(money(t.waiting)) + '</b><span>waiting on ' + plural(t.waitingCount, 'refund') + '</span></div><div class="stat"><b>' + t.missedCount + '</b><span>' + (t.missedCount === 1 ? 'window' : 'windows') + ' missed' + (t.missedCount ? ' (' + esc(money(t.missed)) + ')' : '') + '</span></div></div>';
-    out += '<div class="grid two" style="margin-top:14px"><section class="card"><h2>By month</h2>' + chartSvg(t.months) + '</section>' +
-      '<section class="card"><h2>Where it went</h2><dl class="kv"><dt>Back to a card</dt><dd>' + esc(money(t.card)) + '</dd><dt>As store credit</dt><dd>' + esc(money(t.credit)) + '</dd><dt>Refunds landed</dt><dd>' + t.refunds + (t.partial ? ' (' + t.partial + ' partial)' : '') + '</dd><dt>Returns made</dt><dd>' + t.returns + '</dd><dt>Kept</dt><dd>' + plural(t.keptCount, 'thing') + (t.kept ? ' · ' + esc(money(t.kept)) : '') + '</dd>' + (t.overdueCount ? '<dt>Late refunds</dt><dd class="err" style="margin:0">' + t.overdueCount + '</dd>' : '') + '</dl></section></div>';
-    out += '<section class="card" style="margin-top:14px"><h2>Your recap image</h2><p class="muted small">Your year in returns, to share - drawn on this phone, never uploaded. Totals and counts only; no item is ever on it.</p>' +
+    out += '<p class="muted pull mb12">' + esc(t.headline) + '</p>';
+    out += '<div class="stats four"><div class="stat hi"><b>' + esc(money(t.recovered)) + '</b><span>recovered this year</span></div><div class="stat"><b>' + esc(money(t.returnable)) + '</b><span>still returnable (' + t.returnableCount + ')</span></div><div class="stat"><b>' + esc(money(t.waiting)) + '</b><span>waiting on ' + plural(t.waitingCount, 'refund') + '</span></div><div class="stat"><b>' + t.missedCount + '</b><span>' + (t.missedCount === 1 ? 'window' : 'windows') + ' missed' + (t.missedCount ? ' (' + esc(money(t.missed)) + ')' : '') + '</span></div></div>';
+    out += '<div class="grid two sec"><section><h2>By month</h2>' + chartSvg(t.months) + '</section>' +
+      '<section><h2>Where it went</h2><dl class="kv"><dt>Back to a card</dt><dd>' + esc(money(t.card)) + '</dd><dt>As store credit</dt><dd>' + esc(money(t.credit)) + '</dd><dt>Refunds landed</dt><dd>' + t.refunds + (t.partial ? ' (' + t.partial + ' partial)' : '') + '</dd><dt>Returns made</dt><dd>' + t.returns + '</dd><dt>Kept</dt><dd>' + plural(t.keptCount, 'thing') + (t.kept ? ' · ' + esc(money(t.kept)) : '') + '</dd>' + (t.overdueCount ? '<dt>Late refunds</dt><dd class="err">' + t.overdueCount + '</dd>' : '') + '</dl></section></div>';
+    out += '<section class="sec"><h2>Your recap image</h2><p class="muted small">Your year in returns, to share - drawn on this phone, never uploaded. Totals and counts only; no item is ever on it.</p>' +
       '<label class="check"><input type="checkbox" id="recapStores"' + (state.recapStores ? ' checked' : '') + '> Show store names</label>' +
       '<div class="row"><button class="btn" type="button" data-act="recapimg">' + (state.recapUrl ? 'Draw it again' : 'Make my recap image') + '</button>' + (state.recapUrl ? '<button class="btn" type="button" data-act="recapshare">' + (canShareFiles() ? 'Share it' : 'Download it') + '</button>' : '') + '</div>' +
       (state.recapUrl ? '<img class="recap-img" alt="' + esc('Your recap image: ' + t.headline) + '" src="' + esc(state.recapUrl) + '">' : '') + '</section>';
@@ -966,8 +1114,8 @@
     var rows = used.concat(extra);
     var out = '<div class="sec-head"><h1>Stores</h1>' + (state.trying ? '' : '<button class="btn small ghost" type="button" data-act="storenote" data-store="">+ A note</button>') + '</div>' +
       '<p class="muted">Your own notes on each store’s returns - “free returns in store”, “keeps the shipping fee”. They show up when you add something from that store. Takeback never fills these in; only you do.</p>';
-    if (!rows.length) return out + '<section class="card empty"><div class="ic" aria-hidden="true">🏬</div><p class="muted">Stores appear here as you add purchases.</p></section>';
-    out += '<section class="card">' + rows.map(function (s) {
+    if (!rows.length) return out + '<section class="empty">' + ico('store') + '<p class="muted m0">Stores appear here as you add purchases.</p></section>';
+    out += '<section class="slist">' + rows.map(function (s) {
       var note = n[s.key];
       var items = list().filter(function (p) { return C.storeKey(p.store) === s.key; });
       var back = items.reduce(function (a, p) { return a + (p.refund ? p.refund.amount : 0); }, 0);
@@ -980,8 +1128,8 @@
   function openStoreNote(name) {
     var n = name ? C.noteFor(data.notes, name) : null;
     sheet('<h2>' + (name ? esc(name) : 'A note on a store') + '</h2>' +
-      (name ? '' : '<label class="field" style="margin:10px 0"><span>Store</span><input class="input" id="snName" maxlength="60" autocomplete="off"></label>') +
-      '<label class="field" style="margin:10px 0"><span>Your note</span><textarea class="input" id="snText" maxlength="300" rows="4" placeholder="Free returns in store; keeps the shipping fee by mail">' + esc(n ? n.text : '') + '</textarea></label>' +
+      (name ? '' : '<label class="field my12"><span>Store</span><input class="input" id="snName" maxlength="60" autocomplete="off"></label>') +
+      '<label class="field my12"><span>Your note</span><textarea class="input" id="snText" maxlength="300" rows="4" placeholder="Free returns in store; keeps the shipping fee by mail">' + esc(n ? n.text : '') + '</textarea></label>' +
       '<div id="snErr"></div><div class="row"><button class="btn" type="button" id="snSave">Save</button>' + (n ? '<button class="btn ghost" type="button" id="snDel">Remove the note</button>' : '') + '</div>', function (root) {
       $('#snSave', root).addEventListener('click', function () {
         var nm = C.plain(name || $('#snName', root).value, C.LIMITS.store), key = C.storeKey(nm), text = C.para($('#snText', root).value, C.LIMITS.storeNote);
@@ -1000,7 +1148,7 @@
   /* ---------------- settings, export, import, sync ---------------- */
 
   function syncCard() {
-    var out = '<section class="card" id="syncCard"><h2>Phone and laptop</h2>';
+    var out = '<section id="syncCard"><h2>Phone and laptop</h2>';
     if (!signedIn()) return out + '<p>Your list lives on this device. With a free account you can turn on sync, so a phone and a laptop see the same list.</p><div class="row"><button class="btn" type="button" data-act="signin">Create a free account</button><button class="btn ghost" type="button" data-act="signin-login">Sign in</button></div></section>';
     if (!state.me.sync) return out + '<p class="muted">Sync isn’t available right now. Your list is safe on this device.</p></section>';
     var plain2 = '<p class="small">Sync stores your list - stores, items, prices, dates, the return steps, refunds and your store notes - in the lab’s database, so your other device can see it. <b>Photos stay on this phone.</b> It is filed under a code made from your account, never your email.</p>';
@@ -1011,13 +1159,13 @@
   }
   function viewSettings() {
     var out = '<div class="sec-head"><h1>Settings</h1></div><div class="grid two">';
-    out += '<section class="card stack"><h2>This device</h2><label class="field"><span>Currency</span><select class="input" id="curSel" style="max-width:220px">' + C.CURRENCIES.map(function (c) { return '<option' + (c === cur() ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label>' +
-      '<label class="field"><span>Reminders at</span><input class="input" id="timeSel" type="time" value="' + esc(prefs.time) + '" style="max-width:160px"></label>' +
-      '<button class="btn soft" type="button" data-act="allics">🔔 Add every open return to my calendar</button></section>';
+    out += '<section class="stack"><h2>This device</h2><label class="field"><span>Currency</span><select class="input w220" id="curSel">' + C.CURRENCIES.map(function (c) { return '<option' + (c === cur() ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label>' +
+      '<label class="field"><span>Reminders at</span><input class="input w160" id="timeSel" type="time" value="' + esc(prefs.time) + '"></label>' +
+      '<button class="btn soft start" type="button" data-act="allics">' + ico('bell') + ' Add every open return to my calendar</button></section>';
     out += syncCard();
-    out += '<section class="card stack"><h2>Your data</h2><p class="small muted">A spreadsheet of every purchase and refund, made on this device. Open it in any spreadsheet app, or bring it back here.</p>' +
-      '<div class="row"><button class="btn" type="button" data-act="csvout">Export CSV</button><label class="btn ghost" style="cursor:pointer">Import CSV<input type="file" id="csvIn" accept=".csv,text/csv" class="vh"></label></div><div id="csvMsg"></div></section>';
-    out += '<section class="card stack"><h2>Privacy</h2><p class="small">Everything is kept in this browser: the list in its storage, photos in its database. Clearing your browser’s data clears it. Photos are shrunk on this phone and their location is removed; they never leave it.</p>' +
+    out += '<section class="stack"><h2>Your data</h2><p class="small muted">A spreadsheet of every purchase and refund, made on this device. Open it in any spreadsheet app, or bring it back here.</p>' +
+      '<div class="row"><button class="btn" type="button" data-act="csvout">Export CSV</button><label class="btn ghost pick">Import CSV<input type="file" id="csvIn" accept=".csv,text/csv" class="vh"></label></div><div id="csvMsg"></div></section>';
+    out += '<section class="stack"><h2>Privacy</h2><p class="small">Everything is kept in this browser: the list in its storage, photos in its database. Clearing your browser’s data clears it. Photos are shrunk on this phone and their location is removed; they never leave it.</p>' +
       '<p class="small muted">Takeback never guesses a store’s return policy - the windows and notes are yours.</p>' +
       (state.trying ? '' : '<button class="btn small ghost" type="button" data-act="clearall">Clear everything on this device</button>') + '</section>';
     return out + '</div>';
@@ -1096,7 +1244,7 @@
       '<div class="choice3"><button class="btn ghost" type="button" id="cfTheirs"><span>Use theirs</span><small>' + plural(theirs.purchases.length, 'purchase') + '</small></button>' +
       '<button class="btn ghost" type="button" id="cfMine"><span>Keep mine</span><small>' + plural(data.purchases.length, 'purchase') + '</small></button>' +
       '<button class="btn" type="button" id="cfMerge"><span>Merge by item</span><small>' + plural(merged.purchases.length, 'purchase') + '</small></button></div>' +
-      '<p class="tiny muted" style="margin-top:10px">Merging keeps every purchase from both, and the later edit of anything changed on both. Photos are never synced, so they stay where they are.</p>', function (root) {
+      '<p class="tiny muted mt12">Merging keeps every purchase from both, and the later edit of anything changed on both. Photos are never synced, so they stay where they are.</p>', function (root) {
       $('#cfTheirs', root).addEventListener('click', function () { setList(d.list); saveLocal(); syncDone(d.version); closeSheet(); state.thumbsLoaded = false; draw(); toast('Using the account copy.'); });
       $('#cfMine', root).addEventListener('click', function () { sync.version = d.version; sync.dirty = true; closeSheet(); push().then(function () { toast('Kept this device’s list.'); }); });
       $('#cfMerge', root).addEventListener('click', function () { setList(merged); saveLocal(); sync.version = d.version; sync.dirty = true; closeSheet(); draw(); push().then(function () { toast('Merged.'); }); });
@@ -1115,12 +1263,13 @@
   function sheet(html, onOpen) {
     var s = $('#sheet'), back = $('#sheetBack');
     if (s.hidden) lastFocus = document.activeElement;
-    s.innerHTML = '<button class="btn small ghost close" type="button" data-act="closesheet" aria-label="Close">Close</button>' + html;
+    s.innerHTML = '<button class="btn close" type="button" data-act="closesheet" aria-label="Close">×</button>' + html;
     s.hidden = false; back.hidden = false; document.body.classList.add('sheet-open'); s.scrollTop = 0;
     // The shared "confirm your email" banner sits above everything at the top
     // of the page; keep the sheet (and its Close button) clear of it.
     var vb = document.getElementById('stc-verify-banner'), off = vb ? Math.max(0, vb.getBoundingClientRect().bottom) : 0;
-    s.style.maxHeight = off ? 'calc(100vh - ' + Math.round((matchMedia('(min-width: 900px)').matches ? 2 : 1) * (off + 8)) + 'px)' : '';
+    s.classList.remove('under-1', 'under-2', 'under-3');
+    if (off) s.classList.add(off <= 64 ? 'under-1' : off <= 104 ? 'under-2' : 'under-3');
     if (onOpen) onOpen(s);
     var f = s.querySelector('h2'); if (f) f.setAttribute('tabindex', '-1');
     setTimeout(function () { try { if (f && !s.contains(document.activeElement)) f.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 40);
@@ -1134,7 +1283,7 @@
   $('#sheetBack').addEventListener('click', function () { closeSheet(); });
 
   function loadMe() {
-    return api('GET', 'api/me').then(function (me) { state.me = me; drawTop(); return me; })
+    return api('GET', 'api/me').then(function (me) { state.me = me; drawTop(); var c = $('#aiCard'); if (c) c.outerHTML = aiCard(); return me; })
       .catch(function () { state.me = state.me || { signedIn: false }; drawTop(); return state.me; });
   }
   function drawTop() { $('#acct').textContent = signedIn() ? 'Account' : 'Sign in'; }
@@ -1147,12 +1296,12 @@
         '<h2>' + (mode === 'register' ? 'Create a free account' : 'Welcome back') + '</h2>' +
         '<p class="muted">' + esc(reason || FREE_LINE) + '</p>' +
         '<form id="authForm">' +
-        '<label class="field" style="margin:10px 0"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
-        '<label class="field" style="margin:10px 0"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
+        '<label class="field my12"><span>Email</span><input class="input" name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="field my12"><span>Password' + (mode === 'register' ? ' (10+ characters)' : '') + '</span><input class="input" name="password" type="password" autocomplete="' + (mode === 'register' ? 'new-password' : 'current-password') + '" required minlength="' + (mode === 'register' ? 10 : 1) + '"></label>' +
         '<div id="authErr"></div>' +
         '<button class="btn block" type="submit">' + (mode === 'register' ? 'Create free account' : 'Sign in') + '</button></form>' +
-        (pkOk() && mode === 'login' ? '<button class="btn ghost block" id="pkBtn" type="button" style="margin-top:10px">Sign in with Face ID / passkey</button>' : '') +
-        '<p class="small muted center" style="margin-top:12px">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
+        (pkOk() && mode === 'login' ? '<button class="btn ghost block mt12" id="pkBtn" type="button">Sign in with Face ID / passkey</button>' : '') +
+        '<p class="small muted center mt12">' + (mode === 'register' ? 'Already have an account? <button class="link-btn" id="swap" type="button">Sign in</button>' : 'New here? <button class="link-btn" id="swap" type="button">Create an account</button>') + '</p>';
       $('#swap', root).addEventListener('click', function () { mode = mode === 'register' ? 'login' : 'register'; draw2(root); });
       $('#authForm', root).addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1174,10 +1323,10 @@
     var me = state.me, b = me.budget || {};
     var left = b.unlimited ? 'Unlimited' : '$' + Number(b.remainingUsd || 0).toFixed(2) + ' left';
     sheet('<h2>Account</h2><p class="small muted">' + esc(me.email) + ' · ' + (me.tier === 'paid' ? 'member model' : 'free model') + '</p>' +
-      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted" style="margin:6px 0 0">Reading a receipt costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
-      '<p class="small muted" style="margin-top:12px">' + (prefs.sync ? 'Sync is on: your list (never your photos) is kept with this account.' : 'Your list is not in your account - it stays on this device unless you turn on sync in Settings.') + '</p>' +
-      (pkOk() ? '<button class="btn ghost block" id="pkEnrol" type="button" style="margin-top:10px">Set up Face ID for this device</button>' : '') +
-      '<button class="btn ghost block" id="signOut" type="button" style="margin-top:10px">Sign out</button>',
+      '<div class="note"><div class="row spread"><b>AI credit</b><span>' + esc(left) + '</span></div><p class="small muted mt8">Reading a receipt costs about a cent. Everything else is free.</p><div id="billing"></div></div>' +
+      '<p class="small muted mt12">' + (prefs.sync ? 'Sync is on: your list (never your photos) is kept with this account.' : 'Your list is not in your account - it stays on this device unless you turn on sync in Settings.') + '</p>' +
+      (pkOk() ? '<button class="btn ghost block mt12" id="pkEnrol" type="button">Set up Face ID for this device</button>' : '') +
+      '<button class="btn ghost block mt12" id="signOut" type="button">Sign out</button>',
       function (root) {
         drawBilling($('#billing', root));
         $('#signOut', root).addEventListener('click', function () { api('POST', 'api/auth/logout').then(function () { closeSheet(); state.me = { signedIn: false }; drawTop(); draw(); }); });

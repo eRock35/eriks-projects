@@ -5,9 +5,9 @@ anyone who shops online or in stores - especially through the holidays - and
 has a "should I send this back?" pile, a return label they never printed, or
 a refund they never checked arrived.
 
-- **First run** (real effort went here): a hero with a mock stack of three
-  purchases (a countdown ring on "Boots · $89 · 3 days", "Refund Mon", "$64
-  back ✓"), **Try it** (thirteen made-up purchases in every state - deciding,
+- **First run** (real effort went here): a centred hero (big headline, one
+  line, two pill buttons) over a small mock of three purchases (a countdown
+  ring on "Boots · $89", "Refund Mon", "$64 back ✓"), **Try it** (thirteen made-up purchases in every state - deciding,
   closing tomorrow, label printed, dropped off, refund overdue, refunded,
   partly refunded, store credit, kept, missed - with a ribbon that says
   nothing is saved, "Add my own" and "Leave") and **Add my first purchase**;
@@ -73,7 +73,9 @@ a refund they never checked arrived.
   with a leading `'`, RFC 4180), and the same CSV back in (rows matched by
   id, so a re-import replaces rather than doubles; the defusing is undone).
 - **Signed in (free), opt-in sync** between a phone and a laptop: below.
-- **"Read my receipt or order email"** (metered, signed in): below.
+- **"Read my receipt or order email"** (metered, signed in): below - and,
+  behind `TAKEBACK_AI_PROVIDER=gemini`, **"Snap the receipt or order email"**,
+  a reader that only transcribes while Takeback works out the deadline.
 
 Built 2026-11-02 as an **everyday** drop: Sieve (2026-11-01) was a business
 one, so today was the other kind. **Staging only**: no custom domain until
@@ -230,6 +232,88 @@ account; 401 opens sign-in; 402 the credit sheet; 403 `verify-email` its
 sentence and "Send the link again"; sheets size themselves below the shared
 confirm-your-email banner.
 
+## Snap the receipt or order email - Gemini (2026-11-23, behind a switch)
+
+Erik's per-app AI plan: *Takeback - Gemini - "Snap the receipt or order email
+for the return deadline."* Built beside the Claude reader, which **stays the
+default**: `TAKEBACK_AI_PROVIDER=gemini` on the service turns it on, anything
+else (unset included) is Claude exactly as above. Read per request;
+`/api/me` says `reader: 'claude' | 'gemini'` and the page follows it. **Do
+not set the switch without Erik's yes** (it also needs Vertex AI enabled and
+`aiplatform.user` for `challenge-run@`).
+
+- **The model transcribes; the app does the sum.** `lib/gemini.js` asks
+  `gemini-3.8-flash` (through `global.LAB_AI_GUARD.gemini.generate`, a
+  `responseSchema`, temperature 0) to copy what is printed: the store, the
+  purchase date, the delivery date (only if it says it WAS delivered), the
+  order number, the items as written, and **the return wording quoted
+  exactly** - each with a confidence (`low | medium | high`), `null` when
+  unreadable. The schema has **no field for a deadline, a number of days or
+  free text** (tested), and the prompt says not to work one out.
+  `TakebackCore.windowFromQuote(quote, day)` turns the quoted words into
+  `{days}` or `{until}` - one date after the day it was bought, else one
+  count of days or weeks (digits or a few number words). Anything that could
+  mean two things is **no window, with the reason** (`several`,
+  `business-days`, `months`, `unclear-date` for 03/04/2027, `no-number`, out
+  of range) and the person picks. The page redoes the sum whenever the day
+  changes and says "Worked out by Takeback, not by AI: 30 days from Thu Nov
+  19 - from the words above."
+- **Same route, same gates**: `POST /api/ai/receipt` - `requireUser,
+  requireBudget, requireDailyCap`, the 1.4 MB parser, then `ai.briefAny`
+  (`readingRequest`: exactly `{image}` as before **or** `{text}`, 20 to
+  6,000 characters - a 400 costs nothing), then `guard.allow` (its message
+  and status when it says no), one call, `guard.record` with
+  `guard.priceUsd` (also for a call that failed after billing), and the
+  person's own ledger charged the Gemini dollars (`chargeGemini`, route
+  `receipt:gemini-3.8-flash`, written as the Haiku input tokens that cost
+  the same). The Claude path calls `allow`/`record` with `provider:
+  'claude'` too when the lab has a guard. With no guard (the app on its own)
+  only the stand-in answers.
+- **Before sending.** A photo is shrunk on the device, checked by its bytes
+  and stripped of metadata exactly as for Claude, sent inline once and never
+  stored. Pasted text is capped on the page (`maxlength`) and the server,
+  and `scrubPersonal` takes out email addresses, phone numbers, card-shaped
+  numbers and "ending in 1234" tails, any run of 12+ digits, street lines and
+  "City, ST 12345" lines; the page says how many things were taken out.
+- **After.** `cleanReading` is `cleanReceipt`'s door (a card number anywhere
+  refuses the whole answer, names plain and bounded, dates real) plus: every
+  confidence kept ("low" for anything unknown or unreadable); **a quote from
+  pasted text must be found in that text** (spacing and case aside) or it is
+  dropped with its window (`quoteDropped`); a delivery date is offered as a
+  chip ("Delivered Nov 19"), never used silently.
+- **Flagged and confirmed.** The proposal marks every field the reader was
+  not sure of (amber border, "Hard to read - is this the day?" + **Looks
+  right**), counts them ("2 things to check before adding"), and **Add stays
+  disabled until each is edited, confirmed or unticked**. Wording the app
+  could not turn into a window is flagged the same way until a window is
+  picked.
+- **Stand-in**: `lib/fakeai.js` `gemini(body)` (an image is a fixed made-up
+  receipt with an unsure date and item; text is read the dumb way; triggers
+  `BLANK`, `INJECT`, `CARDNUM`, `MADEUPQUOTE`, `UPSTREAMnnn`). Local:
+  `TAKEBACK_AI_PROVIDER=gemini npm run dev`.
+
+## The look (2026-11-23 redesign)
+
+The lab's house style (HOA Desk's rules, not its code); `public/app.css`
+opens with them. Pure white page (true black in the dark), hairline-divided
+lists instead of stacked boxes (a 12 px hairline card only for the first
+run's mock, the made-up ribbon, the reader prompt and the worked-out
+deadline), pill buttons and chips, 10 px inputs, system type in five sizes,
+tabular figures, **one accent - the lab card's cobalt `#1e40af`** (the
+raspberry stays on the lab card, the icon and the recap image); red / amber /
+green / blue / grey for status only, always with words. Phones: a slim
+floating translucent pill bar of 1.5 px line icons, the label on the current
+one. Desktop: the same five buttons as a top nav with a quiet underline (the
+shared `desktop.css` rail is overridden at the end of `app.css`, never
+edited). Line icons (`ico()` in `app.js`) replace every emoji. **No `style=`
+attribute anywhere** - spacing helpers in the stylesheet, the refund bar an
+SVG, the sheet kept below the verify banner with `under-1..3` classes
+(tested). Motion only inside `prefers-reduced-motion: no-preference`.
+Measured in the browser: contrast 5.5:1 at worst in light and 6.6:1 in dark;
+nothing sideways at 390 or 320 px; every target 44 px or more. Taps from
+home: add a purchase 1 (Add), keep / send back 1, next checklist step 1,
+refund received 1, open a purchase 1, snap a receipt 2 (Add, then Snap).
+
 ## Local run and tests
 
 ```
@@ -249,7 +333,11 @@ force a tool, keeps every request (`fakeClient.calls`), and takes
 the tests and the fake are built at run time, so no file carries one
 (tested).
 
-`test/run.js` (28 tests): text and money; return-by for each preset, a
+`test/run.js` (33 tests; the last five hold the Gemini reader: the switch
+and its default, the schema with no deadline field, `windowFromQuote`,
+`cleanReading`, the scrub and caps, and over HTTP with a fake guard the gate
+order, allow -> generate -> record, the ledger charge, refusals and provider
+failures, and Claude unchanged with the switch off): text and money; return-by for each preset, a
 date, a leap year and the year end, and no window without a pick; days left
 and the colours (amber under a week, red under two days, grey once closed)
 with a fixed clock; the **America/New_York fall-back on 2026-11-01** (the
