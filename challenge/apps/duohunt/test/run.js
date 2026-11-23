@@ -421,7 +421,7 @@ test('the page: relative links, no inline script or handlers, the banner and pas
   const storageUses = js.match(/(localStorage|sessionStorage)\b/g) || [];
   assert.ok(storageUses.length >= 2 && !/window\.localStorage\.|\blocalStorage\.(get|set)Item/.test(js.replace(/window\[store\]\.(get|set)Item/g, '')), 'storage only through the wrapped load/save');
   assert.ok(/try \{ var v = window\[store\]\.getItem/.test(js) && /try \{ window\[store\]\.setItem/.test(js));
-  for (const f of ['public/index.html', 'public/app.js', 'public/duohunt-core.js', 'server.js', 'CLAUDE.md', 'lib/apple.js', 'lib/bestbuy.js', 'lib/parts.js', 'lib/fixtures.js', 'lib/upstream.js']) {
+  for (const f of ['public/index.html', 'public/app.js', 'public/duohunt-core.js', 'server.js', 'CLAUDE.md', 'lib/apple.js', 'lib/bestbuy.js', 'lib/parts.js', 'lib/fixtures.js', 'lib/upstream.js', 'lib/ai.js', 'lib/fakeai.js', 'public/deal.js', 'public/deal-core.js', 'public/app.css']) {
     assert.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/.test(read(f).replace(/@(google-cloud|simplewebauthn|anthropic-ai)\b/g, '')), `${f} carries an email address`);
     assert.ok(!/claude\.ai\/code\/session/.test(read(f)), `${f} carries a session link`);
   }
@@ -436,9 +436,23 @@ test('the page: relative links, no inline script or handlers, the banner and pas
   assert.ok(!/applestore:|com\.apple\.store/i.test(js + html), 'no guessed Apple Store app scheme');
   const sw = read('public/sw.js');
   assert.ok(/if \(rel\.indexOf\('api\/'\) === 0\) return;/.test(sw), 'the service worker never answers api/');
-  const code = ['server.js', 'lib/apple.js', 'lib/bestbuy.js', 'lib/upstream.js', 'lib/parts.js', 'public/app.js'].map(read).join('\n');
-  assert.ok(!/require\(['"]@anthropic-ai|messages\.create|claude-(haiku|sonnet|opus)/.test(code), 'no model anywhere');
-  assert.ok(!fs.existsSync(path.join(ROOT, 'lib/ai.js')) && !/anthropic/.test(read('package.json')));
+  // Finding a phone uses no model: the stock-check code never touches one. The
+  // one model call ("Check a deal") lives in lib/ai.js alone, behind
+  // /api/deal's gates (test/deal.js holds those).
+  const code = ['lib/apple.js', 'lib/bestbuy.js', 'lib/upstream.js', 'lib/parts.js', 'public/app.js', 'public/deal.js', 'public/duohunt-core.js', 'public/deal-core.js'].map(read).join('\n');
+  assert.ok(!/require\(['"]@anthropic-ai|messages\.create|claude-(haiku|sonnet|opus)/.test(code), 'no model in the stock check or the page');
+  assert.strictEqual((read('server.js').match(/ai\.ask\(/g) || []).length, 1, 'one call site in the server');
+  assert.strictEqual((['server.js', 'lib/ai.js'].map(read).join('\n').match(/messages\.create\(/g) || []).length, 1, 'one messages.create, in lib/ai.js');
+  // The lab's rule: no style= attribute in the markup or written by script.
+  assert.ok(!/\sstyle\s*=/i.test(html), 'no style attribute in the page');
+  for (const f of ['public/app.js', 'public/deal.js']) assert.ok(!/\bstyle:|setAttribute\('style'|\.style\.|innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(read(f)), `${f}: no style written by script, nothing drawn as markup`);
+  // The look: a pure white page, true black in dark, the system font only.
+  const css = read('public/app.css');
+  assert.ok(/--bg: #ffffff;/.test(css) && /--bg: #000000;/.test(css) && !/gradient\(|@font-face|@import|url\(/.test(css), 'white page, no gradients, no fetched fonts');
+  const motion = css.slice(css.indexOf('@media (prefers-reduced-motion: no-preference)'));
+  assert.ok(!/transition|animation|@keyframes/.test(css.slice(0, css.indexOf('@media (prefers-reduced-motion: no-preference)'))) && /transition/.test(motion), 'motion only where it is welcome');
+  // Three views, one or two taps from home, on a phone nav and a desktop nav.
+  for (const v of ['find', 'deal', 'checks']) assert.ok(html.includes(`data-view="${v}"`) && (html.match(new RegExp(`data-nav="${v}"`, 'g')) || []).length === 2, v);
 });
 
 test('local-only switches throw on Cloud Run', () => {
@@ -637,7 +651,7 @@ test('the shared account is mounted at api/auth; the page, worker and assets loa
   assert.strictEqual(page.status, 200);
   assert.ok(/script-src 'self'/.test(page.headers.get('content-security-policy')));
   assert.strictEqual(page.headers.get('x-content-type-options'), 'nosniff');
-  for (const f of ['app.js', 'app.css', 'desktop.css', 'duohunt-core.js', 'verify-banner.js', 'passkey-client.js', 'icon.svg', 'manifest.webmanifest']) {
+  for (const f of ['app.js', 'deal.js', 'deal-core.js', 'app.css', 'desktop.css', 'duohunt-core.js', 'verify-banner.js', 'passkey-client.js', 'icon.svg', 'manifest.webmanifest']) {
     assert.strictEqual((await call('GET', `/${f}`)).status, 200, f);
   }
   const sw = await call('GET', '/sw.js');

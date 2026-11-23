@@ -1,4 +1,5 @@
-/* Duo Hunt - the page. Everything drawn from an upstream answer goes in
+/* Duo Hunt - the page (finding a phone; "Check a deal" and the account
+ * sheet are in deal.js). Everything drawn from an upstream answer goes in
  * through textContent (el() below); nothing is ever parsed as markup that
  * came from Apple, Best Buy, storage or the URL. Links are only set from
  * DuoCore.safeUrl with a host allow-list.
@@ -69,7 +70,7 @@
       var input = el('input', { type: 'radio', name: name, value: o.id, id: name + '-' + o.id });
       input.checked = o.id === current;
       var kids = [];
-      if (swatch) kids.push(el('span', { class: 'swatch', 'aria-hidden': 'true', style: 'background:' + o.swatch }));
+      if (swatch) kids.push(el('span', { class: 'swatch sw-' + o.id, 'aria-hidden': 'true' }));
       kids.push(o.label);
       holder.appendChild(el('label', { class: 'chip', for: name + '-' + o.id }, [input, el('span', null, kids)]));
     });
@@ -520,7 +521,33 @@
   }
   window.addEventListener('focus', stopFlash);
 
+  /* ---------------- the three views: Find, Deal, Checks ---------------- */
+  var VIEWS = ['find', 'deal', 'checks'];
+  function viewFromHash() {
+    var h = String(location.hash || '').replace(/^#/, '');
+    return VIEWS.indexOf(h) >= 0 ? h : 'find';
+  }
+  function showView(focus) {
+    var v = viewFromHash();
+    document.querySelectorAll('[data-view]').forEach(function (n) { n.hidden = n.getAttribute('data-view') !== v; });
+    document.querySelectorAll('[data-nav]').forEach(function (a) {
+      if (a.getAttribute('data-nav') === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    document.body.setAttribute('data-on', v);
+    if (focus) { window.scrollTo(0, 0); $('main').focus({ preventScroll: true }); }
+  }
+  window.addEventListener('hashchange', function () { showView(true); });
+  // "Check stock" in the hero: straight to the ZIP box, the one thing to fill.
+  $('heroCheck').addEventListener('click', function (e) {
+    e.preventDefault();
+    if (viewFromHash() !== 'find') location.hash = '#find';
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    $('picker').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    $('zip').focus({ preventScroll: true });
+  });
+
   /* ---------------- start ---------------- */
+  showView(false);
   drawPicker();
   drawCards();
   drawHistory();

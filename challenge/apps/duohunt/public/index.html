@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Duo Hunt — find an iPhone Duo near you</title>
-  <meta name="description" content="Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place. Apple’s page for your exact model, an iPhone Shortcut that checks Apple pickup from your phone, Best Buy stock, and one-tap links to AT&amp;T, Verizon and T-Mobile. Free, no account.">
+  <meta name="description" content="Find an iPhone Duo near you - Apple, Best Buy and the carriers in one place. Apple’s page for your exact model, an iPhone Shortcut that checks Apple pickup from your phone, Best Buy stock, and one-tap links to AT&amp;T, Verizon and T-Mobile - and the true 36-month cost of any carrier deal you paste. Free.">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#0e1118" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Duo Hunt">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -34,86 +34,160 @@
   <!-- /lab:og -->
 </head>
 <body class="dk">
-  <a class="skip" href="#main">Skip to the check</a>
+  <a class="skip" href="#main">Skip to the page</a>
   <header class="top">
-    <a class="brand" href="./"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28"><rect x="5" y="4" width="10" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="17" y="4" width="10" height="24" rx="3" fill="currentColor"/><circle cx="22" cy="9" r="1.6" fill="var(--bg)"/></svg></span>Duo Hunt</a>
-    <span class="top-note">No account needed</span>
+    <a class="brand" href="./"><span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="26" height="26"><rect x="5" y="4" width="10" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="17" y="4" width="10" height="24" rx="3" fill="currentColor"/><circle cx="22" cy="9" r="1.6" fill="var(--bg)"/></svg></span>Duo Hunt</a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="#find" data-nav="find">Find a Duo</a>
+      <a href="#deal" data-nav="deal">Check a deal</a>
+      <a href="#checks" data-nav="checks">Checks</a>
+    </nav>
+    <button class="acct" id="acctBtn" type="button" aria-haspopup="dialog">Sign in</button>
   </header>
 
   <main class="wrap dk-wrap" id="main" tabindex="-1">
-    <section class="hero">
-      <h1>Find an iPhone Duo near you</h1>
-      <p class="lede">Apple, Best Buy and the carriers in one place. Pick your model, add a ZIP, and every store’s page for it is one tap away - plus an iPhone Shortcut that asks Apple for you.</p>
-    </section>
 
-    <div class="layout">
-      <div class="col-pick">
-        <form class="card picker" id="picker" novalidate>
-          <h2 class="h2">Your iPhone Duo</h2>
-          <fieldset class="group">
-            <legend>Storage</legend>
-            <div class="chips" id="storage"></div>
-          </fieldset>
-          <fieldset class="group">
-            <legend>Colour</legend>
-            <div class="chips" id="colour"></div>
-          </fieldset>
-          <fieldset class="group">
-            <legend>Carrier</legend>
-            <div class="chips" id="carrier"></div>
-            <p class="hint" id="carrierHint"></p>
-          </fieldset>
-          <div class="group">
-            <label class="label" for="zip">ZIP code</label>
-            <input class="input" id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}" maxlength="10" placeholder="e.g. 94103" aria-describedby="zipHint">
-            <p class="hint" id="zipHint">Kept on this device. Sent only with a check, never stored.</p>
-          </div>
-          <p class="price" id="price"></p>
-          <button class="btn primary big" id="checkBtn" type="submit">Check everything</button>
-          <p class="err" id="formErr" role="alert" hidden></p>
-        </form>
-
-        <section class="card watch" aria-labelledby="watchTitle">
-          <div class="watch-row">
-            <div>
-              <h2 class="h3" id="watchTitle">Watch on this tab</h2>
-              <p class="hint" id="watchText">Re-checks Best Buy every 5 minutes while this tab stays open, and alerts you when it turns up.</p>
-            </div>
-            <button class="switch" id="watch" type="button" role="switch" aria-checked="false" aria-labelledby="watchTitle" aria-describedby="watchText" disabled><span class="knob"></span></button>
-          </div>
-          <p class="watch-status" id="watchStatus" aria-live="polite" hidden></p>
-        </section>
-      </div>
-
-      <div class="col-results">
-        <div class="results-head">
-          <h2 class="h2" id="resultsTitle">Where to look</h2>
-          <p class="hint" id="resultsSub"></p>
+    <!-- Find a Duo: the home view -->
+    <div class="view" id="view-find" data-view="find">
+      <section class="hero">
+        <h1>Find an iPhone Duo near you.</h1>
+        <p class="lede">Apple, Best Buy and the carriers in one place - and the real price of the deal before you sign.</p>
+        <div class="hero-actions">
+          <a class="btn primary" href="#find" id="heroCheck">Check stock</a>
+          <a class="btn" href="#deal">Check a carrier deal</a>
         </div>
-        <div class="cards" id="cards" aria-live="polite"></div>
+      </section>
+
+      <div class="layout">
+        <div class="col-pick">
+          <form class="picker" id="picker" novalidate>
+            <h2 class="h2">Your iPhone Duo</h2>
+            <fieldset class="group">
+              <legend>Storage</legend>
+              <div class="chips" id="storage"></div>
+            </fieldset>
+            <fieldset class="group">
+              <legend>Colour</legend>
+              <div class="chips" id="colour"></div>
+            </fieldset>
+            <fieldset class="group">
+              <legend>Carrier</legend>
+              <div class="chips" id="carrier"></div>
+              <p class="hint" id="carrierHint"></p>
+            </fieldset>
+            <div class="group">
+              <label class="label" for="zip">ZIP code</label>
+              <input class="input" id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}" maxlength="10" placeholder="e.g. 94103" aria-describedby="zipHint">
+              <p class="hint" id="zipHint">Kept on this device. Sent only with a check, never stored.</p>
+            </div>
+            <p class="price" id="price"></p>
+            <button class="btn primary big" id="checkBtn" type="submit">Check everything</button>
+            <p class="err" id="formErr" role="alert" hidden></p>
+          </form>
+
+          <section class="watch" aria-labelledby="watchTitle">
+            <div class="watch-row">
+              <div>
+                <h2 class="h3" id="watchTitle">Watch on this tab</h2>
+                <p class="hint" id="watchText">Re-checks Best Buy every 5 minutes while this tab stays open, and alerts you when it turns up.</p>
+              </div>
+              <button class="switch" id="watch" type="button" role="switch" aria-checked="false" aria-labelledby="watchTitle" aria-describedby="watchText" disabled><span class="knob"></span></button>
+            </div>
+            <p class="watch-status" id="watchStatus" aria-live="polite" hidden></p>
+          </section>
+        </div>
+
+        <div class="col-results">
+          <div class="results-head">
+            <h2 class="h2" id="resultsTitle">Where to look</h2>
+            <p class="hint" id="resultsSub"></p>
+          </div>
+          <div class="cards" id="cards" aria-live="polite"></div>
+        </div>
       </div>
     </div>
 
-    <section class="card history" aria-labelledby="histTitle">
-      <h2 class="h3" id="histTitle">This tab’s checks</h2>
-      <ol class="hist" id="hist"></ol>
-      <p class="hint" id="histEmpty">Nothing yet. Your last 20 checks show here until you close the tab.</p>
-    </section>
+    <!-- Check a deal: the one AI feature -->
+    <div class="view" id="view-deal" data-view="deal" hidden>
+      <section class="hero hero-small">
+        <h1>What does that deal really cost?</h1>
+        <p class="lede">Paste a carrier offer. Get the true 36-month cost and the catch, in plain words.</p>
+      </section>
+      <form class="deal" id="dealForm" novalidate>
+        <label class="label" for="dealText">The offer, fine print and all</label>
+        <textarea class="input area" id="dealText" rows="8" maxlength="12000" placeholder="Paste the deal here - the headline, the monthly prices and the small print under it." aria-describedby="dealHint"></textarea>
+        <p class="hint" id="dealHint">Sign-in needed. An AI model reads the terms out of your text; Duo Hunt does the arithmetic itself and shows its working. Nothing is stored.</p>
+        <div class="deal-actions">
+          <button class="btn primary big" id="dealBtn" type="submit">Work it out</button>
+          <button class="btn quiet" id="dealSample" type="button">Try a sample deal</button>
+        </div>
+        <p class="err" id="dealErr" role="alert" hidden></p>
+        <p class="deal-more" id="dealMore" hidden></p>
+      </form>
+      <section class="deal-out" id="dealOut" aria-live="polite" hidden></section>
+    </div>
 
-    <section class="card how" aria-labelledby="howTitle">
-      <h2 class="h3" id="howTitle">How this works</h2>
-      <ul class="how-list">
-        <li><strong>Apple</strong> turns away stock checks from servers - it answered every one we sent from Google’s network with a block page - so our server doesn’t ask it. “See this model on Apple” opens Apple’s page for your exact model, where Check availability is one tap, and “Check from my iPhone” shows how to build a Shortcut that asks Apple from your phone instead.</li>
-        <li><strong>Best Buy</strong> is a live check through Best Buy’s official Products API, when it is connected. Until then it is a link.</li>
-        <li><strong>AT&amp;T, Verizon and T-Mobile</strong> are links. They have no public stock service and block automated checks, so we never ask them anything. Tap through, then mark what you saw so you remember when you last looked.</li>
-        <li><strong>Watching</strong> re-checks Best Buy, so it needs Best Buy connected. It runs in this tab only, while it is open and on screen. There is no server timer and no push - close the tab and it stops.</li>
-        <li>Your ZIP, picks and notes stay on this device. Nothing is stored on our side, and there is no AI in here.</li>
-      </ul>
-      <p class="fine">Not affiliated with Apple, Best Buy, AT&amp;T, Verizon or T-Mobile. Stock changes fast - a store’s own page always has the last word.</p>
-    </section>
+    <!-- Checks: this tab's history, and how it all works -->
+    <div class="view" id="view-checks" data-view="checks" hidden>
+      <section class="hero hero-small">
+        <h1>Your checks</h1>
+        <p class="lede">What this tab has looked up, and how Duo Hunt looks.</p>
+      </section>
+      <section class="history" aria-labelledby="histTitle">
+        <h2 class="h2" id="histTitle">This tab’s checks</h2>
+        <ol class="hist" id="hist"></ol>
+        <p class="hint" id="histEmpty">Nothing yet. Your last 20 checks show here until you close the tab.</p>
+      </section>
+
+      <section class="how" aria-labelledby="howTitle">
+        <h2 class="h2" id="howTitle">How this works</h2>
+        <ul class="how-list">
+          <li><strong>Apple</strong> turns away stock checks from servers - it answered every one we sent from Google’s network with a block page - so our server doesn’t ask it. “See this model on Apple” opens Apple’s page for your exact model, where Check availability is one tap, and “Check from my iPhone” shows how to build a Shortcut that asks Apple from your phone instead.</li>
+          <li><strong>Best Buy</strong> is a live check through Best Buy’s official Products API, when it is connected. Until then it is a link.</li>
+          <li><strong>AT&amp;T, Verizon and T-Mobile</strong> are links. They have no public stock service and block automated checks, so we never ask them anything. Tap through, then mark what you saw so you remember when you last looked.</li>
+          <li><strong>Watching</strong> re-checks Best Buy, so it needs Best Buy connected. It runs in this tab only, while it is open and on screen. There is no server timer and no push - close the tab and it stops.</li>
+          <li><strong>Check a deal</strong> is the one place an AI model is used, and only when you are signed in and tap Work it out. It copies the offer’s terms out of the text you paste; the 36-month total is added up by Duo Hunt, and every catch shows the offer’s own words. Emails and phone numbers are taken out before the text is sent, and nothing is kept.</li>
+          <li>Your ZIP, picks and notes stay on this device. Finding a phone uses no AI and needs no account.</li>
+        </ul>
+        <p class="fine">Not affiliated with Apple, Best Buy, AT&amp;T, Verizon or T-Mobile. Stock changes fast - a store’s own page always has the last word. A deal’s cost here is arithmetic on the offer you pasted, not financial advice; taxes are not included.</p>
+      </section>
+    </div>
   </main>
 
+  <nav class="tabs" aria-label="Sections">
+    <a href="#find" data-nav="find" aria-label="Find a Duo"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>Find</span></a>
+    <a href="#deal" data-nav="deal" aria-label="Check a deal"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6.5 3.5h11v17l-2.75-1.8L12 20.5l-2.75-1.8L6.5 20.5z"/><path d="M9.5 8.5h5M9.5 12h5"/></svg><span>Deal</span></a>
+    <a href="#checks" data-nav="checks" aria-label="Your checks"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Checks</span></a>
+  </nav>
+
   <div class="vh" id="live" aria-live="assertive"></div>
+
+  <dialog class="sheet" id="account" aria-labelledby="accountTitle">
+    <div class="sheet-body">
+      <div class="sheet-head">
+        <h2 class="h2" id="accountTitle">Your account</h2>
+        <button class="btn" type="button" id="accountClose">Done</button>
+      </div>
+      <div id="acctOut">
+        <p class="sheet-lede" id="acctWhy">Sign in to check a deal. One account works across every app in the lab, and it comes with a little free AI credit.</p>
+        <form class="acct-form" id="acctForm" novalidate>
+          <label class="label" for="acctEmail">Email</label>
+          <input class="input plain" id="acctEmail" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false">
+          <label class="label" for="acctPass">Password</label>
+          <input class="input plain" id="acctPass" type="password" autocomplete="current-password">
+          <p class="err" id="acctErr" role="alert" hidden></p>
+          <button class="btn primary big" type="submit" id="acctSignIn">Sign in</button>
+          <button class="btn big" type="button" id="acctCreate">Create an account</button>
+          <button class="btn quiet big" type="button" id="acctPasskey" hidden>Use Face ID or a passkey</button>
+        </form>
+      </div>
+      <div id="acctIn" hidden>
+        <p class="sheet-lede">Signed in as <strong id="acctWho"></strong>.</p>
+        <p class="hint" id="acctCredit"></p>
+        <button class="btn big" type="button" id="acctSignOut">Sign out</button>
+      </div>
+    </div>
+  </dialog>
 
   <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
     <div class="sheet-body">
@@ -173,8 +247,10 @@
   </dialog>
 
   <script src="duohunt-core.js"></script>
+  <script src="deal-core.js"></script>
   <script src="passkey-client.js"></script>
   <script src="verify-banner.js" data-mount="api/auth" defer></script>
   <script src="app.js"></script>
+  <script src="deal.js"></script>
 </body>
 </html>
