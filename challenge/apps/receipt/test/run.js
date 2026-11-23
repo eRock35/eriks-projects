@@ -496,6 +496,45 @@ test('who took it on: the speaker in their own words, or an assignment in the no
   assert.strictEqual(ai.tookItOn('Avi', 'I’ll never get to that, but I can send the notes', more), true, 'a later commitment in the same words still counts');
 });
 
+test('recap owners and dates from the notes: "Name: I\'ll ... by Friday", "Sam will ...", and nobody (stand-in answers)', () => {
+  // 2026-11-23 is a Monday; the model's own date is left out on purpose -
+  // a missing one used to drop "by Friday" entirely.
+  const notes = '- Jordan: I\'ll send the deck by Friday\n2. Priya: sure, I can draft the FAQ by end of week\nSam will chase legal next Tuesday\nwe should look at pricing\nDana: I\'ll look into it, and Lee should book the room';
+  const raw = {
+    summary: '', decisions: [], parking: [],
+    actions: [
+      { text: 'Send the deck', owner: 'Jordan', due: '', dueText: 'by Friday', source: 'notes', ref: 0, quote: 'send the deck by Friday' },
+      { text: 'Draft the FAQ', owner: 'Priya', due: '2026-12-25', dueText: 'by end of week', source: 'notes', ref: 0, quote: 'I can draft the FAQ by end of week' },
+      { text: 'Chase legal', owner: 'Sam', due: '', dueText: 'next Tuesday', source: 'notes', ref: 0, quote: 'Sam will chase legal next Tuesday' },
+      { text: 'Look at pricing', owner: 'Jordan', due: '2026-12-01', dueText: '', source: 'notes', ref: 0, quote: 'we should look at pricing' },
+      { text: 'Book the room', owner: 'Dana', due: '', dueText: '', source: 'notes', ref: 0, quote: 'Lee should book the room' },
+    ],
+  };
+  const expect = [
+    ['Send the deck', 'Jordan', '2026-11-27'],   // a bulleted speaker; "I'll" just before the quote
+    ['Draft the FAQ', 'Priya', '2026-11-27'],    // end of week is Friday: ours, not the model's Christmas
+    ['Chase legal', 'Sam', '2026-12-01'],        // "Sam will", the following week's Tuesday
+    ['Look at pricing', '[owner?]', null],       // nobody took it on, nobody said when
+    ['Book the room', '[owner?]', null],         // Dana's "I'll" is another clause
+  ];
+  for (const labels of [[], ['Jordan', 'Priya', 'Sam', 'Dana']]) {
+    const rec = ai.validateRecap(JSON.parse(JSON.stringify(raw)), ai.recapContext({ title: 'Sync', labels }, [], notes, false, '2026-11-23'));
+    assert.deepStrictEqual(rec.actions.map((a) => [a.text, a.owner, a.due]), expect, labels.length ? 'typed labels' : 'no labels typed: the name as written');
+    assert.ok(rec.removed.some((r) => r.what === '2026-12-01' && r.where === 'due date'), 'a date with no words for it');
+    assert.match(rec.body, /Send the deck - Jordan, due/);
+  }
+  // Typed labels still bound it; with none, a voice or a pronoun is nobody.
+  const pat = ai.validateRecap({ summary: '', decisions: [], parking: [], actions: [{ text: 'Send the deck', owner: 'Pat', due: '', dueText: '', source: 'notes', ref: 0, quote: 'Pat: I\'ll send the deck' }] },
+    ai.recapContext({ title: 'Sync', labels: ['Jordan'] }, [], 'Pat: I\'ll send the deck', false, '2026-11-23'));
+  assert.strictEqual(pat.actions[0].owner, '[owner?]', 'not one of the typed attendees');
+  const voice = ai.validateRecap({ summary: '', decisions: [], parking: [], actions: [{ text: 'Send the deck', owner: 'Speaker 2', due: '', dueText: '', source: 'notes', ref: 0, quote: 'I\'ll send the deck' }] },
+    ai.recapContext({ title: 'Sync', labels: [] }, [], 'Speaker 2: I\'ll send the deck', false, '2026-11-23'));
+  assert.strictEqual(voice.actions[0].owner, '[owner?]', 'a voice is not a name');
+  // A recap before Start has no meeting day: today's stands in, so the prompt has a date.
+  assert.match(ai.recapPrompt(ai.recapContext({ title: 'Sync', labels: [] }, [], notes, false, '2026-11-23')), /MEETING DATE: 2026-11-23/);
+  assert.match(ai.recapPrompt(ai.recapContext({ title: 'Sync', labels: [] }, [], notes, false)), /none typed - an owner is the name exactly as the notes write it/);
+});
+
 /* ---------------- pure: the sample ---------------- */
 
 test('the sample: $486, 3 decisions at $162, ROTI 2.6, $38 over on the campaign review, TIME GIVEN BACK - all from the rules', () => {
@@ -977,6 +1016,13 @@ test('recap: 400s before any spend, the whiteboard read once and kept nowhere, q
   assert.strictEqual(board.status, 200, JSON.stringify(board.data));
   assert.deepStrictEqual(board.data.decisions.map((d) => [d.text, d.source]), [['Kill the paid social test', 'board']]);
   assert.match(board.data.boardText, /LAUNCH/);
+  // No labels typed yet, and not started: the names as written, and "by Friday" from today.
+  const bare = await rec({ notes: 'Jordan: I\'ll send the deck by Friday.\nSam will book the room.\nthe funnel report is broken' });
+  assert.strictEqual(bare.status, 200, JSON.stringify(bare.data));
+  const bb = Object.fromEntries(bare.data.actions.map((a) => [a.text, a]));
+  assert.strictEqual(bb['Send the deck by Friday'].owner, 'Jordan');
+  assert.ok(R.isoDay(bb['Send the deck by Friday'].due) && new Date(`${bb['Send the deck by Friday'].due}T12:00:00Z`).getUTCDay() === 5, 'a Friday');
+  assert.strictEqual(bb['Sam will book the room'].owner, 'Sam');
   await maya('PUT', `/api/meetings/${MT.next}`, { labels: ['Jordan', 'Sam', 'Maya'] });
   const dump2 = store._dump();
   const notes = 'Jordan: I\'ll send the revised brief by Friday.\nSam will book the room.\nthe funnel report is broken\nwe should book the offsite\nNext week same time.\nINJECT';
@@ -1001,7 +1047,7 @@ test('recap: 400s before any spend, the whiteboard read once and kept nowhere, q
   try { up = await rec({ notes: 'Sam will book the room. UPSTREAM401' }); } finally { console.error = quiet; }
   assert.deepStrictEqual([up.status, up.data.error], [502, 'Could not write the recap. Try again, or use the free template.'], 'a provider 401 is not "sign in"');
   await settle();
-  assert.strictEqual(await modelCalls(), calls + 4, 'a failed call is not charged');
+  assert.strictEqual(await modelCalls(), calls + 5, 'a failed call is not charged (five recaps were written)');
   assert.strictEqual(store._dump(), dump2, 'a recap saves nothing');
   assert.notStrictEqual(dump, dump2);
   assert.ok(!store._dump().includes(withText('BOARD').slice(0, 40)) && !store._dump().includes('funnel report'), 'no photo and no notes in the store');
