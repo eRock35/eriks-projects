@@ -138,6 +138,24 @@ function priceUsd({ provider, model, inputTokens = 0, outputTokens = 0, at = new
   throw new Error(`ai-guard: unknown provider "${provider}"`);
 }
 
+/* ---------------- an owner's grant ---------------- */
+
+/** The burst part of req.user.aiGrant while it stands (until in the future,
+ *  or none), else null. The same rule as identity's activeAiGrant, kept here
+ *  so the burst check never depends on loading the price table. */
+function activeGrant(user, at = Date.now()) {
+  const g = user && user.aiGrant;
+  if (!g || typeof g !== 'object') return null;
+  if (g.until) {
+    const end = Date.parse(g.until);
+    if (!Number.isFinite(end) || end <= at) return null;
+  }
+  const whole = (v, max) => { const x = Math.floor(Number(v)); return Number.isFinite(x) && x > 0 ? Math.min(x, max) : 0; };
+  const perMinute = whole(g.perMinute, 1000);
+  const perDay = whole(g.perDay, 100000);
+  return perMinute || perDay ? { perMinute, perDay } : null;
+}
+
 /* ---------------- addresses ---------------- */
 
 /** Pure: the address a limit is counted against (IPv4 as is, IPv6 by its /64). */
@@ -304,13 +322,20 @@ function create({ store = memoryStore(), env = process.env, now = Date.now, fetc
       const own = Object.prototype.hasOwnProperty.call(appBurst, app) ? appBurst[app] : null;
       const uid = req.user && req.user.id;
       const ip = ipKey(req.ip || (req.socket && req.socket.remoteAddress));
-      if (own) {
-        if (uid) keys.push({ key: `a:${uid}:${app}`, perMinute: own.perMinute, perDay: own.perDay });
-        if (ip) keys.push({ key: `i:${ip}:${app}`, perMinute: own.perMinute, perDay: own.perDay });
-      } else {
-        if (uid) keys.push({ key: `a:${uid}`, perMinute: burst.accountMinute, perDay: burst.accountDay });
-        if (ip) keys.push({ key: `i:${ip}`, perMinute: burst.ipMinute, perDay: burst.ipDay });
-      }
+      // An owner's grant (req.user.aiGrant, CLAUDE.md "Owner AI grants")
+      // raises this person's numbers, never lowers them. Their address is
+      // counted in a book of its own (`ig:`) at the same raised numbers: the
+      // shared per-address book is what stops one actor with many accounts,
+      // and a granted account is one Erik approved - so housemates are not
+      // stopped by its calls, and the grant is not stopped by theirs. Only a
+      // request signed in as that account gets any of it.
+      const g = uid ? activeGrant(req.user, now()) : null;
+      const raise = (m, d) => (g ? { perMinute: Math.max(m, g.perMinute || 0), perDay: Math.max(d, g.perDay || 0) } : { perMinute: m, perDay: d });
+      const suffix = own ? `:${app}` : '';
+      const acct = own ? raise(own.perMinute, own.perDay) : raise(burst.accountMinute, burst.accountDay);
+      const addr = own ? raise(own.perMinute, own.perDay) : raise(burst.ipMinute, burst.ipDay);
+      if (uid) keys.push({ key: `a:${uid}${suffix}`, ...acct });
+      if (ip) keys.push({ key: `${g ? 'ig' : 'i'}:${ip}${suffix}`, ...addr });
       const code = takeBurst(keys);
       if (code) return deny(code);
     } catch (err) {
@@ -362,4 +387,4 @@ function create({ store = memoryStore(), env = process.env, now = Date.now, fetc
   return { allow, record, priceUsd, status, gemini, caps: { ...caps }, burst: { ...burst }, MESSAGES };
 }
 
-module.exports = { create, priceUsd, ipKey, monthOf, memoryStore, GEMINI_PRICES, PROVIDERS, COLLECTION, MESSAGES };
+module.exports = { create, priceUsd, activeGrant, ipKey, monthOf, memoryStore, GEMINI_PRICES, PROVIDERS, COLLECTION, MESSAGES };

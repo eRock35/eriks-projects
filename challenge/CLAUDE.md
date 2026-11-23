@@ -656,6 +656,16 @@ redesigned does not touch it and works exactly as before.** Code in
   shared one, so its calls neither use up nor are stopped by the lab-wide
   5/30. Set on the service: `LAB_AI_BURST_APP_SPAR=15/150`. Malformed values
   are ignored. The monthly caps are unchanged and still apply.
+- **An owner's grant** (root CLAUDE.md "Owner AI grants"): when
+  `req.user.aiGrant` is present and not past its `until`, its `perMinute` /
+  `perDay` raise (never lower) that person's account numbers, shared book or
+  an app's own. Their address is then counted in a book of its own (`ig:<ip>`)
+  at the same raised numbers rather than the shared `i:<ip>` one: the
+  per-address book stops one actor with many accounts, a granted account is
+  one Erik approved, and this way neither the grant nor housemates use each
+  other up. Only a request signed in as that account gets it (`req.user`
+  carries the whole record: identity's `attachUser`). The monthly caps are
+  untouched.
 - **`priceUsd({ provider, model, inputTokens, outputTokens, at })`**: Claude
   from the identity's `PRICES`/`priceOf` (read from an app's synced copy -
   the image has no `shared/`; optional `cacheWriteTokens`, `cacheReadTokens`,

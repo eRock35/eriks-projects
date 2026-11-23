@@ -232,6 +232,32 @@ function priceOf(model, usage, batch = false) {
 // call-count budget prices them the same.
 const FREE_ALLOWANCE_USD = Number(process.env.FREE_ALLOWANCE_USD || 2);
 
+// A per-person AI grant (Erik, 2026-11-23): owner-approved, on the user record
+// as `aiGrant: { extraUsd, perMinute, perDay, until, by, at, note }`, written
+// only by the landing's /admin/ai (through patchUser). `extraUsd` is credit
+// Erik GIVES - it adds to the allowance, but it is not purchased credit, so it
+// does not make someone a paying customer (spendsOwnMoney, the free tier's
+// daily ceiling and the verify-email rule are unchanged). `perMinute` /
+// `perDay` raise that person's burst limits in the Lab AI guard. `until`
+// ends it, checked on every read; nothing runs on a timer.
+const GRANT_MAX_USD = 500;
+function activeAiGrant(user, at = Date.now()) {
+  const g = user && user.aiGrant;
+  if (!g || typeof g !== 'object') return null;
+  if (g.until) {
+    const end = Date.parse(g.until);
+    if (!Number.isFinite(end) || end <= at) return null;
+  }
+  const num = (v, max) => { const x = Number(v); return Number.isFinite(x) && x > 0 ? Math.min(x, max) : 0; };
+  const out = {
+    extraUsd: num(g.extraUsd, GRANT_MAX_USD),
+    perMinute: Math.floor(num(g.perMinute, 1000)),
+    perDay: Math.floor(num(g.perDay, 100000)),
+    until: g.until || null,
+  };
+  return out.extraUsd || out.perMinute || out.perDay ? out : null;
+}
+
 // Spending is recorded AFTER a call, so the last one allowed can overshoot by
 // its own cost. Bounded, and the alternative - reserving an estimate up front
 // and reconciling after - is a great deal of machinery for a couple of cents.
@@ -268,7 +294,12 @@ function budgetFor(user) {
   // Hopscotch as well. Both are deliberately absent. An admin comp is an
   // `access` grant, which unlocks an app's features and nothing else;
   // membership below is metered like everyone else's.
-  const allowance = FREE_ALLOWANCE_USD + Number(user.toppedUpUsd || 0);
+  //
+  // An owner's AI grant adds its extraUsd here, shown on its own line
+  // (grantedUsd) so nobody mistakes it for money the person paid.
+  const grant = activeAiGrant(user);
+  const grantedUsd = grant ? grant.extraUsd : 0;
+  const allowance = FREE_ALLOWANCE_USD + Number(user.toppedUpUsd || 0) + grantedUsd;
   const spent = Number(user.spentUsd || 0);
   return {
     unlimited: false,
@@ -276,6 +307,8 @@ function budgetFor(user) {
     spentUsd: spent,
     remainingUsd: Math.max(0, allowance - spent),
     toppedUpUsd: Number(user.toppedUpUsd || 0),
+    grantedUsd,
+    grantUntil: grant ? grant.until : null,
     member: isMember(user),
     reason: isMember(user) ? 'member' : 'allowance',
   };
@@ -2100,4 +2133,4 @@ module.exports = {
   isVerified, mustVerifyForFreeAi, drawsOnFreeAllowance, VERIFY_CUTOFF, VERIFY_TTL_SECONDS,
   makeVerifyToken, readVerifyToken, dispatchSignature, dispatchSignatureOk, safeNext, verifyLink,
   maskEmail, verifyEmailBody,
-  webSearchFor, create, priceOf, priceParts, PRICES, isMember, paysPlatformFee, paidTier, uidFor, makeHash, matches, accessLevel, hasAccess, pendingRequest, budgetFor, FREE_ALLOWANCE_USD, USERS, EVENTS, USAGE, COOKIE, MIN_PASSWORD };
+  webSearchFor, create, priceOf, priceParts, PRICES, activeAiGrant, GRANT_MAX_USD, isMember, paysPlatformFee, paidTier, uidFor, makeHash, matches, accessLevel, hasAccess, pendingRequest, budgetFor, FREE_ALLOWANCE_USD, USERS, EVENTS, USAGE, COOKIE, MIN_PASSWORD };

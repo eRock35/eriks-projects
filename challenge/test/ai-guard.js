@@ -361,6 +361,38 @@ process.on('exit', (code) => { if (!finished && code === 0) { console.error('ai-
     ok('LAB_AI_BURST_APP_<SLUG>="m/d" gives one app its own burst book (Spar 15/150); bad values ignored; caps still apply');
   }
 
+  /* ---------------- an owner's grant raises one person's bursts ---------------- */
+  {
+    const c = clock('2026-11-23T10:00:00Z');
+    const g = aiGuard.create({ env: env(), now: c.now, log: quiet });
+    const granted = (until) => ({ ip: '198.51.100.50', user: { id: 'vip', aiGrant: { perMinute: 20, perDay: 200, extraUsd: 5, until } } });
+    // Without a grant: unchanged, 5 a minute.
+    for (let i = 0; i < 5; i++) assert.ok((await g.allow({ provider: 'claude', req: req('198.51.100.60', 'plain'), app: 'x' })).ok);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: req('198.51.100.61', 'plain'), app: 'x' })).code, 'burst-minute');
+    // With one: 20 a minute, from one address.
+    for (let i = 0; i < 20; i++) assert.ok((await g.allow({ provider: 'claude', req: granted('2026-12-01T00:00:00Z'), app: 'x' })).ok, `granted call ${i}`);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: granted('2026-12-01T00:00:00Z'), app: 'x' })).code, 'burst-minute');
+    // Someone else at that address still has their own 5: the grant has its own address book.
+    assert.ok((await g.allow({ provider: 'claude', req: req('198.51.100.50', 'housemate'), app: 'x' })).ok);
+    // Expired: back to the shared numbers on the next read (it already used 20 of them).
+    c.t += 61 * 1000;
+    const late = granted('2026-11-23T10:00:30Z');
+    assert.strictEqual(aiGuard.activeGrant(late.user, c.now()), null);
+    assert.strictEqual((await g.allow({ provider: 'claude', req: late, app: 'x' })).ok, true, 'a fresh minute under the shared 5');
+    for (let i = 0; i < 4; i++) await g.allow({ provider: 'claude', req: late, app: 'x' });
+    assert.strictEqual((await g.allow({ provider: 'claude', req: late, app: 'x' })).code, 'burst-minute');
+    // A grant never lowers a limit, and bad values are ignored.
+    assert.strictEqual(aiGuard.activeGrant({ aiGrant: { perMinute: 'lots' } }), null);
+    assert.strictEqual(aiGuard.activeGrant({ aiGrant: { perMinute: 2, until: 'not a date' } }), null);
+    const low = aiGuard.create({ env: env(), now: c.now, log: quiet });
+    const lowReq = { ip: '203.0.113.90', user: { id: 'low', aiGrant: { perMinute: 2 } } };
+    for (let i = 0; i < 5; i++) assert.ok((await low.allow({ provider: 'claude', req: lowReq, app: 'x' })).ok);
+    // The monthly cap is not lifted by any grant.
+    const capped = aiGuard.create({ store: { async get() { return { usd: 25 }; }, async bump() {} }, env: env(), now: c.now, log: quiet });
+    assert.strictEqual((await capped.allow({ provider: 'claude', req: granted('2027-01-01T00:00:00Z'), app: 'x' })).code, 'monthly-cap');
+    ok("an owner's grant raises that person's burst limits (own address book), expires on read, never lowers, never lifts the cap");
+  }
+
   finished = true;
   clearInterval(keepAlive);
   console.log(`ai-guard: ${n} passed`);

@@ -1416,6 +1416,143 @@ app.post('/api/admin/credit', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/grantable', requireAdmin, (_req, res) => res.json({ apps: GRANTABLE }));
 
+/* ------------------------------------------------------------------ *
+ * Owner AI grants: /admin/ai (Erik, 2026-11-23)
+ * ------------------------------------------------------------------ */
+
+// Erik approves individual people to use more AI: extra owner-given credit
+// (`extraUsd`, on top of the free allowance and anything they bought) and
+// higher Lab AI guard burst limits (`perMinute` / `perDay`), optionally until
+// a date, with a note. Stored as `aiGrant` on users/<uid> through patchUser,
+// read by shared/identity.js budgetFor and challenge/lib/ai-guard.js allow().
+// The monthly provider caps are never affected. Every change is in the
+// identity event log as ai.grant / ai.grant.revoked.
+app.get('/admin/ai', adminGate, (_req, res) => {
+  res.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(SITE_DIR, 'admin-ai.html'));
+});
+
+const AI_GRANT_LIMITS = { usd: identityLib.GRANT_MAX_USD, perMinute: 1000, perDay: 100000, noteChars: 200, days: 366 };
+const jsonOnly = (req, res, next) => (req.is('application/json') ? next() : res.status(415).json({ error: 'Send JSON.' }));
+const actorOf = (req) => (req.user && req.user.id ? `uid:${req.user.id}` : 'admin-password');
+
+/** A clean grant from the page's body; throws a message for a 400. */
+function readAiGrant(body, now = Date.now()) {
+  const b = body || {};
+  const num = (v, name, max, whole) => {
+    if (v === undefined || v === null || v === '') return 0;
+    const x = Number(v);
+    if (!Number.isFinite(x) || x < 0 || x > max || (whole && !Number.isInteger(x))) {
+      throw new Error(`${name} must be ${whole ? 'a whole number' : 'a number'} from 0 to ${max}.`);
+    }
+    return whole ? x : Math.round(x * 100) / 100;
+  };
+  const extraUsd = num(b.extraUsd, 'Extra credit', AI_GRANT_LIMITS.usd, false);
+  const perMinute = num(b.perMinute, 'Per minute', AI_GRANT_LIMITS.perMinute, true);
+  const perDay = num(b.perDay, 'Per day', AI_GRANT_LIMITS.perDay, true);
+  if (!extraUsd && !perMinute && !perDay) throw new Error('Give some credit or higher limits, or revoke instead.');
+  if (perMinute && perDay && perDay < perMinute) throw new Error('Per day must be at least per minute.');
+  let until = null;
+  if (b.until) {
+    // A date from the page means the end of that day, UTC.
+    const raw = String(b.until);
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? Date.parse(raw + 'T23:59:59.999Z') : Date.parse(raw);
+    if (!Number.isFinite(end)) throw new Error('That end date is not a date.');
+    if (end <= now) throw new Error('That end date has passed.');
+    if (end > now + AI_GRANT_LIMITS.days * 86400000) throw new Error('End it within a year.');
+    until = new Date(end).toISOString();
+  }
+  const note = String(b.note || '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').trim().slice(0, AI_GRANT_LIMITS.noteChars);
+  return { extraUsd, perMinute, perDay, until, note };
+}
+
+async function aiPerson(uid) {
+  const user = await identity.getUser(uid);
+  if (!user) return null;
+  const month = await insights.spendThisMonth(uid);
+  return {
+    uid,
+    email: user.email || null,
+    createdAt: user.createdAt || null,
+    admin: user.admin === true,
+    budget: identityLib.budgetFor(user),
+    aiGrant: user.aiGrant && typeof user.aiGrant === 'object' ? user.aiGrant : null,
+    grantActive: Boolean(identityLib.activeAiGrant(user)),
+    month,
+  };
+}
+
+app.get('/api/admin/ai', requireAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const email = String(req.query.email || '').trim().toLowerCase();
+    if (!email || email.length > 254 || !email.includes('@')) {
+      return res.status(400).json({ error: 'Type the email address the person signed up with.' });
+    }
+    const person = await aiPerson(identityLib.uidFor(email));
+    if (!person) return res.status(404).json({ error: 'No account with that address.' });
+    res.json({ person, limits: AI_GRANT_LIMITS });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not look that up.' });
+  }
+});
+
+app.post('/api/admin/ai/grant', requireAdmin, jsonOnly, async (req, res) => {
+  try {
+    const uid = String((req.body && req.body.uid) || '');
+    if (!uid) return res.status(400).json({ error: 'uid is required.' });
+    let g;
+    try { g = readAiGrant(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+    const user = await identity.getUser(uid);
+    if (!user) return res.status(404).json({ error: 'No such account.' });
+    const aiGrant = { ...g, by: actorOf(req), at: new Date().toISOString() };
+    await identity.patchUser(uid, { aiGrant });
+    const what = [
+      g.extraUsd ? `+$${g.extraUsd.toFixed(2)}` : null,
+      g.perMinute ? `${g.perMinute}/min` : null,
+      g.perDay ? `${g.perDay}/day` : null,
+    ].filter(Boolean).join(' ');
+    const detail = `for uid:${uid} ${what}${g.until ? ` until ${g.until}` : ''} by ${aiGrant.by}${g.note ? ` - ${g.note}` : ''}`;
+    await identity.log('ai.grant', req, { detail: detail.slice(0, 500) });
+    res.json({ ok: true, person: await aiPerson(uid) });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not save that.' });
+  }
+});
+
+app.post('/api/admin/ai/revoke', requireAdmin, jsonOnly, async (req, res) => {
+  try {
+    const uid = String((req.body && req.body.uid) || '');
+    if (!uid) return res.status(400).json({ error: 'uid is required.' });
+    const user = await identity.getUser(uid);
+    if (!user) return res.status(404).json({ error: 'No such account.' });
+    await identity.patchUser(uid, { aiGrant: null });
+    await identity.log('ai.grant.revoked', req, { detail: `for uid:${uid} by ${actorOf(req)}` });
+    res.json({ ok: true, person: await aiPerson(uid) });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not save that.' });
+  }
+});
+
+// The Lab's shared ceiling, read from its public status (nothing per user).
+app.get('/api/admin/ai/lab', requireAdmin, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const base = String(process.env.LAB_URL || 'https://challenge.strongtechnicalconsulting.com').replace(/\/+$/, '');
+  try {
+    const r = await fetch(`${base}/api/lab/ai-guard`, { redirect: 'error', signal: AbortSignal.timeout(3000) });
+    if (!r.ok) throw new Error('status');
+    const d = await r.json();
+    const row = (x) => (x && typeof x === 'object' ? {
+      capUsd: Number.isFinite(Number(x.capUsd)) ? Number(x.capUsd) : null,
+      monthUsd: x.monthUsd === null || !Number.isFinite(Number(x.monthUsd)) ? null : Number(x.monthUsd),
+    } : null);
+    res.json({ ok: true, claude: row(d.claude), gemini: row(d.gemini) });
+  } catch (err) {
+    res.json({ ok: false, error: 'The lab did not answer.' });
+  }
+});
+
 // The notifier tick. Cloud Scheduler calls this; it sends only when there is
 // something to say, so a quiet day produces no mail at all.
 //
