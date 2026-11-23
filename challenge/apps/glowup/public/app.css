@@ -331,7 +331,7 @@ details.more summary { min-height: 44px; display: flex; align-items: center; col
 .bar-row .tr { display: grid; gap: 3px; }
 .bar-row .v { text-align: right; color: var(--muted); white-space: nowrap; }
 .bar-row .v b { color: var(--text); }
-.bar-legend { display: flex; justify-content: center; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 12px; }
+.bar-legend { display: flex; justify-content: center; gap: 16px; font-size: 13px; color: var(--muted); margin: 16px 0 48px; }
 .bar-legend i { display: inline-block; width: 12px; height: 6px; border-radius: 3px; margin-right: 6px; vertical-align: middle; background: var(--accent); }
 .bar-legend i.b { background: var(--muted); opacity: .45; }
 
@@ -416,7 +416,7 @@ details.more summary { min-height: 44px; display: flex; align-items: center; col
   .topnav a:hover { color: var(--text); text-decoration: none; }
   .topnav a.on { color: var(--text); border-bottom-color: var(--accent); }
   body.dk main.wrap { max-width: 1080px; padding: 40px 32px 0; }
-  body.dk .list { max-width: none; }
+  body.dk main .list { max-width: none; }
   .narrow { max-width: 720px; margin-inline: auto; }
   .dk-2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 64px; align-items: start; }
   .dk-2 > .dk-sticky { position: sticky; top: 88px; }
