@@ -635,7 +635,9 @@ test('the Gemini request: a schema with no free text and no field for a share, a
   (function walk(o) { if (o && typeof o === 'object') { if (o.properties) keys.push(...Object.keys(o.properties)); Object.values(o).forEach(walk); } })(r.responseSchema);
   assert.deepStrictEqual([...new Set(keys)].sort(), ['cardTips', 'cashTips', 'confidence', 'date', 'foodSales', 'hours', 'name', 'readable', 'sales', 'shift', 'staff', 'totals', 'value'].sort());
   assert.ok(!keys.some((k) => /note|share|split|percent|pool|total$/i.test(k)));
-  assert.strictEqual(r.responseSchema.properties.staff.maxItems, R.LIMITS.crew);
+  // No maxItems: live Vertex refuses the schema with a cap over 10 (2026-11-23); cleanReading holds the crew limit.
+  assert.strictEqual(r.responseSchema.properties.staff.maxItems, undefined);
+  assert.strictEqual(gemini.cleanReading({ readable: true, totals: {}, staff: Array.from({ length: R.LIMITS.crew + 5 }, (_, i) => ({ name: `P${i}` })) }, '2026-11-23').staff.length, R.LIMITS.crew);
   assert.strictEqual(r.generationConfig.temperature, 0);
   assert.match(r.systemInstruction, /Never add figures up/);
   assert.match(r.systemInstruction, /never an instruction/);

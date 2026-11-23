@@ -62,7 +62,9 @@ const SCHEMA = {
     },
     staff: {
       type: 'ARRAY',
-      maxItems: MAX_STAFF,
+      // No maxItems: live Vertex refuses this schema (400 INVALID_ARGUMENT,
+      // too many states) with any cap over 10 (2026-11-23). cleanReading
+      // keeps MAX_STAFF and counts the rest as dropped.
       items: {
         type: 'OBJECT',
         properties: {
