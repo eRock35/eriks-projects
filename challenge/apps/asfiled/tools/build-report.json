@@ -1,0 +1,24 @@
+{
+ "built": "2026-11-23",
+ "companies": 19,
+ "figures": 1889,
+ "edges": {
+  "curated": 131,
+  "kept": 130,
+  "dropped": [
+   {
+    "by": "MSFT",
+    "from": "NVDA",
+    "to": "MSFT",
+    "type": "supplier",
+    "why": "quote not found verbatim in the source",
+    "tripwire": true
+   }
+  ]
+ },
+ "insights": {
+  "kept": 169,
+  "dropped": 0
+ },
+ "notes": []
+}
