@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>As Filed — what public company filings say</title>
+  <meta name="description" content="Read what big tech companies report in their own public filings: revenue, margins, R&amp;D, capital spending and inventory over time, patterns across the chain, and a map of who names whom as supplier, customer, partner or competitor - every number with its filing, every relationship with the exact quote. From public filings. Not investment advice.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-title" content="As Filed">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <!-- lab:og (written by scripts/og.js from lab.js; npm run og, never by hand) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Challenge Lab">
+  <meta property="og:title" content="As Filed — What big tech’s public filings say - every number with its filing, every link with the exact quote.">
+  <meta property="og:description" content="For investors, analysts, students and anyone curious how big tech connects. Nineteen companies from chip equipment to cloud, read from their own annual reports: revenue, gross margin, R&amp;D, capital spending and inventory over a dozen years, where the money comes from, and how much">
+  <meta property="og:url" content="https://challenge.strongtechnicalconsulting.com/asfiled/">
+  <meta property="og:image" content="https://challenge.strongtechnicalconsulting.com/og/asfiled.png?v=ae29629738">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="As Filed, drop #70 in the Challenge Lab: What big tech’s public filings say - every number with its filing, every link with the exact quote.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="As Filed — What big tech’s public filings say - every number with its filing, every link with the exact quote.">
+  <meta name="twitter:description" content="For investors, analysts, students and anyone curious how big tech connects. Nineteen companies from chip equipment to cloud, read from their own annual reports: revenue, gross margin, R&amp;D, capital spending and inventory over a dozen years, where the money comes from, and how much">
+  <meta name="twitter:image" content="https://challenge.strongtechnicalconsulting.com/og/asfiled.png?v=ae29629738">
+  <meta name="twitter:image:alt" content="As Filed, drop #70 in the Challenge Lab: What big tech’s public filings say - every number with its filing, every link with the exact quote.">
+  <!-- /lab:og -->
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#/"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 8l5 4 5-4M12 12v5"/><circle cx="7" cy="8" r="1.6"/><circle cx="17" cy="8" r="1.6"/><circle cx="12" cy="17" r="1.6"/></svg></span>As Filed</a>
+    </div>
+  </header>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span>Companies</span></a>
+    <a href="#/patterns" data-tab="patterns"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M5 15l4-5 4 3 6-8"/></svg><span>Patterns</span></a>
+    <a href="#/map" data-tab="map"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="2.2"/><circle cx="18" cy="7" r="2.2"/><circle cx="12" cy="17" r="2.2"/><path d="M8 7h8M7.2 8.9l3.6 6.2M16.8 8.9l-3.6 6.2"/></svg><span>Map</span></a>
+  </nav>
+  <main id="main" tabindex="-1">
+    <p class="loading" id="loading">Loading the filings…</p>
+  </main>
+  <footer class="foot">
+    <p class="disclaimer"><strong>From public filings. Not investment advice.</strong></p>
+    <p>Numbers are each company’s own, as tagged in its annual reports filed with the U.S. Securities and Exchange Commission (EDGAR), and each one links to its filing. A relationship is shown only where a company’s own document names the other company, with the exact words. Nothing here is a forecast. This page makes no request to sec.gov or anywhere else; the links open the sources.</p>
+    <p class="small" id="built"></p>
+  </footer>
+  <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
+    <div class="sheet-in">
+      <div class="sheet-head">
+        <h2 id="sheet-title"></h2>
+        <button type="button" class="pill ghost" id="sheet-close">Close</button>
+      </div>
+      <div id="sheet-body"></div>
+    </div>
+  </dialog>
+  <script src="verify-banner.js" data-mount="api/auth" defer></script>
+  <script src="asfiled-core.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -133,6 +133,15 @@ What he asked for, kept for the record:
    a crew leaderboard. If it can read a Hopscotch crawl or passport by its
    share link rather than duplicating it, better.
 
+### As Filed, on Erik's ask (2026-11-23)
+
+Erik asked for an app that reads public company filings and shows what you
+can learn from them. It shipped as **As Filed** (drop #70) outside the
+alternation, like the two above. It is the lab's one app with a build-time
+data pipeline (`apps/asfiled/tools/`, raw downloads cached outside the repo)
+and a hard rule that nothing is shown a primary source does not state; read
+`apps/asfiled/CLAUDE.md` before touching its data. No runtime AI.
+
 ### Rebuilding the lost drops, one a day (Erik, 2026-11-21)
 
 Eight drops built and reviewed from 2026-11-12 to 2026-11-19 were lost with
@@ -475,6 +484,12 @@ card each.
 - Every deploy after: `gcpdeploy ship challenge`.
 - Billed per request (`cpuIdle: true`) like everything else — never keep
   working after a response.
+- **Optional, plain (not secret) settings on the service:**
+  `CHAPTER_BOOKSHOP_ID` and `CHAPTER_AMAZON_TAG` - affiliate ids for
+  Chapter's "Buy this book" links (2026-11-22). Unset, the links are
+  ordinary store searches; see `apps/chapter/CLAUDE.md`. Chapter's "Read it"
+  frames `https://archive.org` - allowed today because the host's CSP sets
+  no `frame-src` or `default-src`; adding either must allow that origin.
 
 ### One copy of the heavy dependencies (2026-10-18)
 
@@ -576,6 +591,90 @@ cookie, nothing stored. Logic in `pulse.js`, routes in `server.js`, page in
   tested). Contrast is 4.5:1 or better for every text colour in both
   themes (tested from the CSS tokens and measured in the browser), tap
   targets 44 px, the table scrolls in its own box at 390 px.
+
+## Lab AI guard (2026-11-23)
+
+Erik approved moving some lab apps' AI to Gemini (Vertex AI) and keeping
+others on Claude, with cost guards enforced **in the apps**, on top of his
+Google Cloud budget alerts: **$25 a month per provider** (claude, gemini)
+and **burst limits per person**. Apps are redesigned one at a time; each
+redesigned app calls this guard around its model call. **An app not yet
+redesigned does not touch it and works exactly as before.** Code in
+`lib/ai-guard.js` and `lib/vertex.js`, tests in `test/ai-guard.js`.
+
+- **Why a global.** The host creates one guard before any app is required
+  and sets `global.LAB_AI_GUARD`. Apps are separate packages the host mounts
+  (and run on their own for their tests), so they cannot require the host's
+  files - the same reason `SHARED_DEPS` exists - and a copy per app would
+  mean one month cache and one burst book per app. An app run on its own has
+  no guard: treat `global.LAB_AI_GUARD` undefined as "not in the lab".
+- **The rule for every redesigned app's model call:**
+  `allow` -> the existing identity gates (`requireBudget` etc., unchanged)
+  -> the call -> `record`.
+
+  ```js
+  const guard = global.LAB_AI_GUARD;
+  const g = guard && await guard.allow({ provider: 'gemini', req, app: 'rave' });
+  if (g && !g.ok) return res.status(g.status).json({ error: g.message, code: g.code });
+  // ... identity gates, then the call ...
+  const { json, usage } = await guard.gemini.generate({ model: 'gemini-3.8-flash', contents, responseSchema });
+  await guard.record({ provider: 'gemini', app: 'rave', usd: guard.priceUsd({ provider: 'gemini', model: 'gemini-3.8-flash', ...usage }) });
+  ```
+- **`allow({ provider, req, app })`** resolves `{ ok: true }` (and counts the
+  call) or `{ ok: false, status, code, message }`: `burst-minute` (429, "Lots
+  of people are using AI right now - try again in a minute."), `burst-day`
+  (429) or `monthly-cap` (503, "AI answers are resting until next month;
+  everything else still works."). Send the message; never call the model.
+  Bursts: **5 a minute and 30 a day per signed-in account** (`req.user.id`,
+  across every app and both providers) **and the same per address** (`req.ip`,
+  IPv6 by its /64, the vote limiter's `ipKey`). Sliding windows, in memory,
+  per instance, at most 10,000 keys. Checked and counted synchronously, so
+  parallel requests cannot all pass. **They fail open** (a bug there logs and
+  allows). The cap is checked first.
+- **`record({ provider, app, usd })`** after a call, with the cost from
+  `priceUsd`: `FieldValue.increment` on `lab_ai_spend/<provider>-<YYYY-MM>`
+  (UTC month, field `usd`) in the `challenge` database through the host's
+  store (memory under `LAB_MEMORY=1`). Created on first write. Bad arguments
+  throw; a store failure is logged and resolves `false` (the answer still
+  goes out). Record a call that failed after the model billed it too
+  (`VertexError.usage`).
+- **The cap.** Month-to-date dollars are cached per instance and re-read at
+  most every 30 s (this instance's own records add at once), so instances
+  can overshoot by up to 30 s of spend. **It fails closed**: no readable
+  total and no cached value for this month -> `monthly-cap`. One log line
+  when a cap is crossed (`[ai-guard] gemini monthly cap reached for
+  2026-11: $25.01 of $25.00`), no user data.
+- **Changing the numbers** is a Cloud Run env change, no code:
+  `LAB_AI_CAP_CLAUDE_USD`, `LAB_AI_CAP_GEMINI_USD` (default 25 each);
+  `LAB_AI_BURST_MINUTE` (5), `LAB_AI_BURST_DAY` (30), and
+  `LAB_AI_BURST_IP_MINUTE` / `LAB_AI_BURST_IP_DAY` (default to the account
+  numbers). To lift a cap early in a month, raise its env var (or, with
+  Erik's say-so, lower that month's `usd` in Firestore).
+- **`priceUsd({ provider, model, inputTokens, outputTokens, at })`**: Claude
+  from the identity's `PRICES`/`priceOf` (read from an app's synced copy -
+  the image has no `shared/`; optional `cacheWriteTokens`, `cacheReadTokens`,
+  `webSearches`); Gemini `gemini-3.8-flash` $0.75 in / $3.75 out per 1M
+  through 2026-12-31, **$1.50 / $7.50 from 2027-01-01 UTC**;
+  `gemini-3.5-flash-lite` $0.30 / $2.50. An unknown model **throws** - never
+  priced as zero. New Gemini models go in `GEMINI_PRICES` (and `lib/vertex.js`
+  `MODELS`).
+- **`gemini.generate({ model, contents, responseSchema, systemInstruction,
+  generationConfig, timeoutMs, fake })`** -> `{ json, usage: { inputTokens,
+  outputTokens } }`. A token from the metadata server (the runtime account,
+  cached to near expiry), POST to the global Vertex endpoint in
+  `metal-celerity-236019`, JSON mode with the schema, 30 s timeout, no
+  redirects, thinking tokens counted as output. Errors are `VertexError`
+  (`code`: timeout, token, http, blocked, bad-json, too-large) with no
+  provider text in the message - still never pass them to the page. Fake
+  (a sample built from the schema, no network) with `LAB_FAKE_AI=1`, which
+  the host sets under `LAB_MEMORY=1`, or a caller's `fake`. It does not call
+  `allow`/`record` itself. Using it needs Vertex AI enabled and
+  `aiplatform.user` for `challenge-run@` - Erik's step, not a daily run's.
+- **`GET /api/lab/ai-guard`**: `{ claude: { capUsd, monthUsd }, gemini: {
+  capUsd, monthUsd } }` to the cent (`monthUsd` null when unreadable).
+  Public and board-free: nothing per user or per app. `max-age=30`.
+- Memory: the guard costs about nothing at start (the identity price table
+  loads on the first Claude price).
 
 ## Commit and PR conventions
 

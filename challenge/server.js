@@ -66,40 +66,10 @@ Module._resolveFilename = function shareDeps(request, parent, ...rest) {
   return baseResolve.call(this, request, parent, ...rest);
 };
 
-const mounted = [];
-for (const a of lab.APPS) {
-  if (a.status !== 'testing') continue;
-  const dir = path.join(__dirname, 'apps', a.slug);
-  if (!fs.existsSync(path.join(dir, 'server.js'))) {
-    console.warn(`[lab] ${a.slug}: no apps/${a.slug}/server.js, not mounted`);
-    continue;
-  }
-  const KEY = a.slug.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-  if (process.env[`${KEY}_COLLECTION_PREFIX`] === undefined) process.env[`${KEY}_COLLECTION_PREFIX`] = `${a.slug}_`;
-  if (MEMORY) {
-    process.env[`${KEY}_MEMORY`] = '1';
-    process.env[`${KEY}_FAKE_AI`] = '1';
-  }
-  try {
-    const sub = require(path.join(dir, 'server.js')).app;
-    // A relative asset link only resolves under the trailing slash.
-    // Express matches /spar and /spar/ alike, so check the raw path or this
-    // redirects /spar/ to itself forever.
-    host.use((req, res, next) => {
-      const [p, q = ''] = req.originalUrl.split(/\?(.*)/s);
-      if (p !== `/${a.slug}`) return next();
-      res.redirect(301, `/${a.slug}/${q ? `?${q}` : ''}`);
-    });
-    host.use(`/${a.slug}`, sub);
-    mounted.push(a.slug);
-  } catch (err) {
-    // One broken app must never take the lab down with it.
-    console.error(`[lab] ${a.slug} failed to load:`, err.message);
-  }
-}
-console.log(`[lab] mounted: ${mounted.join(', ') || 'none'}`);
-
 /* ---------------- the lab's own data: votes and notes ---------------- */
+
+// Made before the apps are mounted: the AI guard below keeps its month
+// totals here too.
 
 const store = (() => {
   if (MEMORY) {
@@ -140,6 +110,55 @@ const store = (() => {
   };
 })();
 
+/* ---------------- the Lab AI guard ---------------- */
+
+// One guard for the whole lab (lib/ai-guard.js, CLAUDE.md "Lab AI guard"):
+// a monthly cap per provider and per-person burst limits that every
+// redesigned app's model call goes through - allow -> call -> record. Made
+// here, before any app is required, and handed to apps as a global: each app
+// is its own package mounted by the host (and run on its own for its tests),
+// so it cannot require the host's files - the same reason SHARED_DEPS exists.
+// One instance means one month-to-date cache and one burst book for the lab.
+// Its month totals live in the lab's own store (`lab_ai_spend`), memory under
+// LAB_MEMORY, Firestore increments otherwise.
+if (MEMORY && process.env.LAB_FAKE_AI === undefined) process.env.LAB_FAKE_AI = '1';
+const aiGuard = require('./lib/ai-guard');
+const guard = aiGuard.create({ store });
+global.LAB_AI_GUARD = guard;
+
+const mounted = [];
+for (const a of lab.APPS) {
+  if (a.status !== 'testing') continue;
+  const dir = path.join(__dirname, 'apps', a.slug);
+  if (!fs.existsSync(path.join(dir, 'server.js'))) {
+    console.warn(`[lab] ${a.slug}: no apps/${a.slug}/server.js, not mounted`);
+    continue;
+  }
+  const KEY = a.slug.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+  if (process.env[`${KEY}_COLLECTION_PREFIX`] === undefined) process.env[`${KEY}_COLLECTION_PREFIX`] = `${a.slug}_`;
+  if (MEMORY) {
+    process.env[`${KEY}_MEMORY`] = '1';
+    process.env[`${KEY}_FAKE_AI`] = '1';
+  }
+  try {
+    const sub = require(path.join(dir, 'server.js')).app;
+    // A relative asset link only resolves under the trailing slash.
+    // Express matches /spar and /spar/ alike, so check the raw path or this
+    // redirects /spar/ to itself forever.
+    host.use((req, res, next) => {
+      const [p, q = ''] = req.originalUrl.split(/\?(.*)/s);
+      if (p !== `/${a.slug}`) return next();
+      res.redirect(301, `/${a.slug}/${q ? `?${q}` : ''}`);
+    });
+    host.use(`/${a.slug}`, sub);
+    mounted.push(a.slug);
+  } catch (err) {
+    // One broken app must never take the lab down with it.
+    console.error(`[lab] ${a.slug} failed to load:`, err.message);
+  }
+}
+console.log(`[lab] mounted: ${mounted.join(', ') || 'none'}`);
+
 // An opaque random visitor id, first-party, so a vote can be changed but not
 // stuffed from one browser. No IP, no user agent, nothing tied to an account.
 const VID = 'lab_vid';
@@ -173,16 +192,9 @@ const LIMITS = {
   notesPerIp: Number(process.env.LAB_NOTES_PER_IP) || 10,
   notesPerWindow: 300,
 };
-/** Pure: the address an allowance is counted against (an IPv6 /64). */
-function ipKey(ip) {
-  const a = String(ip || '').replace(/^::ffff:/, '');
-  if (!a.includes(':')) return a;
-  const [head, tail = ''] = a.split('::');
-  const h = head ? head.split(':') : [];
-  const t = tail ? tail.split(':') : [];
-  const full = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
-  return full.slice(0, 4).map((x) => (x || '0').toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
-}
+/** Pure: the address an allowance is counted against (an IPv6 /64); the
+ *  AI guard counts by the same rule. */
+const { ipKey } = aiGuard;
 const book = new Map();
 /** Count `distinct` (or one more, with no key) against `kind` for this
  *  address and for the instance. Synchronous, so parallel requests cannot all
@@ -469,6 +481,19 @@ function standings(apps, tallies) {
 const BOARD_MS = 15 * 1000;
 let boardCache = { at: 0, body: null };
 
+// The AI guard's month so far, per provider: cap and dollars spent, to the
+// cent. Board-free and public-safe - no per-user or per-app data - so Erik
+// can glance at it. The guard reads the totals at most every 30 s.
+host.get('/api/lab/ai-guard', async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=30');
+    res.json(await guard.status());
+  } catch (err) {
+    console.error('[lab] ai-guard status:', err.message);
+    res.status(500).json({ error: 'Not available.' });
+  }
+});
+
 host.get('/api/lab/leaderboard', async (req, res) => {
   try {
     const origin = req.get('origin');
@@ -606,4 +631,4 @@ if (require.main === module) {
   host.listen(PORT, () => console.log(`[lab] listening on ${PORT}${MEMORY ? ' (memory)' : ''}`));
 }
 
-module.exports = { host, mounted, store, pulseSource, LIMITS, ipKey, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };
+module.exports = { host, mounted, store, guard, pulseSource, LIMITS, ipKey, standings, readBuildStats, reveal, streakOf, progress, dropDays, weekDrops, BADGES, MIN_SPLIT };

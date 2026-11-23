@@ -60,6 +60,10 @@
     aiQuestionMin: 12,
     aiQuestionMax: 240,
     aiQuoteWords: 12,
+    reply: 300,
+    repliesPerThread: 40,
+    repliesPerBook: 600,
+    meetingNotes: 30,
   };
 
   // Emoji a member can pick. A closed set: nothing typed reaches an avatar,
@@ -252,6 +256,25 @@
    * The book
    * ------------------------------------------------------------------ */
 
+  /** An ISBN typed however, as ISBN-13 - or '' when its check digit does
+   *  not hold. Only 978 and 979 are books. */
+  function cleanIsbn(v) {
+    const raw = str(v).toUpperCase().replace(/[^0-9X]/g, '');
+    if (raw.length === 10 && /^\d{9}[\dX]$/.test(raw)) {
+      let sum = 0;
+      for (let i = 0; i < 10; i++) sum += (raw[i] === 'X' ? 10 : Number(raw[i])) * (10 - i);
+      if (sum % 11 !== 0) return '';
+      const body = '978' + raw.slice(0, 9);
+      let t = 0;
+      for (let i = 0; i < 12; i++) t += Number(body[i]) * (i % 2 ? 3 : 1);
+      return body + ((10 - (t % 10)) % 10);
+    }
+    if (!/^97[89]\d{10}$/.test(raw)) return '';
+    let t = 0;
+    for (let i = 0; i < 12; i++) t += Number(raw[i]) * (i % 2 ? 3 : 1);
+    return (10 - (t % 10)) % 10 === Number(raw[12]) ? raw : '';
+  }
+
   /** {title, author, chapters, pages} or an error. Chapters are the unit
    *  when they are given: they are the same in every edition, pages are not. */
   function cleanBook(b) {
@@ -264,7 +287,15 @@
     if (x.chapters !== undefined && x.chapters !== null && x.chapters !== '' && chapters === null) throw fail(400, `Chapters is a number from 1 to ${LIMITS.chapters}.`);
     if (x.pages !== undefined && x.pages !== null && x.pages !== '' && pages === null) throw fail(400, `Pages is a number from 1 to ${LIMITS.pages}.`);
     if (!chapters && !pages) throw fail(400, 'How many chapters does it have? (Or pages, if it has no chapters.)');
-    return { title, author, chapters, pages };
+    const out = { title, author, chapters, pages };
+    // Optional, and only ever present when one was given: the edition's ISBN,
+    // which makes "Buy this book" open the exact book.
+    if (x.isbn !== undefined && x.isbn !== null && x.isbn !== '') {
+      const isbn = cleanIsbn(x.isbn);
+      if (!isbn) throw fail(400, 'That ISBN doesn’t check out - one digit may be off. Leave it empty if unsure.');
+      out.isbn = isbn;
+    }
+    return out;
   }
   function unitOf(book) { return book && book.chapters ? 'ch' : 'pg'; }
   function totalOf(book) { return book ? (book.chapters || book.pages || 0) : 0; }
@@ -432,7 +463,57 @@
     p.set['members.' + mid + '.pos'] = pos;
     p.set['members.' + mid + '.done'] = done;
     p.set['members.' + mid + '.at'] = iso(now);
+    // Optional: the same place in the other unit - the page in THEIR edition
+    // for a book counted in chapters (or the chapter, for one counted in
+    // pages). It is shown on the board and decides nothing: the spoiler rule
+    // only ever reads `pos`.
+    if (x.alt !== undefined) {
+      const alt = x.alt === null || x.alt === '' ? null : intIn(x.alt, 1, unitOf(book) === 'ch' ? LIMITS.pages : LIMITS.chapters);
+      if (x.alt !== null && x.alt !== '' && alt === null) throw fail(400, unitOf(book) === 'ch' ? `A page is a number from 1 to ${LIMITS.pages}.` : `A chapter is a number from 1 to ${LIMITS.chapters}.`);
+      if (alt === null) { if (has(m, 'alt')) p.del.push('members.' + mid + '.alt'); } else p.set['members.' + mid + '.alt'] = alt;
+    }
     return { patch: p, before, after: pos, done };
+  }
+  /** A member's place in the other unit, if they gave one. */
+  function altOf(m, book) {
+    const n = m && Number.isInteger(m.alt) && m.alt >= 1 && m.alt <= (unitOf(book) === 'ch' ? LIMITS.pages : LIMITS.chapters) ? m.alt : null;
+    return n;
+  }
+  function altShort(book, n) { return n ? (unitOf(book) === 'ch' ? 'p. ' : 'ch ') + n : ''; }
+  /** "today", "yesterday", "3 days ago" - when a bookmark last moved. */
+  function movedLabel(at, today) {
+    const d = typeof at === 'string' ? at.slice(0, 10) : '';
+    const n = dayDiff(d, today);
+    if (n === null) return '';
+    if (n <= 0) return 'today';
+    if (n === 1) return 'yesterday';
+    if (n < 60) return n + ' days ago';
+    return 'a while ago';
+  }
+  /** Where's everyone, at a glance: how many are ahead of, with and behind
+   *  the viewer, who has finished or not started, and the spread. */
+  function glance(club, meId) {
+    const book = club.book, t = totalOf(book), ids = memberIds(club), me = club.members[meId];
+    const mine = me ? posOf(me, book) : null;
+    const out = { ahead: 0, same: 0, behind: 0, finished: 0, notStarted: 0, min: 0, max: 0, middle: 0, line: '' };
+    const all = [];
+    for (const id of ids) {
+      const m = club.members[id], p = posOf(m, book);
+      all.push(p);
+      if (isDone(m, book)) out.finished++;
+      if (!p) out.notStarted++;
+      if (id === meId || mine === null) continue;
+      if (p > mine) out.ahead++; else if (p < mine) out.behind++; else out.same++;
+    }
+    if (!all.length) return out;
+    all.sort((a, b) => a - b);
+    out.min = all[0]; out.max = all[all.length - 1]; out.middle = all[Math.floor((all.length - 1) / 2)];
+    const where = (p) => (p >= t ? 'the end' : p ? atLabel(book, p) : 'the start');
+    if (all.length === 1) out.line = '';
+    else if (out.max === 0) out.line = 'Nobody has started yet.';
+    else if (out.min === out.max) out.line = out.min >= t ? 'Everyone has finished.' : 'Everyone is at ' + atLabel(book, out.min) + '.';
+    else out.line = 'The club runs from ' + where(out.min) + ' to ' + where(out.max) + ' - the middle reader is at ' + where(out.middle) + '.';
+    return out;
   }
 
   /** "Maya is 3 chapters ahead of you" - one member against the viewer. */
@@ -526,14 +607,14 @@
     const ids = memberIds(club);
     const rows = ids.map((id) => {
       const m = club.members[id];
-      return { id, name: m.name, emoji: m.emoji, host: Boolean(m.host), pos: posOf(m, book), done: isDone(m, book), pct: pct(m, book), at: m.at || null, you: id === meId, line: relLine(club, id, meId), short: relShort(club, id, meId) };
+      return { id, name: m.name, emoji: m.emoji, host: Boolean(m.host), pos: posOf(m, book), done: isDone(m, book), pct: pct(m, book), at: m.at || null, you: id === meId, line: relLine(club, id, meId), short: relShort(club, id, meId), alt: altOf(m, book), moved: m.at ? movedLabel(m.at, today) : '' };
     }).sort((a, b) => b.pos - a.pos || (a.you ? -1 : b.you ? 1 : 0) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     const meet = nextMeeting(club, today);
     const target = meet ? targetOf(club, meet) : t;
     const finished = rows.filter((r) => r.done).length;
     const ready = rows.filter((r) => r.pos >= target).length;
     return {
-      rows, total: t, unit: unitOf(book), finished, ready, headline: meId ? headline(club, meId) : '',
+      rows, total: t, unit: unitOf(book), finished, ready, headline: meId ? headline(club, meId) : '', glance: glance(club, meId),
       allDone: rows.length > 0 && finished === rows.length,
       finish: meet ? { id: meet.id, date: meet.date, time: meet.time || '', at: target, pct: t ? Math.round((target / t) * 1000) / 10 : 100, label: dayLabel(meet.date, today, locale) } : null,
       nudge: meId ? nudge(club, meId, today, locale) : null,
@@ -554,7 +635,17 @@
     const m = club.members[mid];
     if (!m) throw fail(404, 'Nothing here.');
     const book = club.book, x = input && typeof input === 'object' ? input : {};
-    const kind = KINDS.indexOf(x.kind) >= 0 ? x.kind : 'note';
+    const parent = o && o.parent ? o.parent : null;
+    const meeting = !parent && o && o.meeting ? o.meeting : null;
+    if (parent) {
+      // A reply belongs to its thread: it carries the thread's chapter, never
+      // one of its own, and only someone who can read the thread can add to it.
+      if (parent.re || parent.meet || parent.book !== book.id || !canSee(parent, mid, m, book)) throw fail(404, 'That note isn’t here any more.');
+      const reply = para(x.text, LIMITS.reply);
+      if (!reply || !/[\p{L}\p{N}]/u.test(reply)) throw fail(400, 'Write the reply first.');
+      return { club: club.id, book: book.id, mid, kind: 'reply', re: parent.id, text: reply, at: parent.at, ai: false, reactions: {}, createdAt: iso(o.now) };
+    }
+    const kind = meeting ? 'minutes' : KINDS.indexOf(x.kind) >= 0 ? x.kind : 'note';
     const max = kind === 'question' ? LIMITS.question : LIMITS.note;
     const text = para(x.text, max);
     if (!text || !/[\p{L}\p{N}]/u.test(text)) throw fail(400, kind === 'question' ? 'Write the question first.' : 'Write the note first.');
@@ -563,7 +654,29 @@
     if (at === null) throw fail(400, 'Which ' + (unitOf(book) === 'ch' ? 'chapter' : 'page') + ' is it about?');
     if (!mine) throw fail(400, 'Set your bookmark first - a note is tagged with a chapter you have read.');
     if (at > mine && !isDone(m, book)) throw fail(400, 'You can only tag up to where you are (' + atLabel(book, mine) + '). Move your bookmark first.');
-    return { club: club.id, book: book.id, mid, kind, text, at, ai: x.ai === true && kind === 'question', reactions: {}, createdAt: iso(o.now) };
+    const out = { club: club.id, book: book.id, mid, kind, text, at, ai: x.ai === true && kind === 'question', reactions: {}, createdAt: iso(o.now) };
+    // A meeting note: what was discussed or decided, attached to a meetup and
+    // tagged with a chapter like any note - so the same rule hides it.
+    if (meeting) { out.meet = String(meeting.id); out.meetDate = isDay(meeting.date) ? meeting.date : ''; out.decision = x.decision === true; }
+    return out;
+  }
+  const isReply = (n) => Boolean(n) && typeof n.re === 'string' && n.re !== '';
+  const isMinutes = (n) => Boolean(n) && typeof n.meet === 'string' && n.meet !== '';
+  /**
+   * Notes as threads, for one viewer. A reply is read exactly when its
+   * thread is: a locked thread's replies (their text, authors and reactions)
+   * are left out with it, and are not even counted. A reply whose thread is
+   * gone is left out too. Meeting notes are split apart (`minutes`).
+   */
+  function threadsFor(notes, viewerId, viewer, book) {
+    const top = [], replies = [], minutes = [];
+    for (const n of notes || []) (isReply(n) ? replies : isMinutes(n) ? minutes : top).push(n);
+    const split = splitNotes(top, viewerId, viewer, book);
+    const open = {};
+    for (const n of split.visible) open[n.id] = [];
+    for (const r of replies) if (has(open, r.re)) open[r.re].push(r);
+    for (const k of Object.keys(open)) open[k].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
+    return { visible: split.visible, locked: split.locked, replies: open, minutes: splitNotes(minutes, viewerId, viewer, book) };
   }
   /** Whether `viewer` may read `note` of `book`: they wrote it, they have
    *  finished, or they have read up to its chapter. */
@@ -713,11 +826,12 @@
     const final = {};
     for (const id of memberIds(club)) final[id] = posOf(club.members[id], cur);
     p.set['shelf.' + cur.id] = { title: cur.title, author: cur.author || '', chapters: cur.chapters || null, pages: cur.pages || null, started: cur.started || o.today, finished: o.today, ratings: cur.ratings || {}, final, order };
+    if (cleanIsbn(cur.isbn)) p.set['shelf.' + cur.id].isbn = cleanIsbn(cur.isbn);
     const drop = Object.keys(shelf).sort((a, b) => (Number(shelf[a].order) || 0) - (Number(shelf[b].order) || 0));
     const dropped = drop.slice(0, Math.max(0, drop.length + 1 - LIMITS.shelf));
     for (const bid of dropped) p.del.push('shelf.' + bid);
     p.set.book = Object.assign({ id: o.bookId, started: o.today, ratings: {} }, next);
-    for (const id of memberIds(club)) { p.set['members.' + id + '.pos'] = 0; p.set['members.' + id + '.done'] = false; p.set['members.' + id + '.at'] = null; }
+    for (const id of memberIds(club)) { p.set['members.' + id + '.pos'] = 0; p.set['members.' + id + '.done'] = false; p.set['members.' + id + '.at'] = null; if (has(club.members[id], 'alt')) p.del.push('members.' + id + '.alt'); }
     p.set.vote = { noms: {}, ballots: {}, closed: null };
     for (const id of Object.keys(club.meetings || {})) {
       if (club.meetings[id].date < o.today) p.del.push('meetings.' + id);
@@ -731,6 +845,9 @@
     const b = cleanBook(Object.assign({ title: club.book.title, author: club.book.author, chapters: club.book.chapters, pages: club.book.pages }, input || {}));
     const p = patch();
     p.set['book.title'] = b.title; p.set['book.author'] = b.author; p.set['book.chapters'] = b.chapters; p.set['book.pages'] = b.pages;
+    // The ISBN is optional: written when given, removed when emptied, and
+    // otherwise left exactly as it was.
+    if (input && input.isbn !== undefined) { if (b.isbn) p.set['book.isbn'] = b.isbn; else if (has(club.book, 'isbn')) p.del.push('book.isbn'); }
     return { patch: p };
   }
 
@@ -863,12 +980,71 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Buying and reading: links out, built here, and nothing else
+   *
+   * "Buy this book" is a plain link to a store's own page, opened in a new
+   * tab: no payment in the app, no pixel, no script from a store. An
+   * affiliate id is optional and comes from the server's environment; with
+   * none, the links are ordinary store searches.
+   * ------------------------------------------------------------------ */
+
+  const BOOKSHOP_ID = /^\d{1,12}$/;
+  const AMAZON_TAG = /^[a-z0-9][a-z0-9-]{0,30}-\d{2}$/i;
+  function bookQuery(book) { return [plain(book && book.title, LIMITS.title), plain(book && book.author, LIMITS.author)].filter(Boolean).join(' '); }
+  /** @param aff {bookshop, amazon} - optional affiliate ids (checked here). */
+  function buyLinks(book, aff) {
+    const a = aff && typeof aff === 'object' ? aff : {};
+    const bs = typeof a.bookshop === 'string' && BOOKSHOP_ID.test(a.bookshop) ? a.bookshop : '';
+    const az = typeof a.amazon === 'string' && AMAZON_TAG.test(a.amazon) ? a.amazon : '';
+    const isbn = cleanIsbn(book && book.isbn);
+    const q = encodeURIComponent(isbn || bookQuery(book));
+    const words = encodeURIComponent(bookQuery(book));
+    return [
+      // Bookshop.org pays independent bookshops; its affiliate link needs the
+      // exact edition, so without an ISBN it is a plain search.
+      { id: 'bookshop', name: 'Bookshop.org', note: 'Supports independent bookshops', url: bs && isbn ? 'https://bookshop.org/a/' + bs + '/' + isbn : 'https://bookshop.org/search?keywords=' + q, affiliate: Boolean(bs && isbn) },
+      { id: 'bn', name: 'Barnes & Noble', note: 'New, in print', url: 'https://www.barnesandnoble.com/s/' + q, affiliate: false },
+      { id: 'amazon', name: 'Amazon', note: 'Print, Kindle and audio', url: 'https://www.amazon.com/s?k=' + q + '&i=stripbooks' + (az ? '&tag=' + az : ''), affiliate: Boolean(az) },
+      { id: 'library', name: 'A library near you', note: 'Free to borrow - WorldCat finds the nearest copy', url: 'https://search.worldcat.org/search?q=' + words, affiliate: false },
+    ];
+  }
+  // An Internet Archive item id, exactly: nothing else is ever put in a frame.
+  const IA_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$/;
+  function isIaId(v) { return typeof v === 'string' && IA_ID.test(v) && v.indexOf('..') < 0; }
+  /** The Internet Archive's own embeddable reader for one of its items. */
+  function readerUrl(id) { return isIaId(id) ? 'https://archive.org/embed/' + id : ''; }
+  function readerPage(id) { return isIaId(id) ? 'https://archive.org/details/' + id : ''; }
+  const OL_WORK = /^\/works\/OL\d{1,12}W$/;
+  function workUrl(key) { return typeof key === 'string' && OL_WORK.test(key) ? 'https://openlibrary.org' + key : ''; }
+  /** Where else to look for a legal copy to read: searches a reader opens
+   *  themselves, in a new tab. Chapter fetches nothing from these. */
+  function readLinks(book) {
+    const q = encodeURIComponent(bookQuery(book));
+    return [
+      { id: 'gutenberg', name: 'Project Gutenberg', note: 'Free public-domain ebooks', url: 'https://www.gutenberg.org/ebooks/search/?query=' + q },
+      { id: 'standard', name: 'Standard Ebooks', note: 'Carefully made free editions of classics', url: 'https://standardebooks.org/ebooks?query=' + q },
+      { id: 'openlibrary', name: 'Open Library', note: 'Read or borrow from the Internet Archive', url: 'https://openlibrary.org/search?q=' + q },
+    ];
+  }
+  /** What the server's lookup found, checked again before the page uses it:
+   *  kind 'read' (a public scan: embed), 'borrow' (link out) or 'none'. */
+  function cleanRead(raw) {
+    const x = raw && typeof raw === 'object' ? raw : {};
+    const kind = x.kind === 'read' && isIaId(x.ia) ? 'read' : x.kind === 'borrow' && workUrl(x.work) ? 'borrow' : 'none';
+    const year = intIn(x.year, 1, 2999);
+    return { kind, ia: kind === 'read' ? x.ia : '', work: workUrl(x.work) ? x.work : '', title: plain(x.title, LIMITS.title), author: plain(x.author, LIMITS.author), year: year || null, reason: x.reason === 'unavailable' ? 'unavailable' : '' };
+  }
+
+  /* ------------------------------------------------------------------ *
    * What a member sees - the one shape the server sends and the page draws
    * ------------------------------------------------------------------ */
 
-  function noteOut(club, n, meId) {
+  function noteOut(club, n, meId, replies) {
     const a = club.members[n.mid];
-    return { id: n.id, mid: n.mid, name: a ? a.name : 'A former member', emoji: a ? a.emoji : EMOJI[0], kind: n.kind === 'question' ? 'question' : 'note', text: n.text, at: n.at, ai: Boolean(n.ai), createdAt: n.createdAt, reactions: reactionCounts(n), mine: (n.reactions && n.reactions[meId]) || null, own: n.mid === meId, canRemove: n.mid === meId || isHost(club, meId) };
+    const out = { id: n.id, mid: n.mid, name: a ? a.name : 'A former member', emoji: a ? a.emoji : EMOJI[0], kind: isReply(n) ? 'reply' : isMinutes(n) ? 'minutes' : n.kind === 'question' ? 'question' : 'note', text: n.text, at: n.at, ai: Boolean(n.ai), createdAt: n.createdAt, reactions: reactionCounts(n), mine: (n.reactions && n.reactions[meId]) || null, own: n.mid === meId, canRemove: n.mid === meId || isHost(club, meId) };
+    if (isMinutes(n)) { out.meet = n.meet; out.meetDate = isDay(n.meetDate) ? n.meetDate : ''; out.decision = n.decision === true; }
+    if (replies) out.replies = replies.map((r) => noteOut(club, r, meId));
+    return out;
   }
   function sortNotes(list) { return list.slice().sort((a, b) => b.at - a.at || (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)); }
 
@@ -884,22 +1060,31 @@
     const me = club.members[meId];
     const book = club.book;
     const host = isHost(club, meId);
-    const split = splitNotes((notes || []).filter((n) => n.book === book.id), meId, me, book);
+    const split = threadsFor((notes || []).filter((n) => n.book === book.id), meId, me, book);
     const closed = club.vote && club.vote.closed;
     const ballots = (club.vote && club.vote.ballots) || {};
     const ids = memberIds(club);
     const avg = average(book.ratings);
+    const minutesOf = (notes || []).filter((n) => n.book === book.id && isMinutes(n));
     return {
       id: club.id, name: club.name, code: club.code || '', display: formatCode(club.code || ''), tz: club.tz || '', v: club.v || 0,
       you: meId, host,
-      book: { id: book.id, title: book.title, author: book.author || '', chapters: book.chapters || null, pages: book.pages || null, unit: unitOf(book), total: totalOf(book), started: book.started || '', avg: avg.avg, rated: avg.n, myRating: (book.ratings && book.ratings[meId]) || null },
+      book: { id: book.id, title: book.title, author: book.author || '', chapters: book.chapters || null, pages: book.pages || null, unit: unitOf(book), total: totalOf(book), started: book.started || '', avg: avg.avg, rated: avg.n, myRating: (book.ratings && book.ratings[meId]) || null, isbn: cleanIsbn(book.isbn) },
       board: board(club, meId, o.today, o.locale),
       members: ids.map((id) => ({ id, name: club.members[id].name, emoji: club.members[id].emoji, host: Boolean(club.members[id].host), you: id === meId, joinedAt: club.members[id].joinedAt || '' })),
       meetings: meetingList(club).map((m) => {
         const r = m.rsvps || {};
         const who = { yes: [], maybe: [], no: [] };
         for (const id of ids) if (r[id] && who[r[id]]) who[r[id]].push(club.members[id].name);
-        return { id: m.id, date: m.date, time: m.time || '', place: m.place || '', link: m.link || '', upTo: m.upTo || null, target: targetOf(club, m), past: m.date < o.today, rsvps: who, mine: r[meId] || null };
+        // Its notes (what was discussed, what was decided): the ones this
+        // reader has reached, and a count of the rest - never their text.
+        const mine = split.minutes.visible.filter((n) => n.meet === m.id);
+        const lockedHere = {};
+        let lockedTotal = 0;
+        for (const n of minutesOf) if (n.meet === m.id && mine.indexOf(n) < 0) { lockedHere[n.at] = (lockedHere[n.at] || 0) + 1; lockedTotal++; }
+        return { id: m.id, date: m.date, time: m.time || '', place: m.place || '', link: m.link || '', upTo: m.upTo || null, target: targetOf(club, m), past: m.date < o.today, rsvps: who, mine: r[meId] || null,
+          notes: mine.map((n) => noteOut(club, n, meId)).sort((a, b) => (a.decision === b.decision ? 0 : a.decision ? -1 : 1) || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0)),
+          lockedNotes: { total: lockedTotal, chapters: Object.keys(lockedHere).map(Number).sort((a, b) => a - b).map((c) => [c, lockedHere[c]]) } };
       }),
       vote: {
         open: !closed,
@@ -914,7 +1099,7 @@
         const fin = s.final || {};
         return { id: s.id, title: s.title, author: s.author || '', finished: s.finished || '', started: s.started || '', unit: s.chapters ? 'ch' : 'pg', total: s.chapters || s.pages || 0, avg: a.avg, rated: a.n, myRating: (s.ratings && s.ratings[meId]) || null, readers: Object.keys(fin).filter((k) => fin[k] >= (s.chapters || s.pages || 1)).length, ratings: ids.filter((id) => s.ratings && s.ratings[id]).map((id) => ({ name: club.members[id].name, emoji: club.members[id].emoji, stars: s.ratings[id], you: id === meId })) };
       }),
-      notes: sortNotes(split.visible.map((n) => noteOut(club, n, meId))),
+      notes: sortNotes(split.visible.map((n) => noteOut(club, n, meId, split.replies[n.id]))),
       locked: split.locked,
     };
   }
@@ -926,8 +1111,11 @@
     const book = { chapters: s.chapters, pages: s.pages };
     const fin = s.final && Number.isInteger(s.final[meId]) ? s.final[meId] : 0;
     const viewer = { pos: fin, done: fin >= totalOf(book) };
-    const split = splitNotes((notes || []).filter((n) => n.book === bid), meId, viewer, book);
-    return { book: { id: bid, title: s.title, author: s.author || '', unit: unitOf(book), total: totalOf(book) }, notes: sortNotes(split.visible.map((n) => noteOut(club, n, meId))), locked: split.locked };
+    const split = threadsFor((notes || []).filter((n) => n.book === bid), meId, viewer, book);
+    // Meeting notes of that book stay with it, under the same rule; the
+    // locked count covers them too.
+    const locked = { total: split.locked.total + split.minutes.locked.total, chapters: split.locked.chapters, after: split.locked.after };
+    return { book: { id: bid, title: s.title, author: s.author || '', unit: unitOf(book), total: totalOf(book) }, notes: sortNotes(split.visible.map((n) => noteOut(club, n, meId, split.replies[n.id])).concat(split.minutes.visible.map((n) => noteOut(club, n, meId)))), locked };
   }
 
   /** The share card's words: "Our club finished Pride and Prejudice -
@@ -1034,6 +1222,7 @@
         msam: { name: 'Sam', emoji: '\u{1F41D}', host: false, joinedAt: at(60), pos: 9, done: false, at: at(4) },
       },
       meetings: {
+        mtvol1: { date: addDays(today, -9), time: '19:00', place: 'Theo’s kitchen', link: '', upTo: 12, by: 'myou', at: at(20), rsvps: { myou: 'yes', mmaya: 'yes', mpriya: 'yes', mtheo: 'yes', msam: 'no' } },
         mtvol2: { date: meet, time: '19:00', place: 'The back room at Quillfeather Café', link: '', upTo: 42, by: 'myou', at: at(10), rsvps: { mmaya: 'yes', mpriya: 'yes', mtheo: 'maybe', msam: 'yes', mjordan: 'no' } },
       },
       vote: {
@@ -1065,6 +1254,23 @@
       N('n34big', 'mpriya', 'note', 34, 'Chapter 34. That’s all I’ll say. Hold on to something.', 4, { mtheo: '\u{1F62E}' }),
       N('n43trip', 'mpriya', 'note', 43, 'The trip north changes everything. I need a sequel to this chapter alone.', 3),
     ];
+    // Replies make a note a thread; a reply is read exactly when its note is.
+    const R = (id, re, mid, ch, text, ago) => ({ id, club: 'demo', book: 'bpride', mid, kind: 'reply', re, text, at: ch, ai: false, reactions: {}, createdAt: d(-ago) });
+    notes.push(
+      R('r9a', 'n9mrsb', 'mmaya', 9, 'Same. Every scene gets louder the moment the nerves arrive.', 5),
+      R('r9b', 'n9mrsb', 'msam', 9, 'I keep hearing that voice in my head while I read. Send help.', 4),
+      R('r6a', 'n6char', 'mpriya', 6, 'Practical, I think. Ask me again when you are further in.', 7),
+      R('r19a', 'n19prop', 'mtheo', 19, 'I had to put the book down and walk around the room.', 0),
+      R('r34a', 'n34big', 'mtheo', 34, 'I gasped on the train. A stranger asked if I was all right.', 3)
+    );
+    // Notes from the last meeting: what was discussed and what was decided,
+    // tagged by chapter under the same rule.
+    const M = (id, mid, ch, text, ago, decision) => ({ id, club: 'demo', book: 'bpride', mid, kind: 'minutes', meet: 'mtvol1', meetDate: addDays(today, -9), decision: Boolean(decision), text, at: ch, ai: false, reactions: {}, createdAt: d(-ago) });
+    notes.push(
+      M('k1talk', 'myou', 12, 'We spent most of the hour on first impressions - who judged whom too fast, and who the book wants us to side with.', 9),
+      M('k2dec', 'myou', 1, 'Next time we read to chapter 42. Theo brings the snacks.', 9, true),
+      M('k3deep', 'mpriya', 20, 'For the fast readers: we agreed to hold the Charlotte argument until everyone is past chapter 22.', 9)
+    );
     return { club, notes, you: 'myou' };
   }
 
@@ -1076,8 +1282,9 @@
     cleanBook, unitOf, totalOf, unitWord, units, atLabel, atShort, posOf, isDone, pct,
     patch, applyPatch,
     memberIds, memberCount, hostId, isHost, nameOf, newClub, join, rename, handOver, removeMember,
-    setProgress, relLine, relShort, headline, meetingList, nextMeeting, targetOf, nudge, board,
-    newNote, canSee, splitNotes, lockedLine, react, reactionCounts,
+    setProgress, altOf, altShort, movedLabel, glance, relLine, relShort, headline, meetingList, nextMeeting, targetOf, nudge, board,
+    newNote, canSee, splitNotes, threadsFor, isReply, isMinutes, lockedLine, react, reactionCounts,
+    cleanIsbn, buyLinks, readLinks, readerUrl, readerPage, workUrl, isIaId, cleanRead,
     nomList, nominate, unnominate, approve, tally, closeVote, reopenVote, startNext, editBook,
     rate, average, shelfList,
     cleanMeeting, addMeeting, editMeeting, rsvp, mapLink, icsText, icsFold, meetingIcs,
