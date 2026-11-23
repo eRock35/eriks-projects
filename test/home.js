@@ -13,6 +13,9 @@
 //   has not retired, under the lab's own name and emoji. (Taglines and
 //   colours are the lab's too, as written that day; /home.js refreshes them
 //   from the lab's live answer, so they are not pinned here.)
+// - The live-preview strip frames six lab apps, the newest (2026-11-23):
+//   Chapter, Ajar, Rush, Ladle, Spotted and Punch. The six project cards
+//   below it stay the apps with homes of their own.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -107,6 +110,25 @@ ok('each links a live lab app, under the lab\'s own name and emoji');
 for (const m of body.matchAll(/href="https:\/\/challenge\.strongtechnicalconsulting\.com\/([a-z0-9-]+)\//g)) assert.ok(live(m[1]), m[1]);
 ok('no link to a lab app that is retired or unknown');
 assert.ok(/el\.hidden = true/.test(js) && /\[data-lab\]/.test(js)); ok('the script takes a card away when the lab says its app is not live');
+
+/* ---------- the live previews: the newest from the lab ---------- */
+const strip = /<div class="preview-strip" id="previewStrip">([\s\S]*?)\n      <\/div>/.exec(body)[1];
+const phones = strip.match(/<figure class="preview"[\s\S]*?<\/figure>/g) || [];
+assert.deepStrictEqual(phones.map((f) => (/data-lab="([a-z0-9-]+)"/.exec(f) || [])[1]), ['chapter', 'ajar', 'rush', 'ladle', 'spotted', 'punch']);
+ok('the strip is exactly Chapter, Ajar, Rush, Ladle, Spotted and Punch, in that order');
+for (const f of phones) {
+  const slug = /data-lab="([a-z0-9-]+)"/.exec(f)[1];
+  const a = live(slug);
+  assert.ok(a, slug + ' is in the lab and not retired');
+  assert.ok(f.includes(`data-src="${LAB}${slug}/"`) && f.includes(`class="phone-tap" href="${LAB}${slug}/"`), slug + ' frames and opens its own lab address');
+  assert.strictEqual(text(/<b data-lab-name>([\s\S]*?)<\/b>/.exec(f)[1]), a.name);
+  assert.ok(f.includes(`aria-label="Open ${a.name}"`), slug + ' tap label');
+  assert.ok(text(/<span class="pv-tag" data-lab-tag>([\s\S]*?)<\/span>/.exec(f)[1]).length > 20, slug + ' tagline');
+  assert.ok(f.includes(a.emoji) && f.includes(`class="tile t-${slug}"`), slug + ' emoji');
+  assert.ok(new RegExp(`\\.t-${slug} \\{ --c1: #[0-9a-f]{6}; --c2: #[0-9a-f]{6}; \\}`, 'i').test(html), slug + ' colours');
+}
+ok('...each framing its own lab address, under the lab\'s own name, emoji and colours');
+assert.ok(/el\.tagName === 'A' \? el : el\.querySelector\('\.phone-tap'\)/.test(js) && /b\.hidden = cards\[j\]\.hidden/.test(js)); ok('...and a phone whose app is not live is taken away with its dot');
 
 /* ---------- the rest of the page is still there ---------- */
 for (const href of ['/challenge', '/writing', '/feed.xml', '/privacy', '/terms', 'https://acct.strongtechnicalconsulting.com', 'https://www.linkedin.com/in/eriksstrong', 'https://github.com/eRock35',

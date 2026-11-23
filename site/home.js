@@ -223,19 +223,26 @@
   // The dots follow the card nearest the strip's centre, and the ends win at
   // the ends: on a wide screen several cards are fully visible at once, and
   // "most visible" then always picked the first of them.
+  // A phone the lab says is not live is taken away (hidden) by the lab
+  // script below; its dot goes with it.
   function sync() {
+    var shown = cards.filter(function (c) { return !c.hidden; });
     var max = strip.scrollWidth - strip.clientWidth, best = 0;
-    if (strip.scrollLeft >= max - 1 && max > 0) best = cards.length - 1;
+    if (strip.scrollLeft >= max - 1 && max > 0) best = shown.length - 1;
     else if (strip.scrollLeft > 1) {
       var s = strip.getBoundingClientRect(), mid = s.left + s.width / 2, d = Infinity;
-      cards.forEach(function (c, j) {
+      shown.forEach(function (c, j) {
         var r = c.getBoundingClientRect(), k = Math.abs(r.left + r.width / 2 - mid);
         if (k < d) { d = k; best = j; }
       });
     }
-    Array.prototype.forEach.call(dots.children, function (b, j) { b.classList.toggle("on", best === j); });
+    Array.prototype.forEach.call(dots.children, function (b, j) {
+      b.hidden = cards[j].hidden;
+      b.classList.toggle("on", shown[best] === cards[j]);
+    });
     edgeFade(strip);
   }
+  if ("MutationObserver" in window) new MutationObserver(sync).observe(strip, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
   var ticking = false;
   strip.addEventListener("scroll", function () {
     if (ticking) return;
@@ -259,9 +266,10 @@
  * markup is shown, which carries no numbers, and a late answer still replaces
  * it. Every field is set with textContent, never as markup.
  *
- * The same answer keeps the "New in the Lab" cards honest ([data-lab] in the
- * markup, which carries the lab's own name, emoji, colours and tagline as
- * written on 2026-11-22): each card is refreshed from the lab, and a card
+ * The same answer keeps the "New in the Lab" cards and the live previews
+ * honest ([data-lab] in the markup, which carries the lab's own name, emoji,
+ * colours and tagline as written on 2026-11-22 and 23): each card is
+ * refreshed from the lab, and a card
  * whose app is retired, gone or not up is taken away rather than left as a
  * link to nothing. With no answer the cards stay as authored.
  *
@@ -342,7 +350,11 @@
         var a = by[el.getAttribute('data-lab')];
         if (!a || !up(a)) { el.hidden = true; return; }
         el.hidden = false;
-        el.setAttribute('href', hrefFor(a));
+        // A lab card is the link; a live preview's link is the layer over
+        // its phone.
+        var link = el.tagName === 'A' ? el : el.querySelector('.phone-tap');
+        if (link) link.setAttribute('href', hrefFor(a));
+        if (link && link !== el) link.setAttribute('aria-label', 'Open ' + clean(a.name, 60));
         var name = el.querySelector('[data-lab-name]'), tag = el.querySelector('[data-lab-tag]'), em = el.querySelector('[data-lab-em]');
         if (name) name.textContent = clean(a.name, 60);
         if (tag && clean(a.tagline, 1)) tag.textContent = clean(a.tagline, 160);

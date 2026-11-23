@@ -285,6 +285,11 @@
   .t-stars { --c1: #da0185; --c2: #453702; }
   .t-trek { --c1: #218721; --c2: #2769cc; }
   .t-snug { --c1: #924a4c; --c2: #6c7484; }
+  .t-ajar { --c1: #c2410c; --c2: #4338ca; }
+  .t-rush { --c1: #826c4a; --c2: #8a6078; }
+  .t-ladle { --c1: #644642; --c2: #706ea0; }
+  .t-spotted { --c1: #ea0000; --c2: #7b5dae; }
+  .t-punch { --c1: #ae5887; --c2: #003dff; }
 
   /* ---------- New in the Lab ---------- */
   .lab-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
@@ -423,9 +428,11 @@
   .phone-skel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; font-size: 13px; color: var(--ink-2); }
   .phone-tap { position: absolute; inset: 0; border-radius: 30px; }
   .phone-tap:focus-visible { outline-offset: -3px; border-radius: 30px; }
-  .preview figcaption { display: flex; flex-direction: column; gap: 1px; margin: 12px 4px 0; overflow-wrap: anywhere; }
+  .preview figcaption { display: flex; flex-direction: column; gap: 4px; margin: 12px 4px 0; overflow-wrap: anywhere; }
+  .preview .pv-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .preview .tile { width: 26px; height: 26px; border-radius: 8px; font-size: 14px; }
   .preview figcaption b { font-size: 15px; font-weight: 650; }
-  .preview figcaption span { font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
+  .preview .pv-tag { font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
   .preview-dots { display: flex; justify-content: center; margin-top: 2px; }
   .preview-dots button { width: 14px; height: 20px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; }
   .preview-dots button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); transition: background 0.2s, transform 0.2s; }
@@ -900,7 +907,7 @@
   <section id="projects" aria-labelledby="projectsTitle">
     <div class="sub-head">
       <h2 id="projectsTitle">Projects</h2>
-      <p>Six apps with homes of their own, running live below.</p>
+      <p>The newest from the lab, running live, then six apps with homes of their own.</p>
     </div>
 
     <!-- What is actually getting used this week. Hidden until the counter
@@ -916,42 +923,40 @@
       <ol class="trendlist" id="trendList"></ol>
     </div>
 
-    <!-- Live previews. Each phone is the real app in a frame, running its
-         own tour (?tour=1 - see shared/tour.js) so it looks used, loaded only
-         when it scrolls into view (six apps on page load would be six cold
-         starts for nothing). A transparent layer over each frame keeps
-         swipes on the strip rather than inside the app, and a tap opens it.
-         Same apps, same order as the cards below: keep the two in step.
-         Friction's board is invite-only, so its frame, tap and card all open
-         the public read-only /preview rather than a sign-in page. -->
+    <!-- Live previews: the newest from the lab. Each phone is the real app
+         in a frame, loaded only when it scrolls into view (six apps on page
+         load would be six cold starts for nothing). A transparent layer over
+         each frame keeps swipes on the strip rather than inside the app, and
+         a tap opens it. Name, emoji, colours and tagline are the lab's own
+         (challenge/lab.js), as on the "New in the Lab" cards: when the lab
+         answers, home.js refreshes them from /api/lab and takes away any
+         phone whose app is no longer live. The six project cards below are
+         the apps with homes of their own; the strip no longer mirrors them. -->
     <div class="previews" role="region" aria-label="Live previews">
       <div class="preview-strip" id="previewStrip">
-        <figure class="preview" data-src="https://footballapp.strongtechnicalconsulting.com/?tour=1" data-href="https://footballapp.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://footballapp.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open College Football"></a></div>
-          <figcaption><b>College Football</b><span>The whole board, live</span></figcaption>
+        <figure class="preview" data-lab="chapter" data-src="https://challenge.strongtechnicalconsulting.com/chapter/" data-href="https://challenge.strongtechnicalconsulting.com/chapter/">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://challenge.strongtechnicalconsulting.com/chapter/" target="_blank" rel="noopener" aria-label="Open Chapter"></a></div>
+          <figcaption><span class="pv-name"><span class="tile t-chapter" data-lab-em aria-hidden="true">🔖</span><b data-lab-name>Chapter</b></span><span class="pv-tag" data-lab-tag>A book club that keeps up - and never spoils the ending.</span></figcaption>
         </figure>
-        <figure class="preview" data-src="https://beer.strongtechnicalconsulting.com/?tour=1#trips" data-href="https://beer.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://beer.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Hopscotch"></a></div>
-          <figcaption><b>Hopscotch</b><span>Planning a crawl</span></figcaption>
+        <figure class="preview" data-lab="ajar" data-src="https://challenge.strongtechnicalconsulting.com/ajar/" data-href="https://challenge.strongtechnicalconsulting.com/ajar/">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://challenge.strongtechnicalconsulting.com/ajar/" target="_blank" rel="noopener" aria-label="Open Ajar"></a></div>
+          <figcaption><span class="pv-name"><span class="tile t-ajar" data-lab-em aria-hidden="true">🌟</span><b data-lab-name>Ajar</b></span><span class="pv-tag" data-lab-tag>One little door a day to the big day - planned around your real week.</span></figcaption>
         </figure>
-        <figure class="preview" data-src="https://trip.strongtechnicalconsulting.com/?tour=1#/trip/demo" data-href="https://trip.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://trip.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Trip Planner"></a></div>
-          <figcaption><b>Trip Planner</b><span>An example trip, start to finish</span></figcaption>
+        <figure class="preview" data-lab="rush" data-src="https://challenge.strongtechnicalconsulting.com/rush/" data-href="https://challenge.strongtechnicalconsulting.com/rush/">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://challenge.strongtechnicalconsulting.com/rush/" target="_blank" rel="noopener" aria-label="Open Rush"></a></div>
+          <figcaption><span class="pv-name"><span class="tile t-rush" data-lab-em aria-hidden="true">🥧</span><b data-lab-name>Rush</b></span><span class="pv-tag" data-lab-tag>Holiday preorders without the chaos: slots that fill, the bake list, a pickup line that moves.</span></figcaption>
         </figure>
-        <figure class="preview" data-src="https://dataviz.strongtechnicalconsulting.com/?tour=1" data-href="https://dataviz.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://dataviz.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open DataViz"></a></div>
-          <figcaption><b>DataViz</b><span>Samples that move</span></figcaption>
+        <figure class="preview" data-lab="ladle" data-src="https://challenge.strongtechnicalconsulting.com/ladle/" data-href="https://challenge.strongtechnicalconsulting.com/ladle/">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://challenge.strongtechnicalconsulting.com/ladle/" target="_blank" rel="noopener" aria-label="Open Ladle"></a></div>
+          <figcaption><span class="pv-name"><span class="tile t-ladle" data-lab-em aria-hidden="true">🥄</span><b data-lab-name>Ladle</b></span><span class="pv-tag" data-lab-tag>Save the family recipes before the cards fade - then scale, shop and cook from your phone.</span></figcaption>
         </figure>
-        <figure class="preview" data-src="https://friction.strongtechnicalconsulting.com/preview?tour=1" data-href="https://friction.strongtechnicalconsulting.com/preview">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://friction.strongtechnicalconsulting.com/preview" target="_blank" rel="noopener" aria-label="Open the Friction preview"></a></div>
-          <figcaption><b>Friction</b><span>The problems that keep coming back</span></figcaption>
+        <figure class="preview" data-lab="spotted" data-src="https://challenge.strongtechnicalconsulting.com/spotted/" data-href="https://challenge.strongtechnicalconsulting.com/spotted/">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://challenge.strongtechnicalconsulting.com/spotted/" target="_blank" rel="noopener" aria-label="Open Spotted"></a></div>
+          <figcaption><span class="pv-name"><span class="tile t-spotted" data-lab-em aria-hidden="true">🚗</span><b data-lab-name>Spotted</b></span><span class="pv-tag" data-lab-tag>The license plate game for the whole car - every phone playing, first to spot it scores.</span></figcaption>
         </figure>
-        <!-- Spellbook has no ?tour=1 of its own; it does not need one. Its
-             front page IS the library, and it is readable signed out, so the
-             frame shows real prompts rather than a sign-in form. -->
-        <figure class="preview" data-src="https://spellbook.strongtechnicalconsulting.com/" data-href="https://spellbook.strongtechnicalconsulting.com">
-          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://spellbook.strongtechnicalconsulting.com" target="_blank" rel="noopener" aria-label="Open Spellbook"></a></div>
-          <figcaption><b>Spellbook</b><span>Prompts worth keeping</span></figcaption>
+        <figure class="preview" data-lab="punch" data-src="https://challenge.strongtechnicalconsulting.com/punch/" data-href="https://challenge.strongtechnicalconsulting.com/punch/">
+          <div class="phone"><div class="phone-screen"><div class="phone-skel"><span>Loading live preview&hellip;</span></div></div><a class="phone-tap" href="https://challenge.strongtechnicalconsulting.com/punch/" target="_blank" rel="noopener" aria-label="Open Punch"></a></div>
+          <figcaption><span class="pv-name"><span class="tile t-punch" data-lab-em aria-hidden="true">📌</span><b data-lab-name>Punch</b></span><span class="pv-tag" data-lab-tag>Walk the job, pin every fix on a photo, close it out with a before-and-after the client signs.</span></figcaption>
         </figure>
       </div>
       <div class="preview-dots" id="previewDots" aria-hidden="true"></div>
