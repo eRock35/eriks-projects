@@ -439,8 +439,8 @@ body.sheet-open .toast { bottom: auto; top: calc(12px + env(safe-area-inset-top)
   .top-in { padding-inline: 16px; }
   .add-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .add-row .btn { grid-column: 1 / -1; }
-  .stepper .val { min-width: 40px; }
-  .seg button, .chip { padding: 0 12px; }
+  .stepper .val { min-width: 44px; }
+  .seg button, .chip { padding: 0 12px; min-width: 44px; }
   details.sh > summary { grid-template-columns: minmax(0, 1fr) auto; }
   details.sh .av { display: none; }
   .meter, details.sh .how { margin-left: 0; padding-left: 0; }
