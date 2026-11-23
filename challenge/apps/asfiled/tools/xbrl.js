@@ -8,8 +8,9 @@ function unescape(s) {
   return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 }
 
-function readInstance(file) {
-  const xml = fs.readFileSync(file, 'utf8');
+const readInstance = (file) => parseInstance(fs.readFileSync(file, 'utf8'));
+/** The same, from the document's text (the on-request lookup holds it in memory). */
+function parseInstance(xml) {
   const contexts = {};
   const ctxRe = /<(?:xbrli:)?context\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/(?:xbrli:)?context>/g;
   let m;
@@ -45,8 +46,8 @@ function readInstance(file) {
 }
 
 /** element QName -> its standard (or terse) label, from a *_lab.xml. */
-function readLabels(file) {
-  const xml = fs.readFileSync(file, 'utf8');
+const readLabels = (file) => parseLabels(fs.readFileSync(file, 'utf8'));
+function parseLabels(xml) {
   const locs = {};
   let m;
   const locRe = /<link:loc\b[^>]*>/g;
@@ -107,4 +108,4 @@ function slimFacts(facts) {
   return out;
 }
 
-module.exports = { readInstance, readLabels, unescape, TAGS, slimFacts };
+module.exports = { readInstance, readLabels, parseInstance, parseLabels, unescape, TAGS, slimFacts };
