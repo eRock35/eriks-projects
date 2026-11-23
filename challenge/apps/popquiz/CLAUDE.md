@@ -183,8 +183,14 @@ so Claude stays the default and Gemini sits beside it.
   ledger at its real dollars, written as the Haiku input tokens that cost
   the same, route `photo:gemini-3.8-flash` (Settle's shape). A call that
   failed after billing (`VertexError.usage`) is still recorded and charged.
-- **Provider errors** never reach the page: 502 with the route's sentence,
-  503 on a timeout or a 429/503 upstream.
+- **Provider errors** never reach the page. **Fallback (2026-11-23):** with
+  the switch on, a photo Gemini could not read (a thrown call, an answer
+  `cleanPage` rejects, the Gemini monthly cap, no helper) goes to the Claude
+  reader unchanged (its own `allow('claude')`, meter, record); the answer
+  carries `reader: 'claude'` (no transcription, so the page shows the plain
+  review), one log line `[popquiz] gemini failed (<code>); used claude`. A
+  billed Gemini failure is still recorded and charged. Burst refusals do not
+  fall back.
 - **The stand-in** (`lib/fakeai.js` `gemini`, under `POPQUIZ_FAKE_AI=1`)
   answers with a closing checklist and eight questions quoting it. Triggers
   in the photo's bytes: `BLANK`, `UPSTREAMnnn`, `INJECT` (invented facts and

@@ -227,6 +227,14 @@ branch, **off until switched on**.
   The Claude path is wrapped by the same guard (`allow('claude')`, `record`
   unless the member's own key paid). With no guard (the app on its own) only
   the stand-in answers; a real Gemini call needs the lab.
+- **Fallback (2026-11-23).** With the switch on, a snap Gemini could not
+  read (the Gemini monthly cap, a thrown call, no rows, no helper) goes to
+  the Claude reader for the same photos, unchanged (`allow('claude')`, meter,
+  record); its answer is Claude's (no `reader: 'statement'`). One log line
+  `[drip] gemini failed (<code>); used claude`; a billed Gemini failure is
+  still recorded and charged. Burst refusals answer as before. The schema
+  has **no `maxItems`**: live Vertex answered 400 to every snap with it at 60
+  (fine at 20); `cleanReading` still keeps at most 60 rows.
 - **The stand-in** (`lib/fakeai.js` `gemini`): triggers in image bytes
   `BLANK`, `INJECT`, `STATEMENT`, `UPSTREAMnnn`, else a subscriptions page
   with one blurred price. `DRIP_FAKE_SCENE=STATEMENT` picks a scene for a

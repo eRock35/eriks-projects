@@ -225,6 +225,10 @@ so it is a Cloud Run setting and nothing else; `/api/me` reports `ai` and
   `read:gemini-3.8-flash`). A call that failed after billing is still
   recorded. The provider's words never reach the page (502 / 503 with the
   route's sentence); the guard's "no" shows its own message.
+- **No Claude fallback (2026-11-23).** Read the job is Gemini-only: Claude's
+  "Snap my quote" is a different request (no audio, prices, saves a quote), so
+  a Gemini failure keeps the read's friendly 502/503/422 and the guard's
+  message, and the person can still draft or build by hand. Tested.
 - **Claude's three calls now ask the guard too** (`withClaude`: `allow`
   `claude`, the call, `record` at the Claude price unless the member's own
   key paid). With no guard loaded (the app on its own) nothing changes.

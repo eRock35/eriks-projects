@@ -201,7 +201,7 @@ async function snapWithGemini(req, photos, day) {
   const fake = FAKE_AI ? require('./lib/fakeai').gemini : undefined;
   let generate = guard && guard.gemini && guard.gemini.generate;
   if (!generate && fake) generate = async (r) => ({ json: await fake({ contents: r.contents }), usage: { inputTokens: 2600, outputTokens: 420 } });
-  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503 });
+  if (!generate) throw Object.assign(new Error('no gemini helper'), { status: 503, fallback: 'no-helper' });
   let out = null;
   let usage = null;
   try {
@@ -211,15 +211,16 @@ async function snapWithGemini(req, photos, day) {
     // A call that failed after the model billed it is still paid for. The
     // provider's own words never reach the page: a status only.
     usage = err && err.usage;
-    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502) });
+    throw Object.assign(new Error('gemini call failed'), { status: Number.isInteger(err && err.status) ? err.status : (err && err.code === 'timeout' ? 503 : 502), fallback: String((err && err.code) || 'error').slice(0, 20) });
   } finally {
     if (usage) {
       await guardRecord('gemini', gemini.MODEL, usage);
       await chargeGemini(req, usage);
     }
   }
-  const reading = gemini.cleanReading(out && out.json, day);
-  if (!reading.items.length) throw httpError(422, NO_CHARGES);
+  let reading;
+  try { reading = gemini.cleanReading(out && out.json, day); } catch (err) { throw Object.assign(httpError(422, NO_CHARGES), { fallback: 'unusable' }); }
+  if (!reading.items.length) throw Object.assign(httpError(422, NO_CHARGES), { fallback: 'unusable' });
   return { ...reading, reader: 'statement' };
 }
 
@@ -238,15 +239,35 @@ async function chargeGemini(req, usage) {
 
 app.post('/api/snap', ...spend, snapJson, async (req, res) => {
   let photos;
-  const viaGemini = providerNow() === 'gemini';
+  let viaGemini = providerNow() === 'gemini';
   try {
     photos = photo.validateAll((req.body || {}).photos);
-    await guardAllow(viaGemini ? 'gemini' : 'claude', req);
+    try {
+      await guardAllow(viaGemini ? 'gemini' : 'claude', req);
+    } catch (err) {
+      // The Gemini month is capped: Claude's reader, through its own guard.
+      // A burst refusal is the person's, across both providers: no fallback.
+      if (!viaGemini || !err || err.code !== 'monthly-cap') throw err;
+      console.log('[drip] gemini failed (monthly-cap); used claude');
+      viaGemini = false;
+      await guardAllow('claude', req);
+    }
   } catch (err) { return fail(res, err); }
   const send = streamedJson(res);
   try {
     const day = today();
-    send(viaGemini ? await snapWithGemini(req, photos, day) : await snapWithClaude(req, photos, day));
+    let out;
+    try {
+      out = viaGemini ? await snapWithGemini(req, photos, day) : await snapWithClaude(req, photos, day);
+    } catch (err) {
+      // Gemini could not read it (a thrown call, an unusable answer, no
+      // helper): the same photos go to the Claude reader, unchanged.
+      if (!viaGemini || !err || !err.fallback) throw err;
+      console.log(`[drip] gemini failed (${err.fallback}); used claude`);
+      await guardAllow('claude', req);
+      out = await snapWithClaude(req, photos, day);
+    }
+    send(out);
   } catch (err) { send(failure(err, SNAP_FALLBACK).body); }
 });
 
