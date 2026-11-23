@@ -42,10 +42,12 @@ if (FAKE_AI && process.env.K_SERVICE) throw new Error('WHICHBOX_FAKE_AI=1 is for
 const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 
 // Which model reads a photo. WHICHBOX_AI_PROVIDER=gemini moves it to Gemini
-// on Vertex AI (through the lab's guard); anything else - unset included -
-// is Claude, as it has always been. Read per request, so the switch is a
-// Cloud Run setting and never a code change.
-const providerNow = () => (process.env.WHICHBOX_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// on Vertex AI (through the lab's guard) with Claude as the fallback;
+// =claude-first keeps Claude first with Gemini as the fallback; anything
+// else - unset included - is Claude only, as it has always been. Read per
+// request, so the switch is a Cloud Run setting and never a code change.
+const PROVIDERS = new Set(['gemini', 'claude-first']);
+const providerNow = () => (PROVIDERS.has(process.env.WHICHBOX_AI_PROVIDER) ? process.env.WHICHBOX_AI_PROVIDER : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -364,7 +366,8 @@ async function chargeGemini(req, usage) {
 
 app.post('/api/ai/contents', ...spend, aiJson, route('Listing a box from a photo isn’t available right now. Try again in a minute - typing the list always works.', async (req, res) => {
   const b = ai.brief(req.body);
-  const out = providerNow() === 'gemini' ? await listGeminiFirst(req, b) : await listWithClaude(req, b);
+  const mode = providerNow();
+  const out = mode === 'gemini' ? await listGeminiFirst(req, b) : mode === 'claude-first' ? await listClaudeFirst(req, b) : await listWithClaude(req, b);
   res.set('Cache-Control', 'no-store');
   res.json(out);
 }));
@@ -386,6 +389,26 @@ async function listGeminiFirst(req, b) {
     console.error(`[whichbox] gemini failed (${code}); used claude`);
     return { ...(await listWithClaude(req, b)), reader: 'claude' };
   }
+}
+
+/** Claude first (WHICHBOX_AI_PROVIDER=claude-first): the same two readers
+ *  the other way round. Claude failing for any reason but a burst refusal
+ *  (a thrown SDK error, an answer the clamp rejects, Claude's monthly cap,
+ *  no key) hands the same photo to the Gemini reader. */
+async function listClaudeFirst(req, b) {
+  try {
+    return { ...(await listWithClaude(req, b)), reader: 'claude' };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const code = fallbackCode(err);
+    console.error(`[whichbox] claude failed (${code}); used gemini`);
+    return { ...(await listWithGemini(req, b)), reader: 'gemini' };
+  }
+}
+/** A short fixed code for the log line: never the provider's words. */
+function fallbackCode(err) {
+  const raw = (err && (err.code || (Number.isInteger(err.status) ? `http-${err.status}` : err.name))) || 'error';
+  return typeof raw === 'string' && /^[a-z0-9-]{1,24}$/i.test(raw) ? raw.toLowerCase() : 'error';
 }
 
 /* ------------------------------------------------------------------ *

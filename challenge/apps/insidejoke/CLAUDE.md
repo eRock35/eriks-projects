@@ -210,6 +210,12 @@ anything else) is Claude exactly as before, so merging changed nothing live.
 Turning it on is Erik's call (and needs Vertex AI enabled for
 `challenge-run@`, see `challenge/CLAUDE.md` "Lab AI guard").
 
+**`INSIDEJOKE_AI_PROVIDER=claude-first` (2026-11-23, read at startup like `gemini`):** the photo and chat
+readers run Claude first, exactly as unset; any Claude failure but a burst refusal (SDK error, nothing the
+cleaners keep, Claude's `monthly-cap` - then Gemini alone, before the stream - or no key) runs the Gemini
+path for the same request (`claudeOrGemini`/`readWith`, log `[insidejoke] claude failed (<code>); used
+gemini`). "Make a round" is on (Gemini only). Tests: `test/claude-first.js`.
+
 - **What the switch does.** (1) The two existing calls - one photo, a chat
   excerpt - go to `gemini-3.8-flash` through `global.LAB_AI_GUARD.gemini.generate`
   with a `responseSchema` instead of a forced tool, and then through **the

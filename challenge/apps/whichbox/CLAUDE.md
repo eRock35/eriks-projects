@@ -296,6 +296,11 @@ never a code change). **Merging changed nothing live; switching it on is
 Erik's call.** `/api/me` reports `reader` so the sheet can say who reads
 the photo.
 
+**`claude-first` (2026-11-23):** Claude reads first, exactly as unset; if it fails for any reason but a
+burst refusal (SDK error, an answer the clamp rejects, Claude's `monthly-cap`, no key) the Gemini reader
+answers the same photo (`listClaudeFirst`, log `[whichbox] claude failed (<code>); used gemini`, `reader`
+on the answer). `/api/me` says `claude-first` and the sheet names both readers.
+
 - **Claude** (default): one forced tool `record_contents` through one call
   site (`ai.ask`), told the photo and one fixed sentence - nothing about the
   person (tested by reading the fake's log). The identity meter charges the

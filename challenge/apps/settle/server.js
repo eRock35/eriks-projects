@@ -36,8 +36,10 @@ const MODELS = { free: 'claude-haiku-4-5', paid: 'claude-sonnet-5' };
 // Which model fills the deck. SETTLE_AI_PROVIDER=gemini moves it to Gemini
 // Flash Lite on Vertex AI (through the lab's AI guard); anything else -
 // unset included - is the provider Settle has always used. Read per request,
-// so the switch is a setting, not a deploy.
-const providerNow = () => (process.env.SETTLE_AI_PROVIDER === 'gemini' ? 'gemini' : 'claude');
+// so the switch is a setting, not a deploy. SETTLE_AI_PROVIDER=claude-first
+// keeps Claude first and deals the Gemini deck only when Claude fails.
+const PROVIDERS = new Set(['gemini', 'claude-first']);
+const providerNow = () => (PROVIDERS.has(process.env.SETTLE_AI_PROVIDER) ? process.env.SETTLE_AI_PROVIDER : 'claude');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -320,7 +322,8 @@ async function chargeGemini(req, usage) {
 app.post('/api/suggest', ...spend, suggestJson, route('Ideas aren’t available right now. Try again in a minute - the decks still work.', async (req, res) => {
   const b = req.body || {};
   const ask = { prompt: ai.cleanPrompt(b.prompt), have: ai.cleanHave(b.have) };
-  const { deck, viaGemini } = providerNow() === 'gemini' ? await fillGeminiFirst(req, ask) : { deck: await fillWithClaude(req, ask), viaGemini: false };
+  const mode = providerNow();
+  const { deck, viaGemini } = mode === 'gemini' ? await fillGeminiFirst(req, ask) : mode === 'claude-first' ? await fillClaudeFirst(req, ask) : { deck: await fillWithClaude(req, ask), viaGemini: false };
   if (deck.options.length < Core.LIMITS.suggestMin) throw httpError(422, 'Nothing usable came back. Try saying it another way - “board games for six adults”.');
   res.set('Cache-Control', 'no-store');
   res.json({ options: deck.options, ...(viaGemini ? { question: deck.question, cards: true } : {}) });
@@ -343,6 +346,24 @@ async function fillGeminiFirst(req, ask) {
     const code = typeof raw === 'string' && /^[a-z-]{1,24}$/.test(raw) ? raw : 'error';
     console.error(`[settle] gemini failed (${code}); used claude`);
     return { deck: await fillWithClaude(req, ask), viaGemini: false };
+  }
+}
+
+/** Claude first (SETTLE_AI_PROVIDER=claude-first): the same two paths the
+ *  other way round. Claude failing for any reason but a burst refusal (a
+ *  thrown SDK error, a list too thin to use, Claude's monthly cap, no key)
+ *  has Gemini deal the same ask, and the answer is Gemini's deck. */
+async function fillClaudeFirst(req, ask) {
+  try {
+    const deck = await fillWithClaude(req, ask);
+    if (deck.options.length < Core.LIMITS.suggestMin) throw httpError(422, 'unusable', { code: 'unusable' });
+    return { deck, viaGemini: false };
+  } catch (err) {
+    if (err && BURSTS.has(err.code)) throw err;
+    const raw = (err && (err.code || (Number.isInteger(err.status) ? `http-${err.status}` : err.name))) || 'error';
+    const code = typeof raw === 'string' && /^[a-z0-9-]{1,24}$/i.test(raw) ? raw.toLowerCase() : 'error';
+    console.error(`[settle] claude failed (${code}); used gemini`);
+    return { deck: await fillWithGemini(req, ask), viaGemini: true };
   }
 }
 

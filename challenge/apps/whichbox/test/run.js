@@ -1014,7 +1014,8 @@ test('the provider switch: Claude unless WHICHBOX_AI_PROVIDER=gemini, read per r
     try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', `"${v}" is not the switch`); } finally { delete process.env.WHICHBOX_AI_PROVIDER; }
   }
   await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
-  assert.match(read('server.js'), /process\.env\.WHICHBOX_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  // (Was a match on the one-line gemini/claude switch before claude-first.)
+  assert.match(read('server.js'), /PROVIDERS = new Set\(\['gemini', 'claude-first'\]\)/);
   assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
   assert.deepStrictEqual(Object.keys(gemini.SCHEMA.properties), ['items', 'room', 'room_confidence', 'flags', 'confidence', 'note']);
   assert.deepStrictEqual(gemini.SCHEMA.required, Object.keys(gemini.SCHEMA.properties));
@@ -1194,6 +1195,68 @@ test('the fallback: Gemini’s monthly cap -> Claude answers; a burst refusal ->
     const r = await fay('POST', '/api/ai/contents', photoBody());
     assert.deepStrictEqual([r.status, 'reader' in r.data, g.log.order], [200, false, ['allow', 'record']], 'switch off: Claude, the answer as it was');
   } finally { delete global.LAB_AI_GUARD; }
+});
+
+/* ---------------- Claude first (WHICHBOX_AI_PROVIDER=claude-first) ---------------- */
+
+async function withClaudeFirst(guard, fn) {
+  process.env.WHICHBOX_AI_PROVIDER = 'claude-first';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.WHICHBOX_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: Claude answers when it can; Claude throwing, unusable, or at its monthly cap -> Gemini answers; a burst refusal -> the guard’s 429 and no Gemini call', async () => {
+  const cy = await register('cy.claudefirst');
+  await withClaudeFirst(undefined, async () => assert.strictEqual((await client()('GET', '/api/me')).data.reader, 'claude-first'));
+  assert.ok(/Gemini if Claude is busy/.test(read('public/app.js')), 'the page names both readers in this mode');
+  // Claude works: Claude only.
+  let g = fakeGuard();
+  await withClaudeFirst(g, async () => {
+    const c0 = fakeClient.calls.length;
+    const r = await cy('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.reader, fakeClient.calls.length, g.log.order], [200, 'claude', c0 + 1, ['allow', 'record']], r.text);
+  });
+  // Claude throws (the SDK's 529): Gemini answers the same photo.
+  g = fakeGuard();
+  await withClaudeFirst(g, async () => {
+    fakeClient.mode = 'upstream529';
+    const r = await cy('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.reader, r.data.proposal.items.length], [200, 'gemini', 7], r.text);
+    assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+    assert.deepStrictEqual(g.log.order, ['allow', 'allow', 'generate', 'record']);
+  });
+  // Claude's answer is unusable (the clamp rejects it): Gemini.
+  g = fakeGuard();
+  await withClaudeFirst(g, async () => {
+    fakeClient.mode = 'blank';
+    const r = await cy('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.reader], [200, 'gemini'], r.text);
+    assert.deepStrictEqual(g.log.record.map((x) => x.provider), ['claude', 'gemini'], 'the Claude call that billed is still recorded');
+  });
+  // Claude's monthly cap: Gemini, and Claude is never called.
+  const cap = { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' };
+  g = fakeGuard({ denyFor: { claude: cap } });
+  await withClaudeFirst(g, async () => {
+    const c0 = fakeClient.calls.length;
+    const r = await cy('POST', '/api/ai/contents', photoBody());
+    assert.deepStrictEqual([r.status, r.data.reader, fakeClient.calls.length, g.log.order], [200, 'gemini', c0, ['allow', 'allow', 'generate', 'record']], r.text);
+  });
+  // A burst refusal is the person's: the guard's words, no Gemini call.
+  for (const code of ['burst-minute', 'burst-day']) {
+    g = fakeGuard({ denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+    await withClaudeFirst(g, async () => {
+      const r = await cy('POST', '/api/ai/contents', photoBody());
+      assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']]);
+    });
+  }
+  // Both fail: Gemini's own error, never the provider's words.
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'http' }); } });
+  await withClaudeFirst(g, async () => {
+    fakeClient.mode = 'upstream529';
+    const r = await cy('POST', '/api/ai/contents', photoBody());
+    assert.ok(r.status >= 500 && !/SECRET/.test(r.text), r.text);
+  });
+  assert.match(read('server.js'), /console\.error\(`\[whichbox\] claude failed \(\$\{code\}\); used gemini`\)/, 'one fixed log line per fallback');
 });
 
 test('nothing identifying in the shared store: no email, no account id, no browser key, no photo - only first names, rooms and box text', async () => {

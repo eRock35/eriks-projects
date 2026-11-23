@@ -316,6 +316,11 @@ page shows the plate button only on the Gemini reader. Turning it on is
 Erik's call, and needs Vertex AI enabled for `challenge-run@` (see the lab's
 "Lab AI guard").
 
+**`AGAIN_AI_PROVIDER=claude-first` (2026-11-23):** the menu reads on Claude first, exactly as unset; any
+Claude failure but a burst refusal (SDK error, unusable answer, Claude's `monthly-cap`, no key) hands the
+same request to the Gemini menu reader (`menuClaudeFirst`, log `[again] claude failed (<code>); used
+gemini`, `reader` on the answer). "Snap my plate" is on in this mode (Gemini only, its own errors).
+
 - **Every model call goes through the lab's guard** (`global.LAB_AI_GUARD`,
   absent when the app runs on its own): gates -> parser -> the request
   checked (a 400 costs nothing and never reaches the guard) -> `allow`

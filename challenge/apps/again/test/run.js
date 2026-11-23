@@ -909,7 +909,8 @@ test('the provider switch: Claude unless AGAIN_AI_PROVIDER=gemini, read per requ
     try { assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'claude', `"${v}" is not the switch`); } finally { delete process.env.AGAIN_AI_PROVIDER; }
   }
   await withGemini(undefined, async () => assert.strictEqual((await anon('GET', '/api/me')).data.reader, 'gemini'));
-  assert.match(read('server.js'), /process\.env\.AGAIN_AI_PROVIDER === 'gemini' \? 'gemini' : 'claude'/);
+  // (Was a match on the one-line gemini/claude switch before claude-first.)
+  assert.match(read('server.js'), /PROVIDERS = new Set\(\['gemini', 'claude-first'\]\)/);
   assert.strictEqual(gemini.MODEL, 'gemini-3.8-flash');
   assert.deepStrictEqual(Object.keys(gemini.MENU_SCHEMA.properties), ['dishes', 'currency', 'picks', 'confidence', 'note']);
   assert.deepStrictEqual(Object.keys(gemini.MENU_SCHEMA.properties.dishes.items.properties), ['name', 'description', 'price', 'confidence']);
@@ -1133,9 +1134,57 @@ test('the menu reader falls back to Claude: Gemini throws, unusable or capped ->
   assert.match(read('server.js'), /console\.error\(`\[again\] gemini failed \(\$\{code\}\); used claude`\)/);
 });
 
+async function withClaudeFirst(guard, fn) {
+  process.env.AGAIN_AI_PROVIDER = 'claude-first';
+  if (guard) global.LAB_AI_GUARD = guard;
+  try { return await fn(); } finally { delete process.env.AGAIN_AI_PROVIDER; delete global.LAB_AI_GUARD; }
+}
+
+test('claude-first: the menu on Claude, Gemini when Claude throws, is unusable or capped; a burst refusal -> 429 and no Gemini call; "Snap my plate" is on', async () => {
+  const cy = await register('cy.claudefirst');
+  assert.strictEqual((await withClaudeFirst(undefined, () => client()('GET', '/api/me'))).data.reader, 'claude-first');
+  let g = fakeGuard();
+  const c0 = fakeClient.calls.length;
+  let r = await withClaudeFirst(g, () => cy('POST', '/api/ai/menu', menuBody()));
+  assert.deepStrictEqual([r.status, r.data.reader, fakeClient.calls.length, g.log.order], [200, 'claude', c0 + 1, ['allow', 'record']], r.text);
+  // Claude throws: Gemini reads the same menu.
+  g = fakeGuard();
+  fakeClient.mode = 'upstream529';
+  r = await withClaudeFirst(g, () => cy('POST', '/api/ai/menu', menuBody()));
+  assert.ok(r.status === 200 && r.data.reader === 'gemini' && r.data.menu, r.text);
+  assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['claude', 'gemini']);
+  assert.deepStrictEqual(g.log.order, ['allow', 'allow', 'generate', 'record']);
+  // Claude's answer unusable: Gemini, and the billed Claude call is still recorded.
+  g = fakeGuard();
+  fakeClient.mode = 'blank';
+  r = await withClaudeFirst(g, () => cy('POST', '/api/ai/menu', menuBody()));
+  assert.deepStrictEqual([r.status, r.data.reader, g.log.record.map((x) => x.provider)], [200, 'gemini', ['claude', 'gemini']], r.text);
+  // Claude's monthly cap: Gemini, Claude never called.
+  g = fakeGuard({ denyFor: { claude: { ok: false, status: 503, code: 'monthly-cap', message: 'AI answers are resting until next month; everything else still works.' } } });
+  const c1 = fakeClient.calls.length;
+  r = await withClaudeFirst(g, () => cy('POST', '/api/ai/menu', menuBody()));
+  assert.deepStrictEqual([r.status, r.data.reader, fakeClient.calls.length, g.log.order], [200, 'gemini', c1, ['allow', 'allow', 'generate', 'record']], r.text);
+  for (const code of ['burst-minute', 'burst-day']) {
+    g = fakeGuard({ denyFor: { claude: { ok: false, status: 429, code, message: 'Lots of people are using AI right now - try again in a minute.' } } });
+    r = await withClaudeFirst(g, () => cy('POST', '/api/ai/menu', menuBody()));
+    assert.deepStrictEqual([r.status, r.data.code, g.log.order], [429, code, ['allow']]);
+  }
+  // "Snap my plate" is on (Gemini only), with its own friendly error.
+  g = fakeGuard();
+  r = await withClaudeFirst(g, () => cy('POST', '/api/ai/plate', plateBody()));
+  assert.ok(r.status === 200 && r.data.plate, r.text);
+  assert.deepStrictEqual(g.log.allow.map((a) => a.provider), ['gemini']);
+  g = fakeGuard({ generate: async () => { throw Object.assign(new Error('SECRET-PROVIDER-TEXT'), { name: 'VertexError', code: 'blocked' }); } });
+  const n = fakeClient.calls.length;
+  r = await withClaudeFirst(g, () => cy('POST', '/api/ai/plate', plateBody()));
+  assert.ok(r.status === 502 && !/SECRET/.test(r.text) && fakeClient.calls.length === n, r.text);
+  assert.match(read('server.js'), /console\.error\(`\[again\] claude failed \(\$\{code\}\); used gemini`\)/);
+});
+
 test('the page keeps the plate honest: only on the Gemini reader, what is sent is shown first, the name is marked a guess and editable, nothing is added without a tap', () => {
   const js = read('public/app.js');
-  assert.match(js, /function plateOn\(\) \{ return Boolean\(state\.me && state\.me\.reader === 'gemini'\); \}/);
+  // (Was reader === 'gemini' only, before claude-first also turned the plate on.)
+  assert.match(js, /function plateOn\(\) \{ return Boolean\(state\.me && \(state\.me\.reader === 'gemini' \|\| state\.me\.reader === 'claude-first'\)\); \}/);
   assert.match(js, /\(plateOn\(\) \? '<button class="btn ' \+ cls \+ ' cam" type="button" data-act="plate"/, 'no plate button unless the server runs the Gemini reader');
   assert.match(js, /api\('POST', 'api\/ai\/plate', \{ image: \{ type: 'image\/jpeg', data: b64 \} \}\)/, 'the page sends the photo and nothing else');
   assert.match(js, /Promise\.all\(\[prepPhoto\(file, 1600\), prepPhoto\(file\)\]\)/, 'shrunk on the device before anything is sent');

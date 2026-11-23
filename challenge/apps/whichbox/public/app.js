@@ -1260,7 +1260,7 @@
     p.then(function (ph) { state.ai.photo = ph || null; sheet('<div class="body"></div>', drawAi); });
   }
   /** Who reads the photo: the server says which reader is switched on. */
-  function readerName() { return state.me && state.me.reader === 'gemini' ? 'Google’s Gemini' : 'Anthropic’s Claude'; }
+  function readerName() { var r = state.me && state.me.reader; return r === 'gemini' ? 'Google’s Gemini' : r === 'claude-first' ? 'Anthropic’s Claude (or Google’s Gemini if Claude is busy)' : 'Anthropic’s Claude'; }
   function drawAi(root) {
     var b = $('.body', root), a = state.ai;
     var sent = '<p class="sent"><b>What is sent:</b> this one photo, shrunk on this phone with its location removed. Nothing else - not your move’s name or address, your rooms, or what’s already listed. ' + esc(readerName()) + ' reads it, and our server doesn’t keep it.</p>';
