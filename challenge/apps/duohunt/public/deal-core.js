@@ -168,11 +168,14 @@
     });
 
     var catches = [], droppedCatches = 0, quotes = {};
-    list(r.catches, LIMITS.catches).forEach(function (c) {
+    // Every catch offered is checked (a bounded number of them), so one that
+    // fails is counted as dropped rather than silently cut; eight are kept.
+    list(r.catches, LIMITS.catches * 3).forEach(function (c) {
       var t = clean(c.text, LIMITS.catchText);
       var q = verifyQuote(c.quote, text);
-      if (!t || !q || quotes[q + '|' + t]) { droppedCatches++; return; }
-      quotes[q + '|' + t] = true;
+      if (!t || !q || quotes[q]) { droppedCatches++; return; }
+      if (catches.length >= LIMITS.catches) return;
+      quotes[q] = true;
       catches.push({ text: t, quote: q });
     });
     var unsure = (Array.isArray(r.unsure) ? r.unsure : []).map(function (u) { return clean(u, 60); }).filter(Boolean).slice(0, LIMITS.unsure);

@@ -114,7 +114,7 @@ function content(req) {
 }
 
 /** The one place a model is called. Returns the tool input and the usage. */
-async function ask(client, model, req) {
+async function ask(client, model, req, onUsage) {
   const res = await client.messages.create({
     model,
     // One record, capped by the schema: eight catches of up to 180 + 240
@@ -127,11 +127,15 @@ async function ask(client, model, req) {
     tool_choice: { type: 'tool', name: TOOL.name },
     messages: [{ role: 'user', content: content(req) }],
   }, { timeout: 60000, maxRetries: 1 });
+  // Told as soon as the call is back: it is paid for whether or not the
+  // answer below turns out usable.
+  const u = (res && res.usage) || {};
+  const usage = { inputTokens: Number(u.input_tokens) || 0, outputTokens: Number(u.output_tokens) || 0 };
+  if (onUsage) onUsage(usage);
   if (res && res.stop_reason === 'max_tokens') throw httpError(502, 'That offer ran long. Paste just the offer and its fine print and try again.');
   const block = (res && Array.isArray(res.content) ? res.content : []).find((b) => b && b.type === 'tool_use' && b.name === TOOL.name);
   if (!block || !block.input || typeof block.input !== 'object') throw httpError(502, 'The reading did not come back in the expected shape. Try again.');
-  const u = (res && res.usage) || {};
-  return { input: block.input, usage: { inputTokens: Number(u.input_tokens) || 0, outputTokens: Number(u.output_tokens) || 0 } };
+  return { input: block.input, usage };
 }
 
 /** The answer, checked, with the sum done here. Nothing usable is a 422 in words. */

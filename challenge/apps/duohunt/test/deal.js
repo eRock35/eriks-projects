@@ -222,7 +222,7 @@ test('a dishonest reading over HTTP: invented numbers and an invented quote are 
   assert.ok(bad.data.dropped.numbers.includes('the monthly plan price') && bad.data.dropped.numbers.includes('a fee (Invented fee)') && bad.data.dropped.numbers.includes('a credit (Made-up loyalty credit)'));
   assert.strictEqual(bad.data.dropped.catches, 2);
   assert.strictEqual(bad.data.catches.length, 2);
-  assert.ok(!bad.text.includes('five-year') && !bad.text.includes('Buy it now') && !bad.text.includes('12.34') && !bad.text.includes('Absurd'));
+  assert.ok(!bad.text.includes('five-year') && !bad.text.includes('Buy it now') && !bad.text.includes('12.34') && !bad.text.includes('9000000000') && !bad.text.includes('77.77'));
   assert.strictEqual(bad.data.cost.complete, false);
   fakeClient.mode = 'inject';
   const inj = await cy('POST', '/api/deal', GOOD);
@@ -304,6 +304,20 @@ test('the lab’s AI guard, when the host has one: asked after the identity gate
     assert.strictEqual(yes.status, 200, yes.text);
     assert.strictEqual(fakeClient.calls.length, calls + 1);
     assert.deepStrictEqual(seen, [['allow'], ['price', { provider: 'claude', model: 'claude-haiku-4-5', inputTokens: 1400, outputTokens: 520 }], ['record', { provider: 'claude', app: 'duohunt', usd: 0.0042 }]]);
+    // A call that came back unusable was still paid for: it is recorded.
+    seen.length = 0;
+    fakeClient.mode = 'maxtokens';
+    assert.strictEqual((await gus('POST', '/api/deal', GOOD)).status, 502);
+    assert.deepStrictEqual(seen.map((x) => x[0]), ['allow', 'price', 'record']);
+    // A provider failure billed nothing: nothing is recorded.
+    seen.length = 0;
+    fakeClient.mode = 'upstream529';
+    assert.strictEqual((await gus('POST', '/api/deal', GOOD)).status, 503);
+    assert.deepStrictEqual(seen.map((x) => x[0]), ['allow']);
+    // The lab's real price table knows both of this app's models (an unknown
+    // model throws there rather than being priced as zero).
+    const realGuard = require('../../../lib/ai-guard');
+    if (typeof realGuard.priceUsd === 'function') for (const m of Object.values(server.MODELS)) assert.ok(realGuard.priceUsd({ provider: 'claude', model: m, inputTokens: 1400, outputTokens: 520 }) > 0, m);
     // A guard that fails to record never loses the answer.
     global.LAB_AI_GUARD.record = async () => { throw new Error('ledger down'); };
     assert.strictEqual((await gus('POST', '/api/deal', GOOD)).status, 200);

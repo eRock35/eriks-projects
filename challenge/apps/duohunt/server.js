@@ -210,16 +210,24 @@ app.post('/api/deal', identityLib.sameOriginOnly, ...spend, dealJson, async (req
     if (!perUserDeals.hit(String(req.user.id))) throw ai.httpError(429, 'That’s a lot of deals - give it ten minutes.');
     // The lab-wide guard (monthly cap and bursts), when the host provides one.
     const guard = global.LAB_AI_GUARD;
-    if (guard) {
+    if (guard?.allow) {
       const a = await guard.allow({ provider: 'claude', req, app: 'duohunt' });
       if (!a || !a.ok) return res.status((a && a.status) || 503).json({ error: (a && a.message) || DEAL_FALLBACK, code: a && a.code });
     }
     const model = modelFor(req);
-    const out = await ai.ask(await clientFor(req), model, brief);
-    if (guard) {
-      try {
-        await guard.record({ provider: 'claude', app: 'duohunt', usd: guard.priceUsd({ provider: 'claude', model, inputTokens: out.usage.inputTokens, outputTokens: out.usage.outputTokens }) });
-      } catch (e) { console.error('[duohunt] guard record failed:', e && e.name ? e.name : 'error'); }
+    const client = await clientFor(req);
+    let used = null;
+    let out;
+    try {
+      out = await ai.ask(client, model, brief, (u) => { used = u; });
+    } finally {
+      // A call that came back is paid for whether or not its answer was
+      // usable. A person's own key is their spend, not the lab's.
+      if (guard && used && !client.__byok) {
+        try {
+          await guard.record({ provider: 'claude', app: 'duohunt', usd: guard.priceUsd({ provider: 'claude', model, inputTokens: used.inputTokens, outputTokens: used.outputTokens }) });
+        } catch (e) { console.error('[duohunt] guard record failed:', e && e.name ? e.name : 'error'); }
+      }
     }
     return res.json(ai.answer(out.input, brief));
   } catch (err) {
