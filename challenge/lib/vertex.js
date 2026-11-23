@@ -55,6 +55,10 @@ function create({ env = process.env, fetch: fetchImpl, now = Date.now } = {}) {
   let token = null; // { value, until }
 
   async function accessToken() {
+    // Local real-Gemini checks only (never set on Cloud Run): a short-lived
+    // token from `gcloud auth print-access-token`, so an app's real request
+    // can be tried on a workstation, which has no metadata server.
+    if (env.LAB_VERTEX_ACCESS_TOKEN) return env.LAB_VERTEX_ACCESS_TOKEN;
     if (token && now() < token.until) return token.value;
     let r;
     try {

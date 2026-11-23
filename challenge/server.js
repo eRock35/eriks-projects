@@ -518,6 +518,33 @@ host.get('/api/lab/claude-auth', async (req, res) => {
   res.json(claudeAuth.status());
 });
 
+// Can the lab's runtime account reach Gemini right now? One tiny real call,
+// at most once a minute per instance (others get the last answer), recorded
+// against the Gemini cap like any call. Nothing secret in the answer.
+let geminiProbe = { at: 0, result: null };
+host.get('/api/lab/ai-guard/probe', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (Date.now() - geminiProbe.at < 60 * 1000 && geminiProbe.result) return res.json({ ...geminiProbe.result, cached: true });
+  geminiProbe.at = Date.now();
+  const model = 'gemini-3.8-flash';
+  try {
+    const g = await guard.allow({ provider: 'gemini', req: { ip: 'lab-probe', user: { id: 'lab-probe' } }, app: 'lab' });
+    if (!g.ok) { geminiProbe.result = { gemini: 'refused', code: g.code, at: new Date().toISOString() }; return res.json(geminiProbe.result); }
+    const { json, usage } = await guard.gemini.generate({
+      model,
+      contents: [{ role: 'user', parts: [{ text: 'Answer with ok set to the word ok.' }] }],
+      responseSchema: { type: 'object', properties: { ok: { type: 'string' } }, required: ['ok'] },
+      timeoutMs: 15000,
+    });
+    await guard.record({ provider: 'gemini', app: 'lab', usd: guard.priceUsd({ provider: 'gemini', model, ...usage }) });
+    geminiProbe.result = { gemini: json && typeof json.ok === 'string' ? 'ok' : 'odd-answer', at: new Date().toISOString() };
+  } catch (err) {
+    if (err && err.usage) await guard.record({ provider: 'gemini', app: 'lab', usd: guard.priceUsd({ provider: 'gemini', model, ...err.usage }) }).catch(() => {});
+    geminiProbe.result = { gemini: 'error', code: (err && err.code) || 'error', status: (err && err.status) || null, at: new Date().toISOString() };
+  }
+  res.json(geminiProbe.result);
+});
+
 host.get('/api/lab/leaderboard', async (req, res) => {
   try {
     const origin = req.get('origin');
