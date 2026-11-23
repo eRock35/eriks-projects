@@ -27,7 +27,7 @@ name: iPhone apps to TestFlight
 # A check_only run says so in its title: the TestFlight public links workflow
 # (which follows every successful run of this one) skips those, and Lab Pulse
 # (mobile/scripts/pulse.py) reads which app a run built from the end of it.
-run-name: ${{ inputs.check_only && 'iPhone apps: check only, no build' || format('iPhone apps to TestFlight: {0}', inputs.app || 'all') }}
+run-name: "${{ inputs.check_only && 'iPhone apps: check only, no build' || format('iPhone apps to TestFlight: {0}', inputs.app || 'all') }}"
 
 on:
   # A TestFlight build expires after 90 days, so every app is rebuilt on the
