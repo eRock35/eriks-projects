@@ -4,6 +4,7 @@
 //   - XBRL company facts for each company (data.sec.gov)
 //   - each company's submissions index, to find its latest annual report
 //   - that annual report's main document and its XBRL instance
+//   - the annual report before it, as text (for the risk-factor comparison)
 //   - a previous registrant's company facts, where companies.js names one
 //     (`priorCiks`)
 //
@@ -20,6 +21,7 @@ const path = require('path');
 const { FILERS } = require('./companies');
 const { slimFacts, SLIM } = require('./xbrl');
 const sec = require('./sec');
+const { htmlToText } = require('./text');
 
 const ANNUALS = Number(process.env.FILINGS_ANNUALS || 1);   // how many annual reports' text to read
 
@@ -69,7 +71,25 @@ async function main() {
       // report itself as an exhibit (some 20-Fs do): keep the big ones too.
       a.files = items;
     }
-    manifest[c.id] = { cik: c.cik, name: subs.name, fiscalYearEnd: subs.fiscalYearEnd, annual };
+    // The annual report before the latest: its text only, for the
+    // year-on-year comparison of risk factors. Read into memory, turned into
+    // text and written as text; the document itself is never stored.
+    let prior = null;
+    for (let i = 0, seen = 0; i < r.form.length && !prior; i += 1) {
+      if (r.form[i] !== c.form) continue;
+      seen += 1;
+      if (seen === 2) prior = { accn: r.accessionNumber[i], form: r.form[i], filed: r.filingDate[i], period: r.reportDate[i], doc: r.primaryDocument[i] };
+    }
+    if (prior) {
+      const tf = path.join(sec.CACHE, 'text', `${c.id}-${prior.accn}.txt`);
+      if (!fs.existsSync(tf)) {
+        const html = await sec.get(sec.docUrl(c.cik, prior.accn, prior.doc), { maxBytes: 80 * 1024 * 1024, timeoutMs: 180000 });
+        fs.mkdirSync(path.dirname(tf), { recursive: true });
+        fs.writeFileSync(tf, htmlToText(html));
+      }
+    }
+    manifest[c.id] = { cik: c.cik, name: subs.name, fiscalYearEnd: subs.fiscalYearEnd, annual, prior };
+    fs.writeFileSync(manFile, JSON.stringify(manifest, null, 1));
     console.log(`${c.id}: ${annual.map((a) => `${a.form} ${a.period} (${a.accn})`).join(', ')}`);
   }
   fs.writeFileSync(manFile, JSON.stringify(manifest, null, 1));

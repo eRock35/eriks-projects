@@ -1,7 +1,27 @@
 {
  "built": "2026-11-24",
  "companies": 81,
- "figures": 14539,
+ "figures": 14920,
+ "quotes": {
+  "employees": {
+   "curated": 78,
+   "kept": 77,
+   "dropped": [
+    {
+     "id": "NVDA",
+     "n": 99000,
+     "why": "quote not found verbatim in the source",
+     "tripwire": true
+    }
+   ],
+   "none": [
+    "INTC",
+    "TSM",
+    "JBL",
+    "IBM"
+   ]
+  }
+ },
  "edges": {
   "curated": 567,
   "kept": 566,
@@ -17,7 +37,7 @@
   ]
  },
  "insights": {
-  "kept": 1164,
+  "kept": 1399,
   "dropped": 0
  },
  "notes": [],
@@ -42,8 +62,8 @@
    "bytes": 28939
   },
   "largestFin": {
-   "id": "MSFT",
-   "bytes": 25417
+   "id": "ORCL",
+   "bytes": 27593
   },
   "peers": {
    "files": 393,

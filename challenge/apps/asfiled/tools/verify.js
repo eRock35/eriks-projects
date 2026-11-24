@@ -93,6 +93,39 @@ function checkEdge(e, ctx) {
   return { ok: true, section };
 }
 
+/** A quoted sentence that is not a relationship (how many people a company
+ *  employs; a risk factor's heading). The same rule as an edge: the quote is
+ *  in the company's own cached document word for word, whitespace aside.
+ *  Then, by kind:
+ *    employees  - the number is in the quote, whole, as a head count
+ *    risk       - the quote lies inside the report's risk-factor section
+ *  `ctx.ranges[source]` is that section's [start, end) in the normalised text. */
+function checkQuote(q, ctx) {
+  const fail = (why) => ({ ok: false, why });
+  const src = ctx.sources[q.source];
+  const text = ctx.texts[q.source];
+  if (!src || typeof text !== 'string') return fail('its source is not in the cache');
+  if (src.by !== q.c) return fail('the source is not the company’s own document');
+  const quote = T.norm(q.quote);
+  if (quote.length < 8 || quote.length > 620) return fail('the quote is too short or too long');
+  let at = text.indexOf(quote);
+  if (at < 0) return fail('quote not found verbatim in the source');
+  if (q.kind === 'employees') {
+    if (!require('./people').statesHeadcount(quote, q.n)) return fail('the quote does not state that number of employees');
+  } else if (q.kind === 'risk' || q.kind === 'risk-was') {
+    const range = (ctx.ranges || {})[q.source];
+    if (!range) return fail('the risk-factor section of its source was not found');
+    at = text.indexOf(quote, range[0]);
+    if (at < 0 || at + quote.length > range[1]) return fail('the quote is not inside the risk-factor section');
+  } else return fail('unknown kind of quote');
+  let section = q.section || null;
+  if (!section && ctx.rawTexts && ctx.rawTexts[q.source]) {
+    ctx.sectionsOf[q.source] = ctx.sectionsOf[q.source] || T.sections(ctx.rawTexts[q.source], src.form);
+    section = T.sectionAt(ctx.sectionsOf[q.source], rawOffset(ctx.rawTexts[q.source], at)) || 'Annual report';
+  }
+  return { ok: true, section: section || 'Annual report', at };
+}
+
 /** Re-check a built dataset against the cache. Returns a list of problems. */
 function recheck(data) {
   const problems = [];
@@ -109,6 +142,14 @@ function recheck(data) {
     if (!text.includes(T.norm(e.quote))) problems.push(`${e.id} ${e.from}->${e.to}: quote not found verbatim`);
     if (e.lead && !text.includes(T.norm(e.lead))) problems.push(`${e.id}: lead-in not found verbatim`);
     if (proof(data.sources[e.source].sha, e.quote) !== e.proof) problems.push(`${e.id}: proof does not match its quote`);
+  }
+  // Quotes that are not relationships: found verbatim, proof intact, and the kind's own rule.
+  for (const [id, q] of Object.entries(data.quotes || {})) {
+    const text = texts[q.source];
+    if (!text) { problems.push(`${id}: no source text`); continue; }
+    if (!text.includes(T.norm(q.quote))) problems.push(`${id}: quote not found verbatim`);
+    if (proof(data.sources[q.source].sha, q.quote) !== q.proof) problems.push(`${id}: proof does not match its quote`);
+    if (q.kind === 'employees' && !require('./people').statesHeadcount(q.quote, q.n)) problems.push(`${id}: the quote does not state ${q.n}`);
   }
   const facts = {}; const inst = {};
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
@@ -156,7 +197,7 @@ function recheckPeers(partsByCode) {
   return problems;
 }
 
-module.exports = { TYPES, proof, expand, checkEdge, recheck, recheckPeers, names, aliasRe };
+module.exports = { TYPES, proof, expand, checkEdge, checkQuote, rawOffset, recheck, recheckPeers, names, aliasRe };
 
 if (require.main === module) {
   const data = require('./dataset').load();

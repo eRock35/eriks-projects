@@ -178,9 +178,28 @@
         h('dt', { text: 'Filed' }), h('dd', { text: e.date })),
       h('p', null, ext(src.kind === 'xbrl' ? e.url : Core.quoteUrl(e), 'Open the source on sec.gov')));
   }
+  var QUOTE_KIND = { employees: 'Employees, as stated', risk: 'Risk factor, this year', 'risk-was': 'Risk factor, the year before' };
+  /** A quoted sentence that is not a relationship: the words, where they are, the link. */
+  function quoteCard(qid) {
+    var q = data.quotes[qid];
+    var src = data.sources[q.source];
+    var co = Core.company(data, q.c);
+    return h('div', { cls: 'src' },
+      h('p', { cls: 'badge t-tie', text: QUOTE_KIND[q.kind] || 'Quote' }),
+      co && co.lookup ? h('p', { cls: 'flag', text: LABEL }) : null,
+      h('blockquote', null, '“' + q.quote + '”'),
+      q.kind === 'employees' ? h('p', { cls: 'src-l', text: 'The number read from that sentence: ' + Core.commas(q.n) + '.' }) : null,
+      h('dl', { cls: 'kv' },
+        h('dt', { text: 'Who said it' }), h('dd', { text: co ? co.name : q.c }),
+        h('dt', { text: 'Document' }), h('dd', { text: src.title }),
+        h('dt', { text: 'Section' }), h('dd', { text: q.section }),
+        h('dt', { text: 'Filed' }), h('dd', { text: src.date })),
+      h('p', null, ext(Core.quoteUrl({ url: src.url, quote: q.quote }), 'Open the source on sec.gov')));
+  }
   function showCites(title, cites) {
     openSheet(title, cites.map(function (id) {
       if (data.figures[id]) return figureCard(id);
+      if (data.quotes && data.quotes[id]) return quoteCard(id);
       var e = data.edges.filter(function (x) { return x.id === id; })[0];
       return e ? edgeCard(e) : null;
     }));
@@ -455,6 +474,7 @@
     });
     addSection('cash', 'Cash', 'Free cash flow, pay in stock, repurchases, dividends, cash and debt', function (body) { return cashSection(c, body); });
     addSection('quarter', 'Latest quarter', 'The newest three months and the last four quarters, from 10-Qs', function (body) { return quarterSection(c, body); });
+    addSection('people', 'Backlog & people', 'Revenue under contract, deferred revenue, employees, flagged charges', function (body) { return peopleSection(c, body); });
     addSection('peers', 'Peers', 'Rank among filers that share its SIC code', function (body) { peersSection(c, body); });
     var annualExtras = function () {
     var mixes = data.mixes[id] || [];
@@ -571,6 +591,41 @@
     if (list.length > 1) later.push(function () { seriesChart(host, { title: 'Revenue', kind: 'bar', points: list.map(function (q) { return { fy: q.end, v: q.v, cites: q.cites }; }), years: ends, fmt: fmt, tick: tick, xlabel: xl, plabel: function (e) { return 'Three months ended ' + e; }, xwidth: 52 }); });
     body.appendChild(grid);
     return function () { later.forEach(function (f) { f(); }); };
+  }
+
+  /* ---------------- backlog and people ---------------- */
+
+  function peopleSection(c, body) {
+    var id = c.id; var L = c.latest;
+    var fs = data.finsights[id] || [];
+    var by = function (topic) { return fs.filter(function (x) { return x.topic === topic; }); };
+    var M = function (v) { return Core.money(v, c.currency); };
+    var one = function (m, label, sub) {
+      var f = Core.fig(data, id, m, L);
+      return { label: label, sub: (sub || '') + (f && m === 'deferred' ? 'tagged ' + f.tag.replace(/^.*:/, '') : ''), value: f ? (f.v === 0 && (m === 'impairment' || m === 'restructuring') ? 'Tagged as zero' : M(f.v)) : null, cites: f ? [id + '.' + m + '.' + L] : [] };
+    };
+    var q = (data.quotes || {})[id + '.q.employees'];
+    var per = Core.derived(data, id, 'revenuePerEmployee', L);
+    var grid = h('div', { cls: 'grid' });
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Revenue still to come, end of FY' + L }),
+      by('backlog').map(sentence),
+      factRows([one('rpo', 'Remaining performance obligations', 'revenue under contract, not yet recognised'), one('deferred', 'Deferred revenue', '')]),
+      h('p', { cls: 'note', text: 'Both are balances the company tagged at its year end. They say what was under contract or already billed on that day - not what revenue is going to be.' })));
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Employees' }),
+      q ? [h('p', { cls: 'big' }, h('span', { text: Core.commas(q.n) }), h('span', { cls: 'big-s', text: ' as the latest annual report states' })),
+        h('blockquote', null, '“' + q.quote + '”'),
+        by('people').map(sentence),
+        factRows([{ label: 'Revenue for each employee', sub: per ? 'FY' + L + ' revenue ÷ that number · computed' : '', value: per ? 'about ' + Core.perHead(per.v, c.currency) : null, cites: per ? per.cites : [] }])]
+        : h('p', { cls: 'none', text: c.lookup ? 'The automatic reader found no sentence in the latest annual report that states the number of employees plainly. None is shown.' : 'No sentence in the latest annual report states the number of employees in a form that could be quoted with its number. None is shown.' })));
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Flagged charges, FY' + L }),
+      by('flags').map(sentence),
+      factRows([one('impairment', 'Goodwill impairment'), one('restructuring', 'Restructuring charges')]),
+      h('p', { cls: 'note', text: 'Shown when the annual report tags them. “Not tagged” is not the same as none.' })));
+    body.appendChild(grid);
+    return null;
   }
 
   /* ---------------- peers ----------------

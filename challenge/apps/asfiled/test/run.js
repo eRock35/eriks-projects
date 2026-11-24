@@ -212,7 +212,7 @@ function walk(dir, out = []) {
   const sentences = [].concat(...Object.values(data.insights), ...Object.values(data.finsights), ...data.patterns.map((p) => p.sentences));
   for (const s of sentences) {
     assert.ok(s.cites.length > 0, `no citation: ${s.text}`);
-    for (const c of s.cites) assert.ok(data.figures[c] || ids.has(c), `${c} does not resolve: ${s.text}`);
+    for (const c of s.cites) assert.ok(data.figures[c] || data.quotes[c] || ids.has(c), `${c} does not resolve: ${s.text}`);
     assert.ok(!/\b(will|forecast|expect|predict|should|undervalued|overvalued|buy|sell|bullish|bearish|target price)\b/i.test(s.text), `forecast or advice: ${s.text}`);
     // Every money amount and percentage in a sentence is one of its cited
     // figures, or worked out from them: rebuilt above, so only spot-check form.
@@ -337,6 +337,61 @@ function walk(dir, out = []) {
       assert.strictEqual(Core.trailing(got, '2025-06-30'), null, 'two quarters are not four');
     }
     ok(`quarters: ${direct} three-month figures as filed and ${diffs} worked out as one filed year-to-date figure less another (exact, labelled, both cited); four-quarter totals for ${ttm} companies, only where four consecutive quarters exist; ${none.join(' and ')} file no 10-Q`);
+  }
+
+  /* ---------- backlog and people: tagged balances, and one quoted sentence (2026-11-24) ---------- */
+  {
+    const P = require('../tools/people');
+    const emp = Object.entries(data.quotes).filter(([, q]) => q.kind === 'employees');
+    for (const [id, q] of emp) {
+      const c = data.companies.find((x) => x.id === q.c);
+      const src = data.sources[q.source];
+      assert.ok(c && id === `${c.id}.q.employees` && q.source === c.annual.source && src.by === c.id, `${id}: the company's own latest annual report`);
+      assert.ok(q.quote === T.norm(q.quote) && q.quote.length <= 620 && q.section, id);
+      assert.strictEqual(q.proof, V.proof(src.sha, q.quote), `${id}: the quote is the one that was verified`);
+      assert.ok(P.statesHeadcount(q.quote, q.n), `${id}: the quote states ${q.n}`);
+      const per = Core.derived(data, c.id, 'revenuePerEmployee', c.latest);
+      assert.strictEqual(per.v, Core.fig(data, c.id, 'revenue', c.latest).v / q.n);
+      assert.deepStrictEqual(per.cites, [`${c.id}.revenue.${c.latest}`, id]);
+    }
+    assert.ok(emp.length >= 70, `${emp.length} employee sentences`);
+    // The tripwire: a made-up NVIDIA head count kept in the curated file. Every build must drop it.
+    const curated = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'curated-employees.json'), 'utf8'));
+    const trip = curated.filter((e) => e.tripwire);
+    assert.strictEqual(trip.length, 1);
+    assert.ok(report.quotes.employees.dropped.some((d) => d.tripwire && d.id === trip[0].id && /not found verbatim/.test(d.why)), 'the fake employee sentence was not dropped');
+    assert.ok(data.quotes[`${trip[0].id}.q.employees`].n !== trip[0].n && !JSON.stringify(data.quotes).includes(trip[0].quote), 'the tripwire reached the dataset');
+    assert.strictEqual(report.quotes.employees.kept, emp.length);
+    assert.deepStrictEqual(report.quotes.employees.none, data.companies.filter((c) => !data.quotes[`${c.id}.q.employees`]).map((c) => c.id));
+    // The check itself, on a made-up source.
+    {
+      const raw = 'Item 1. Business\nAs of May 3, 2026, we had approximately 12,400 employees in nine countries. We let go of 1,200 employees in a restructuring.';
+      const ctx = { sources: { D: { by: 'NVDA', kind: 'annual-report', form: '10-K', sha: sha(T.norm(raw)) }, E: { by: 'AMD', kind: 'annual-report', form: '10-K' } }, texts: { D: T.norm(raw), E: T.norm(raw) }, rawTexts: { D: raw }, sectionsOf: {}, ranges: {} };
+      const q = (o) => ({ c: 'NVDA', kind: 'employees', n: 12400, quote: 'As of May 3, 2026, we had approximately 12,400 employees in nine countries.', source: 'D', ...o });
+      const r = V.checkQuote(q({}), ctx);
+      assert.ok(r.ok && r.section === 'Item 1. Business', JSON.stringify(r));
+      assert.ok(!V.checkQuote(q({ quote: 'As of May 3, 2026, we had approximately 12,500 employees in nine countries.', n: 12500 }), ctx).ok, 'a changed number is not in the source');
+      assert.ok(/does not state/.test(V.checkQuote(q({ n: 2400 }), ctx).why), 'part of a longer number is not the number');
+      assert.ok(/does not state/.test(V.checkQuote(q({ n: 12000 }), ctx).why));
+      assert.ok(/does not state/.test(V.checkQuote(q({ quote: 'We let go of 1,200 employees in a restructuring.', n: 12400 }), ctx).why));
+      assert.ok(!V.checkQuote(q({ source: 'E' }), ctx).ok, 'another company’s document');
+      assert.ok(!V.checkQuote(q({ kind: 'gossip' }), ctx).ok);
+      assert.deepStrictEqual(P.findEmployees(raw), { n: 12400, quote: 'As of May 3, 2026, we had approximately 12,400 employees in nine countries.' });
+      assert.strictEqual(P.findEmployees('Item 1. Business\nWe reduced our workforce by 1,200 employees as of May 3, 2026. As of May 3, 2026, we had 3,500 employees in our research and development organization.'), null, 'a part of the workforce, or a change in it, is not proposed');
+    }
+    let rpo = 0; let def = 0; let flags = 0;
+    for (const c of data.companies) {
+      const topics = (data.finsights[c.id] || []).map((s) => s.topic);
+      const r = Core.fig(data, c.id, 'rpo', c.latest); const d = Core.fig(data, c.id, 'deferred', c.latest);
+      if (r) { rpo += 1; assert.ok(r.end === c.annual.period && r.tag === 'us-gaap:RevenueRemainingPerformanceObligation'); }
+      if (d) def += 1;
+      assert.strictEqual(topics.filter((t) => t === 'backlog').length, (r ? 1 : 0) + (d ? 1 : 0), `${c.id}: one backlog sentence per tagged balance`);
+      assert.strictEqual(topics.includes('people'), Boolean(data.quotes[`${c.id}.q.employees`]));
+      const fl = ['impairment', 'restructuring'].filter((m) => { const f = Core.fig(data, c.id, m, c.latest); return f && f.v > 0; });
+      flags += fl.length;
+      assert.strictEqual(topics.filter((t) => t === 'flags').length, fl.length, `${c.id}: a flag only for a charge tagged above zero`);
+    }
+    ok(`backlog and people: ${emp.length} companies' head counts, each a sentence quoted word for word from the latest annual report with the number in it (none for ${report.quotes.employees.none.join(', ')}); the fake NVIDIA sentence was dropped; remaining performance obligations tagged by ${rpo}, deferred revenue by ${def}; ${flags} flagged charges`);
   }
 
   /* ---------- peers: rank among filers sharing a SIC code (2026-11-24) ---------- */

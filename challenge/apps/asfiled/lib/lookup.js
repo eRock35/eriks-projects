@@ -214,7 +214,7 @@ function create({ store, now = Date.now, env = process.env } = {}) {
     const legal = String(subs.name || entry.title).slice(0, 120);
     const id = `X${cik}`;
     const c = { id, cik, name: Names.display(legal), legal, layer: 'lookup', form: a.form, sic: subs.sic };
-    const data = { figures: {}, filings: {}, mixes: {}, concentration: {}, companies: [], edges: [], fin: {} };
+    const data = { figures: {}, filings: {}, mixes: {}, concentration: {}, companies: [], edges: [], fin: {}, quotes: {} };
     try {
       B.addCompany(data, c, a, { facts: [{ cik, facts }], inst, labels, currency: currencyOf(facts) });
     } catch (e) {

@@ -128,7 +128,6 @@ const PAY = {
   neoTotal: 'ecd:NonPeoNeoAvgTotalCompAmt', neoPaid: 'ecd:NonPeoNeoAvgCompActuallyPaidAmt',
   tsr: 'ecd:TotalShareholderRtnAmt', peerTsr: 'ecd:PeerGroupTotalShareholderRtnAmt',
 };
-const EMPLOYEES = 'dei:EntityNumberOfEmployees';
 const ALL = Object.assign({}, TAGS, FIN);
 
 const SLIM = 3;                        // the cut's version: fetch.js reads a company again when its cached copy is older
@@ -139,7 +138,7 @@ const FORMS = new Set(['10-K', '20-F', '10-Q', 'DEF 14A']);
  *  the six fields that are read, from annual and quarterly reports and the
  *  proxy statement. */
 function slimFacts(facts) {
-  const keep = new Set([].concat(...Object.values(ALL), Object.values(PAY), [EMPLOYEES]));
+  const keep = new Set([].concat(...Object.values(ALL), Object.values(PAY)));
   const out = { cik: facts.cik, entityName: facts.entityName, slim: SLIM, facts: {} };
   for (const [tax, tags] of Object.entries(facts.facts || {})) {
     for (const [tag, body] of Object.entries(tags)) {
@@ -154,4 +153,4 @@ function slimFacts(facts) {
   return out;
 }
 
-module.exports = { readInstance, readLabels, parseInstance, parseLabels, unescape, TAGS, FIN, FIN_INSTANT, QUARTERLY, PAY, EMPLOYEES, ALL, SLIM, slimFacts };
+module.exports = { readInstance, readLabels, parseInstance, parseLabels, unescape, TAGS, FIN, FIN_INSTANT, QUARTERLY, PAY, ALL, SLIM, slimFacts };

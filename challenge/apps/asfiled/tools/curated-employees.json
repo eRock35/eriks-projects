@@ -1,0 +1,393 @@
+[
+ {
+  "id": "AAPL",
+  "n": 167000,
+  "quote": "As of September 26, 2026, the Company had approximately 167,000 full-time equivalent employees."
+ },
+ {
+  "id": "MSFT",
+  "n": 223000,
+  "quote": "As of June 30, 2026, we employed approximately 223,000 people on a full-time basis, 121,000 in the U.S. and 102,000 internationally."
+ },
+ {
+  "id": "GOOGL",
+  "n": 190820,
+  "quote": "As of December 31, 2025, Alphabet had 190,820 employees."
+ },
+ {
+  "id": "AMZN",
+  "n": 1576000,
+  "quote": "As of December 31, 2025, we employed approximately 1,576,000 full-time and part-time employees."
+ },
+ {
+  "id": "META",
+  "n": 78865,
+  "quote": "We had a global workforce of 78,865 employees as of December 31, 2025, and we have offices in more than 90 cities around the world."
+ },
+ {
+  "id": "DELL",
+  "n": 97000,
+  "quote": "As of January 30, 2026, we had approximately 97,000 employees."
+ },
+ {
+  "id": "HPQ",
+  "n": 55000,
+  "quote": "HP employs approximately 55,000 employees worldwide."
+ },
+ {
+  "id": "CSCO",
+  "n": 82400,
+  "quote": "As of July 25, 2026, we had approximately 82,400 employees and they are categorized as follows:"
+ },
+ {
+  "id": "NVDA",
+  "n": 42000,
+  "quote": "As of the end of fiscal year 2026, we had approximately 42,000 employees in 38 countries; 31,000 were engaged in research and development and 11,000 were engaged in sales, marketing, operations, and administrative positions."
+ },
+ {
+  "id": "AMD",
+  "n": 31000,
+  "quote": "As of December 27, 2025, we had approximately 31,000 employees in our global workforce."
+ },
+ {
+  "id": "QCOM",
+  "n": 57000,
+  "quote": "At September 27, 2026, we had approximately 57,000 full-time, part-time and temporary workers, the overwhelming majority of which were full-time employees."
+ },
+ {
+  "id": "AVGO",
+  "n": 33000,
+  "quote": "As of November 2, 2025, we had approximately 33,000 employees worldwide, with approximately 57% in research and development roles."
+ },
+ {
+  "id": "MU",
+  "n": 61000,
+  "quote": "As of September 3, 2026, we had approximately 61,000 employees located primarily in Asia, North America, and Europe."
+ },
+ {
+  "id": "TXN",
+  "n": 33000,
+  "quote": "At December 31, 2025, we had about 33,000 employees worldwide."
+ },
+ {
+  "id": "AMAT",
+  "n": 36500,
+  "quote": "As of October 26, 2025, we employed approximately 36,500 regular full-time employees spanning 25 countries, of whom approximately 46%, 42% and 12% resided in the Asia-Pacific region, North America, and Europe/Middle East, respectively."
+ },
+ {
+  "id": "LRCX",
+  "n": 23300,
+  "quote": "As of August 4, 2026, we had approximately 23,300 regular full-time employees, of which over 26% were engaged in research and development."
+ },
+ {
+  "id": "ASML",
+  "n": 44000,
+  "quote": "we are a global team of more than 44,000 employees (FTEs)."
+ },
+ {
+  "id": "KLAC",
+  "n": 17000,
+  "quote": "As of June 30, 2026, we had approximately 17,000 regular full-time employees and approximately 200 part-time and temporary employees in facilities located in 18 major regions."
+ },
+ {
+  "id": "TER",
+  "n": 6600,
+  "quote": "As of December 31, 2025, we employed approximately 6,600 employees, of whom approximately 2,200 were employed in the United States."
+ },
+ {
+  "id": "Q",
+  "n": 10000,
+  "quote": "As of December 31, 2025, of our more than 10,000 employees, approximately 60% are located in Asia Pacific"
+ },
+ {
+  "id": "SNPS",
+  "n": 28000,
+  "quote": "As of fiscal 2025 year-end, Synopsys had approximately 28,000 employees, with about 23% in the United States and 77% in other locations worldwide."
+ },
+ {
+  "id": "CDNS",
+  "n": 13800,
+  "quote": "As of December 31, 2025, we had approximately 13,800 employees."
+ },
+ {
+  "id": "ADI",
+  "n": 24500,
+  "quote": "As of November 1, 2025, we had approximately 24,500 employees, of whom approximately 13,000 are in engineering roles."
+ },
+ {
+  "id": "MRVL",
+  "n": 7480,
+  "quote": "The Company employed 7,480 people as of January 31, 2026."
+ },
+ {
+  "id": "MCHP",
+  "n": 17900,
+  "quote": "We invest in our highly-skilled global workforce of approximately 17,900 people in accordance with our Guiding Value: employees are our greatest strength."
+ },
+ {
+  "id": "MPWR",
+  "n": 4501,
+  "quote": "As of December 31, 2025, we employed 4,501 employees in various locations in Asia, Europe and the U.S., compared with 4,017 employees as of December 31, 2024."
+ },
+ {
+  "id": "NXPI",
+  "n": 32169,
+  "quote": "As of December 31, 2025, we employed approximately 32,169 employees worldwide, including approximately 1,439 employees within our SSMC joint venture."
+ },
+ {
+  "id": "ON",
+  "n": 22600,
+  "quote": "As of December 31, 2025, we had approximately 22,600 regular full‑time employees and about 70 part‑time or temporary employees across 33 countries."
+ },
+ {
+  "id": "SWKS",
+  "n": 10000,
+  "quote": "As of October 2, 2026, our workforce consists of approximately 10,000 employees located around the world, more than 99% of whom are full-time employees."
+ },
+ {
+  "id": "FSLR",
+  "n": 7900,
+  "quote": "As of December 31, 2025, we had approximately 7,900 associates (our term for full and part-time employees), the majority of which work in the United States, Malaysia, India, and Vietnam."
+ },
+ {
+  "id": "SNDK",
+  "n": 11100,
+  "quote": "As of July 2026, our global team includes approximately 11,100 employees across 33 countries— 74% in Asia Pacific, 19% in the Americas, and 7% in Europe, the Middle East, and Africa."
+ },
+ {
+  "id": "APH",
+  "n": 170000,
+  "quote": "As of December 31, 2025, the Company had approximately 170,000 employees worldwide, of which approximately 15,000 were located in the United States."
+ },
+ {
+  "id": "GLW",
+  "n": 67200,
+  "quote": "Each of our approximately 67,200 full- and part-time employees in 44 countries make an important contribution, whether in one of our manufacturing or processing facilities, research labs, sales offices or other facilities."
+ },
+ {
+  "id": "TEL",
+  "n": 104000,
+  "quote": "As of fiscal year end 2026, we employed approximately 104,000 people worldwide, including 14,000 contract employees."
+ },
+ {
+  "id": "COHR",
+  "n": 51000,
+  "quote": "As of June 30, 2026, the Company employed approximately 51,000 employees worldwide."
+ },
+ {
+  "id": "LITE",
+  "n": 13757,
+  "quote": "As of June 27, 2026, we employed approximately 13,757 full-time employees, including approximately 11,916 employees in manufacturing, 1,085 employees in R&D and 756 employees in SG&A."
+ },
+ {
+  "id": "FLEX",
+  "n": 150000,
+  "quote": "As of March 31, 2026, our global workforce totaled approximately 150,000 employees including our contractor workforce."
+ },
+ {
+  "id": "KEYS",
+  "n": 16800,
+  "quote": "As of October 31, 2025, Keysight employed approximately 16,800 people worldwide."
+ },
+ {
+  "id": "TDY",
+  "n": 15800,
+  "quote": "At December 28, 2025, our total workforce consisted of approximately 15,800 employees in 38 countries."
+ },
+ {
+  "id": "HPE",
+  "n": 67000,
+  "quote": "Our company strives to be an engine of innovation, and our approximately 67,000 employees as of October 31, 2025, are proud of the ways our technology enables our customers to achieve meaningful outcomes like curing disease, modernizing farming, addressing world-hunger, and democratizing transportation through autonomous vehicles."
+ },
+ {
+  "id": "SMCI",
+  "n": 7000,
+  "quote": "As of June 30, 2026, we employed over 7,000 employees, consisting of approximately 3,500 employees engaged in research and development, approximately 800 engaged in sales and marketing, approximately 600 engaged in general and administrative, and approximately 2,100 engaged in manufacturing."
+ },
+ {
+  "id": "ANET",
+  "n": 5115,
+  "quote": "As of December 31, 2025, Arista employed approximately 5,115 full-time employees worldwide."
+ },
+ {
+  "id": "NTAP",
+  "n": 11700,
+  "quote": "As of April 24, 2026, we had approximately 11,700 employees worldwide."
+ },
+ {
+  "id": "P",
+  "n": 6400,
+  "quote": "We employ approximately 6,400 employees globally - approximately 3,700 in the U.S. and over 2,700 internationally at the end of fiscal 2026."
+ },
+ {
+  "id": "STX",
+  "n": 30000,
+  "quote": "As of July 3, 2026, we employed approximately 30,000 full-time employees worldwide, including approximately 25,000 employees located in Asia."
+ },
+ {
+  "id": "WDC",
+  "n": 40000,
+  "quote": "At the end of 2026, we employed approximately 40,000 people worldwide."
+ },
+ {
+  "id": "CIEN",
+  "n": 9080,
+  "quote": "Our technology solutions are developed, marketed, sold, and supported by our global workforce of 9,080 employees as of November 1, 2025, approximately 98% of whom were full-time employees."
+ },
+ {
+  "id": "MSI",
+  "n": 23000,
+  "quote": "As of December 31, 2025, we employed approximately 23,000 people globally, with 51% in the North America region and 49% in the International region."
+ },
+ {
+  "id": "FFIV",
+  "n": 6645,
+  "quote": "As of September 30, 2026, we had 6,645 employees – over 99.8% of whom were full-time employees."
+ },
+ {
+  "id": "ZBRA",
+  "n": 10700,
+  "quote": "As of December 31, 2025, the Company had approximately 10,700 employees globally, with a majority in sales and technical roles."
+ },
+ {
+  "id": "ADBE",
+  "n": 31360,
+  "quote": "As of November 28, 2025, we employed 31,360 people, of which 50% were in the United States and 50% were in our international locations."
+ },
+ {
+  "id": "ADSK",
+  "n": 14300,
+  "quote": "As of January 31, 2026, we employed approximately 14,300 people, a decrease from approximately 15,300 employees as of the end of fiscal year 2025."
+ },
+ {
+  "id": "CRM",
+  "n": 83334,
+  "quote": "As of January 31, 2026, we had 83,334 employees."
+ },
+ {
+  "id": "CRWD",
+  "n": 10698,
+  "quote": "As of January 31, 2026, we had 10,698 full-time employees."
+ },
+ {
+  "id": "DDOG",
+  "n": 8100,
+  "quote": "As of December 31, 2025, we had approximately 8,100 employees operating across 35 countries."
+ },
+ {
+  "id": "FICO",
+  "n": 3747,
+  "quote": "As of September 30, 2026, we employed 3,747 persons across 31 countries."
+ },
+ {
+  "id": "FTNT",
+  "n": 15109,
+  "quote": "As of December 31, 2025, our total headcount was 15,109 employees, approximately 30% of whom were employed in the United States, approximately 20% of whom were employed in Canada and approximately 50% of whom were employed outside of the United States and Canada, primarily in Europe, Middle East and Africa (“EMEA”), consistent with our customer base."
+ },
+ {
+  "id": "GEN",
+  "n": 3900,
+  "quote": "•General Employee Demographics: As of April 3, 2026, we employed approximately 3,900 team members across more than 20 countries."
+ },
+ {
+  "id": "INTU",
+  "n": 18600,
+  "quote": "As of July 31, 2026, we had approximately 18,600 employees in seven countries."
+ },
+ {
+  "id": "NOW",
+  "n": 29187,
+  "quote": "As of December 31, 2025, we employed: 29,187 EMPLOYEES on a full-time basis"
+ },
+ {
+  "id": "OKTA",
+  "n": 6366,
+  "quote": "As of January 31, 2026, we had 6,366 employees, of which approximately 56% were in the United States and 44% were in our international locations."
+ },
+ {
+  "id": "PANW",
+  "n": 21921,
+  "quote": "For example, from the end of fiscal 2025 to the end of fiscal 2026, our headcount increased from 16,068 to 21,921 employees, including approximately 4,223 additional headcount as a result of the CyberArk acquisition."
+ },
+ {
+  "id": "PLTR",
+  "n": 4429,
+  "quote": "As of December 31, 2025, we had 4,429 full-time employees, 28% of whom are employed outside of the United States."
+ },
+ {
+  "id": "PTC",
+  "n": 7305,
+  "quote": "As of September 30, 2026, PTC had 7,305 full-time employees (excluding approximately 300 divested-business employees for whom the legal transfer was delayed)."
+ },
+ {
+  "id": "ROP",
+  "n": 19400,
+  "quote": "As of December 31, 2025, we employed approximately 19,400 people worldwide on a consolidated basis, of which approximately 13,100 were employed in the U.S. and approximately 6,300 were employed outside of the U.S."
+ },
+ {
+  "id": "TRMB",
+  "n": 11500,
+  "quote": "At the end of 2025, we employed over 11,500 full-time and part-time employees, the overwhelming majority of which were full-time employees."
+ },
+ {
+  "id": "TWLO",
+  "n": 5587,
+  "quote": "As of December 31, 2025, we had a total of 5,587 employees, including 2,738 employees located outside of the United States."
+ },
+ {
+  "id": "TYL",
+  "n": 7800,
+  "quote": "As of December 31, 2025, we had approximately 7,800 team members."
+ },
+ {
+  "id": "WDAY",
+  "n": 21000,
+  "quote": "As of January 31, 2026, our global workforce consisted of over 21,000 employees in 36 countries, of which approximately 58% were located in the U.S. and 42% were located internationally."
+ },
+ {
+  "id": "ORCL",
+  "n": 141000,
+  "quote": "As of May 31, 2026, we employed approximately 141,000 full-time employees, of which approximately 49,000 were employed in the U.S. and approximately 92,000 were employed internationally."
+ },
+ {
+  "id": "AKAM",
+  "n": 11000,
+  "quote": "As of December 31, 2025, we had over 11,000 employees located in more than 30 countries (with approximately 65% of those employees located outside of the U.S.) and representing over 100 nationalities, all of which we believe helps bring a global perspective to our operations."
+ },
+ {
+  "id": "GDDY",
+  "n": 5845,
+  "quote": "As of December 31, 2025, we employed 5,845 people worldwide, made up of 2,414 in technology and development, 2,237 in care and services (who represent the portion of our GoDaddy Guides that are employed directly by GoDaddy), 369 in marketing and advertising and 825 in general and administrative functions."
+ },
+ {
+  "id": "VRSN",
+  "n": 928,
+  "quote": "As of December 31, 2025, we had 928 employees, of which 926 were full-time. 859 employees (representing approximately 93% of our total workforce) were based in the U.S., and 69 employees (representing approximately 7% of our total workforce) were based outside the U.S."
+ },
+ {
+  "id": "ACN",
+  "n": 814000,
+  "quote": "As of August 31, 2026, we employed approximately 814,000 people."
+ },
+ {
+  "id": "CTSH",
+  "n": 351600,
+  "quote": "As of December 31, 2025, we had approximately 351,600 employees, with 256,900 in India, 41,600 in North America, 14,600 in Continental Europe, 7,800 in the United Kingdom and 30,700 in various other locations throughout the rest of the world."
+ },
+ {
+  "id": "IT",
+  "n": 20244,
+  "quote": "At December 31, 2025, we had 20,244 employees globally, 9,994 of which were outside of the U.S., and the overwhelming majority of our employees were full time."
+ },
+ {
+  "id": "CDW",
+  "n": 14800,
+  "quote": "We have approximately 14,800 coworkers across the globe, with 11,200 coworkers in the US and 3,600 coworkers in international locations."
+ },
+ {
+  "id": "NVDA",
+  "n": 99000,
+  "quote": "As of the end of fiscal year 2026, we had approximately 99,000 employees in 38 countries.",
+  "tripwire": true
+ }
+]

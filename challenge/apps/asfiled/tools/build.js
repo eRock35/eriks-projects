@@ -37,6 +37,8 @@ const INSTANT = new Set(['inventory'].concat(X.FIN_INSTANT));
 // balances for the latest two year ends.
 const FIN_FLOWS = ['ocf', 'sbc', 'buybacks', 'dividends'];
 const FIN_BALANCES = ['cash', 'sti', 'debtLong', 'debtCurrent', 'debtShort', 'debtTotal'];
+// What a report tags about revenue still to come, and two charges worth a flag: the latest two years.
+const FIN_FORWARD = ['rpo', 'deferred', 'impairment', 'restructuring'];
 const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 /** One number per fiscal year for a metric: the value from the EARLIEST
@@ -189,7 +191,7 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
     const s = series(metric, currency, endSet);
     for (const end of ends) if (s[end]) put(metric, s[end], currency);
   }
-  for (const metric of FIN_BALANCES) {
+  for (const metric of FIN_BALANCES.concat(FIN_FORWARD)) {
     const s = series(metric, currency, endSet);
     for (const end of ends.slice(-2)) if (s[end]) put(metric, s[end], currency);
   }
@@ -295,16 +297,16 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
 }
 
 /** A sentence is kept only when every figure or edge it cites is there. */
-const citedOnly = (data, s) => s.cites.length > 0 && s.cites.every((id) => data.figures[id] || data.edges.some((e) => e.id === id));
+const citedOnly = (data, s) => s.cites.length > 0 && s.cites.every((id) => data.figures[id] || (data.quotes || {})[id] || data.edges.some((e) => e.id === id));
 
 function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
   const data = {
     app: 'asfiled', schema: 1, built: new Date().toISOString().slice(0, 10),
     disclaimer: 'From public filings. Not investment advice.',
-    layers: LAYERS, companies: [], others: [], filings: {}, sources: {}, figures: {}, mixes: {}, concentration: {}, edges: [], insights: {}, patterns: [], finsights: {}, fin: {},
+    layers: LAYERS, companies: [], others: [], filings: {}, sources: {}, figures: {}, mixes: {}, concentration: {}, edges: [], insights: {}, patterns: [], finsights: {}, fin: {}, quotes: {},
   };
-  const report = { built: data.built, companies: 0, figures: 0, edges: { curated: 0, kept: 0, dropped: [] }, insights: { kept: 0, dropped: 0 }, notes: [] };
+  const report = { built: data.built, companies: 0, figures: 0, quotes: { employees: { curated: 0, kept: 0, dropped: [], none: [] } }, edges: { curated: 0, kept: 0, dropped: [] }, insights: { kept: 0, dropped: 0 }, notes: [] };
   const texts = {};          // source id -> normalised text (for the verifier)
 
   for (const c of FILERS) {
@@ -366,6 +368,24 @@ function main() {
   // A company outside the set is on the map only because an edge names it.
   data.others = OTHERS.filter((o) => usedOthers.has(o.id)).map((o) => ({ id: o.id, name: o.name, layer: o.layer, filer: false }));
 
+  // How many people each company says it employs: one curated sentence a
+  // company, through the verifier (tools/curated-employees.json). What fails
+  // is dropped and reported - the file keeps one deliberate fake.
+  const qctx = { sources: data.sources, texts, rawTexts, sectionsOf, ranges: {} };
+  const people = JSON.parse(fs.readFileSync(path.join(__dirname, 'curated-employees.json'), 'utf8'));
+  report.quotes.employees.curated = people.length;
+  for (const e of people) {
+    const co = data.companies.find((c) => c.id === e.id);
+    const q = { c: e.id, kind: 'employees', n: e.n, quote: e.quote, source: co ? co.annual.source : null };
+    const res = co ? V.checkQuote(q, qctx) : { ok: false, why: 'unknown company' };
+    const id = `${e.id}.q.employees`;
+    if (!res.ok || data.quotes[id]) { report.quotes.employees.dropped.push({ id: e.id, n: e.n, why: res.ok ? 'a second sentence for one company' : res.why, tripwire: Boolean(e.tripwire) }); continue; }
+    const src = data.sources[q.source];
+    data.quotes[id] = { c: e.id, kind: 'employees', n: e.n, quote: T.norm(e.quote), source: q.source, section: res.section, date: src.date, proof: V.proof(src.sha, e.quote) };
+    report.quotes.employees.kept += 1;
+  }
+  report.quotes.employees.none = data.companies.filter((c) => !data.quotes[`${c.id}.q.employees`]).map((c) => c.id);
+
   // Insights and cross-company patterns: written from the figures by the
   // shared core, each sentence with the figures or edges it rests on.
   const written = Core.writeAll(data);
@@ -400,6 +420,8 @@ function main() {
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 1)}\n`);
   console.log(`${report.companies} companies, ${report.figures} figures, ${Object.keys(data.filings).length} filings cited`);
   console.log(`edges: ${report.edges.kept} kept of ${report.edges.curated} curated; ${report.edges.dropped.length} dropped`);
+  console.log(`employee sentences: ${report.quotes.employees.kept} kept of ${report.quotes.employees.curated} curated; none for ${report.quotes.employees.none.join(', ') || 'nobody'}`);
+  for (const d of report.quotes.employees.dropped) console.log(`  dropped ${d.id} (${d.n} employees): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   for (const d of report.edges.dropped) console.log(`  dropped ${d.from} -> ${d.to} (${d.type}, said by ${d.by}): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   console.log(`insight sentences: ${report.insights.kept} kept, ${report.insights.dropped} dropped`);
   console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB, largest f/ file ${biggestF[0]} ${(biggestF[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
