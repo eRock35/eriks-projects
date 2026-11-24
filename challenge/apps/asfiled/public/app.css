@@ -303,6 +303,12 @@ blockquote { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; marg
 .fact-x { width: 0; }
 .tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-2); margin-right: 6px; }
 .wrap td, .wrap th { white-space: normal; }
+.peerlist { margin: 0; padding: 0; list-style: none; }
+.peerlist li { padding: 10px 0; border-top: 1px solid var(--line); }
+.peerlist li.me { box-shadow: inset 3px 0 0 var(--accent); padding-left: 10px; }
+.peerlist a { font-weight: 650; }
+.peer-src { color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+.peer-src .ext { min-height: 30px; font-weight: 600; }
 
 @media (prefers-reduced-motion: no-preference) {
   .row, .chip, .pill, .cite, .tabs a { transition: background-color .15s ease, transform .15s ease, opacity .15s ease; }

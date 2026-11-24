@@ -147,16 +147,17 @@
   sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
 
   function valueText(f) { return f.u === 'share' ? Core.pct(f.v, 1) : Core.money(f.v, f.u); }
-  function figLabel(f) { return Core.METRICS[f.m] || (f.m === 'revenueUsd' ? 'Revenue (company’s own US-dollar translation)' : f.m === 'capexUsd' ? 'Capital spending (company’s own US-dollar translation)' : f.tag.charAt(0).toUpperCase() + f.tag.slice(1)); }
+  function figLabel(f) { return Core.METRICS[f.m] || Core.METRICS[String(f.m).replace(/^d\./, '')] || (f.m === 'revenueUsd' ? 'Revenue (company’s own US-dollar translation)' : f.m === 'capexUsd' ? 'Capital spending (company’s own US-dollar translation)' : f.tag.charAt(0).toUpperCase() + f.tag.slice(1)); }
+  function periodName(f) { var n = Core.daysBetween(f.start, f.end); return n <= 100 ? 'three months' : n < 200 ? 'six months' : n < 290 ? 'nine months' : 'fiscal year'; }
   function figureCard(fid) {
     var f = data.figures[fid];
     var src = Core.figureSource(data, fid);
     return h('div', { cls: 'src' },
-      h('p', { cls: 'src-v' }, h('strong', { text: valueText(f) }), ' · ' + src.company + ' · FY' + f.fy),
-      h('p', { cls: 'src-l', text: figLabel(f) + (Core.METRICS[f.m] || /Usd$/.test(f.m) ? ' (XBRL tag ' + f.tag + ')' : '') }),
+      h('p', { cls: 'src-v' }, h('strong', { text: valueText(f) }), ' · ' + src.company + ' · ' + (f.start && /^d\./.test(f.m) ? periodName(f) + ' to ' + f.end : 'FY' + f.fy)),
+      h('p', { cls: 'src-l', text: figLabel(f) + (Core.METRICS[f.m] || /Usd$/.test(f.m) || /^(d|pay)\./.test(f.m) ? ' (XBRL tag ' + f.tag + ')' : '') }),
       h('dl', { cls: 'kv' },
         h('dt', { text: 'Filing' }), h('dd', { text: 'Form ' + src.form + ', filed ' + src.filed }),
-        h('dt', { text: 'Period' }), h('dd', { text: 'Fiscal year ended ' + f.end }),
+        h('dt', { text: 'Period' }), h('dd', { text: f.start && /^d\./.test(f.m) ? f.start + ' to ' + f.end + ' (' + periodName(f) + ')' : 'Fiscal year ended ' + f.end }),
         h('dt', { text: 'Accession no.' }), h('dd', { text: src.accn }),
         src.prior ? [h('dt', { text: 'Registrant' }), h('dd', { text: src.prior.legal + ' (CIK ' + src.prior.cik + '), the company’s earlier SEC registrant' })] : null),
       h('p', null, ext(src.url, 'Open this filing on sec.gov')));
@@ -453,6 +454,8 @@
       return function () { later.forEach(function (f) { f(); }); };
     });
     addSection('cash', 'Cash', 'Free cash flow, pay in stock, repurchases, dividends, cash and debt', function (body) { return cashSection(c, body); });
+    addSection('quarter', 'Latest quarter', 'The newest three months and the last four quarters, from 10-Qs', function (body) { return quarterSection(c, body); });
+    addSection('peers', 'Peers', 'Rank among filers that share its SIC code', function (body) { peersSection(c, body); });
     var annualExtras = function () {
     var mixes = data.mixes[id] || [];
     var rev = Core.fig(data, id, 'revenue', c.latest);
@@ -522,6 +525,100 @@
         r.value === null ? h('span', { cls: 'fact-v none-v', text: r.none || 'Not tagged' }) : h('span', { cls: 'fact-v', text: r.value }),
         r.value !== null && r.cites && r.cites.length ? srcButton(r.cites.length === 1 ? 'Source' : r.cites.length + ' sources', r.label, r.cites) : h('span', { cls: 'fact-x' }));
     }));
+  }
+
+  /* ---------------- the latest quarter ---------------- */
+
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function quarterSection(c, body) {
+    var id = c.id;
+    var v = Core.quarterView(data, id);
+    if (!v) {
+      body.appendChild(h('p', { cls: 'none card pad', text: 'No quarterly report (Form 10-Q) with tagged revenue is on file for ' + c.name + '.' + (c.form === '20-F' ? ' It files its annual report on Form 20-F; a company that does is not required to file 10-Qs, and its interim reports (Form 6-K) are not tagged.' : '') }));
+      return null;
+    }
+    var fs = data.finsights[id] || [];
+    var by = function (topic) { return fs.filter(function (x) { return x.topic === topic; }); };
+    var M = function (x) { return Core.money(x, c.currency); };
+    var NAMES = { revenue: 'Revenue', opinc: 'Operating income', netinc: 'Net income', ocf: 'Operating cash flow', capex: 'Capital spending', fcf: 'Free cash flow' };
+    var row = function (set, k) {
+      var q = set[k];
+      var how = !q ? '' : k === 'fcf' ? 'operating cash flow less capital spending · ' + Core.computedFrom(q.cites.length) : q.how && q.how !== 'as filed' ? q.how + ' · ' + Core.computedFrom(q.cites.length) : q.cites.length > 1 ? Core.computedFrom(q.cites.length) : 'as filed';
+      return { label: NAMES[k], sub: how, value: q ? M(q.v) : null, cites: q ? q.cites : [] };
+    };
+    var keys = ['revenue', 'opinc', 'netinc', 'ocf', 'capex', 'fcf'];
+    var grid = h('div', { cls: 'grid' });
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Three months ended ' + v.end }),
+      by('quarter').map(sentence),
+      factRows(keys.map(function (k) { return row(v.q, k); }))));
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Four quarters to ' + v.end }),
+      by('ttm').map(sentence),
+      factRows(keys.map(function (k) { return row(v.ttm, k); })),
+      h('p', { cls: 'note', text: 'A quarterly report tags some numbers for the three months and others only for the year so far. Where there is no three-month figure, the quarter is one filed year-to-date figure less the one a quarter earlier, and the fourth quarter is the fiscal year less its first nine months; each says so and opens every figure it uses. Four quarters are added up only when all four are there.' })));
+    var later = [];
+    var list = v.lists.revenue;
+    var ends = list.map(function (q) { return q.end; });
+    var host = h('div', { cls: 'chart-host' });
+    var fmt = M; var tick = function (x) { return Core.money(x, c.currency, true); };
+    var xl = function (e) { return MONTHS[Number(e.slice(5, 7)) - 1] + ' ’' + e.slice(2, 4); };
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Revenue by quarter' }),
+      h('p', { cls: 'big' }, h('span', { text: fmt(list[list.length - 1].v) }), h('span', { cls: 'big-s', text: ' ' + xl(v.end) })),
+      host,
+      tableOf(['Three months ended', 'Revenue', 'How', 'Source'], list.slice().reverse().map(function (q) { return [q.end, fmt(q.v), q.how, srcButton(q.cites.length > 1 ? q.cites.length + ' figures' : 'Filing', 'Revenue, three months ended ' + q.end, q.cites)]; }))));
+    if (list.length > 1) later.push(function () { seriesChart(host, { title: 'Revenue', kind: 'bar', points: list.map(function (q) { return { fy: q.end, v: q.v, cites: q.cites }; }), years: ends, fmt: fmt, tick: tick, xlabel: xl, plabel: function (e) { return 'Three months ended ' + e; }, xwidth: 52 }); });
+    body.appendChild(grid);
+    return function () { later.forEach(function (f) { f(); }); };
+  }
+
+  /* ---------------- peers ----------------
+   * data/sic/<code>.json: every registrant that meets the definition, with
+   * the filing each of its figures was read from. Ranks are worked out here,
+   * by AsFiledCore, from that file alone. */
+
+  function peersSection(c, body) {
+    if (!c.sic) { body.appendChild(h('p', { cls: 'none card pad', text: 'No SIC code is recorded for ' + c.name + ', so no peer group can be named.' })); return; }
+    var wait = h('p', { cls: 'loading', role: 'status', text: 'Loading the peer list…' });
+    body.appendChild(wait);
+    load('sic/' + c.sic).then(function (part) {
+      clear(body);
+      var R = Core.peerRanks(part, c.cik);
+      var fmt = function (m, v) { return m.money ? Core.money(v, 'USD') : Core.pct(v, 1); };
+      var inSet = {}; data.companies.forEach(function (x) { inSet[x.cik] = x.id; });
+      var byCik = {}; part.peers.forEach(function (p) { byCik[p.cik] = p; });
+      var showList = function (m) {
+        openSheet(m.label + ' · SIC ' + part.sic, [
+          h('p', { cls: 'src-l', text: m.rows.length + ' of the ' + part.peers.length + ' registrants have the tagged figures for this (' + m.how + '), highest first. Each figure is the one in the filing linked beside it.' }),
+          h('ol', { cls: 'peerlist' }, m.rows.map(function (r, i) {
+            var p = byCik[r.cik];
+            var name = inSet[r.cik] ? h('a', { href: '#/c/' + inSet[r.cik], text: r.name }) : p.t ? h('a', { href: '#/x/' + r.cik, text: r.name }) : h('span', { text: r.name });
+            return h('li', { cls: r.cik === c.cik ? 'me' : null },
+              h('div', { cls: 'bar-top' }, h('span', { cls: 'bar-l' }, (i + 1) + '. ', name), h('span', { cls: 'bar-v', text: fmt(m, r.v) })),
+              Core.peerCites(part, p, m.key).map(function (x) {
+                return h('p', { cls: 'peer-src' }, x.tag.replace(/^.*:/, '') + ' ' + Core.money(x.v, 'USD') + ' · year ended ' + x.end + ' · ', ext(x.url, 'Form ' + (x.what === 'revenue0' || x.accn !== p.a[0] ? '' : p.form + ' ') + x.accn));
+              }));
+          }))]);
+      };
+      var st = R.me ? Core.peerSentence(part, c.name, R) : null;
+      var rows = R.metrics.filter(function (m) { return m.rows.length && (m.key !== 'rdShare' || !R.me || m.rank); });
+      body.appendChild(h('section', { cls: 'card pad' },
+        h('h2', { cls: 'card-t', text: 'SIC code ' + part.sic + ' · ' + part.desc }),
+        st ? h('p', { cls: 'say', text: st }) : h('p', { cls: 'none', text: c.name + ' is not in this list: ' + (c.currency !== 'USD' ? 'it reports in ' + c.currency + ', and the comparison is in US dollars.' : 'it has no revenue figure in US dollars in the SEC’s frame for calendar ' + part.frame.slice(2) + ' (the SEC assigns each fiscal year to one calendar year, and a 53-week year can skip one), or no Form 10-K or 20-F filed since ' + part.since + '.') }),
+        h('ul', { cls: 'facts' }, rows.map(function (m) {
+          return h('li', null,
+            h('span', { cls: 'fact-l' }, m.label, h('span', { cls: 'sub', text: m.rank ? fmt(m, m.v) + (R.me ? ' · year ended ' + R.me.end : '') : m.rows.length + ' registrants' })),
+            m.rank ? h('span', { cls: 'fact-v', text: m.text }) : h('span', { cls: 'fact-v none-v', text: R.me ? 'Not tagged' : '' }),
+            h('button', { type: 'button', cls: 'cite', 'aria-label': m.label + ': the list of ' + m.rows.length + ' registrants and their filings', on: { click: function () { showList(m); } } }, 'All ' + m.rows.length));
+        })),
+        R.me && R.me.end !== c.annual.period ? h('p', { cls: 'note', text: 'The SEC’s frame for calendar ' + part.frame.slice(2) + ' holds ' + c.name + '’s fiscal year ended ' + R.me.end + '. Its latest annual report is for the year ended ' + c.annual.period + ', which the SEC assigns to another calendar year.' }) : null,
+        h('p', { cls: 'note', text: Core.peerDefinition(part) }),
+        h('p', { cls: 'note', text: 'A peer’s figure is the latest one it filed for the period (the SEC’s frames), read ' + part.read + '; a restated figure can differ from the as-first-filed figure in the sections above. A rank is a position in a list of filed figures, nothing more.' })));
+    }, function () {
+      clear(body);
+      body.appendChild(h('p', { cls: 'none card pad', text: 'No peer list is published for SIC code ' + c.sic + ': no registrant with that code met the definition when the lists were built.' }));
+    });
   }
 
   /* ---------------- cash and capital return ---------------- */

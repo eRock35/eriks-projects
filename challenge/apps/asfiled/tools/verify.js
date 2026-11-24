@@ -129,16 +129,38 @@ function recheck(data) {
     facts[fkey] = facts[fkey] || JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${fkey}.json`), 'utf8'));
     const [tax, tag] = f.tag.split(':');
     const rows = (((facts[fkey].facts[tax] || {})[tag] || {}).units || {})[f.u] || [];
-    if (!rows.some((r) => r.accn === f.a && r.end === f.end && r.val === f.v)) problems.push(`${id}: ${f.tag} ${f.end} = ${f.v} is not in ${f.a}`);
+    if (!rows.some((r) => r.accn === f.a && r.end === f.end && r.val === f.v && (!f.start || r.start === f.start))) problems.push(`${id}: ${f.tag} ${f.end} = ${f.v} is not in ${f.a}`);
   }
   return problems;
 }
 
-module.exports = { TYPES, proof, expand, checkEdge, recheck, names, aliasRe };
+/** Re-read every published peer figure against the cached frames, and every
+ *  peer's SIC code and annual report against the cached submissions cut. */
+function recheckPeers(partsByCode) {
+  const Peers = require('./peers');
+  const problems = [];
+  const uni = Peers.readJson(Peers.universeFile(), null);
+  if (!uni) return ['the peers cache is not on this machine'];
+  const frames = {};
+  const frame = (q, year) => (frames[`${q}|${year}`] = frames[`${q}|${year}`] || Peers.readJson(Peers.frameFile(q, year), { rows: {} }).rows);
+  for (const [code, part] of Object.entries(partsByCode)) {
+    for (const p of part.peers) {
+      const rec = uni.ciks[p.cik];
+      if (!rec || rec.s !== code || !rec.a || rec.a[0] !== p.form || rec.a[1] !== p.filed) { problems.push(`sic/${code} ${p.cik}: SIC code or annual report does not match its submissions index`); continue; }
+      for (const [k, x] of Object.entries(p.m)) {
+        const row = frame(part.tags[x[2]], k === 'revenue0' ? Peers.YEAR - 1 : Peers.YEAR)[p.cik];
+        if (!row || row[0] !== x[0] || row[3] !== p.a[x[1]] || row[2] !== (k === 'revenue0' ? p.end0 : p.end)) problems.push(`sic/${code} ${p.cik}.${k}: not the value in the SEC frame`);
+      }
+    }
+  }
+  return problems;
+}
+
+module.exports = { TYPES, proof, expand, checkEdge, recheck, recheckPeers, names, aliasRe };
 
 if (require.main === module) {
   const data = require('./dataset').load();
-  const problems = recheck(data);
+  const problems = recheck(data).concat(recheckPeers(require('./dataset').peers()));
   if (problems.length) { console.error(problems.slice(0, 40).join('\n')); console.error(`${problems.length} problem(s).`); process.exit(1); }
   console.log(`verified against the cache: ${data.edges.length} edges, ${Object.keys(data.figures).length} figures, ${Object.keys(data.sources).length} sources`);
 }

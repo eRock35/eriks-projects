@@ -18,4 +18,11 @@ function load(dir = DIR) {
   return data;
 }
 
-module.exports = { DIR, load };
+/** The peer files (public/data/sic/<code>.json): {code: part}. */
+function peers(dir = DIR) {
+  const out = {};
+  for (const f of fs.readdirSync(path.join(dir, 'sic')).sort()) out[f.replace(/\.json$/, '')] = read(`sic/${f}`, dir);
+  return out;
+}
+
+module.exports = { DIR, load, peers };

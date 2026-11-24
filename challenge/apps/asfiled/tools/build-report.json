@@ -1,7 +1,7 @@
 {
  "built": "2026-11-24",
  "companies": 81,
- "figures": 10850,
+ "figures": 14539,
  "edges": {
   "curated": 567,
   "kept": 566,
@@ -17,20 +17,41 @@
   ]
  },
  "insights": {
-  "kept": 931,
+  "kept": 1164,
   "dropped": 0
  },
  "notes": [],
+ "peers": {
+  "frame": "CY2025",
+  "files": 393,
+  "registrants": 4533,
+  "reviewedWithoutFile": [],
+  "reviewedNotInFile": [
+   "TSM",
+   "ASML",
+   "SNDK",
+   "STX",
+   "WDC"
+  ]
+ },
  "sizes": {
-  "index": 434106,
+  "index": 435291,
   "patterns": 309763,
   "largestCompany": {
    "id": "ZBRA",
    "bytes": 28939
   },
   "largestFin": {
-   "id": "AAPL",
-   "bytes": 12549
+   "id": "MSFT",
+   "bytes": 25417
+  },
+  "peers": {
+   "files": 393,
+   "bytes": 1565128,
+   "largest": {
+    "sic": "2834",
+    "bytes": 86121
+   }
   }
  }
 }

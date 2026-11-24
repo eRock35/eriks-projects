@@ -18,11 +18,12 @@
     // Cash and capital return (kept in the company's second file, f/<ID>).
     ocf: 'Operating cash flow', sbc: 'Stock-based compensation', buybacks: 'Share repurchases', dividends: 'Dividends paid',
     cash: 'Cash and cash equivalents', sti: 'Short-term investments',
+    opinc: 'Operating income', netinc: 'Net income',
     debtLong: 'Long-term debt, beyond a year', debtCurrent: 'Debt due within a year', debtShort: 'Short-term borrowings', debtTotal: 'Long-term debt, with its current portion',
   };
   // Which figures live in f/<ID>.json rather than c/<ID>.json.
   var FIN = { ocf: 1, sbc: 1, buybacks: 1, dividends: 1, cash: 1, sti: 1, debtLong: 1, debtCurrent: 1, debtShort: 1, debtTotal: 1 };
-  function isFin(f) { return Boolean(FIN[f.m]); }
+  function isFin(f) { return Boolean(FIN[f.m]) || /^(d|pay)\./.test(f.m); }
   var short = function (tag) { return String(tag).replace(/^.*:/, ''); };
   var SYMBOL = { USD: '$', EUR: '€', TWD: 'NT$' };
   var TYPE_NAMES = {
@@ -234,6 +235,72 @@
     return out;
   }
 
+  /* ---------------- quarters ----------------
+   * A quarterly report tags some numbers for the three months and others
+   * only for the year so far. A quarter here is either a three-month figure
+   * as filed, or the difference of two filed year-to-date figures that start
+   * on the same day - and it says which. Nothing is estimated. The figures
+   * are the `d.<metric>` ones: an amount over a period with a start and an end. */
+  var QUARTERS = 8;                     // how many quarters the page shows
+  function daysBetween(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
+  function nextDay(d) { return new Date(Date.parse(d) + 86400000).toISOString().slice(0, 10); }
+  function months(n) { return n < 100 ? 'three months' : n < 200 ? 'six months' : n < 290 ? 'nine months' : 'fiscal year'; }
+  function quarters(data, cid, metric) {
+    var pre = cid + '.d.' + metric + '.';
+    var figs = [];
+    Object.keys(data.figures).forEach(function (k) { if (k.indexOf(pre) === 0) { var f = data.figures[k]; figs.push({ id: k, start: f.start, end: f.end, v: f.v, n: daysBetween(f.start, f.end) }); } });
+    figs.sort(function (a, b) { return a.end < b.end ? -1 : a.end > b.end ? 1 : a.n - b.n; });
+    var out = []; var done = {};
+    figs.forEach(function (a) {
+      if (done[a.end]) return;
+      if (a.n >= 80 && a.n <= 100) { done[a.end] = 1; out.push({ end: a.end, start: a.start, v: a.v, cites: [a.id], how: 'as filed' }); return; }
+      // A longer period: take away the filed period that starts the same day and ends a quarter earlier.
+      var b = null;
+      figs.forEach(function (x) {
+        var gap = daysBetween(x.end, a.end);
+        if (x !== a && Math.abs(daysBetween(x.start, a.start)) <= 4 && gap >= 80 && gap <= 100 && x.n < a.n) b = x;
+      });
+      if (!b) return;
+      done[a.end] = 1;
+      out.push({ end: a.end, start: nextDay(b.end), v: a.v - b.v, cites: [a.id, b.id], how: 'the ' + months(a.n) + ' less ' + (a.n >= 290 ? 'its' : 'the') + ' first ' + months(b.n) });
+    });
+    return out;
+  }
+  /** The quarter of `list` that ends on `end`, or null. */
+  function quarterAt(list, end) { for (var i = 0; i < list.length; i += 1) if (list[i].end === end) return list[i]; return null; }
+  /** The four quarters to `end` added up - only when all four are there and
+   *  follow one another. */
+  function trailing(list, end) {
+    var i = -1; list.forEach(function (q, j) { if (q.end === end) i = j; });
+    if (i < 3) return null;
+    var four = list.slice(i - 3, i + 1); var cites = []; var v = 0;
+    for (var j = 0; j < 4; j += 1) {
+      if (j && (daysBetween(four[j - 1].end, four[j].end) < 80 || daysBetween(four[j - 1].end, four[j].end) > 100)) return null;
+      v += four[j].v; cites = cites.concat(four[j].cites);
+    }
+    return { v: v, cites: uniq(cites), from: four[0].start, end: end };
+  }
+  /** The same quarter a year earlier. */
+  function yearAgo(list, end) {
+    for (var i = 0; i < list.length; i += 1) { var n = daysBetween(list[i].end, end); if (n >= 357 && n <= 378) return list[i]; }
+    return null;
+  }
+  /** Everything the "Latest quarter" section shows, from the figures. */
+  function quarterView(data, cid) {
+    var rev = quarters(data, cid, 'revenue').slice(-QUARTERS);
+    if (!rev.length) return null;
+    var end = rev[rev.length - 1].end;
+    var since = function (m) { return quarters(data, cid, m).filter(function (q) { return q.end >= rev[0].end; }); };
+    var lists = { revenue: rev, opinc: since('opinc'), netinc: since('netinc'), ocf: since('ocf'), capex: since('capex') };
+    var view = { end: end, start: rev[rev.length - 1].start, lists: lists, q: {}, ttm: {} };
+    Object.keys(lists).forEach(function (m) { view.q[m] = quarterAt(lists[m], end); view.ttm[m] = trailing(lists[m], end); });
+    var sub = function (a, b) { return a && b ? { v: a.v - b.v, cites: uniq(a.cites.concat(b.cites)) } : null; };
+    view.q.fcf = sub(view.q.ocf, view.q.capex);
+    view.ttm.fcf = sub(view.ttm.ocf, view.ttm.capex);
+    view.prior = yearAgo(rev, end);
+    return view;
+  }
+
   var COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
   function computedFrom(n) { return 'computed from ' + (COUNT[n] || n) + ' filed figures'; }
 
@@ -273,6 +340,30 @@
       if (!paid.length && !(bb && dv)) rt = 'In FY' + L + ' ' + (bb ? 'share repurchases' : 'dividends paid') + ' are tagged as zero; ' + (bb ? 'no dividend payment' : 'no share repurchase') + ' is tagged for the year.';
       out.push(S('returns', rt, rc));
     }
+    var qv = quarterView(data, cid);
+    if (qv) {
+      var q = qv.q.revenue;
+      var qt = 'In the three months ended ' + qv.end + ' revenue was ' + M(q.v) + (q.cites.length > 1 ? ' (' + q.how + ': ' + computedFrom(q.cites.length) + ')' : '');
+      var qc = q.cites.slice();
+      if (qv.prior && qv.prior.v > 0) {
+        var ch = q.v / qv.prior.v - 1;
+        qt += ', ' + (ch >= 0 ? 'up ' : 'down ') + pct(Math.abs(ch)) + ' from ' + M(qv.prior.v) + ' in the three months ended ' + qv.prior.end;
+        qc = qc.concat(qv.prior.cites);
+      }
+      out.push(S('quarter', qt + '.', qc));
+      var tr = qv.ttm.revenue;
+      if (tr) {
+        var tt = 'Over the four quarters to ' + qv.end + ' revenue added up to ' + M(tr.v) + ' (' + computedFrom(tr.cites.length) + ')';
+        var tc = tr.cites.slice();
+        var extra = [];
+        if (qv.ttm.opinc) { extra.push('operating income to ' + M(qv.ttm.opinc.v)); tc = tc.concat(qv.ttm.opinc.cites); }
+        if (qv.ttm.netinc) { extra.push('net income to ' + M(qv.ttm.netinc.v)); tc = tc.concat(qv.ttm.netinc.cites); }
+        if (extra.length) tt += ', ' + extra.join(' and ');
+        out.push(S('ttm', tt + '.', tc));
+      }
+      var tf = qv.ttm.fcf;
+      if (tf) out.push(S('ttm', 'Free cash flow over the same four quarters was ' + M(tf.v) + ': operating cash flow of ' + M(qv.ttm.ocf.v) + ' less capital spending of ' + M(qv.ttm.capex.v) + ' (' + computedFrom(tf.cites.length) + ').', tf.cites));
+    }
     var ca = fig(data, cid, 'cash', L); var si = fig(data, cid, 'sti', L); var de = at('debt', L);
     if (ca) {
       var dt = 'At the end of FY' + L + ' the balance sheet carried ' + M(ca.v) + ' in cash and cash equivalents' + (si ? ' and ' + M(si.v) + ' in short-term investments' : '');
@@ -287,6 +378,68 @@
       out.push(S('debt', dt, dc));
     }
     return out;
+  }
+
+  /* ---------------- peers: rank among filers sharing a SIC code ----------------
+   * A peer file (data/sic/<code>.json) lists every registrant that meets the
+   * definition, each with its figures for one fiscal year and the filing each
+   * was read from. Everything here is worked out from that file alone. */
+  var PEER_METRICS = [
+    { key: 'revenue', label: 'Revenue', money: true, needs: ['revenue'], how: 'revenue as tagged' },
+    { key: 'growth', label: 'Revenue growth', needs: ['revenue', 'revenue0'], how: 'revenue ÷ the year before’s revenue, less one' },
+    { key: 'opMargin', label: 'Operating margin', needs: ['op', 'revenue'], how: 'operating income ÷ revenue' },
+    { key: 'fcfMargin', label: 'Free cash flow margin', needs: ['ocf', 'capex', 'revenue'], how: '(operating cash flow less capital spending) ÷ revenue' },
+    { key: 'rdShare', label: 'R&D as a share of revenue', needs: ['rd', 'revenue'], how: 'research and development ÷ revenue' },
+  ];
+  function peerValue(peer, key) {
+    var m = peer.m; var g = function (k) { return m[k] ? m[k][0] : null; };
+    var rev = g('revenue');
+    if (!(rev > 0)) return null;
+    if (key === 'revenue') return rev;
+    if (key === 'growth') return g('revenue0') > 0 ? rev / g('revenue0') - 1 : null;
+    if (key === 'opMargin') return m.op ? g('op') / rev : null;
+    if (key === 'fcfMargin') return m.ocf && m.capex ? (g('ocf') - g('capex')) / rev : null;
+    if (key === 'rdShare') return m.rd ? g('rd') / rev : null;
+    return null;
+  }
+  /** The filed figures a peer's value rests on: [{what, v, tag, end, accn, url}]. */
+  function peerCites(part, peer, key) {
+    var def = PEER_METRICS.filter(function (d) { return d.key === key; })[0];
+    return def.needs.map(function (k) {
+      var x = peer.m[k];
+      return { what: k, v: x[0], tag: part.tags[x[2]], end: k === 'revenue0' ? peer.end0 : peer.end, accn: peer.a[x[1]], url: filingUrl(peer.cik, peer.a[x[1]]) };
+    });
+  }
+  function ordinal(n) { var t = n % 100; var s = t >= 11 && t <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'; return n + s; }
+  /** Where the registrant with this CIK stands in its peer file. `me` is null
+   *  when it is not in the file (it reports in another currency, say). */
+  function peerRanks(part, cik) {
+    var me = null;
+    part.peers.forEach(function (p) { if (p.cik === Number(cik)) me = p; });
+    var metrics = PEER_METRICS.map(function (d) {
+      var rows = [];
+      part.peers.forEach(function (p) { var v = peerValue(p, d.key); if (v !== null && isFinite(v)) rows.push({ cik: p.cik, name: p.name, v: v }); });
+      rows.sort(function (a, b) { return b.v - a.v || a.cik - b.cik; });
+      var mine = me ? peerValue(me, d.key) : null;
+      var rank = null;
+      if (mine !== null) rank = 1 + rows.filter(function (r) { return r.v > mine; }).length;
+      return { key: d.key, label: d.label, money: Boolean(d.money), how: d.how, v: mine, rank: rank, of: rows.length, rows: rows, text: rank ? ordinal(rank) + ' of ' + rows.length : null };
+    });
+    return { me: me, n: part.peers.length, metrics: metrics };
+  }
+  /** The definition, as the page states it. */
+  function peerDefinition(part) {
+    var n = part.peers.length; var ex = part.excluded;
+    var t = (n === 1 ? 'One registrant' : n + ' registrants') + ': every one with SIC code ' + part.sic + ' (' + part.desc + ') in its SEC submissions index, a revenue figure above zero in US dollars in the SEC’s frame for calendar ' + part.frame.slice(2) + ', and a Form 10-K or 20-F filed between ' + part.since + ' and ' + part.read + ' (18 months).';
+    t += ' Left out: ' + ex.noAnnual + ' with no such annual report in that time' + (ex.noRevenue ? ' and ' + ex.noRevenue + ' whose tagged revenue was not above zero' : '') + '.';
+    t += ' A registrant that reports in another currency, or tags none of the revenue tags read here, is not in the frame and is not counted.';
+    return t;
+  }
+  /** One sentence on where a company stands, from its ranks. */
+  function peerSentence(part, name, ranks) {
+    var got = ranks.metrics.filter(function (m) { return m.rank; });
+    if (!got.length) return null;
+    return 'Among those filing under SIC code ' + part.sic + ', ' + name + ' ranked ' + list(got.map(function (m) { return m.text + ' on ' + (/^R&D/.test(m.label) ? m.label : m.label.charAt(0).toLowerCase() + m.label.slice(1)); })) + ', for the fiscal year ended ' + ranks.me.end + ' (counting itself; highest first).';
   }
 
   function nameOf(data, cid) { var c = company(data, cid); return c ? c.name : cid; }
@@ -431,7 +584,7 @@
    *                       pay, insider and risk-factor data, with its sentences
    * The page loads index.json first and the others when a view needs them,
    * merging each into one object the functions above read. */
-  var PART = /^(index|patterns|[cf]\/[A-Z]{1,6})$/;
+  var PART = /^(index|patterns|[cf]\/[A-Z]{1,6}|sic\/\d{4})$/;
   function partPath(part) {
     if (!PART.test(String(part))) throw new Error('not a data part: ' + part);
     return 'data/' + part + '.json';
@@ -478,6 +631,7 @@
       others: data.others, sources: data.sources,
       edges: data.edges.map(function (e) { var o = {}; Object.keys(e).forEach(function (k) { if (k !== 'url') o[k] = e[k]; }); return o; }),
       figures: hp.figures, filings: hp.filings,
+      peers: data.peers || null,
       counts: { figures: Object.keys(data.figures).length, filings: Object.keys(data.filings).length, sources: Object.keys(data.sources).length },
       integrity: data.integrity,
     };
@@ -518,6 +672,8 @@
     METRICS: METRICS, TYPE_NAMES: TYPE_NAMES, DIRECTED: DIRECTED, SYMBOL: SYMBOL,
     fiscalYear: fiscalYear, fig: fig, derived: derived, company: company, money: money, pct: pct, times: times,
     filingUrl: filingUrl, figureSource: figureSource, quoteUrl: quoteUrl, pad10: pad10,
+    PEER_METRICS: PEER_METRICS, peerValue: peerValue, peerCites: peerCites, peerRanks: peerRanks, peerDefinition: peerDefinition, peerSentence: peerSentence, ordinal: ordinal,
+    QUARTERS: QUARTERS, quarters: quarters, quarterView: quarterView, trailing: trailing, daysBetween: daysBetween,
     companyInsights: companyInsights, finInsights: finInsights, isFin: isFin, computedFrom: computedFrom, patterns: patterns, writeAll: writeAll, integrity: integrity, canonical: canonical,
     partPath: partPath, split: split, start: start, merge: merge, headIds: headIds,
   };

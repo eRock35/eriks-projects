@@ -31,6 +31,13 @@ function company(cik, name, base, accnOf) {
   const rev = series((v) => v);
   rev.units.USD.push({ start: '2025-10-01', end: '2025-12-31', val: Math.round(base * 0.4), accn: accnOf(2025), fy: 2025, fp: 'FY', form: '10-K', filed: '2026-02-20' });
   rev.units.USD.push({ start: '2025-01-01', end: '2025-03-31', val: Math.round(base * 0.38), accn: `${String(cik).padStart(10, '0')}-25-000003`, fy: 2025, fp: 'Q1', form: '10-Q', filed: '2025-04-25' });
+  // 2025's quarters, as 10-Qs tag them: revenue for each three months, cash
+  // flow only for the year so far. (Nothing for the fourth quarter but the year.)
+  const q = (n) => ({ accn: `${String(cik).padStart(10, '0')}-25-00000${n + 2}`, fy: 2025, fp: `Q${n}`, form: '10-Q', filed: ['2025-04-25', '2025-07-25', '2025-10-24'][n - 1] });
+  const QEND = ['2025-03-31', '2025-06-30', '2025-09-30']; const QSTART = ['2025-01-01', '2025-04-01', '2025-07-01'];
+  rev.units.USD.push({ start: QSTART[1], end: QEND[1], val: Math.round(base * 0.37), ...q(2) }, { start: QSTART[2], end: QEND[2], val: Math.round(base * 0.39), ...q(3) });
+  const ocf = series((v) => v * 0.31);
+  [0.07, 0.16, 0.22].forEach((k, i) => ocf.units.USD.push({ start: '2025-01-01', end: QEND[i], val: Math.round(base * k), ...q(i + 1) }));
   return {
     cik, entityName: name,
     facts: {
@@ -44,7 +51,7 @@ function company(cik, name, base, accnOf) {
         InventoryNet: series((v) => v * 0.03, true),
         // Cash and capital return. No dividend and no short-term investment
         // is tagged: the page must say "Not tagged", not zero.
-        NetCashProvidedByUsedInOperatingActivities: series((v) => v * 0.31),
+        NetCashProvidedByUsedInOperatingActivities: ocf,
         ShareBasedCompensation: series((v) => v * 0.05),
         PaymentsForRepurchaseOfCommonStock: series((v) => v * 0.1),
         CashAndCashEquivalentsAtCarryingValue: series((v) => v * 0.2, true),

@@ -23,6 +23,7 @@ const T = require('./text');
 const X = require('./xbrl');
 const V = require('./verify');
 const Core = require('../public/asfiled-core');
+const Peers = require('./peers');
 
 const OUT = path.join(__dirname, '..', 'public', 'data');
 const REPORT = path.join(__dirname, 'build-report.json');
@@ -92,6 +93,47 @@ const cleanLabel = (s) => String(s || '').replace(/\s*\[Member\]\s*$/i, '').repl
   .replace(/\b[A-Z]{4,}\b|\b(OF|AND|THE)\b/g, (w) => (SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w[0] + w.slice(1).toLowerCase()));
 // "Three largest customers", "Four customers": a group, not one customer.
 const isGroup = (s) => /\b(two|three|four|five|six|ten|\d+)\s+(largest\s+)?(customers|distributors)\b|largest customers|\band\b.*\bcustomers$/i.test(s);
+
+/** The figures the "Latest quarter" section rests on: amounts over a period
+ *  (three months, or the year so far) from 10-Qs and annual reports, each
+ *  from the earliest filing that reported that exact period. Only the ones
+ *  the last QUARTERS quarters cite are kept (Core.quarters decides). */
+const QUARTERS = Core.QUARTERS;
+function quarterFigures(data, c, factsList, unit) {
+  const tmp = { figures: {} }; const filings = {};
+  for (const metric of X.QUARTERLY) {
+    const best = {};
+    for (const { cik, facts } of factsList) TAGS[metric].forEach((qname, rank) => {
+      const [tax, tag] = qname.split(':');
+      const rows = (((facts.facts[tax] || {})[tag] || {}).units || {})[unit];
+      for (const r of rows || []) {
+        if (!(r.form === '10-Q' || ANNUAL.has(r.form)) || !r.start || !r.end || !Number.isFinite(r.val)) continue;
+        const n = days(r.start, r.end);
+        if (n < 80 || n > 380) continue;
+        const key = `${r.start}.${r.end}`;
+        const cur = best[key];
+        const cand = { start: r.start, end: r.end, val: r.val, accn: r.accn, form: r.form, filed: r.filed, tag: qname, rank, cik };
+        if (!cur || cand.filed < cur.filed || (cand.filed === cur.filed && (metric === 'revenue' ? cand.val > cur.val : cand.rank < cur.rank))) best[key] = cand;
+      }
+    });
+    for (const [key, r] of Object.entries(best)) {
+      tmp.figures[`${c.id}.d.${metric}.${key}`] = { c: c.id, m: `d.${metric}`, fy: Core.fiscalYear(r.end), start: r.start, end: r.end, v: r.val, u: unit, tag: r.tag, a: r.accn };
+      filings[r.accn] = { c: c.id, form: r.form, filed: r.filed };
+      if (r.cik && r.cik !== c.cik) filings[r.accn].cik = r.cik;
+    }
+  }
+  // A company with no 10-Q has no quarters here (a 20-F filer's 6-Ks are not tagged).
+  if (!Object.values(filings).some((f) => f.form === '10-Q')) return;
+  const rev = Core.quarters(tmp, c.id, 'revenue').slice(-QUARTERS);
+  if (!rev.length) return;
+  const first = rev[0].end;
+  for (const metric of X.QUARTERLY) {
+    for (const q of Core.quarters(tmp, c.id, metric)) {
+      if (q.end < first) continue;
+      for (const id of q.cites) { data.figures[id] = tmp.figures[id]; data.filings[tmp.figures[id].a] = filings[tmp.figures[id].a]; }
+    }
+  }
+}
 
 /** One company's part of the dataset, from its company facts (its own
  *  registrant first, then any prior one), its latest annual report `a`
@@ -164,6 +206,8 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
   // What the second half of the page shows beyond figures (quotes, lists): filled in by the layers below.
   data.fin = data.fin || {};
   data.fin[c.id] = {};
+  quarterFigures(data, c, facts, currency);
+
   const docId = `${c.id}-${a.accn}`;
   data.filings[a.accn] = { c: c.id, form: a.form, filed: a.filed };
   const label = (q) => cleanLabel((labels[q] || {}).terse || (labels[q] || {}).std || q.replace(/^.*:/, '').replace(/Member$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'));
@@ -246,6 +290,8 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
   // the YEARS shown for everyone else).
   data.companies.push({ id: c.id, name: c.name, legal: c.legal, layer: c.layer, filer: true, cik: c.cik, form: c.form, currency, years: fys, periods: Object.keys(rev).length, latest: fys[fys.length - 1], annual: { accn: a.accn, period: a.period, filed: a.filed, source: docId } });
   if (c.priorCiks) data.companies[data.companies.length - 1].prior = c.priorCiks.map((p) => ({ cik: p.cik, legal: p.legal }));
+  // The SIC code in the registrant's submissions index: which peer file its page reads.
+  if (/^\d{4}$/.test(String(c.sic || ''))) data.companies[data.companies.length - 1].sic = String(c.sic);
 }
 
 /** A sentence is kept only when every figure or edge it cites is there. */
@@ -278,7 +324,8 @@ function main() {
     const dir = path.join(sec.CACHE, 'docs', c.id, a.accn);
     const inst = a.instance ? X.readInstance(path.join(dir, a.instance)) : { facts: [] };
     const labels = a.labels ? X.readLabels(path.join(dir, a.labels)) : {};
-    addCompany(data, c, a, { facts, inst, labels, currency });
+    const subs = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'subs', `${c.id}.json`), 'utf8'));
+    addCompany(data, { ...c, sic: subs.sic }, a, { facts, inst, labels, currency });
 
     // The latest annual report: its text, its XBRL instance, its labels.
     const docId = `${c.id}-${a.accn}`;
@@ -327,6 +374,11 @@ function main() {
   data.patterns = written.patterns.map((p) => ({ ...p, sentences: p.sentences.filter(keep) }));
   for (const id of Object.keys(written.finsights)) data.finsights[id] = written.finsights[id].filter(keep);
 
+  // Peers: one file per SIC code, from the SEC's frames (tools/peers.js).
+  const peerParts = Peers.parts() || {};
+  const codes = Object.keys(peerParts).sort();
+  data.peers = { frame: `CY${Peers.YEAR}`, files: codes.length, registrants: codes.reduce((n, k) => n + peerParts[k].peers.length, 0), sha: T.sha(Core.canonical(codes.map((k) => peerParts[k]))) };
+  report.peers = { ...data.peers, sha: undefined, reviewedWithoutFile: data.companies.filter((c) => !peerParts[c.sic]).map((c) => c.id), reviewedNotInFile: data.companies.filter((c) => peerParts[c.sic] && !peerParts[c.sic].peers.some((p) => p.cik === c.cik)).map((c) => c.id) };
   report.figures = Object.keys(data.figures).length;
   data.integrity = Core.integrity(data, (s) => T.sha(s));
   // Published in parts (see Core.split): a small index, the patterns, and
@@ -335,13 +387,16 @@ function main() {
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
   fs.mkdirSync(path.join(OUT, 'f'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, 'sic'), { recursive: true });
+  let sicBytes = 0; let biggestSic = ['', 0];
+  for (const k of codes) { const n = fs.writeFileSync(path.join(OUT, 'sic', `${k}.json`), JSON.stringify(peerParts[k])) || fs.statSync(path.join(OUT, 'sic', `${k}.json`)).size; sicBytes += n; if (n > biggestSic[1]) biggestSic = [k, n]; }
   const write = (rel, obj) => { fs.writeFileSync(path.join(OUT, rel), JSON.stringify(obj)); return fs.statSync(path.join(OUT, rel)).size; };
   const sizes = { index: write('index.json', parts.index), patterns: write('patterns.json', parts.patterns) };
   let biggest = ['', 0];
   for (const [cid, part] of Object.entries(parts.companies)) { const n = write(`c/${cid}.json`, part); if (n > biggest[1]) biggest = [cid, n]; }
   let biggestF = ['', 0];
   for (const [cid, part] of Object.entries(parts.fins)) { const n = write(`f/${cid}.json`, part); if (n > biggestF[1]) biggestF = [cid, n]; }
-  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] }, largestFin: { id: biggestF[0], bytes: biggestF[1] } };
+  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] }, largestFin: { id: biggestF[0], bytes: biggestF[1] }, peers: { files: codes.length, bytes: sicBytes, largest: { sic: biggestSic[0], bytes: biggestSic[1] } } };
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 1)}\n`);
   console.log(`${report.companies} companies, ${report.figures} figures, ${Object.keys(data.filings).length} filings cited`);
   console.log(`edges: ${report.edges.kept} kept of ${report.edges.curated} curated; ${report.edges.dropped.length} dropped`);
@@ -350,5 +405,5 @@ function main() {
   console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB, largest f/ file ${biggestF[0]} ${(biggestF[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
 }
 
-module.exports = { annualSeries, addCompany, citedOnly, YEARS };
+module.exports = { annualSeries, addCompany, quarterFigures, citedOnly, YEARS, QUARTERS };
 if (require.main === module) main();

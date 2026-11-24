@@ -22,10 +22,14 @@ const data = Dataset.load();
 const DATA = path.join(ROOT, 'public', 'data');
 const readPart = (rel) => JSON.parse(fs.readFileSync(path.join(DATA, rel), 'utf8'));
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const DATA_DIRS = ['c', 'f', 'index.json', 'patterns.json'];
-const GOOD_PARTS = ['index', 'patterns', 'c/NVDA', 'c/P', 'c/GOOGL', 'f/NVDA', 'f/P'];
+const DATA_DIRS = ['c', 'f', 'index.json', 'patterns.json', 'sic'];
+const GOOD_PARTS = ['index', 'patterns', 'c/NVDA', 'c/P', 'c/GOOGL', 'f/NVDA', 'f/P', 'sic/3674', 'sic/7320'];
 // The form a figure may come from: annual reports, except the quarterly and proxy figures.
-const FORM_OF = () => /^(10-K|20-F)$/;
+const FORM_OF = (f) => (/^d\./.test(f.m) ? /^(10-Q|10-K|20-F)$/ : /^pay\./.test(f.m) ? /^DEF 14A$/ : /^(10-K|20-F)$/);
+// Reviewed companies with no peer rank: not in the SEC's US-dollar frames for the year.
+// (ASML and TSMC report in other currencies; Sandisk, Seagate and Western Digital's 53-week year
+// to 2026-07-03 was assigned to calendar 2026, and the one before to 2024.)
+const PEERLESS = ['ASML', 'SNDK', 'STX', 'TSM', 'WDC'];
 const INDEX_MAX = 450 * 1024;          // the phone's first data load (about a sixth of that over the wire, gzipped)
 let n = 0;
 const ok = (m) => { n += 1; console.log(`  ok ${n} - ${m}`); };
@@ -275,6 +279,127 @@ function walk(dir, out = []) {
     ok(`cash: free cash flow is operating cash flow less capital spending wherever both are tagged (${fcf} company-years), cited to both and labelled as computed; debt is the sum of the named balance-sheet tags (${debts} companies), never counted twice; what is not tagged has no number and no sentence`);
   }
 
+  /* ---------- the latest quarter (2026-11-24) ---------- */
+  {
+    const { QUARTERS } = require('../tools/build');
+    const D = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+    let direct = 0; let diffs = 0; let ttm = 0; const none = [];
+    for (const c of data.companies) {
+      const v = Core.quarterView(data, c.id);
+      const mine = Object.entries(data.figures).filter(([, f]) => f.c === c.id && /^d\./.test(f.m));
+      if (!v) { none.push(c.id); assert.strictEqual(mine.length, 0); continue; }
+      const cited = new Set();
+      for (const [metric, list] of Object.entries(v.lists)) {
+        assert.ok(list.length <= QUARTERS, `${c.id} ${metric}: ${list.length} quarters`);
+        list.forEach((q, i) => {
+          const figs = q.cites.map((id) => data.figures[id]);
+          figs.forEach((f, j) => { assert.ok(f && f.m === `d.${metric}` && f.start && /^(10-Q|10-K)$/.test(data.filings[f.a].form), `${c.id}: ${q.cites[j]}`); cited.add(q.cites[j]); });
+          assert.ok(D(q.start, q.end) >= 79 && D(q.start, q.end) <= 100, `${c.id} ${metric} ${q.end}: ${q.start} is not a quarter`);
+          if (figs.length === 1) {
+            // A three-month figure, exactly as filed.
+            direct += 1;
+            assert.deepStrictEqual([q.v, q.how, figs[0].start, figs[0].end], [figs[0].v, 'as filed', q.start, q.end]);
+          } else {
+            // Exact arithmetic on two filed figures that start the same day, a quarter apart - and labelled.
+            diffs += 1;
+            assert.strictEqual(figs.length, 2);
+            assert.strictEqual(q.v, figs[0].v - figs[1].v);
+            assert.ok(figs[0].end === q.end && Math.abs(D(figs[1].start, figs[0].start)) <= 4 && D(figs[1].end, figs[0].end) >= 80 && D(figs[1].end, figs[0].end) <= 100, `${c.id} ${metric} ${q.end}`);
+            assert.ok(/^the (six months|nine months|fiscal year) less (the|its) first (three|six|nine) months$/.test(q.how), q.how);
+          }
+          if (i) assert.ok(q.end > list[i - 1].end);
+        });
+        const t = v.ttm[metric];
+        if (t) {
+          const four = list.slice(-4);
+          assert.strictEqual(four[3].end, v.end);
+          assert.strictEqual(t.v, four[0].v + four[1].v + four[2].v + four[3].v);
+          for (let i = 1; i < 4; i += 1) assert.ok(D(four[i - 1].end, four[i].end) >= 80 && D(four[i - 1].end, four[i].end) <= 100);
+          assert.ok(D(four[0].start, v.end) >= 355 && D(four[0].start, v.end) <= 380, `${c.id} ${metric}: four quarters cover ${D(four[0].start, v.end)} days`);
+        }
+      }
+      if (v.ttm.revenue) ttm += 1;
+      if (v.ttm.fcf) assert.strictEqual(v.ttm.fcf.v, v.ttm.ocf.v - v.ttm.capex.v);
+      if (v.q.fcf) assert.strictEqual(v.q.fcf.v, v.q.ocf.v - v.q.capex.v);
+      // Nothing is kept that no quarter cites.
+      assert.deepStrictEqual(mine.map(([id]) => id).sort(), [...cited].sort(), `${c.id}: a quarterly figure nothing cites`);
+      const qs = (data.finsights[c.id] || []).filter((s) => s.topic === 'quarter');
+      assert.ok(qs.length === 1 && qs[0].text.includes(`three months ended ${v.end}`));
+    }
+    assert.deepStrictEqual(none.sort(), ['ASML', 'TSM'], 'only the two 20-F filers have no 10-Q');
+    assert.strictEqual(Core.quarters({ figures: { 'Z.d.ocf.2025-01-01.2025-06-30': { start: '2025-01-01', end: '2025-06-30', v: 10 } } }, 'Z', 'ocf').length, 0, 'a year-to-date figure alone is not a quarter');
+    {
+      // Made up: a second quarter from two year-to-date figures; nothing from a six-month figure whose first quarter is missing.
+      const f = (start, end, v) => ({ start, end, v });
+      const made = { figures: { 'Z.d.ocf.2025-01-01.2025-03-31': f('2025-01-01', '2025-03-31', 4), 'Z.d.ocf.2025-01-01.2025-06-30': f('2025-01-01', '2025-06-30', 10), 'Z.d.ocf.2026-01-01.2026-06-30': f('2026-01-01', '2026-06-30', 99) } };
+      const got = Core.quarters(made, 'Z', 'ocf');
+      assert.deepStrictEqual(got.map((q) => [q.start, q.end, q.v, q.how]), [['2025-01-01', '2025-03-31', 4, 'as filed'], ['2025-04-01', '2025-06-30', 6, 'the six months less the first three months']]);
+      assert.strictEqual(Core.trailing(got, '2025-06-30'), null, 'two quarters are not four');
+    }
+    ok(`quarters: ${direct} three-month figures as filed and ${diffs} worked out as one filed year-to-date figure less another (exact, labelled, both cited); four-quarter totals for ${ttm} companies, only where four consecutive quarters exist; ${none.join(' and ')} file no 10-Q`);
+  }
+
+  /* ---------- peers: rank among filers sharing a SIC code (2026-11-24) ---------- */
+  {
+    const Peers = require('../tools/peers');
+    const peerParts = Dataset.peers();
+    const codes = Object.keys(peerParts);
+    const index = readPart('index.json');
+    assert.deepStrictEqual([index.peers.files, index.peers.frame], [codes.length, `CY${Peers.YEAR}`]);
+    assert.strictEqual(index.peers.sha, sha(Core.canonical(codes.sort().map((k) => peerParts[k]))), 'the peer files are the ones the index was built with');
+    const seen = new Set(); let bytes = 0; let registrants = 0;
+    for (const [code, part] of Object.entries(peerParts)) {
+      const size = fs.statSync(path.join(DATA, 'sic', `${code}.json`)).size; bytes += size;
+      assert.ok(/^\d{4}$/.test(code) && part.part === `sic/${code}` && part.sic === code && part.desc && size < 140 * 1024, `sic/${code}`);
+      assert.ok(part.peers.length > 0 && /^\d{4}-\d\d-\d\d$/.test(part.read) && part.since < part.read && part.excluded.noAnnual >= 0 && part.excluded.noRevenue >= 0);
+      // 18 months, to the day the submissions indexes were read.
+      assert.strictEqual(Math.round((Date.parse(part.read) - Date.parse(part.since)) / 86400000), Peers.WINDOW_DAYS);
+      for (const p of part.peers) {
+        registrants += 1;
+        assert.ok(!seen.has(p.cik), `${p.cik} is in two peer files`); seen.add(p.cik);
+        // The definition: an annual report in the window, revenue above zero, every figure with its tag and filing.
+        assert.ok(/^(10-K|20-F)$/.test(p.form) && p.filed >= part.since && p.filed <= part.read, `sic/${code} ${p.cik}: annual report`);
+        assert.ok(p.m.revenue && p.m.revenue[0] > 0 && p.name, `sic/${code} ${p.cik}: revenue`);
+        for (const [k, x] of Object.entries(p.m)) {
+          const metric = k === 'revenue0' ? 'revenue' : k;
+          assert.ok(Number.isFinite(x[0]) && /^\d{10}-\d{2}-\d{6}$/.test(p.a[x[1]]) && Peers.METRICS[metric].includes(part.tags[x[2]]), `sic/${code} ${p.cik}.${k}`);
+        }
+        for (const d of Core.PEER_METRICS) for (const x of (d.needs.every((k) => p.m[k]) ? Core.peerCites(part, p, d.key) : [])) assert.ok(/^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/\d{10}-\d{2}-\d{6}-index\.htm$/.test(x.url) && /^\d{4}-\d\d-\d\d$/.test(x.end) && x.tag);
+      }
+      assert.deepStrictEqual(part.peers.map((p) => p.m.revenue[0]), part.peers.map((p) => p.m.revenue[0]).sort((a, b) => b - a));
+    }
+    assert.strictEqual(registrants, index.peers.registrants);
+    assert.ok(bytes < 2.6 * 1024 * 1024, `peer files: ${bytes} bytes`);
+    // Every reviewed company: its SIC code, and its ranks worked out a second way.
+    let ranked = 0; const out = [];
+    for (const c of data.companies) {
+      assert.ok(/^\d{4}$/.test(c.sic), `${c.id}: SIC code`);
+      const part = peerParts[c.sic];
+      const R = part ? Core.peerRanks(part, c.cik) : null;
+      if (!R || !R.me) { out.push(c.id); continue; }
+      ranked += 1;
+      for (const m of R.metrics) {
+        const vals = part.peers.map((p) => Core.peerValue(p, m.key)).filter((v) => v !== null);
+        assert.strictEqual(m.of, vals.length);
+        const mine = Core.peerValue(R.me, m.key);
+        if (mine === null) { assert.strictEqual(m.rank, null); continue; }
+        assert.strictEqual(m.rank, vals.filter((v) => v > mine).length + 1, `${c.id} ${m.key}`);
+        assert.strictEqual(m.text, `${Core.ordinal(m.rank)} of ${vals.length}`);
+        assert.ok(m.rank >= 1 && m.rank <= m.of);
+      }
+      // Free cash flow margin is the same arithmetic as the Cash section's.
+      const p = R.me;
+      if (p.m.ocf && p.m.capex) assert.strictEqual(Core.peerValue(p, 'fcfMargin'), (p.m.ocf[0] - p.m.capex[0]) / p.m.revenue[0]);
+      const st = Core.peerSentence(part, c.name, R);
+      assert.ok(st.includes(`SIC code ${c.sic}`) && st.includes(R.metrics[0].text) && st.endsWith('.') && !/\b(will|forecast|expect|predict|should|undervalued|overvalued|buy|sell|bullish|bearish|target price|outperform|cheap|expensive)\b/i.test(st + Core.peerDefinition(part)), `${c.id}: peer sentence`);
+      assert.ok(Core.peerDefinition(part).includes(`${part.excluded.noAnnual} with no such annual report`), 'the definition says how many were left out and why');
+    }
+    assert.deepStrictEqual(out.sort(), PEERLESS, 'the reviewed companies with no rank');
+    assert.deepStrictEqual([Core.ordinal(1), Core.ordinal(2), Core.ordinal(3), Core.ordinal(11), Core.ordinal(12), Core.ordinal(13), Core.ordinal(21), Core.ordinal(112)], ['1st', '2nd', '3rd', '11th', '12th', '13th', '21st', '112th']);
+    assert.ok(peerParts['7320'] && peerParts['7320'].peers.length >= 2, 'a looked-up company (Equifax, SIC 7320) has a peer file too');
+    ok(`peers: ${codes.length} SIC files, ${registrants} registrants, each in one file with an annual report in the 18-month window and every figure tied to a tag and a filing; ${ranked} reviewed companies ranked, each rank recomputed (${out.join(', ')} have none: not in the US-dollar frame for the year)`);
+  }
+
   /* ---------- the verifier, on made-up sources ---------- */
   {
     const text = T.norm('Item 1. Business\nWe rely on third-party foundries.\nWe buy   wafers from\nTSMC under purchase orders. Our current competitors include:\n• makers of chips such as Intel');
@@ -306,7 +431,7 @@ function walk(dir, out = []) {
   /* ---------- the cache, when it is here ---------- */
   const cache = process.env.FILINGS_CACHE || path.join(os.homedir(), '.cache', 'filings');
   if (fs.existsSync(path.join(cache, 'manifest.json'))) {
-    const problems = V.recheck(data);
+    const problems = V.recheck(data).concat(V.recheckPeers(Dataset.peers()));
     assert.deepStrictEqual(problems.slice(0, 5), [], 'the dataset does not match the cache');
     ok(`re-read against the cached sources: ${data.edges.length} quotes found verbatim, ${Object.keys(data.figures).length} figures found in their filings`);
   } else {
@@ -388,7 +513,7 @@ function walk(dir, out = []) {
     assert.ok(Core.fig(only, 'NVDA', 'rd', only.companies.find((c) => c.id === 'NVDA').latest) && !Core.fig(only, 'AMD', 'rd', 2024) && only.patterns === null);
     assert.ok(Core.companyInsights(only, only.companies.find((c) => c.id === 'NVDA')).length >= 4, 'a company page has what it needs from the index and its own file');
     for (const good of GOOD_PARTS) assert.strictEqual(Core.partPath(good), `data/${good}.json`);
-    for (const bad of ['dataset', 'c/nvda', 'f/nvda', '../index', 'c/NVDA/../x', 'f/NVDA/../x', 'c/ABCDEFG', 'x/NVDA', 'index.json', '', 'https://x.example.com/index']) assert.throws(() => Core.partPath(bad), bad);
+    for (const bad of ['dataset', 'c/nvda', 'f/nvda', '../index', 'c/NVDA/../x', 'f/NVDA/../x', 'c/ABCDEFG', 'x/NVDA', 'sic/367', 'sic/36740', 'sic/abcd', 'sic/../index', 'index.json', '', 'https://x.example.com/index']) assert.throws(() => Core.partPath(bad), bad);
     const twice = Core.merge(Core.merge(Core.start(index), readPart('c/AAPL.json')), readPart('c/AAPL.json'));
     assert.deepStrictEqual(twice.insights.AAPL, data.insights.AAPL);
   }
@@ -428,7 +553,7 @@ function walk(dir, out = []) {
     assert.ok(!/XMLHttpRequest|WebSocket|sendBeacon|EventSource/.test(js));
     assert.ok(!/request\(\s*['"](https?:|\/)/.test(js) && !/api\('[A-Z]+', '(https?:|\/)/.test(js), 'an absolute request path');
     ok('the page script builds with textContent only, writes no style, and requests only its own data parts and its own API');
-    for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json', 'data/f/NVDA.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
+    for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json', 'data/f/NVDA.json', 'data/sic/3674.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
     assert.strictEqual((await fetch(`${base}/asfiled/data/dataset.json`)).headers.get('content-type').startsWith('text/html'), true, 'the old single file is gone');
     {
       const http = require('http');

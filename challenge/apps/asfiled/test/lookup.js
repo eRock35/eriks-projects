@@ -87,11 +87,12 @@ const TEXT = T.norm(T.htmlToText(DOC));
     assert.deepStrictEqual(co.annual, { accn: '0009900001-26-000007', period: '2025-12-31', filed: '2026-02-20', source: `${ID}-0009900001-26-000007` });
     const facts = JSON.parse(fs.readFileSync(path.join(process.env.ASFILED_FAKE_SEC, 'data.sec.gov/api/xbrl/companyfacts/CIK0009900001.json'), 'utf8')).facts['us-gaap'];
     for (const [fid, f] of Object.entries(part.figures)) {
-      assert.ok(f.c === ID && /^\d{10}-\d{2}-\d{6}$/.test(f.a) && /^\d{4}-12-31$/.test(f.end) && f.fy === Core.fiscalYear(f.end) && f.tag && Number.isFinite(f.v), fid);
-      assert.deepStrictEqual(part.filings[f.a].form, '10-K', fid);
+      const period = /^d\./.test(f.m);          // an amount over a stated period: a quarter, or the year so far
+      assert.ok(f.c === ID && /^\d{10}-\d{2}-\d{6}$/.test(f.a) && (period ? /^2025-(03-31|06-30|09-30|12-31)$/ : /^\d{4}-12-31$/).test(f.end) && f.fy === Core.fiscalYear(f.end) && f.tag && Number.isFinite(f.v), fid);
+      assert.ok(period ? /^10-[KQ]$/.test(part.filings[f.a].form) : part.filings[f.a].form === '10-K', fid);
       if (!f.x) {
         const rows = facts[f.tag.split(':')[1]].units.USD;
-        assert.ok(rows.some((x) => x.accn === f.a && x.end === f.end && x.val === f.v && x.form === '10-K'), `${fid} is a row of company facts`);
+        assert.ok(rows.some((x) => x.accn === f.a && x.end === f.end && x.val === f.v && (period ? x.start === f.start : x.form === '10-K')), `${fid} is a row of company facts`);
       }
     }
     // The year rule: the full year, not the quarter or the 10-Q row beside it.
@@ -111,7 +112,17 @@ const TEXT = T.norm(T.htmlToText(DOC));
     // is computed from two filed figures and cites both; debt names its tags.
     const fdata = { ...data, fin: part.fin };
     assert.deepStrictEqual(part.finsights[ID], Core.finInsights(fdata, co));
-    assert.deepStrictEqual(part.finsights[ID].map((s) => s.topic), ['fcf', 'sbc', 'returns', 'debt']);
+    assert.deepStrictEqual(part.finsights[ID].map((s) => s.topic), ['fcf', 'sbc', 'returns', 'quarter', 'ttm', 'debt']);
+    // The latest quarter: revenue as the 10-K's own three-month figure; cash
+    // flow, tagged only year to date, as the year less its first nine months.
+    const qv = Core.quarterView(fdata, ID);
+    assert.deepStrictEqual([qv.end, qv.q.revenue.v, qv.q.revenue.how, qv.q.ocf.how, qv.q.ocf.v], ['2025-12-31', 840000000, 'as filed', 'the fiscal year less its first nine months', part.figures[`${ID}.ocf.2025`].v - 462000000]);
+    assert.deepStrictEqual(qv.lists.ocf.map((x) => x.v), [147000000, 189000000, 126000000, qv.q.ocf.v]);
+    assert.strictEqual(qv.ttm.revenue.v, 798000000 + 777000000 + 819000000 + 840000000);
+    assert.strictEqual(qv.ttm.ocf.v, part.figures[`${ID}.ocf.2025`].v, 'four quarters of cash flow add back up to the year');
+    assert.strictEqual(qv.ttm.capex, null, 'capital spending has no quarterly figure here: no four-quarter total, and no free cash flow');
+    assert.strictEqual(qv.ttm.fcf, null);
+    assert.strictEqual(part.finsights[ID][3].text, 'In the three months ended 2025-12-31 revenue was $840 million.');
     assert.strictEqual(part.finsights[ID][0].text, 'Free cash flow was $647 million in FY2025: operating cash flow of $1 billion less capital spending of $356 million (computed from two filed figures). That is 20% of revenue. In FY2020 it was $458 million.');
     assert.deepStrictEqual(part.finsights[ID][0].cites, [`${ID}.ocf.2025`, `${ID}.capex.2025`, `${ID}.revenue.2025`, `${ID}.ocf.2020`, `${ID}.capex.2020`]);
     assert.strictEqual(part.figures[`${ID}.ocf.2025`].v - part.figures[`${ID}.capex.2025`].v, Core.derived(fdata, ID, 'fcf', 2025).v);
