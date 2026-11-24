@@ -35,7 +35,7 @@ const TEXT = T.norm(T.htmlToText(DOC));
   assert.deepStrictEqual(Names.coresOf('EQUIFAX INC'), [['equifax']]);
   assert.deepStrictEqual(Names.coresOf('QUILLFEATHER SYSTEMS INC /DE/'), [['quillfeather', 'systems'], ['quillfeather']]);
   for (const t of ['TARGET CORP', 'Block, Inc.', 'Summit Corp', 'ON Semiconductor'.slice(0, 2), 'General Motors Co', 'Visa Inc.', 'Global Payments Inc', 'IT Corp']) assert.deepStrictEqual(Names.coresOf(t), [], t);
-  const ix = Names.buildIndex([{ id: 'a', title: 'EQUIFAX INC' }, { id: 'b', title: 'Fair Isaac Corp' }, { id: 'c', title: 'Twin Name Inc' }, { id: 'd', title: 'TWIN NAME CORP' }, { id: 'e', title: 'Tidewater Analytics Corp' }]);
+  const ix = Names.buildIndex([{ id: 'a', title: 'EQUIFAX INC' }, { id: 'b', title: 'Fair Isaac Corp' }, { id: 'c', title: 'Twin Name Inc' }, { id: 'd', title: 'TWIN NAME CORP' }, { id: 'f', title: 'Twin Name Ltd' }, { id: 'e', title: 'Tidewater Analytics Corp' }]);
   assert.deepStrictEqual(Names.find(ix, 'We compete with Equifax’s unit and Fair Isaac Corporation, but not the fair isaac of old.'), [{ id: 'a', surface: 'Equifax' }, { id: 'b', surface: 'Fair Isaac' }]);
   assert.deepStrictEqual(Names.find(ix, 'Equifax is the first word here, and Twin Name belongs to two registrants.'), []);
   assert.deepStrictEqual(Names.find(ix, 'Tidewater, Analytics and other words apart are not the name.'), []);

@@ -1,11 +1,13 @@
-// The store. As Filed keeps NOTHING of its own: the app is a static dataset
-// and a page. This file exists for one reason - the shared account
-// (lib/identity.js) is mounted like in every lab app, so the verify banner
-// has a /api/auth/me to ask, and a local run or a test needs a memory
-// stand-in for it.
+// The store. The reviewed dataset is static files; what is kept here is
+// what a lookup on request produces (lib/lookup.js, lib/relations.js) - the
+// SEC's registrant list (`tickers`), a looked-up company's built part
+// (`lookups/<cik>`), and its verified relationships with the sentences they
+// were checked against (`relations/<cik>`, `passages/<cik>`) - plus the
+// memory stand-in the shared account needs in a local run or a test.
 //
-//   - Firestore, the lab database `challenge`: what Cloud Run would use, were
-//     this app ever to store anything (it has no collection today).
+//   - Firestore, the lab database `challenge`: what Cloud Run uses (the
+//     collections above, under the `asfiled_` prefix; read and written by
+//     document id only, so no index is needed).
 //   - Memory, when ASFILED_MEMORY=1: tests and a laptop. Refused on Cloud Run
 //     (K_SERVICE is set there).
 //

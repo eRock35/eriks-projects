@@ -65,7 +65,8 @@ function buildIndex(entries, skip = new Set()) {
     for (const toks of coresOf(e.title)) {
       const key = toks.join(' ');
       if (skip.has(key)) continue;
-      byKey.set(key, byKey.has(key) && byKey.get(key).id !== e.id ? null : { id: e.id, toks });
+      const prev = byKey.get(key);
+      byKey.set(key, byKey.has(key) && (!prev || prev.id !== e.id) ? null : { id: e.id, toks });
     }
   }
   const first = new Map();

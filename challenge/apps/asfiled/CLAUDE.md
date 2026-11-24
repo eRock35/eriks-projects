@@ -185,7 +185,9 @@ npm test
 sec.gov requires a declared User-Agent, and that identity holds Erik's
 contact address. **It lives only in the environment** (`SEC_USER_AGENT`,
 from `~/.config/lab-secrets/filings.env`). `tools/sec.js` is the only file
-that reads it, never logs it, and exits if it is missing. It must never be
+that reads it and never logs it. The build tools exit if it is missing; the
+running app (`sec.get`) answers "Lookups are not available right now" (503).
+**On Cloud Run it is a secret on the `challenge` service.** It must never be
 written into any file here, any committed log or any report. The suite
 scans every file in the app for any email address (only `@example.com` test
 addresses pass) and, when the variable is set, for the value itself. The
@@ -216,20 +218,118 @@ host does not compress).
 
 ## At run time
 
-Static. `server.js` serves the page and the data files, mounts the shared
-account at `/api/auth` (so the verify banner works; nothing needs a
-sign-in), and stores nothing. **No model call, no outbound request**; the
-page fetches only its own `data/` parts (CSP `connect-src 'self'`),
-and links open sec.gov in a new tab (with a text fragment that
-jumps to the quote where the browser supports it). `ASFILED_MEMORY` and
-`ASFILED_FAKE_AI` exist because the lab host sets them; both throw on
-Cloud Run; nothing calls a model. The all-apps redesign brief's "AI feature"
-was deliberately not built here: the approved plan for this app is no
-runtime AI, because every claim must trace to a source.
+The reviewed set is static: `server.js` serves the page and the data files
+and mounts the shared account at `/api/auth`. Since 2026-11-23 (Erik's ask:
+he searched for Equifax and it was not there) two things happen on request,
+and nothing else. **No timer anywhere; all of it runs inside a request.**
+
+- **sec.gov, for a company looked up on request** ("Look up any company"
+  below): only through `tools/sec.js` `get()`, only from the server, rate
+  limited. The page never talks to sec.gov; the CSP stays
+  `connect-src 'self'`.
+- **One model call**, in one route (`POST api/lookup/<cik>/relations`),
+  for a signed-in member, behind the budget gates and the Lab AI guard. The
+  model picks sentences; `tools/verify.js` decides. It is never a source.
+
+`ASFILED_MEMORY`, `ASFILED_FAKE_AI` and `ASFILED_FAKE_SEC` (a directory of
+files standing in for sec.gov) are for tests and a laptop; all three throw
+on Cloud Run.
+
+## Look up any company (2026-11-23, Erik approved)
+
+The 81 are read and reviewed by hand. Any other SEC registrant with a
+listed ticker can be looked up; it is **labelled "Looked up on request - not
+in the reviewed set"** on its page, on its rows, in the quote sheet and on
+the map (a dotted violet ring, a "Looked up" layer of its own), and it is
+**kept out of the 81's counts, patterns and sums**: those are built files,
+and the page holds lookups in `data.lookups`, never `data.companies`.
+
+### Part 1: figures, no model (`lib/lookup.js`)
+
+- `GET api/lookup?q=` resolves a name, ticker or CIK against the SEC's
+  `company_tickers.json` (kept in memory and in the store for seven days;
+  one request a week). A company of the set answers with `inSet`.
+- `GET api/lookup/<cik>` answers the same per-company part the page already
+  draws: `tools/build.js` `addCompany` (the build's own per-company step,
+  moved into a function - the built dataset is byte-for-byte unchanged),
+  `xbrl.slimFacts`, the report's XBRL instance and labels for revenue mix
+  (same 0.5% rule) and concentration, and `Core.companyInsights`. Five
+  requests to sec.gov: company facts, submissions, the filing's index, its
+  instance, its labels. 10-K, or 20-F (the currency is the unit the revenue
+  tags are filed in). Ids are `X<cik>`: a ticker can collide with an id in
+  `companies.js`. Routes: `#/x/<cik>`, `#/map/X<cik>`.
+- What a company lacks is said, not guessed: no annual report among its
+  recent filings, no tagged revenue, or a file too large to read here is a
+  plain 422. Equifax tags no cost of revenue under the tags the build
+  reads, so its page shows revenue, capital spending and two revenue mixes,
+  and says the rest is not tagged.
+- **Stored** in `asfiled_lookups/<cik>` (`{v, at, cik, json}`), fresh for
+  seven days (`ASFILED_LOOKUP_FRESH_DAYS`); a repeat view asks sec.gov
+  nothing; past that it is read again (and the stored copy still serves if
+  sec.gov does not answer).
+- **Limits**, in memory, per instance: 20 builds an hour per address
+  (IPv6 by /64) and 300 a day in all (`ASFILED_LOOKUP_PER_IP_HOUR`,
+  `ASFILED_LOOKUP_PER_DAY`); searches 240 an hour per address. Two requests
+  for one CIK share one build, builds run one at a time, and `sec.get`
+  shares one request per URL and stays under four a second.
+- **Without `SEC_USER_AGENT`** a lookup that is not stored answers 503
+  "Lookups are not available right now". Nothing exits or crashes.
+- Memory: Equifax's lookup peaked at 114 MB RSS in a bare process
+  (company facts is a few MB of JSON; a large bank's is tens). Files are
+  capped (64 MB facts, 48 MB instance, 40 MB report) and refused past
+  that. The lab instance has 512 MiB: watch it if large filers are looked
+  up often.
+
+### Part 2: relationships (`lib/relations.js`): Claude picks, the verifier decides
+
+`POST api/lookup/<cik>/relations`, same-origin JSON, `requireUser`,
+`requireBudget`, `requireDailyCap`, then `guard.allow({provider: 'claude',
+app: 'asfiled'})`, then, inside the request (progress goes out as lines of
+JSON):
+
+1. the latest annual report is fetched and turned into text with
+   `tools/text.js` (in memory; **the report is never stored**);
+2. `tools/extract.js` `sentencesNaming` (the extract step's own reader)
+   finds sentences that name another company: the set's aliases from
+   `companies.js` (not the audit firms), and every other registrant by the
+   conservative rule in `lib/names.js` (legal endings dropped; two or more
+   words, or one word of six letters or more that is not a common word;
+   never a ticker; capitals required; a name two registrants share is
+   nobody's). Only sentences with a relationship word (`extract.KEY`) are
+   kept, 60 at most;
+3. Claude Haiku 5.5 (`claude-haiku-5-5`, thinking off, effort low, JSON
+   schema output, `max_tokens` 4096) is shown those sentences and returns
+   `{n, counterparty, type, quote}` for competitor / customer / supplier /
+   partner;
+4. **every proposal goes through `verify.checkEdge`**, against the one
+   sentence it points at (so a quote cannot be stitched from two): word for
+   word, the quote names the counterparty, the document is the speaker's
+   own. What fails is dropped and counted (`stats.dropped`);
+5. kept edges get the build's proof hash (sha256 of the report text's hash
+   and the quote) and are stored in `asfiled_relations/<cik>`; the
+   sentences that were sent (a few KB) in `asfiled_passages/<cik>`. Every
+   read re-checks each edge against those sentences and its proof, and
+   drops one that no longer matches.
+
+- One run per company per annual report: a stored result is returned to
+  anyone, signed in or not, without a model call.
+- Usage: the client is `identity.meter`ed, and `guard.record` gets
+  `guard.priceUsd({provider: 'claude', model, usage: res.usage})`.
+  Measured on the fixture: 397 tokens in, 175 out, $0.0001. A real 10-K
+  sends at most 60 sentences: roughly 6,000-9,000 tokens in and up to
+  4,096 out, under half a cent at Haiku 5.5's prices.
+- Not read here: lead-ins for bulleted lists (a bullet is too short to be a
+  sentence), XBRL labels, auditors. A looked-up company's map is what its
+  own report's sentences state, nothing more.
+- **The tripwire still holds for the committed dataset**, and
+  `test/lookup.js` holds the same for a model: a proposed quote that is in
+  no sentence, that does not name the company, or that is stitched from
+  two sentences yields no edge.
 
 ## The page
 
-`public/app.js` (routes `#/`, `#/c/<ID>`, `#/patterns`, `#/map[/<ID>]`),
+`public/app.js` (routes `#/`, `#/c/<ID>`, `#/x/<cik>` for a company looked
+up on request, `#/patterns`, `#/map[/<ID>]`),
 `public/asfiled-core.js` (pure: lookups, ratios, formatting, the insight
 templates; shared with the tools and tests), `public/app.css`.
 
@@ -324,4 +424,14 @@ the loader merging in any order, `partPath` refusing anything else, the
 gzipped index), the tripwire, insights rebuilt and compared, the verifier
 on made-up sources, the cache re-read when the cache is on the machine, the
 email / User-Agent scan, the server under its mount (CSP, banner, no inline
-anything, one fetch, no model call), and the lab entry.
+anything, requests only to its own base), and the lab entry.
+
+`test/lookup.js` (run by `npm test` after it; no network - sec.gov is
+`test/fixtures/sec`, a made-up registrant in the real response shapes,
+written by `test/fixtures/make.js`; the model is `lib/fakeai.js`): the name
+rule, resolution, the built part against the fixture's company facts, the
+store (a repeat view makes no request; seven days), one build for two
+requests, the limits, 503 without the User-Agent, the label, signed-out and
+cross-site refusals, the run's four edges with their proofs, what is stored,
+the model tripwires, the AI guard's refusal over the cap, and that only
+`tools/sec.js` reaches outward.
