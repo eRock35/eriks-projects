@@ -17,6 +17,32 @@ function aliasRe(a) {
   return new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])`);
 }
 
+/** Every sentence of a report's text that names another company, with the
+ *  section it falls in: [{section, names, key, sentence}] (plus `.sections`,
+ *  the number of headings found). `namesIn(sentence)` returns the ids named.
+ *  Sentences: each line split on a full stop followed by a capital. The
+ *  build's extract step and the on-request lookup both read with this. */
+function sentencesNaming(text, form, namesIn) {
+  const secs = T.sections(text, form);
+  const out = [];
+  let pos = 0;
+  for (const line of text.split('\n')) {
+    const parts = line.split(/(?<=[.!?]["”)]?)\s+(?=[A-Z“"(])/);
+    let off = 0;
+    for (const sentence of parts) {
+      const at = pos + line.indexOf(sentence, off);
+      off = line.indexOf(sentence, off) + sentence.length;
+      if (sentence.length < 40 || sentence.length > 1200) continue;
+      const names = namesIn(sentence);
+      if (!names.length) continue;
+      out.push({ section: T.sectionAt(secs, at), names, key: KEY.test(sentence), sentence: T.norm(sentence) });
+    }
+    pos += line.length + 1;
+  }
+  out.sections = secs.length;
+  return out;
+}
+
 function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
   const all = [...FILERS, ...OTHERS].map((c) => ({ id: c.id, res: c.aliases.map(aliasRe) }));
@@ -38,23 +64,10 @@ function main() {
       fs.unlinkSync(raw);
     } else if (fs.existsSync(txtFile)) text = fs.readFileSync(txtFile, 'utf8');
     else throw new Error(`${doc}: neither the document nor its text is in the cache. Run tools/fetch.js.`);
-    const secs = T.sections(text, a.form);
-    // Sentences: split each line on a full stop followed by a capital.
-    let pos = 0; let n = 0;
-    for (const line of text.split('\n')) {
-      const parts = line.split(/(?<=[.!?]["”)]?)\s+(?=[A-Z“"(])/);
-      let off = 0;
-      for (const sentence of parts) {
-        const at = pos + line.indexOf(sentence, off);
-        off = line.indexOf(sentence, off) + sentence.length;
-        if (sentence.length < 40 || sentence.length > 1200) continue;
-        const names = all.filter((x) => x.id !== c.id && x.res.some((r) => r.test(sentence))).map((x) => x.id);
-        if (!names.length) continue;
-        n += 1;
-        candidates.push({ id: `${c.id}-${String(n).padStart(3, '0')}`, by: c.id, doc, section: T.sectionAt(secs, at), names, key: KEY.test(sentence), sentence: T.norm(sentence) });
-      }
-      pos += line.length + 1;
-    }
+    const found = sentencesNaming(text, a.form, (sentence) => all.filter((x) => x.id !== c.id && x.res.some((r) => r.test(sentence))).map((x) => x.id));
+    const n = found.length;
+    found.forEach((f, i) => candidates.push({ id: `${c.id}-${String(i + 1).padStart(3, '0')}`, by: c.id, doc, section: f.section, names: f.names, key: f.key, sentence: f.sentence }));
+    const secs = { length: found.sections };
     console.log(`${c.id}: ${text.length} chars, ${secs.length} headings, ${n} sentences naming a company`);
   }
   // The XBRL labels of each report, as text (one label a line): a customer
@@ -73,4 +86,5 @@ function main() {
   console.log(`${candidates.length} candidate sentences -> ${path.join(sec.CACHE, 'candidates.json')}`);
 }
 
-main();
+module.exports = { sentencesNaming, aliasRe, KEY };
+if (require.main === module) main();

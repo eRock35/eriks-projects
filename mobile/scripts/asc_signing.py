@@ -50,10 +50,10 @@ def token():
     key = (TEMP / 'AuthKey.p8').read_text()
     now = int(time.time())
     return jwt.encode(
-        {'iss': os.environ['APPSTORE_ISSUER_ID'], 'iat': now, 'exp': now + 900,
+        {'iss': os.environ['APPSTORE_ISSUER_ID'].strip(), 'iat': now, 'exp': now + 900,
          'aud': 'appstoreconnect-v1'},
         key, algorithm='ES256',
-        headers={'kid': os.environ['APPSTORE_KEY_ID'], 'typ': 'JWT'})
+        headers={'kid': os.environ['APPSTORE_KEY_ID'].strip(), 'typ': 'JWT'})
 
 
 def api(method, path, body=None):

@@ -93,6 +93,39 @@ function checkEdge(e, ctx) {
   return { ok: true, section };
 }
 
+/** A quoted sentence that is not a relationship (how many people a company
+ *  employs; a risk factor's heading). The same rule as an edge: the quote is
+ *  in the company's own cached document word for word, whitespace aside.
+ *  Then, by kind:
+ *    employees  - the number is in the quote, whole, as a head count
+ *    risk       - the quote lies inside the report's risk-factor section
+ *  `ctx.ranges[source]` is that section's [start, end) in the normalised text. */
+function checkQuote(q, ctx) {
+  const fail = (why) => ({ ok: false, why });
+  const src = ctx.sources[q.source];
+  const text = ctx.texts[q.source];
+  if (!src || typeof text !== 'string') return fail('its source is not in the cache');
+  if (src.by !== q.c) return fail('the source is not the company’s own document');
+  const quote = T.norm(q.quote);
+  if (quote.length < 8 || quote.length > 620) return fail('the quote is too short or too long');
+  let at = text.indexOf(quote);
+  if (at < 0) return fail('quote not found verbatim in the source');
+  if (q.kind === 'employees') {
+    if (!require('./people').statesHeadcount(quote, q.n)) return fail('the quote does not state that number of employees');
+  } else if (q.kind === 'risk' || q.kind === 'risk-was') {
+    const range = (ctx.ranges || {})[q.source];
+    if (!range) return fail('the risk-factor section of its source was not found');
+    at = text.indexOf(quote, range[0]);
+    if (at < 0 || at + quote.length > range[1]) return fail('the quote is not inside the risk-factor section');
+  } else return fail('unknown kind of quote');
+  let section = q.section || null;
+  if (!section && ctx.rawTexts && ctx.rawTexts[q.source]) {
+    ctx.sectionsOf[q.source] = ctx.sectionsOf[q.source] || T.sections(ctx.rawTexts[q.source], src.form);
+    section = T.sectionAt(ctx.sectionsOf[q.source], rawOffset(ctx.rawTexts[q.source], at)) || 'Annual report';
+  }
+  return { ok: true, section: section || 'Annual report', at };
+}
+
 /** Re-check a built dataset against the cache. Returns a list of problems. */
 function recheck(data) {
   const problems = [];
@@ -110,10 +143,53 @@ function recheck(data) {
     if (e.lead && !text.includes(T.norm(e.lead))) problems.push(`${e.id}: lead-in not found verbatim`);
     if (proof(data.sources[e.source].sha, e.quote) !== e.proof) problems.push(`${e.id}: proof does not match its quote`);
   }
+  // Insider transactions: exactly the cut of the Form 4s that is in the cache.
+  for (const [cid, fin] of Object.entries(data.fin || {})) {
+    if (!fin.insiders) continue;
+    const Insiders = require('./insiders');
+    const file = path.join(Insiders.DIR, `${cid}.json`);
+    if (!fs.existsSync(file)) { problems.push(`${cid}: its Form 4 cut is not in the cache`); continue; }
+    if (JSON.stringify(Insiders.compact(JSON.parse(fs.readFileSync(file, 'utf8')))) !== JSON.stringify(fin.insiders)) problems.push(`${cid}: insider transactions differ from the cached Form 4 cut`);
+  }
+  // Quotes that are not relationships: found verbatim, proof intact, and the kind's own rule.
+  for (const [id, q] of Object.entries(data.quotes || {})) {
+    const text = texts[q.source];
+    if (!text) { problems.push(`${id}: no source text`); continue; }
+    if (!text.includes(T.norm(q.quote))) problems.push(`${id}: quote not found verbatim`);
+    if (proof(data.sources[q.source].sha, q.quote) !== q.proof) problems.push(`${id}: proof does not match its quote`);
+    if (q.kind === 'employees' && !require('./people').statesHeadcount(q.quote, q.n)) problems.push(`${id}: the quote does not state ${q.n}`);
+  }
+  // Risk factors: the comparison run again from the cached texts gives the
+  // same counts, and every quoted heading lies inside its report's risk section.
+  for (const [cid, fin] of Object.entries(data.fin || {})) {
+    const r = fin.risks;
+    if (!r || !r.compared) continue;
+    const Risks = require('./risks');
+    const co = data.companies.find((c) => c.id === cid);
+    const now = T.sourceText(co.annual.source); const before = T.sourceText(r.prior);
+    if (!now || !before) { problems.push(`${cid}: a report of its risk comparison is not in the cache`); continue; }
+    const again = Risks.compare(now, before, co.form);
+    if (!again.compared || JSON.stringify(again.counts) !== JSON.stringify(r.counts)) { problems.push(`${cid}: the risk-factor comparison does not come out the same from the cache`); continue; }
+    const ranges = { [co.annual.source]: Risks.normRange(now, again.ranges.now), [r.prior]: Risks.normRange(before, again.ranges.before) };
+    const ctx = { sources: data.sources, texts, ranges, sectionsOf: {} };
+    for (const id of r.new.concat(r.removed, ...r.reworded.map((x) => [x[0], x[1]]))) {
+      const q = data.quotes[id];
+      const res = q ? checkQuote(q, ctx) : { ok: false, why: 'missing' };
+      if (!res.ok) problems.push(`${id}: ${res.why}`);
+    }
+  }
   const facts = {}; const inst = {};
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
   const X = require('./xbrl');
   for (const [id, f] of Object.entries(data.figures)) {
+    if (f.p) {
+      // Pay versus performance: re-read from the cut of the proxy statement's own instance.
+      const Proxy = require('./proxy');
+      const pf = path.join(Proxy.DIR, `${f.c}.json`);
+      const px = fs.existsSync(pf) ? JSON.parse(fs.readFileSync(pf, 'utf8')) : null;
+      if (!px || px.accn !== f.a || !(px.facts || []).some((x) => x.tag === f.tag && x.end === f.end && x.val === f.v)) problems.push(`${id}: no such value in the proxy statement's XBRL instance`);
+      continue;
+    }
     if (f.x) {
       const a = manifest[f.c].annual[0];
       inst[f.c] = inst[f.c] || X.readInstance(path.join(sec.CACHE, 'docs', f.c, a.accn, a.instance)).facts;
@@ -129,16 +205,38 @@ function recheck(data) {
     facts[fkey] = facts[fkey] || JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'facts', `${fkey}.json`), 'utf8'));
     const [tax, tag] = f.tag.split(':');
     const rows = (((facts[fkey].facts[tax] || {})[tag] || {}).units || {})[f.u] || [];
-    if (!rows.some((r) => r.accn === f.a && r.end === f.end && r.val === f.v)) problems.push(`${id}: ${f.tag} ${f.end} = ${f.v} is not in ${f.a}`);
+    if (!rows.some((r) => r.accn === f.a && r.end === f.end && r.val === f.v && (!f.start || r.start === f.start))) problems.push(`${id}: ${f.tag} ${f.end} = ${f.v} is not in ${f.a}`);
   }
   return problems;
 }
 
-module.exports = { TYPES, proof, expand, checkEdge, recheck, names, aliasRe };
+/** Re-read every published peer figure against the cached frames, and every
+ *  peer's SIC code and annual report against the cached submissions cut. */
+function recheckPeers(partsByCode) {
+  const Peers = require('./peers');
+  const problems = [];
+  const uni = Peers.readJson(Peers.universeFile(), null);
+  if (!uni) return ['the peers cache is not on this machine'];
+  const frames = {};
+  const frame = (q, year) => (frames[`${q}|${year}`] = frames[`${q}|${year}`] || Peers.readJson(Peers.frameFile(q, year), { rows: {} }).rows);
+  for (const [code, part] of Object.entries(partsByCode)) {
+    for (const p of part.peers) {
+      const rec = uni.ciks[p.cik];
+      if (!rec || rec.s !== code || !rec.a || rec.a[0] !== p.form || rec.a[1] !== p.filed) { problems.push(`sic/${code} ${p.cik}: SIC code or annual report does not match its submissions index`); continue; }
+      for (const [k, x] of Object.entries(p.m)) {
+        const row = frame(part.tags[x[2]], k === 'revenue0' ? Peers.YEAR - 1 : Peers.YEAR)[p.cik];
+        if (!row || row[0] !== x[0] || row[3] !== p.a[x[1]] || row[2] !== (k === 'revenue0' ? p.end0 : p.end)) problems.push(`sic/${code} ${p.cik}.${k}: not the value in the SEC frame`);
+      }
+    }
+  }
+  return problems;
+}
+
+module.exports = { TYPES, proof, expand, checkEdge, checkQuote, rawOffset, recheck, recheckPeers, names, aliasRe };
 
 if (require.main === module) {
   const data = require('./dataset').load();
-  const problems = recheck(data);
+  const problems = recheck(data).concat(recheckPeers(require('./dataset').peers()));
   if (problems.length) { console.error(problems.slice(0, 40).join('\n')); console.error(`${problems.length} problem(s).`); process.exit(1); }
   console.log(`verified against the cache: ${data.edges.length} edges, ${Object.keys(data.figures).length} figures, ${Object.keys(data.sources).length} sources`);
 }

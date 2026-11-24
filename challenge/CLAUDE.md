@@ -140,7 +140,16 @@ can learn from them. It shipped as **As Filed** (drop #70) outside the
 alternation, like the two above. It is the lab's one app with a build-time
 data pipeline (`apps/asfiled/tools/`, raw downloads cached outside the repo)
 and a hard rule that nothing is shown a primary source does not state; read
-`apps/asfiled/CLAUDE.md` before touching its data. No runtime AI.
+`apps/asfiled/CLAUDE.md` before touching its data. Since 2026-11-23 it can
+also look up any SEC registrant on request (sec.gov from the server, rate
+limited; needs `SEC_USER_AGENT` as a secret on the service) and, for a
+signed-in member, ask Claude Haiku 5.5 to pick relationship sentences that
+the build's verifier then checks - through the Lab AI guard as `asfiled`.
+Since 2026-11-24 each company page also has cash and capital return, the
+latest quarter, peers by SIC code (static files from the SEC's frames),
+backlog and employees, proxy pay and Form 4 insider transactions, and
+year-on-year risk-factor changes - all from SEC filings, no model, and a
+looked-up company's documents are read by a second on-request route.
 
 ### Rebuilding the lost drops, one a day (Erik, 2026-11-21)
 

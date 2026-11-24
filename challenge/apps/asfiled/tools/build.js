@@ -23,6 +23,10 @@ const T = require('./text');
 const X = require('./xbrl');
 const V = require('./verify');
 const Core = require('../public/asfiled-core');
+const Peers = require('./peers');
+const Insiders = require('./insiders');
+const Proxy = require('./proxy');
+const Risks = require('./risks');
 
 const OUT = path.join(__dirname, '..', 'public', 'data');
 const REPORT = path.join(__dirname, 'build-report.json');
@@ -30,8 +34,14 @@ const YEARS = 12;                       // fiscal years kept per company
 const ANNUAL = new Set(['10-K', '20-F']);
 
 // Tags tried for each number, in order of preference: tools/xbrl.js.
-const { TAGS } = X;
-const INSTANT = new Set(['inventory']);
+const TAGS = X.ALL;
+const INSTANT = new Set(['inventory'].concat(X.FIN_INSTANT));
+// Cash and capital return: amounts over the year for every year shown;
+// balances for the latest two year ends.
+const FIN_FLOWS = ['ocf', 'sbc', 'buybacks', 'dividends'];
+const FIN_BALANCES = ['cash', 'sti', 'debtLong', 'debtCurrent', 'debtShort', 'debtTotal'];
+// What a report tags about revenue still to come, and two charges worth a flag: the latest two years.
+const FIN_FORWARD = ['rpo', 'deferred', 'impairment', 'restructuring'];
 const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 /** One number per fiscal year for a metric: the value from the EARLIEST
@@ -89,14 +99,276 @@ const cleanLabel = (s) => String(s || '').replace(/\s*\[Member\]\s*$/i, '').repl
 // "Three largest customers", "Four customers": a group, not one customer.
 const isGroup = (s) => /\b(two|three|four|five|six|ten|\d+)\s+(largest\s+)?(customers|distributors)\b|largest customers|\band\b.*\bcustomers$/i.test(s);
 
+/** The figures the "Latest quarter" section rests on: amounts over a period
+ *  (three months, or the year so far) from 10-Qs and annual reports, each
+ *  from the earliest filing that reported that exact period. Only the ones
+ *  the last QUARTERS quarters cite are kept (Core.quarters decides). */
+const QUARTERS = Core.QUARTERS;
+function quarterFigures(data, c, factsList, unit) {
+  const tmp = { figures: {} }; const filings = {};
+  for (const metric of X.QUARTERLY) {
+    const best = {};
+    for (const { cik, facts } of factsList) TAGS[metric].forEach((qname, rank) => {
+      const [tax, tag] = qname.split(':');
+      const rows = (((facts.facts[tax] || {})[tag] || {}).units || {})[unit];
+      for (const r of rows || []) {
+        if (!(r.form === '10-Q' || ANNUAL.has(r.form)) || !r.start || !r.end || !Number.isFinite(r.val)) continue;
+        const n = days(r.start, r.end);
+        if (n < 80 || n > 380) continue;
+        const key = `${r.start}.${r.end}`;
+        const cur = best[key];
+        const cand = { start: r.start, end: r.end, val: r.val, accn: r.accn, form: r.form, filed: r.filed, tag: qname, rank, cik };
+        if (!cur || cand.filed < cur.filed || (cand.filed === cur.filed && (metric === 'revenue' ? cand.val > cur.val : cand.rank < cur.rank))) best[key] = cand;
+      }
+    });
+    for (const [key, r] of Object.entries(best)) {
+      tmp.figures[`${c.id}.d.${metric}.${key}`] = { c: c.id, m: `d.${metric}`, fy: Core.fiscalYear(r.end), start: r.start, end: r.end, v: r.val, u: unit, tag: r.tag, a: r.accn };
+      filings[r.accn] = { c: c.id, form: r.form, filed: r.filed };
+      if (r.cik && r.cik !== c.cik) filings[r.accn].cik = r.cik;
+    }
+  }
+  // A company with no 10-Q has no quarters here (a 20-F filer's 6-Ks are not tagged).
+  if (!Object.values(filings).some((f) => f.form === '10-Q')) return;
+  const rev = Core.quarters(tmp, c.id, 'revenue').slice(-QUARTERS);
+  if (!rev.length) return;
+  const first = rev[0].end;
+  for (const metric of X.QUARTERLY) {
+    for (const q of Core.quarters(tmp, c.id, metric)) {
+      if (q.end < first) continue;
+      for (const id of q.cites) { data.figures[id] = tmp.figures[id]; data.filings[tmp.figures[id].a] = filings[tmp.figures[id].a]; }
+    }
+  }
+}
+
+/** Pay versus performance, from the latest proxy statement (DEF 14A) in
+ *  its own XBRL instance (tools/proxy.js): the facts with no dimension, for
+ *  the latest PAY_YEARS years that one proxy reports. A year with two principal executive officers is
+ *  tagged per person and is not in company facts: nothing is shown for it. */
+const PAY_YEARS = 3;
+function payFigures(data, c, proxy) {
+  if (!proxy || !proxy.facts || !proxy.facts.length) return;
+  const byKey = {};
+  for (const [key, q] of Object.entries(X.PAY)) byKey[key] = proxy.facts.filter((f) => f.tag === q && Number.isFinite(f.val) && days(f.start, f.end) >= 340 && days(f.start, f.end) <= 380);
+  const ends = new Set(byKey.peoTotal.concat(byKey.tsr).map((f) => f.end));
+  const keep = [...ends].sort().slice(-PAY_YEARS);
+  for (const [key, list] of Object.entries(byKey)) {
+    for (const end of keep) {
+      const hits = list.filter((f) => f.end === end);
+      // One fact for the year, or none: two different values are not chosen between.
+      if (!hits.length || hits.some((f) => f.val !== hits[0].val)) continue;
+      data.figures[`${c.id}.pay.${key}.${Core.fiscalYear(end)}`] = { c: c.id, m: `pay.${key}`, fy: Core.fiscalYear(end), end, v: hits[0].val, u: 'USD', tag: X.PAY[key], a: proxy.accn, p: 1 };
+      data.filings[proxy.accn] = { c: c.id, form: 'DEF 14A', filed: proxy.filed };
+    }
+  }
+}
+
+/** One company's part of the dataset, from its company facts (its own
+ *  registrant first, then any prior one), its latest annual report `a`
+ *  ({accn, form, filed, period}) and that report's XBRL instance and labels:
+ *  figures with the filing each came from, revenue mix where the tagged parts
+ *  add up, customer concentration, and the company record. Written into
+ *  `data`. The build calls it for each of the reviewed companies; the
+ *  on-request lookup (lib/lookup.js) calls the same function for one more. */
+function addCompany(data, c, a, { facts, inst, labels, currency, proxy }) {
+  const series = (metric, unit, ends) => {
+    const s = annualSeries(facts, metric, unit, ends);
+    if (s[a.period]) return s;
+    let best = null;
+    TAGS[metric].forEach((qname, rank) => {
+      for (const f of inst.facts) {
+        if (f.tag !== qname || f.unit !== unit || f.ctx.dims.length || f.ctx.typed || f.ctx.end !== a.period) continue;
+        if (INSTANT.has(metric) ? Boolean(f.ctx.start) : (!f.ctx.start || days(f.ctx.start, f.ctx.end) < 340 || days(f.ctx.start, f.ctx.end) > 380)) continue;
+        const cand = { end: a.period, val: f.val, accn: a.accn, form: a.form, filed: a.filed, tag: qname, rank, x: 1 };
+        if (!best || (metric === 'revenue' ? cand.val > best.val : cand.rank < best.rank)) best = cand;
+      }
+    });
+    if (best) s[a.period] = best;
+    return s;
+  };
+  const rev = series('revenue', currency);
+  // A later report sometimes restates a year under a slightly different
+  // period end (Ciena's FY2018 ended 2018-10-31 in its own report and
+  // 2018-11-03 two reports later). Two ends within ten days are one
+  // fiscal year: the one from the earlier filing is kept, as everywhere.
+  const sortedEnds = Object.keys(rev).sort();
+  for (let i = 1; i < sortedEnds.length; i += 1) {
+    const a0 = sortedEnds[i - 1]; const b0 = sortedEnds[i];
+    if (!rev[a0] || days(a0, b0) > 10) continue;
+    delete rev[rev[b0].filed < rev[a0].filed ? a0 : b0];
+  }
+  const ends = Object.keys(rev).sort().slice(-YEARS);
+  if (new Set(ends.map(Core.fiscalYear)).size !== ends.length) throw new Error(`${c.id}: two periods fall in one fiscal year (${ends.join(', ')})`);
+  const endSet = new Set(ends);
+  const fyOf = Core.fiscalYear;
+  const put = (metric, row, unit) => {
+    const id = `${c.id}.${metric}.${fyOf(row.end)}`;
+    data.figures[id] = { c: c.id, m: metric, fy: fyOf(row.end), end: row.end, v: row.val, u: unit, tag: row.tag, a: row.accn };
+    if (row.x) data.figures[id].x = 1;
+    data.filings[row.accn] = { c: c.id, form: row.form, filed: row.filed };
+    // Filed under a previous registrant: the filing keeps that CIK, so its link opens it.
+    if (row.cik && row.cik !== c.cik) data.filings[row.accn].cik = row.cik;
+  };
+  for (const metric of Object.keys(X.TAGS)) {
+    const s = metric === 'revenue' ? rev : series(metric, currency, endSet);
+    for (const end of ends) if (s[end]) put(metric, s[end], currency);
+  }
+  for (const metric of FIN_FLOWS) {
+    const s = series(metric, currency, endSet);
+    for (const end of ends) if (s[end]) put(metric, s[end], currency);
+  }
+  for (const metric of FIN_BALANCES.concat(FIN_FORWARD)) {
+    const s = series(metric, currency, endSet);
+    for (const end of ends.slice(-2)) if (s[end]) put(metric, s[end], currency);
+  }
+  if (currency !== 'USD') {
+    // TSMC also tags its own US-dollar convenience translation of the
+    // latest year in each report. Kept as separate figures, so anything
+    // summed across companies in dollars uses the company's own number.
+    for (const metric of ['revenue', 'capex']) {
+      const s = series(metric, 'USD', endSet);
+      for (const end of ends) if (s[end]) put(`${metric}Usd`, s[end], 'USD');
+    }
+  }
+
+  // What the second half of the page shows beyond figures (quotes, lists): filled in by the layers below.
+  data.fin = data.fin || {};
+  data.fin[c.id] = {};
+  quarterFigures(data, c, facts, currency);
+  payFigures(data, c, proxy);
+
+  const docId = `${c.id}-${a.accn}`;
+  data.filings[a.accn] = { c: c.id, form: a.form, filed: a.filed };
+  const label = (q) => cleanLabel((labels[q] || {}).terse || (labels[q] || {}).std || q.replace(/^.*:/, '').replace(/Member$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'));
+  const rawLabel = (q) => ((labels[q] || {}).std || (labels[q] || {}).terse || '');
+  const fyEnds = ends.slice(-3);
+
+  // Revenue mix, where the report tags revenue by segment, geography or product.
+  const KIND = [
+    ['segment', /(^|:)StatementBusinessSegmentsAxis$/, 'By segment'],
+    ['geography', /(^|:)(StatementGeographicalAxis|GeographicalAreasAxis)$/, 'By geography'],
+    ['product', /(^|:)(ProductOrServiceAxis|MarketsOfCustomersAxis)$/, 'By product or market'],
+  ];
+  const REV = /^(us-gaap:(Revenues|RevenueFromContractWithCustomerExcludingAssessedTax|SalesRevenueNet)|ifrs-full:(Revenue|RevenueFromContractsWithCustomers))$/;
+  const PASS = /(ConsolidationItemsAxis|ConcentrationRiskByBenchmarkAxis|ConcentrationRiskByTypeAxis)$/;     // axes that do not split the number further
+  data.mixes[c.id] = [];
+  for (const [kind, axisRe, title] of KIND) {
+    const per = {};      // member -> {end: val}
+    for (const f of inst.facts) {
+      if (!REV.test(f.tag) || f.unit !== currency || f.ctx.typed || !f.ctx.start || !fyEnds.includes(f.ctx.end)) continue;
+      const d = days(f.ctx.start, f.ctx.end);
+      if (d < 340 || d > 380) continue;
+      const main = f.ctx.dims.filter((x) => axisRe.test(x[0]));
+      const rest = f.ctx.dims.filter((x) => !axisRe.test(x[0]));
+      if (main.length !== 1 || rest.some((x) => !PASS.test(x[0]))) continue;
+      if (rest.some((x) => /ConsolidationItemsAxis$/.test(x[0]) && !/operating segments|total segments/i.test(rawLabel(x[1]) || x[1]))) continue;
+      const key = main[0][1];
+      (per[key] = per[key] || {})[f.ctx.end] = f.val;
+    }
+    const latest = fyEnds[fyEnds.length - 1];
+    const total = rev[latest] && rev[latest].val;
+    const parts = Object.keys(per).filter((k) => per[k][latest] > 0).map((k) => ({ key: k, val: per[k][latest] }));
+    const chosen = subsetToTotal(parts, total);
+    if (!chosen) continue;
+    chosen.sort((p, q) => q.val - p.val);
+    const mix = { kind, title, accn: a.accn, years: fyEnds.map(fyOf), parts: [] };
+    chosen.forEach((p, i) => {
+      const vals = fyEnds.map((e) => (Number.isFinite(per[p.key][e]) ? per[p.key][e] : null));
+      mix.parts.push({ label: label(p.key), vals });
+      fyEnds.forEach((e, j) => {
+        if (vals[j] === null) return;
+        data.figures[`${c.id}.mix.${kind}.${fyOf(e)}.${i}`] = { c: c.id, m: `mix.${kind}`, fy: fyOf(e), end: e, v: vals[j], u: currency, tag: `revenue by ${kind}: ${label(p.key)}`, a: a.accn, x: 1 };
+      });
+    });
+    data.mixes[c.id].push(mix);
+  }
+
+  // Customer concentration, where the report tags a customer's share.
+  const conc = [];
+  for (const f of inst.facts) {
+    if (!/ConcentrationRiskPercentage/.test(f.tag) || !fyEnds.includes(f.ctx.end)) continue;
+    const dims = Object.fromEntries(f.ctx.dims.map((x) => [x[0].replace(/^.*:/, ''), x[1]]));
+    if (!dims.MajorCustomersAxis || !dims.ConcentrationRiskByBenchmarkAxis) continue;
+    const bench = rawLabel(dims.ConcentrationRiskByBenchmarkAxis) || dims.ConcentrationRiskByBenchmarkAxis;
+    if (!/revenue|sales/i.test(bench) || /receivable/i.test(bench)) continue;
+    const type = rawLabel(dims.ConcentrationRiskByTypeAxis || '') || String(dims.ConcentrationRiskByTypeAxis || '');
+    if (!/customer/i.test(type)) continue;
+    const extra = Object.keys(dims).filter((k) => !['MajorCustomersAxis', 'ConcentrationRiskByBenchmarkAxis', 'ConcentrationRiskByTypeAxis'].includes(k));
+    if (extra.some((k) => k !== 'StatementBusinessSegmentsAxis')) continue;
+    conc.push({ label: label(dims.MajorCustomersAxis), raw: rawLabel(dims.MajorCustomersAxis), within: extra.length ? label(dims[extra[0]]) : null, fy: fyOf(f.ctx.end), end: f.ctx.end, pct: f.val, group: isGroup(label(dims.MajorCustomersAxis)) });
+  }
+  if (c.id === 'TSM') {
+    // TSMC tags the revenue from each major customer as an amount.
+    for (const f of inst.facts) {
+      if (!REV.test(f.tag) || f.unit !== currency || !fyEnds.includes(f.ctx.end) || f.ctx.dims.length !== 1 || !/MajorCustomersAxis$/.test(f.ctx.dims[0][0])) continue;
+      const total = rev[f.ctx.end] && rev[f.ctx.end].val;
+      if (total) conc.push({ label: label(f.ctx.dims[0][1]), raw: rawLabel(f.ctx.dims[0][1]), within: null, fy: fyOf(f.ctx.end), end: f.ctx.end, pct: Math.round((f.val / total) * 1000) / 1000, derived: true, amount: f.val });
+    }
+  }
+  const seen = new Set();
+  data.concentration[c.id] = conc.filter((x) => { const k = `${x.label}|${x.within}|${x.fy}`; if (seen.has(k) || !(x.pct > 0 && x.pct <= 1)) return false; seen.add(k); return true; })
+    .sort((p, q) => q.fy - p.fy || Number(Boolean(p.group)) - Number(Boolean(q.group)) || q.pct - p.pct);
+  data.concentration[c.id].forEach((x, i) => {
+    x.id = `${c.id}.conc.${x.fy}.${i}`;
+    data.figures[x.id] = { c: c.id, m: 'conc', fy: x.fy, end: x.end, v: x.pct, u: 'share', tag: `customer concentration: ${x.label}${x.derived ? ' (tagged amount ÷ revenue)' : ''}`, a: a.accn, x: 1 };
+  });
+
+  const fys = ends.map(fyOf);
+  // `periods`: how many fiscal years of revenue company facts holds for
+  // this registrant at all (a recent listing or spin-off has fewer than
+  // the YEARS shown for everyone else).
+  data.companies.push({ id: c.id, name: c.name, legal: c.legal, layer: c.layer, filer: true, cik: c.cik, form: c.form, currency, years: fys, periods: Object.keys(rev).length, latest: fys[fys.length - 1], annual: { accn: a.accn, period: a.period, filed: a.filed, source: docId } });
+  if (c.priorCiks) data.companies[data.companies.length - 1].prior = c.priorCiks.map((p) => ({ cik: p.cik, legal: p.legal }));
+  // The SIC code in the registrant's submissions index: which peer file its page reads.
+  if (/^\d{4}$/.test(String(c.sic || ''))) data.companies[data.companies.length - 1].sic = String(c.sic);
+}
+
+/** One company's risk-factor comparison, as the page shows it. `cur` and
+ *  `prior` are {accn, form, filed, period, doc}; the texts are read from
+ *  `ctx.rawTexts` (source id -> raw text). Adds the prior report as a source
+ *  and each quoted heading as a quote; returns the `risks` record. */
+function riskChanges(data, c, cur, prior, ctx) {
+  const curId = `${c.id}-${cur.accn}`;
+  if (!prior) return { compared: false, why: 'Only one annual report is on file to read.' };
+  const priorId = `${c.id}-${prior.accn}`;
+  const now = ctx.rawTexts[curId]; const before = ctx.rawTexts[priorId] !== undefined ? ctx.rawTexts[priorId] : T.sourceText(priorId);
+  if (!now || !before) return { compared: false, why: 'The previous annual report could not be read.' };
+  const r = Risks.compare(now, before, cur.form);
+  if (!r.compared) return { compared: false, why: r.why };
+  ctx.rawTexts[priorId] = before;
+  ctx.texts[priorId] = ctx.texts[priorId] || T.norm(before);
+  data.sources[priorId] = { kind: 'prior-annual-report', by: c.id, form: prior.form, period: prior.period, date: prior.filed, accn: prior.accn, title: `${c.name} ${prior.form} for the fiscal year ended ${prior.period}`, url: sec.docUrl(c.cik, prior.accn, prior.doc), sha: T.sha(ctx.texts[priorId]) };
+  const qctx = ctx.qctx;
+  qctx.sources = data.sources; qctx.texts = ctx.texts; qctx.rawTexts = ctx.rawTexts;
+  qctx.ranges[curId] = Risks.normRange(now, r.ranges.now);
+  qctx.ranges[priorId] = Risks.normRange(before, r.ranges.before);
+  const put = (id, kind, quote, source) => {
+    const res = V.checkQuote({ c: c.id, kind, quote, source, section: 'Risk factors' }, qctx);
+    if (!res.ok) { ctx.report.dropped.push({ id, why: res.why }); return null; }
+    data.quotes[id] = { c: c.id, kind, quote: T.norm(quote), source, section: 'Risk factors', date: data.sources[source].date, proof: V.proof(data.sources[source].sha, quote) };
+    ctx.report.quotes += 1;
+    return id;
+  };
+  const out = { compared: true, prior: priorId, threshold: r.threshold, counts: r.counts, new: [], removed: [], reworded: [] };
+  r.new.forEach((q, i) => { const id = put(`${c.id}.q.risk.${i}`, 'risk', q, curId); if (id) out.new.push(id); });
+  r.removed.forEach((q, i) => { const id = put(`${c.id}.q.riskgone.${i}`, 'risk-was', q, priorId); if (id) out.removed.push(id); });
+  r.reworded.forEach((x, i) => {
+    const a = put(`${c.id}.q.riskrw.${i}`, 'risk', x.quote, curId); const b = put(`${c.id}.q.riskrwwas.${i}`, 'risk-was', x.was, priorId);
+    if (a && b) out.reworded.push([a, b, x.sim]);
+  });
+  return out;
+}
+
+/** A sentence is kept only when every figure or edge it cites is there. */
+const citedOnly = (data, s) => s.cites.length > 0 && s.cites.every((id) => data.figures[id] || (data.quotes || {})[id] || data.edges.some((e) => e.id === id));
+
 function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
   const data = {
     app: 'asfiled', schema: 1, built: new Date().toISOString().slice(0, 10),
     disclaimer: 'From public filings. Not investment advice.',
-    layers: LAYERS, companies: [], others: [], filings: {}, sources: {}, figures: {}, mixes: {}, concentration: {}, edges: [], insights: {}, patterns: [],
+    layers: LAYERS, companies: [], others: [], filings: {}, sources: {}, figures: {}, mixes: {}, concentration: {}, edges: [], insights: {}, patterns: [], finsights: {}, fin: {}, quotes: {},
   };
-  const report = { built: data.built, companies: 0, figures: 0, edges: { curated: 0, kept: 0, dropped: [] }, insights: { kept: 0, dropped: 0 }, notes: [] };
+  const report = { built: data.built, companies: 0, figures: 0, quotes: { employees: { curated: 0, kept: 0, dropped: [], none: [] } }, edges: { curated: 0, kept: 0, dropped: [] }, insights: { kept: 0, dropped: 0 }, notes: [] };
   const texts = {};          // source id -> normalised text (for the verifier)
 
   for (const c of FILERS) {
@@ -115,61 +387,14 @@ function main() {
     // for the latest period is then read from the report's instance itself.
     const dir = path.join(sec.CACHE, 'docs', c.id, a.accn);
     const inst = a.instance ? X.readInstance(path.join(dir, a.instance)) : { facts: [] };
-    const series = (metric, unit, ends) => {
-      const s = annualSeries(facts, metric, unit, ends);
-      if (s[a.period]) return s;
-      let best = null;
-      TAGS[metric].forEach((qname, rank) => {
-        for (const f of inst.facts) {
-          if (f.tag !== qname || f.unit !== unit || f.ctx.dims.length || f.ctx.typed || f.ctx.end !== a.period) continue;
-          if (INSTANT.has(metric) ? Boolean(f.ctx.start) : (!f.ctx.start || days(f.ctx.start, f.ctx.end) < 340 || days(f.ctx.start, f.ctx.end) > 380)) continue;
-          const cand = { end: a.period, val: f.val, accn: a.accn, form: a.form, filed: a.filed, tag: qname, rank, x: 1 };
-          if (!best || (metric === 'revenue' ? cand.val > best.val : cand.rank < best.rank)) best = cand;
-        }
-      });
-      if (best) s[a.period] = best;
-      return s;
-    };
-    const rev = series('revenue', currency);
-    // A later report sometimes restates a year under a slightly different
-    // period end (Ciena's FY2018 ended 2018-10-31 in its own report and
-    // 2018-11-03 two reports later). Two ends within ten days are one
-    // fiscal year: the one from the earlier filing is kept, as everywhere.
-    const sortedEnds = Object.keys(rev).sort();
-    for (let i = 1; i < sortedEnds.length; i += 1) {
-      const a0 = sortedEnds[i - 1]; const b0 = sortedEnds[i];
-      if (!rev[a0] || days(a0, b0) > 10) continue;
-      delete rev[rev[b0].filed < rev[a0].filed ? a0 : b0];
-    }
-    const ends = Object.keys(rev).sort().slice(-YEARS);
-    if (new Set(ends.map(Core.fiscalYear)).size !== ends.length) throw new Error(`${c.id}: two periods fall in one fiscal year (${ends.join(', ')})`);
-    const endSet = new Set(ends);
-    const fyOf = Core.fiscalYear;
-    const put = (metric, row, unit) => {
-      const id = `${c.id}.${metric}.${fyOf(row.end)}`;
-      data.figures[id] = { c: c.id, m: metric, fy: fyOf(row.end), end: row.end, v: row.val, u: unit, tag: row.tag, a: row.accn };
-      if (row.x) data.figures[id].x = 1;
-      data.filings[row.accn] = { c: c.id, form: row.form, filed: row.filed };
-      // Filed under a previous registrant: the filing keeps that CIK, so its link opens it.
-      if (row.cik && row.cik !== c.cik) data.filings[row.accn].cik = row.cik;
-    };
-    for (const metric of Object.keys(TAGS)) {
-      const s = metric === 'revenue' ? rev : series(metric, currency, endSet);
-      for (const end of ends) if (s[end]) put(metric, s[end], currency);
-    }
-    if (currency !== 'USD') {
-      // TSMC also tags its own US-dollar convenience translation of the
-      // latest year in each report. Kept as separate figures, so anything
-      // summed across companies in dollars uses the company's own number.
-      for (const metric of ['revenue', 'capex']) {
-        const s = series(metric, 'USD', endSet);
-        for (const end of ends) if (s[end]) put(`${metric}Usd`, s[end], 'USD');
-      }
-    }
+    const labels = a.labels ? X.readLabels(path.join(dir, a.labels)) : {};
+    const subs = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'subs', `${c.id}.json`), 'utf8'));
+    const proxyFile = path.join(Proxy.DIR, `${c.id}.json`);
+    const proxy = fs.existsSync(proxyFile) ? JSON.parse(fs.readFileSync(proxyFile, 'utf8')) : null;
+    addCompany(data, { ...c, sic: subs.sic }, a, { facts, inst, labels, currency, proxy });
 
     // The latest annual report: its text, its XBRL instance, its labels.
     const docId = `${c.id}-${a.accn}`;
-    data.filings[a.accn] = { c: c.id, form: a.form, filed: a.filed };
     const text = T.sourceText(docId);
     if (!text) throw new Error(`${docId}: no cached text. Run tools/extract.js first.`);
     texts[docId] = T.norm(text);
@@ -180,87 +405,10 @@ function main() {
       data.sources[`${docId}.labels`] = { kind: 'xbrl', by: c.id, form: a.form, period: a.period, date: a.filed, accn: a.accn, title: `${c.name} ${a.form} for the fiscal year ended ${a.period} - XBRL data labels`, url: sec.filingIndexUrl(c.cik, a.accn), sha: T.sha(texts[`${docId}.labels`]) };
     }
 
-    const labels = a.labels ? X.readLabels(path.join(dir, a.labels)) : {};
-    const label = (q) => cleanLabel((labels[q] || {}).terse || (labels[q] || {}).std || q.replace(/^.*:/, '').replace(/Member$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'));
-    const rawLabel = (q) => ((labels[q] || {}).std || (labels[q] || {}).terse || '');
-    const fyEnds = ends.slice(-3);
+    // Insider transactions (tools/insiders.js): Form 4s of the last twelve months, cut down.
+    const insFile = path.join(Insiders.DIR, `${c.id}.json`);
+    if (fs.existsSync(insFile)) data.fin[c.id].insiders = Insiders.compact(JSON.parse(fs.readFileSync(insFile, 'utf8')));
 
-    // Revenue mix, where the report tags revenue by segment, geography or product.
-    const KIND = [
-      ['segment', /(^|:)StatementBusinessSegmentsAxis$/, 'By segment'],
-      ['geography', /(^|:)(StatementGeographicalAxis|GeographicalAreasAxis)$/, 'By geography'],
-      ['product', /(^|:)(ProductOrServiceAxis|MarketsOfCustomersAxis)$/, 'By product or market'],
-    ];
-    const REV = /^(us-gaap:(Revenues|RevenueFromContractWithCustomerExcludingAssessedTax|SalesRevenueNet)|ifrs-full:(Revenue|RevenueFromContractsWithCustomers))$/;
-    const PASS = /(ConsolidationItemsAxis|ConcentrationRiskByBenchmarkAxis|ConcentrationRiskByTypeAxis)$/;     // axes that do not split the number further
-    data.mixes[c.id] = [];
-    for (const [kind, axisRe, title] of KIND) {
-      const per = {};      // member -> {end: val}
-      for (const f of inst.facts) {
-        if (!REV.test(f.tag) || f.unit !== currency || f.ctx.typed || !f.ctx.start || !fyEnds.includes(f.ctx.end)) continue;
-        const d = days(f.ctx.start, f.ctx.end);
-        if (d < 340 || d > 380) continue;
-        const main = f.ctx.dims.filter((x) => axisRe.test(x[0]));
-        const rest = f.ctx.dims.filter((x) => !axisRe.test(x[0]));
-        if (main.length !== 1 || rest.some((x) => !PASS.test(x[0]))) continue;
-        if (rest.some((x) => /ConsolidationItemsAxis$/.test(x[0]) && !/operating segments|total segments/i.test(rawLabel(x[1]) || x[1]))) continue;
-        const key = main[0][1];
-        (per[key] = per[key] || {})[f.ctx.end] = f.val;
-      }
-      const latest = fyEnds[fyEnds.length - 1];
-      const total = rev[latest] && rev[latest].val;
-      const parts = Object.keys(per).filter((k) => per[k][latest] > 0).map((k) => ({ key: k, val: per[k][latest] }));
-      const chosen = subsetToTotal(parts, total);
-      if (!chosen) continue;
-      chosen.sort((p, q) => q.val - p.val);
-      const mix = { kind, title, accn: a.accn, years: fyEnds.map(fyOf), parts: [] };
-      chosen.forEach((p, i) => {
-        const vals = fyEnds.map((e) => (Number.isFinite(per[p.key][e]) ? per[p.key][e] : null));
-        mix.parts.push({ label: label(p.key), vals });
-        fyEnds.forEach((e, j) => {
-          if (vals[j] === null) return;
-          data.figures[`${c.id}.mix.${kind}.${fyOf(e)}.${i}`] = { c: c.id, m: `mix.${kind}`, fy: fyOf(e), end: e, v: vals[j], u: currency, tag: `revenue by ${kind}: ${label(p.key)}`, a: a.accn, x: 1 };
-        });
-      });
-      data.mixes[c.id].push(mix);
-    }
-
-    // Customer concentration, where the report tags a customer's share.
-    const conc = [];
-    for (const f of inst.facts) {
-      if (!/ConcentrationRiskPercentage/.test(f.tag) || !fyEnds.includes(f.ctx.end)) continue;
-      const dims = Object.fromEntries(f.ctx.dims.map((x) => [x[0].replace(/^.*:/, ''), x[1]]));
-      if (!dims.MajorCustomersAxis || !dims.ConcentrationRiskByBenchmarkAxis) continue;
-      const bench = rawLabel(dims.ConcentrationRiskByBenchmarkAxis) || dims.ConcentrationRiskByBenchmarkAxis;
-      if (!/revenue|sales/i.test(bench) || /receivable/i.test(bench)) continue;
-      const type = rawLabel(dims.ConcentrationRiskByTypeAxis || '') || String(dims.ConcentrationRiskByTypeAxis || '');
-      if (!/customer/i.test(type)) continue;
-      const extra = Object.keys(dims).filter((k) => !['MajorCustomersAxis', 'ConcentrationRiskByBenchmarkAxis', 'ConcentrationRiskByTypeAxis'].includes(k));
-      if (extra.some((k) => k !== 'StatementBusinessSegmentsAxis')) continue;
-      conc.push({ label: label(dims.MajorCustomersAxis), raw: rawLabel(dims.MajorCustomersAxis), within: extra.length ? label(dims[extra[0]]) : null, fy: fyOf(f.ctx.end), end: f.ctx.end, pct: f.val, group: isGroup(label(dims.MajorCustomersAxis)) });
-    }
-    if (c.id === 'TSM') {
-      // TSMC tags the revenue from each major customer as an amount.
-      for (const f of inst.facts) {
-        if (!REV.test(f.tag) || f.unit !== currency || !fyEnds.includes(f.ctx.end) || f.ctx.dims.length !== 1 || !/MajorCustomersAxis$/.test(f.ctx.dims[0][0])) continue;
-        const total = rev[f.ctx.end] && rev[f.ctx.end].val;
-        if (total) conc.push({ label: label(f.ctx.dims[0][1]), raw: rawLabel(f.ctx.dims[0][1]), within: null, fy: fyOf(f.ctx.end), end: f.ctx.end, pct: Math.round((f.val / total) * 1000) / 1000, derived: true, amount: f.val });
-      }
-    }
-    const seen = new Set();
-    data.concentration[c.id] = conc.filter((x) => { const k = `${x.label}|${x.within}|${x.fy}`; if (seen.has(k) || !(x.pct > 0 && x.pct <= 1)) return false; seen.add(k); return true; })
-      .sort((p, q) => q.fy - p.fy || Number(Boolean(p.group)) - Number(Boolean(q.group)) || q.pct - p.pct);
-    data.concentration[c.id].forEach((x, i) => {
-      x.id = `${c.id}.conc.${x.fy}.${i}`;
-      data.figures[x.id] = { c: c.id, m: 'conc', fy: x.fy, end: x.end, v: x.pct, u: 'share', tag: `customer concentration: ${x.label}${x.derived ? ' (tagged amount ÷ revenue)' : ''}`, a: a.accn, x: 1 };
-    });
-
-    const fys = ends.map(fyOf);
-    // `periods`: how many fiscal years of revenue company facts holds for
-    // this registrant at all (a recent listing or spin-off has fewer than
-    // the YEARS shown for everyone else).
-    data.companies.push({ id: c.id, name: c.name, legal: c.legal, layer: c.layer, filer: true, cik: c.cik, form: c.form, currency, years: fys, periods: Object.keys(rev).length, latest: fys[fys.length - 1], annual: { accn: a.accn, period: a.period, filed: a.filed, source: docId } });
-    if (c.priorCiks) data.companies[data.companies.length - 1].prior = c.priorCiks.map((p) => ({ cik: p.cik, legal: p.legal }));
     report.companies += 1;
   }
 
@@ -285,16 +433,51 @@ function main() {
   report.edges.kept = data.edges.length;
   // A report's XBRL labels are a source only where an edge quotes them.
   for (const [id, src] of Object.entries(data.sources)) if (src.kind === 'xbrl' && !data.edges.some((e) => e.source === id)) delete data.sources[id];
+  for (const id of Object.keys(texts)) if (!data.sources[id]) delete texts[id];
   // A company outside the set is on the map only because an edge names it.
   data.others = OTHERS.filter((o) => usedOthers.has(o.id)).map((o) => ({ id: o.id, name: o.name, layer: o.layer, filer: false }));
+
+  // How many people each company says it employs: one curated sentence a
+  // company, through the verifier (tools/curated-employees.json). What fails
+  // is dropped and reported - the file keeps one deliberate fake.
+  const qctx = { sources: data.sources, texts, rawTexts, sectionsOf, ranges: {} };
+  const people = JSON.parse(fs.readFileSync(path.join(__dirname, 'curated-employees.json'), 'utf8'));
+  report.quotes.employees.curated = people.length;
+  for (const e of people) {
+    const co = data.companies.find((c) => c.id === e.id);
+    const q = { c: e.id, kind: 'employees', n: e.n, quote: e.quote, source: co ? co.annual.source : null };
+    const res = co ? V.checkQuote(q, qctx) : { ok: false, why: 'unknown company' };
+    const id = `${e.id}.q.employees`;
+    if (!res.ok || data.quotes[id]) { report.quotes.employees.dropped.push({ id: e.id, n: e.n, why: res.ok ? 'a second sentence for one company' : res.why, tripwire: Boolean(e.tripwire) }); continue; }
+    const src = data.sources[q.source];
+    data.quotes[id] = { c: e.id, kind: 'employees', n: e.n, quote: T.norm(e.quote), source: q.source, section: res.section, date: src.date, proof: V.proof(src.sha, e.quote) };
+    report.quotes.employees.kept += 1;
+  }
+  report.quotes.employees.none = data.companies.filter((c) => !data.quotes[`${c.id}.q.employees`]).map((c) => c.id);
+
+  // Risk factors, this year's annual report beside last year's (tools/risks.js).
+  // Each heading shown is a quote and goes through the same check.
+  report.risks = { compared: 0, notCompared: [], quotes: 0, dropped: [] };
+  for (const c of data.companies) {
+    const man = manifest[c.id];
+    const res = riskChanges(data, c, man.annual[0], man.prior, { texts, rawTexts, qctx, report: report.risks });
+    data.fin[c.id].risks = res;
+    if (res.compared) report.risks.compared += 1; else report.risks.notCompared.push(`${c.id}: ${res.why}`);
+  }
 
   // Insights and cross-company patterns: written from the figures by the
   // shared core, each sentence with the figures or edges it rests on.
   const written = Core.writeAll(data);
-  const keep = (s) => { const ok = s.cites.length > 0 && s.cites.every((id) => data.figures[id] || data.edges.some((e) => e.id === id)); if (ok) report.insights.kept += 1; else report.insights.dropped += 1; return ok; };
+  const keep = (s) => { const ok = citedOnly(data, s); if (ok) report.insights.kept += 1; else report.insights.dropped += 1; return ok; };
   for (const id of Object.keys(written.insights)) data.insights[id] = written.insights[id].filter(keep);
   data.patterns = written.patterns.map((p) => ({ ...p, sentences: p.sentences.filter(keep) }));
+  for (const id of Object.keys(written.finsights)) data.finsights[id] = written.finsights[id].filter(keep);
 
+  // Peers: one file per SIC code, from the SEC's frames (tools/peers.js).
+  const peerParts = Peers.parts() || {};
+  const codes = Object.keys(peerParts).sort();
+  data.peers = { frame: `CY${Peers.YEAR}`, files: codes.length, registrants: codes.reduce((n, k) => n + peerParts[k].peers.length, 0), sha: T.sha(Core.canonical(codes.map((k) => peerParts[k]))) };
+  report.peers = { ...data.peers, sha: undefined, reviewedWithoutFile: data.companies.filter((c) => !peerParts[c.sic]).map((c) => c.id), reviewedNotInFile: data.companies.filter((c) => peerParts[c.sic] && !peerParts[c.sic].peers.some((p) => p.cik === c.cik)).map((c) => c.id) };
   report.figures = Object.keys(data.figures).length;
   data.integrity = Core.integrity(data, (s) => T.sha(s));
   // Published in parts (see Core.split): a small index, the patterns, and
@@ -302,18 +485,27 @@ function main() {
   const parts = Core.split(data);
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, 'f'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, 'sic'), { recursive: true });
+  let sicBytes = 0; let biggestSic = ['', 0];
+  for (const k of codes) { const n = fs.writeFileSync(path.join(OUT, 'sic', `${k}.json`), JSON.stringify(peerParts[k])) || fs.statSync(path.join(OUT, 'sic', `${k}.json`)).size; sicBytes += n; if (n > biggestSic[1]) biggestSic = [k, n]; }
   const write = (rel, obj) => { fs.writeFileSync(path.join(OUT, rel), JSON.stringify(obj)); return fs.statSync(path.join(OUT, rel)).size; };
   const sizes = { index: write('index.json', parts.index), patterns: write('patterns.json', parts.patterns) };
   let biggest = ['', 0];
   for (const [cid, part] of Object.entries(parts.companies)) { const n = write(`c/${cid}.json`, part); if (n > biggest[1]) biggest = [cid, n]; }
-  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] } };
+  let biggestF = ['', 0];
+  for (const [cid, part] of Object.entries(parts.fins)) { const n = write(`f/${cid}.json`, part); if (n > biggestF[1]) biggestF = [cid, n]; }
+  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] }, largestFin: { id: biggestF[0], bytes: biggestF[1] }, peers: { files: codes.length, bytes: sicBytes, largest: { sic: biggestSic[0], bytes: biggestSic[1] } } };
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 1)}\n`);
   console.log(`${report.companies} companies, ${report.figures} figures, ${Object.keys(data.filings).length} filings cited`);
   console.log(`edges: ${report.edges.kept} kept of ${report.edges.curated} curated; ${report.edges.dropped.length} dropped`);
+  console.log(`risk factors: ${report.risks.compared} companies compared with the year before, ${report.risks.quotes} headings quoted, ${report.risks.dropped.length} dropped by the verifier; not compared: ${report.risks.notCompared.length}`);
+  console.log(`employee sentences: ${report.quotes.employees.kept} kept of ${report.quotes.employees.curated} curated; none for ${report.quotes.employees.none.join(', ') || 'nobody'}`);
+  for (const d of report.quotes.employees.dropped) console.log(`  dropped ${d.id} (${d.n} employees): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   for (const d of report.edges.dropped) console.log(`  dropped ${d.from} -> ${d.to} (${d.type}, said by ${d.by}): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   console.log(`insight sentences: ${report.insights.kept} kept, ${report.insights.dropped} dropped`);
-  console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
+  console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB, largest f/ file ${biggestF[0]} ${(biggestF[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
 }
 
-module.exports = { annualSeries };
+module.exports = { annualSeries, addCompany, quarterFigures, payFigures, riskChanges, citedOnly, YEARS, QUARTERS, PAY_YEARS };
 if (require.main === module) main();
