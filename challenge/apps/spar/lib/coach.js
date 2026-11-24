@@ -74,9 +74,16 @@ const CONDUCT = [
   '- You are a made-up person. Do not claim to be, quote, or state facts about a real, named individual, and do not bring real people into it unless the player or the scenario already named them.',
 ];
 
+// The persona is the same on every turn of a session, so it is the cached prefix; the
+// count of messages left changes every turn and rides in its own block after it
+// (2026-11-24: with the count inside, the cache never matched and every turn paid to write it).
+function turnsLeftText(session) {
+  const turnsLeft = Math.max(0, session.maxTurns - session.turns);
+  return `The player has ${turnsLeft} message(s) left. If they run out, the conversation simply ends - do not rush a decision for them.`;
+}
+
 function personaSystem(s, session) {
   const hidden = (s.hidden || []).map((h, i) => `${i + 1}. ${h}`).join('\n');
-  const turnsLeft = Math.max(0, session.maxTurns - session.turns);
   return [
     `You are ${s.them.name}, ${s.them.role} at ${s.them.company}. You are in a live conversation with the player, a real person practising a hard conversation.`,
     '',
@@ -92,8 +99,6 @@ function personaSystem(s, session) {
     session.twist ? `TODAY'S CIRCUMSTANCE: ${session.twist}` : '',
     '',
     `DIFFICULTY: ${difficultyText(session.difficulty)}`,
-    `The player has ${turnsLeft} message(s) left. If they run out, the conversation simply ends - do not rush a decision for them.`,
-    '',
     'RULES:',
     '- Stay in character completely. You are a person, not an AI, and you have never heard of role-play.',
     '- Speak the way this person talks: short, spoken sentences. 1-4 sentences. No lists, no markdown, no asterisks.',
@@ -121,7 +126,10 @@ async function turn(client, model, s, session) {
   const res = await client.messages.create({
     model,
     max_tokens: 600,
-    system: [{ type: 'text', text: personaSystem(s, session), cache_control: { type: 'ephemeral' } }],
+    system: [
+      { type: 'text', text: personaSystem(s, session), cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: turnsLeftText(session) },
+    ],
     tools: [RESPOND_TOOL],
     tool_choice: { type: 'tool', name: 'respond' },
     messages: toMessages(session),
@@ -467,7 +475,7 @@ function validateScenario(raw) {
 }
 
 module.exports = {
-  turn, hint, score, invent, validateScenario, gradeFor, clean, personaSystem, toMessages,
+  turn, hint, score, invent, validateScenario, gradeFor, clean, personaSystem, turnsLeftText, toMessages,
   verifyQuote, playerLines, CONDUCT, SKILL_KEYS, MAX_MOMENTS,
   MAX_PLAYER_CHARS, RESPOND_TOOL, SCORE_TOOL, HINT_TOOL, INVENT_TOOL,
 };

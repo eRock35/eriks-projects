@@ -390,7 +390,10 @@ test('the counterpart is told to push back without abuse, and to bring in no rea
   assert.match(sys, /never abusive/);
   assert.match(sys, /demeaning or discriminatory/);
   assert.match(sys, /real, named individual/);
-  assert.match(sys, /The player has 9 message\(s\) left/);
+  assert.match(coach.turnsLeftText({ maxTurns: 12, turns: 3 }), /The player has 9 message\(s\) left/);
+  // The cached block must not change from turn to turn, or the cache never hits.
+  assert.strictEqual(sys, coach.personaSystem(s, { maxTurns: 12, turns: 7, difficulty: 'brutal' }), 'the persona block is the same on every turn');
+  assert.doesNotMatch(sys, /message\(s\) left/);
   assert.strictEqual(coach.RESPOND_TOOL.input_schema.required.join(), 'reply,mood,outcome,note');
   assert.ok(coach.SCORE_TOOL.input_schema.required.includes('moments'));
   assert.deepStrictEqual(coach.SCORE_TOOL.input_schema.properties.moments.items.properties.skill.enum, Object.keys(scenarios.SKILLS), 'the scorecard is scored against Spar’s own five skills');
