@@ -345,9 +345,11 @@ and nothing else. **No timer anywhere; all of it runs inside a request.**
   below): only through `tools/sec.js` `get()`, only from the server, rate
   limited. The page never talks to sec.gov; the CSP stays
   `connect-src 'self'`.
-- **One model call**, in one route (`POST api/lookup/<cik>/relations`),
-  for a signed-in member, behind the budget gates and the Lab AI guard. The
-  model picks sentences; `tools/verify.js` decides. It is never a source.
+- **One model call** (`modelCall` in `server.js`), reached from two routes:
+  `POST api/lookup/<cik>/relations` for a signed-in member, and the owner's
+  batch (`POST api/admin/prewarm`, below), both behind the budget gates and
+  the Lab AI guard. The model picks sentences; `tools/verify.js` decides. It
+  is never a source.
 
 `ASFILED_MEMORY`, `ASFILED_FAKE_AI` and `ASFILED_FAKE_SEC` (a directory of
 files standing in for sec.gov) are for tests and a laptop; all three throw
@@ -443,6 +445,61 @@ JSON):
   `test/lookup.js` holds the same for a model: a proposed quote that is in
   no sentence, that does not name the company, or that is stitched from
   two sentences yields no edge.
+
+### The owner's batch: "Prepare likely lookups" (2026-11-24, Erik approved)
+
+Erik asked for the likely lookups to be ready before anyone opens them, and
+approved about $1-5 of Claude for it. `lib/prewarm.js`, two routes in
+`server.js`, one row on the home view, `test/prewarm.js`.
+
+- **`POST api/admin/prewarm`** (and `GET` for where the list stands):
+  **owner only** - the shared account's owner flag, `admin: true` on the
+  identity user, what `/me` reports as `admin` (`requireOwner`). Signed out
+  401, a member 403, same-origin JSON like every write. Body `{ciks?: [..],
+  skip?: [..], limit?}`; with no `ciks`, the built-in list.
+- **The list** (`Prewarm.DEFAULT`, 28 tickers resolved through the lookup's
+  own registrant list): EFX TRU V MA PYPL AXP COF FI (or FISV) FIS GPN SPGI
+  MCO MSCI BR VRSK TRV CME ICE NDAQ ADP PAYX BKNG ABNB UBER NFLX DIS TSLA
+  COST. Erik's list also had FICO and INTU: both are in the 81, so they are
+  left off (and any company of the set is skipped as `in-set` anyway).
+- **One request prepares a few companies** (3; `limit` up to 5), one at a
+  time, and starts none after 150 seconds, so it ends well inside 240. For
+  each: `lookup.company` (the stored part, built or refreshed; no model),
+  then - **only when no relations are stored for that part's annual
+  report** - the member route's own run: `requireBudget`,
+  `requireDailyCap`, `guard.allow`, `relations.find` with the one metered
+  model call (`modelCall` in `server.js`), the verifier deciding, and
+  `guard.record` under app `asfiled`. It duplicates neither library. The
+  second reading (`/more`: employees, risks, pay, Form 4s) is **not**
+  pre-run: about fifty requests a company, and it is one tap on the page.
+- **Answers** `{done: [{cik, ticker, edges}], skipped: [{cik?, ticker?,
+  code, error}], remaining, total, ready, edges, costUsd, stopped?}`.
+  `costUsd` is this request's model spend. A company that cannot be read
+  (no 10-K, no tagged revenue, too large, sec.gov or the model failing) is
+  skipped with its reason; the page sends those back as `skip` so a run does
+  not go round on them. `stopped` means the request ended early: the AI
+  guard refused (`burst-minute`, `burst-day`, `monthly-cap`), today's lookup
+  total is used up, or there is no `SEC_USER_AGENT`. **No timer, nothing
+  after the answer**; a request that dies leaves whatever it stored.
+- **Limits.** sec.gov stays under four requests a second (every request
+  goes through `sec.get`) and the file caps are the lookup's. The batch
+  skips the 20-an-hour-per-address lookup limit (`noIpLimit`: one signed-in
+  owner, not a crowd) but counts against the 300 a day.
+- **The AI guard.** The month's $25 Claude cap applies and is never raised
+  for this. The burst book is asked for as **`asfiledbatch`**: with nothing
+  set on the service that is the shared 5 a minute / 30 a day, the same as
+  a member, and 28 runs fit a day if the owner has made few other AI calls;
+  on `burst-minute` the page waits a minute and carries on.
+  **`LAB_AI_BURST_APP_ASFILEDBATCH="10/100"`** (the existing per-app
+  setting, an env change on the service) gives the batch a book of its own
+  if the daily book gets in the way - members' books are untouched.
+- **Cost.** One run is at most 60 sentences: roughly 6,000-9,000 tokens in
+  and up to 4,096 out, under half a cent at Haiku 5.5's prices - so about
+  **$0.10-0.15 for all 28**, and nothing for a company already stored.
+- **The page.** A row on the home view, "Prepare likely lookups", drawn
+  only when `/me` says `admin` (nothing in `index.html`): "12 of 28 ready ·
+  47 relationships · $0.42" (the dollars are this page session's), a
+  Prepare button that becomes Stop. It calls until `remaining` is 0.
 
 ## The page
 
@@ -543,6 +600,11 @@ gzipped index), the tripwire, insights rebuilt and compared, the verifier
 on made-up sources, the cache re-read when the cache is on the machine, the
 email / User-Agent scan, the server under its mount (CSP, banner, no inline
 anything, requests only to its own base), and the lab entry.
+
+`test/prewarm.js` (run last by `npm test`; the same fixtures and fake
+model): the owner's batch - owner only, a company with stored relations is
+skipped, a made-up quote is still dropped, the AI guard's refusals stop it,
+`remaining` counts down, and the page draws its row only for the owner.
 
 `test/lookup.js` (run by `npm test` after it; no network - sec.gov is
 `test/fixtures/sec`, a made-up registrant in the real response shapes,

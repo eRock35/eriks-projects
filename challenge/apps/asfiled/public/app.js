@@ -398,6 +398,10 @@
           h('li', null, h('strong', { text: String(data.edges.length) }), 'quoted relationships'))),
       h('div', { cls: 'find' }, h('label', { cls: 'ctl-l', for: 'find', text: 'Find a company, or look up any SEC filer' }), find), none,
       h('div', { cls: 'look' }, lookBtn, lookOut));
+    // Owner only (the shared account's owner flag): prepare the likely lookups.
+    var ownerSlot = h('div', { cls: 'owner-slot' });
+    page.appendChild(ownerSlot);
+    (me === null ? loadMe() : Promise.resolve(me)).then(function (m) { if (m && m.signedIn && m.admin === true) ownerSlot.appendChild(prepareRow()); });
     var rec = recent();
     if (rec.length) {
       page.appendChild(h('section', { cls: 'group' },
@@ -434,6 +438,64 @@
       page.appendChild(el);
     });
     return page;
+  }
+
+  /* ---------------- the owner's batch ----------------
+   * "Prepare likely lookups": drawn only when /me says this is the owner
+   * (the server refuses anyone else). Each request prepares a few companies;
+   * this asks again until none remain, or Stop. Only the wait between two
+   * requests is timed here. */
+
+  var prepEl = null;      // one row, kept across views: a batch under way is never started twice
+  function prepareRow() {
+    if (prepEl) return prepEl;
+    var status = h('p', { cls: 'row-s', 'aria-live': 'polite', text: 'Checking what is ready…' });
+    var msg = h('p', { cls: 'note', 'aria-live': 'polite', hidden: true });
+    var btn = h('button', { type: 'button', cls: 'pill ghost', text: 'Prepare' });
+    var running = false; var stop = false; var cost = 0; var skip = []; var idle = 0; var wait = null;
+    var say = function (text) { msg.textContent = text || ''; msg.hidden = !text; };
+    var show = function (o) {
+      var text = o.ready + ' of ' + o.total + ' ready · ' + o.edges + (o.edges === 1 ? ' relationship' : ' relationships');
+      if (cost > 0) text += ' · $' + cost.toFixed(2);
+      if (skip.length) text += ' · ' + skip.length + ' could not be read';
+      status.textContent = text;
+    };
+    var end = function (text) { running = false; stop = false; wait = null; btn.disabled = false; btn.textContent = 'Prepare'; say(text); };
+    var next = function () {
+      if (stop) { end('Stopped. What was prepared is kept.'); return; }
+      api('POST', 'api/admin/prewarm', { skip: skip }).then(function (o) {
+        cost += Number(o.costUsd) || 0;
+        (o.skipped || []).forEach(function (x) { if (x.cik && x.code !== 'in-set' && skip.indexOf(x.cik) < 0) skip.push(x.cik); });
+        show(o);
+        var worked = o.done.length || (o.skipped || []).some(function (x) { return x.cik && x.code !== 'in-set'; });
+        idle = worked ? 0 : idle + 1;
+        if (o.stopped && o.stopped.code === 'burst-minute' && !stop) {
+          // The Lab's AI guard allows a few calls a minute: wait one out.
+          say('Waiting a minute for the AI allowance, then carrying on.');
+          wait = setTimeout(next, 61000);
+          return;
+        }
+        if (o.stopped) { end(o.stopped.error); return; }
+        if (!o.remaining) { end(skip.length ? 'Done. ' + skip.length + ' could not be read; reload to try those again.' : 'Done. Every company on the list is ready.'); return; }
+        if (idle >= 2) { end('Nothing more could be prepared just now. Try again in a while.'); return; }
+        next();
+      }, function (e) { end(e.message); });
+    };
+    btn.addEventListener('click', function () {
+      if (running) {
+        stop = true; btn.disabled = true; btn.textContent = 'Stopping…';
+        if (wait) { clearTimeout(wait); next(); }
+        return;
+      }
+      running = true; stop = false; idle = 0; btn.textContent = 'Stop';
+      say('Reading filings a few companies at a time. Keep this page open.');
+      next();
+    });
+    api('GET', 'api/admin/prewarm').then(show, function (e) { status.textContent = e.message; });
+    prepEl = h('div', { cls: 'card owner-row' },
+      h('span', { cls: 'row-main' }, h('span', { cls: 'row-t', text: 'Prepare likely lookups' }), status, msg),
+      btn);
+    return prepEl;
   }
 
   /* ---------------- one company ---------------- */

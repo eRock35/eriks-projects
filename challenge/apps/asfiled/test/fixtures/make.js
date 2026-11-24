@@ -183,6 +183,21 @@ const TW = 9900002; const TA = (fy) => `0009900002-${String(fy + 1).slice(2)}-00
 write(`data.sec.gov/api/xbrl/companyfacts/CIK${String(TW).padStart(10, '0')}.json`, company(TW, 'Tidewater Analytics Corp', 6.4e8, TA));
 write(`data.sec.gov/submissions/CIK${String(TW).padStart(10, '0')}.json`, submissions(TW, 'Tidewater Analytics Corp', 'TDWA', { accn: TA(2025), doc: 'tdwa-10k.htm' }));
 
+// Its annual report as a document, for the owner's batch (test/prewarm.js):
+// one sentence that states a relationship, one that names a company without one.
+write(`www.sec.gov/Archives/edgar/data/${TW}/${TA(2025).replace(/-/g, '')}/tdwa-10k.htm`, `<html><head><title>tdwa-10k</title></head><body>
+${P('FORM 10-K')}${P('TIDEWATER ANALYTICS CORP')}
+${P('Item 1. Business')}
+${P('Tidewater Analytics Corp. sells analytics software to lenders and insurers in North America.')}
+${P('Competition')}
+${P('We compete with Harborlight Data in the market for income verification and consumer credit analytics.')}
+${P('Properties')}
+${P('Our offices are two blocks from the campus of Quillfeather Systems in a district we have occupied since 2011.')}
+${P('Item 1A. Risk Factors')}
+${P('We depend on a limited number of data suppliers, and the loss of any one of them could harm our business.')}
+</body></html>
+`);
+
 /* Nofacts: a registrant that files no annual report this app reads. */
 const NF = 9900007;
 write(`data.sec.gov/api/xbrl/companyfacts/CIK${String(NF).padStart(10, '0')}.json`, { cik: NF, entityName: 'Nofacts Holdings Ltd', facts: {} });

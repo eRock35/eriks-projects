@@ -150,6 +150,10 @@ latest quarter, peers by SIC code (static files from the SEC's frames),
 backlog and employees, proxy pay and Form 4 insider transactions, and
 year-on-year risk-factor changes - all from SEC filings, no model, and a
 looked-up company's documents are read by a second on-request route.
+The owner can also prepare a list of likely lookups ahead of time
+(`POST /asfiled/api/admin/prewarm`, owner flag only): the same two steps,
+metered and recorded as `asfiled`; its burst book is asked for as
+`asfiledbatch`, so `LAB_AI_BURST_APP_ASFILEDBATCH` gives it its own.
 
 ### Rebuilding the lost drops, one a day (Erik, 2026-11-21)
 

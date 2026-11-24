@@ -252,7 +252,7 @@ function create({ store, now = Date.now, env = process.env } = {}) {
 
   /** One company by CIK: {inSet} for one of the reviewed set, else {part,
    *  at, cached}. Throws LookupError (404, 422, 429, 502, 503). */
-  async function company(cikIn, { ip } = {}) {
+  async function company(cikIn, { ip, noIpLimit = false } = {}) {
     const cik = Number(cikIn);
     if (!Number.isInteger(cik) || cik <= 0 || cik > 9999999999) throw new LookupError(404, 'No such company.', 'not-found');
     if (SET.has(cik)) return { inSet: SET.get(cik) };
@@ -266,7 +266,10 @@ function create({ store, now = Date.now, env = process.env } = {}) {
     let entry;
     try { entry = (await tickers()).byCik.get(cik); } catch (e) { throw secFail(e); }
     if (!entry) throw new LookupError(404, 'No SEC registrant with a listed ticker has that number.', 'not-found');
-    if (!perIp.take(ipKey(ip))) throw new LookupError(429, 'That is a lot of lookups from one place - try again in an hour.', 'limit-ip');
+    // `noIpLimit` is the owner's batch (lib/prewarm.js): one signed-in owner
+    // preparing a list is not a crowd behind one address. It still counts
+    // against the day's total, and sec.get still spaces every request.
+    if (!noIpLimit && !perIp.take(ipKey(ip))) throw new LookupError(429, 'That is a lot of lookups from one place - try again in an hour.', 'limit-ip');
     if (!perDay.take('all')) throw new LookupError(429, 'Lookups have reached today’s limit. Companies already looked up still open.', 'limit-day');
     const p = serial(() => build(entry)).then(async (part) => {
       const at = now();

@@ -18,8 +18,10 @@
 //   - mounts the shared account at /api/auth;
 //   - reaches sec.gov only through tools/sec.js, only for a lookup, rate
 //     limited, and never from the page (connect-src stays 'self');
-//   - calls a model in exactly one route, POST api/lookup/<cik>/relations,
-//     behind the sign-in, the budget and the lab's AI guard.
+//   - calls a model through exactly one function (`modelCall`), for POST
+//     api/lookup/<cik>/relations - behind the sign-in, the budget and the
+//     lab's AI guard - and for the owner's batch, POST api/admin/prewarm,
+//     which walks a list of likely lookups through the same two steps.
 //
 // ASFILED_FAKE_AI and ASFILED_FAKE_SEC are local stand-ins (tests, a
 // laptop); both are refused on Cloud Run.
@@ -32,6 +34,7 @@ const { store, MEMORY, memoryIdentityStore } = require('./lib/store');
 const identityLib = require('./lib/identity');
 const Lookup = require('./lib/lookup');
 const Relations = require('./lib/relations');
+const Prewarm = require('./lib/prewarm');
 
 const PORT = process.env.PORT || 8080;
 const FAKE_AI = process.env.ASFILED_FAKE_AI === '1';
@@ -161,6 +164,22 @@ function claude() {
   return sharedClient;
 }
 const AI_FALLBACK = 'The relationships could not be read just now. Nothing was added.';
+// The one model call. `seen(usage)` is told what the answer cost in tokens.
+const modelCall = (seen) => (params) => claude().messages.create(params, { timeout: 120000, maxRetries: 1 }).then((r) => { seen(r && r.usage); return r; });
+/** A call that came back is paid for whether or not anything was kept:
+ *  add it to the lab's month (app `asfiled`). Resolves its cost in dollars. */
+async function recordUsage(usage) {
+  if (!usage) return 0;
+  const guard = global.LAB_AI_GUARD;
+  let usd = 0;
+  try {
+    if (guard && guard.record) {
+      usd = guard.priceUsd({ provider: 'claude', model: Relations.MODEL, usage });
+      await guard.record({ provider: 'claude', app: 'asfiled', usd });
+    } else usd = Number(identityLib.priceOf(Relations.MODEL, usage)) || 0;   // on its own (tests, a laptop): priced, nowhere to record
+  } catch (e) { console.error('asfiled: guard record failed'); }
+  return usd;
+}
 
 app.post('/api/lookup/:cik(\\d{1,10})/relations', identity.sameOriginOnly, identity.requireUser, identity.requireBudget, identity.requireDailyCap, async (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -179,23 +198,75 @@ app.post('/api/lookup/:cik(\\d{1,10})/relations', identity.sameOriginOnly, ident
   const say = (o) => { try { res.write(`${JSON.stringify(o)}\n`); } catch (e) { /* the reader left; the run still finishes and is stored */ } };
   let usage = null;
   try {
-    const client = claude();
     const out = await relations.find(cik, {
       ip: req.ip,
       step: (text) => say({ step: text }),
-      call: (params) => client.messages.create(params, { timeout: 120000, maxRetries: 1 }).then((r) => { usage = r && r.usage; return r; }),
+      call: modelCall((u) => { usage = u; }),
     });
     say({ done: true, relations: out.relations });
   } catch (e) {
     if (e instanceof Lookup.LookupError) say({ error: e.message, code: e.code });
     else { console.error('asfiled: relations failed:', e && e.name ? e.name : 'error'); say({ error: AI_FALLBACK, code: 'ai' }); }
   } finally {
-    // A call that came back is paid for whether or not anything was kept.
-    if (guard && guard.record && usage) {
-      try { await guard.record({ provider: 'claude', app: 'asfiled', usd: guard.priceUsd({ provider: 'claude', model: Relations.MODEL, usage }) }); } catch (e) { console.error('asfiled: guard record failed'); }
-    }
+    await recordUsage(usage);
     res.end();
   }
+});
+
+/* ------------------------------------------------------------------ *
+ * The owner's batch: "Prepare likely lookups" (lib/prewarm.js)
+ *
+ * Owner only: the shared account's owner flag (`admin: true` on the
+ * identity user, what /me reports as `admin`). Signed out is 401, a member
+ * 403. Each request prepares a few companies (3; 5 at most) and answers;
+ * the page asks again until none remain. For each company: the stored part
+ * (no model), then - only when nothing is stored for its latest annual
+ * report - the relations run above, gate for gate: the budget, the daily
+ * ceiling, the lab's AI guard (cap and bursts), the metered client, the
+ * verifier, the same record under app `asfiled`. No company is started
+ * after START_MS, so a request ends well inside 240 seconds; no timer, and
+ * nothing runs after the answer.
+ *
+ * The guard's burst book is asked for as `asfiledbatch`. With nothing set
+ * on the service that is the shared book (5 a minute, 30 a day), exactly
+ * as for a member; LAB_AI_BURST_APP_ASFILEDBATCH="<perMinute>/<perDay>"
+ * gives the batch a book of its own without touching members' or the
+ * month's cap. A refusal stops the request and is passed to the page.
+ * ------------------------------------------------------------------ */
+
+const prewarm = Prewarm.create({ lookup, relations });
+const PREWARM_BOOK = 'asfiledbatch';
+const START_MS = 150000;
+const requireOwner = (req, res, next) => (req.user && req.user.admin === true ? next() : res.status(403).json({ error: 'This is for the site’s owner.', code: 'owner-only' }));
+
+app.get('/api/admin/prewarm', identity.requireUser, requireOwner, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await prewarm.status()); } catch (e) { failed(res, e); }
+});
+
+app.post('/api/admin/prewarm', identity.sameOriginOnly, identity.requireUser, requireOwner, identity.requireBudget, identity.requireDailyCap, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  let costUsd = 0;
+  const relate = async (cik) => {
+    const guard = global.LAB_AI_GUARD;
+    if (guard && guard.allow) {
+      const a = await guard.allow({ provider: 'claude', req, app: PREWARM_BOOK });
+      if (!a || !a.ok) return { refused: { status: (a && a.status) || 503, code: (a && a.code) || 'ai', message: (a && a.message) || AI_FALLBACK } };
+    }
+    let usage = null;
+    try {
+      const out = await relations.find(cik, { ip: req.ip, call: modelCall((u) => { usage = u; }) });
+      return { relations: out.relations };
+    } catch (e) {
+      if (!(e instanceof Lookup.LookupError)) console.error('asfiled: prewarm relations failed:', e && e.name ? e.name : 'error');
+      throw e;
+    } finally { costUsd += await recordUsage(usage); }
+  };
+  try {
+    const out = await prewarm.run({ ciks: body.ciks, skip: body.skip, limit: body.limit, ip: req.ip, deadline: Date.now() + START_MS, relate });
+    res.json({ ...out, costUsd: Math.round(costUsd * 1e6) / 1e6 });
+  } catch (e) { failed(res, e); }
 });
 
 const INDEX = path.join(__dirname, 'public', 'index.html');
@@ -226,4 +297,4 @@ if (require.main === module) {
   server.listen(PORT, () => console.log(`asfiled listening on ${PORT}${mount ? ` at ${mount}/` : ''}${MEMORY ? ' (memory store)' : ''}`));
 }
 
-module.exports = { app, identity, identityStore, store, lookup, relations, fakeClient };
+module.exports = { app, identity, identityStore, store, lookup, relations, prewarm, fakeClient };
