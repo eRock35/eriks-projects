@@ -35,6 +35,8 @@ const analytics = require('./shared/analytics');
 const views = require('./lib/views');
 const activity = require('./lib/activity');
 const inbox = require('./lib/inbox');
+const kits = require('./lib/kits');
+const kitPages = require('./lib/kits-pages');
 
 const PORT = process.env.PORT || 8080;
 const SITE_DIR = path.join(__dirname, 'site');
@@ -179,6 +181,12 @@ app.use(function canonicalHost(req, res, next) {
   return res.redirect(301, CANONICAL_ORIGIN + req.originalUrl);
 });
 
+// Lab Kits (2026-11-24): the licence service's Stripe webhook. It reads the
+// RAW body - the signature is over the bytes - so it is mounted here, above
+// the JSON parser, exactly as DataViz mounts its own. See lib/kits.js.
+const kitService = kits.make({ store, sendMail: (msg) => email.sendAccount(msg) });
+kits.mountWebhook(app, express, kitService);
+
 // The ideas inbox reads its own body, capped at 128 KB and only AFTER its
 // token or session has been checked (see "Ideas inbox" below), so a stranger
 // cannot make this service read a megabyte by knocking on it.
@@ -241,6 +249,11 @@ app.get('/ios-apps.json', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.json({ apps });
 });
+
+// Lab Kits: the licence check the installer calls, the downloads, and the
+// kit pages (hidden: noindex, linked from nowhere, no buy button without a
+// Payment Link in the environment). All of it is in lib/kits.js.
+kits.mountRoutes(app, kitService, kitPages);
 
 /* ------------------------------------------------------------------ *
  * Admin session

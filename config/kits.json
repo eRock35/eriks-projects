@@ -1,0 +1,36 @@
+{
+  "_readme": [
+    "Lab Kits: the one place prices, the brand and the tax code are decided.",
+    "Prices are whole cents (4900 = $49.00) and ship as null: a null price is never shown on a page",
+    "and scripts/kits-stripe.js refuses to create anything for it. taxCode ships null for the same",
+    "reason: Stripe Tax needs a product tax code and it is Erik's to choose, not a guess.",
+    "A tier with \"enabled\": false is skipped by the Stripe script (done-for-you, until it is switched on)."
+  ],
+  "brand": "Lab Kits",
+  "seller": "Strong Technical Consulting",
+  "currency": "usd",
+  "taxCode": null,
+  "taxBehavior": "exclusive",
+  "refundDays": 14,
+  "updatesMonths": 12,
+  "kits": {
+    "app-stack": {
+      "name": "App-Stack Kit",
+      "tiers": {
+        "scripts": { "price": null },
+        "kit": { "price": null },
+        "renewal": { "price": null },
+        "dfy": { "price": null, "enabled": false }
+      }
+    },
+    "chief-of-staff": {
+      "name": "Chief-of-Staff Kit",
+      "tiers": {
+        "scripts": { "price": null },
+        "kit": { "price": null },
+        "renewal": { "price": null },
+        "dfy": { "price": null, "enabled": false }
+      }
+    }
+  }
+}

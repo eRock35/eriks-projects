@@ -407,6 +407,108 @@ writes, a form post is 415) through `patchUser`. Tests: `test/ai-grant.js`.
   access-request mechanism is per app and keyed to `GRANTABLE`, so routing
   AI asks through it was not trivial.
 
+## Lab Kits (phase 1) (2026-11-24)
+
+Erik's "Lab Kits" spec: two setup-code kits sold under Strong Technical
+Consulting, the **App-Stack Kit** and the **Chief-of-Staff Kit**. Phase 1 is
+the foundation only: the licence and delivery service, the kit pages and the
+Stripe set-up script. **The kits themselves do not exist yet** (phases 2-3),
+hosted is phase 4, and **nothing is switched on**: no secret, bucket, Stripe
+object or webhook endpoint was created. Tests: `test/kits.js`,
+`test/kits-pages.js`, `test/kits-stripe.js`.
+
+- **Where it lives: the landing service** (`lib/kits.js`, mounted in
+  `server.js`). It needs the mail key, which only the landing holds, and the
+  pages are this site's. A service of its own would have meant a new runtime
+  account and a second copy of the mail key.
+- **Its own Stripe webhook endpoint**, `POST /api/kits/stripe/webhook`, with
+  its own signing secret, mounted on the landing as `STRIPE_WEBHOOK_SECRET`
+  so the check is `shared/stripe.js` `verifyWebhook`, unchanged (the shared
+  module is not edited: it is synced into sibling repos). DataViz's endpoint
+  and `stripe-webhook-secret` are untouched; the kits' secret is a different
+  one. It is mounted above `express.json()` (raw body). Claiming an event is
+  DataViz's shape: write-if-absent on `kit-events/<event id>`, released when
+  the apply fails, 409 while another delivery applies, taken over after two
+  minutes.
+- **Both endpoints see every event of the types they subscribe to.** This
+  one acts only on `metadata.kind === 'kit'`. **Never put `metadata.uid` or a
+  `client_reference_id` on a kit link**: DataViz reads either as an account
+  id and would write a membership for it.
+- **Events.** `checkout.session.completed` /
+  `checkout.session.async_payment_succeeded` (paid only): issue a licence, or
+  for `tier: renewal` attach the subscription to the buyer's licence for that
+  kit, **found by the address they paid with**, and add 12 months.
+  `charge.refunded`: a FULL refund revokes; a partial one is only recorded.
+  `charge.dispute.created` revokes. `invoice.paid` with `billing_reason:
+  subscription_cycle` adds 12 months from the later of today and
+  `updatesUntil`, once per invoice id. `customer.subscription.*` only records
+  the status: **a lapsed or cancelled renewal takes nothing away**.
+- **The key** is `lk_` + 32 base32 characters: an HMAC of the Checkout
+  Session id under a key derived from `KITS_SECRET`, not a random number. The
+  same purchase always makes the same key, so a redelivered event or a retried
+  mail issues nothing twice, and the store keeps only its SHA-256
+  (`kit-licenses/<sha256>`) while the mail can still be sent again.
+  **Rotating `KITS_SECRET` does not break issued keys** (they are checked by
+  hash) but ends outstanding download links and changes what a re-sent mail
+  would carry - do not rotate it with a purchase undelivered.
+- **The record**: `{id (lic_..., safe to show), keyHash, kit, tier, email,
+  status: active|revoked, updatesUntil, createdAt, refundedAt, revokedReason,
+  livemode, stripeSessionId, stripePaymentIntent, stripeCustomerId,
+  stripeSubscriptionId, subscriptionStatus, paidInvoices, deliveredAt,
+  deliveryError}`. The buyer's address is kept because delivery and the
+  renewal match need it. Lookups are single-field equality: no index to make.
+- **The mail** goes through `email.sendAccount` (never `NEWSLETTER_FROM`),
+  awaited inside the webhook with an 8-second limit. If it fails, or no mail
+  key is set, the webhook answers 500 so Stripe retries; the licence already
+  exists and the retry only sends.
+- **The check**: `POST /api/kits/license/check {key, kit, purpose:
+  'setup'|'update'}` -> `{ok, kit, tier, updatesUntil, updatesActive}`.
+  Setup works for as long as the licence stands; `update` needs
+  `updatesUntil` in the future (403 `updates-lapsed`, with a `renew` link);
+  revoked is 403 `revoked`; an unknown key, a wrong kit and a malformed key
+  are all the same 403 `invalid`. Per address: 60 questions and 10 wrong keys
+  in 15 minutes, then 429 (in memory, per instance).
+- **Downloads are served by this service, not by signed bucket URLs.** A link
+  is `/kits/download?t=<licence id>.<expiry>.<HMAC>` (48 hours in the mail;
+  15 minutes from `POST /api/kits/license/download {key, kit}` or the form
+  on `/kits/download`). The route checks the token AND the licence on every
+  request, then streams `gs://$KITS_BUCKET/<kit>/<kit|scripts>.zip` with the
+  runtime account's metadata token (`lib/kits-storage.js`; no key file, no
+  signBlob, no client library). So a refund stops a link at once, which a
+  pre-signed URL could not. A fresh link needs updates running, or a purchase
+  under 30 days old - otherwise a lapsed licence could take every release as
+  a "re-download". `KITS_BUCKET` unset: "downloads unavailable", and the
+  mail carries the key and says how to fetch the kit later.
+- **The pages** (`lib/kits-pages.js`, `site/kits.css`): `/kits`,
+  `/kits/app-stack`, `/kits/chief-of-staff`, `/kits/thanks`,
+  `/kits/download`. **Hidden**: linked from nowhere, not in the sitemap,
+  noindex meta and `X-Robots-Tag`. A buy button renders only when
+  `KIT_LINK_<KIT>_<TIER>` (`APP_STACK` / `CHIEF_OF_STAFF`; `SCRIPTS`, `KIT`,
+  `DFY`, `RENEWAL`) is exactly a Stripe Payment Link; otherwise "Coming
+  soon". A price shows only from `KIT_PRICE_<KIT>_<TIER>` (whole cents) or
+  `config/kits.json`, which ships every price `null`. `kits.css` copies the
+  landing's tokens (the test fails if they drift) and the pages keep the
+  landing's rules: no inline script or style, 44 px targets, the refund link
+  is `data-contact`. Launching means linking them and removing the noindex -
+  Erik's call, after his outside-activity check.
+- **`config/kits.json`** holds the brand ("Lab Kits", a placeholder: change
+  it there and pages, mail and Stripe product names follow), prices, the tax
+  code (`null`) and which tiers are on (done-for-you: off).
+- **`scripts/kits-stripe.js`** creates products, prices and Payment Links,
+  idempotently, **in test mode unless `--live
+  --confirm-live=create-real-stripe-objects`**. It skips a `null` price and
+  creates nothing without a tax code. It was tested against a stand-in only
+  and has **never been run against Stripe**: the first real run must be in
+  test mode. The landing's restricted key cannot create products; Erik runs
+  it with a key of his own, from his machine.
+- **Not built, on purpose:** the kits, the installer, the help bot, hosted
+  and its customer portal; an admin view of licences (Stripe and Firestore
+  show them); re-sending a mail by hand; cancelling a renewal subscription
+  when its licence is refunded (do it in Stripe); matching a renewal paid
+  from a different address (it is logged `renewal-unmatched` on the event
+  record and granted nothing - refund it); pinned kit versions; counting
+  activations per key.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
