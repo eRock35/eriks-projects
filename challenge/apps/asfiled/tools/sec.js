@@ -19,7 +19,9 @@ const os = require('os');
 const path = require('path');
 
 const CACHE = process.env.FILINGS_CACHE || path.join(os.homedir(), '.cache', 'filings');
-const GAP_MS = 260;                    // under 4 requests a second (the SEC's limit is 10)
+// Under 4 requests a second (the SEC's limit is 10). SEC_GAP_MS can only
+// slow it further (two tools running side by side each take half).
+const GAP_MS = Math.max(260, Number(process.env.SEC_GAP_MS) || 0);
 let last = 0;
 
 function agent() {

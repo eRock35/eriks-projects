@@ -15,7 +15,15 @@
   var METRICS = {
     revenue: 'Revenue', cost: 'Cost of revenue', gross: 'Gross profit', rd: 'Research and development',
     capex: 'Capital spending', inventory: 'Inventory',
+    // Cash and capital return (kept in the company's second file, f/<ID>).
+    ocf: 'Operating cash flow', sbc: 'Stock-based compensation', buybacks: 'Share repurchases', dividends: 'Dividends paid',
+    cash: 'Cash and cash equivalents', sti: 'Short-term investments',
+    debtLong: 'Long-term debt, beyond a year', debtCurrent: 'Debt due within a year', debtShort: 'Short-term borrowings', debtTotal: 'Long-term debt, with its current portion',
   };
+  // Which figures live in f/<ID>.json rather than c/<ID>.json.
+  var FIN = { ocf: 1, sbc: 1, buybacks: 1, dividends: 1, cash: 1, sti: 1, debtLong: 1, debtCurrent: 1, debtShort: 1, debtTotal: 1 };
+  function isFin(f) { return Boolean(FIN[f.m]); }
+  var short = function (tag) { return String(tag).replace(/^.*:/, ''); };
   var SYMBOL = { USD: '$', EUR: '€', TWD: 'NT$' };
   var TYPE_NAMES = {
     supplier: 'Supplier', customer: 'Customer', service: 'Service or platform provider',
@@ -62,6 +70,46 @@
       var inv = fig(data, c, 'inventory', fy);
       if (inv && cost && cost.v > 0) out = { v: (inv.v / cost.v) * 365, cites: [id(c, 'inventory', fy), id(c, 'cost', fy)], how: 'year-end inventory ÷ cost of revenue × 365' };
     }
+    else if (name === 'fcf') {
+      // A derived figure: both inputs are filed figures, and both are cited.
+      var o = fig(data, c, 'ocf', fy); var k = fig(data, c, 'capex', fy);
+      if (o && k) out = { v: o.v - k.v, cites: [id(c, 'ocf', fy), id(c, 'capex', fy)], how: 'operating cash flow less capital spending' };
+    } else if (name === 'fcfMargin') {
+      var fc = derived(data, c, 'fcf', fy);
+      if (fc && rev && rev.v > 0) out = { v: fc.v / rev.v, cites: fc.cites.concat([id(c, 'revenue', fy)]), how: fc.how + ' ÷ revenue' };
+    } else if (name === 'sbcShare') {
+      var sb = fig(data, c, 'sbc', fy);
+      if (sb && rev && rev.v > 0) out = { v: sb.v / rev.v, cites: [id(c, 'sbc', fy), id(c, 'revenue', fy)], how: 'stock-based compensation ÷ revenue' };
+    } else if (name === 'returned') {
+      var bb = fig(data, c, 'buybacks', fy); var dv = fig(data, c, 'dividends', fy);
+      if (bb && dv) out = { v: bb.v + dv.v, cites: [id(c, 'buybacks', fy), id(c, 'dividends', fy)], how: 'share repurchases plus dividends paid' };
+    } else if (name === 'debt') {
+      // Debt, as tagged: the sum of the balance-sheet tags named in `how`,
+      // and nothing else. A borrowing tagged another way is not in it.
+      var dl = fig(data, c, 'debtLong', fy); var dc = fig(data, c, 'debtCurrent', fy); var ds = fig(data, c, 'debtShort', fy); var dt = fig(data, c, 'debtTotal', fy);
+      var parts = [];
+      if (dl) {
+        parts.push(['debtLong', dl]);
+        if (dc) parts.push(['debtCurrent', dc]);
+        // DebtCurrent is all debt due within a year; any other current tag
+        // is the current part of long-term debt, and short-term borrowings
+        // are on top of it.
+        if (ds && !(dc && dc.tag === 'us-gaap:DebtCurrent')) parts.push(['debtShort', ds]);
+      } else if (dt) {
+        parts.push(['debtTotal', dt]);
+        if (ds && dt.tag === 'us-gaap:LongTermDebt') parts.push(['debtShort', ds]);
+      } else if (ds) parts.push(['debtShort', ds]);
+      if (parts.length) {
+        out = {
+          v: parts.reduce(function (a, p) { return a + p[1].v; }, 0),
+          cites: parts.map(function (p) { return id(c, p[0], fy); }),
+          how: parts.map(function (p) { return short(p[1].tag); }).join(' + '),
+        };
+      }
+    } else if (name === 'netDebt') {
+      var de = derived(data, c, 'debt', fy); var ca = fig(data, c, 'cash', fy); var st = fig(data, c, 'sti', fy);
+      if (de && ca) out = { v: de.v - ca.v - (st ? st.v : 0), cites: de.cites.concat([id(c, 'cash', fy)], st ? [id(c, 'sti', fy)] : []), how: 'debt as tagged less cash and cash equivalents' + (st ? ' and short-term investments' : '') };
+    }
     return out;
   }
   function uniq(a) { var s = {}; var o = []; a.forEach(function (x) { if (!s[x]) { s[x] = 1; o.push(x); } }); return o; }
@@ -77,6 +125,8 @@
     return sign + s + n + unit;
   }
   function pct(v, d) { return trim(v * 100, d === undefined ? 1 : d) + '%'; }
+  /** A share for a sentence: one decimal, and never a bare "0%" for a share that is not zero. */
+  function share(v) { return v > 0 && v < 0.0005 ? 'under 0.1%' : pct(v); }
   function times(v) { return trim(v, v >= 10 ? 0 : 1); }
 
   var pad10 = function (cik) { return ('0000000000' + cik).slice(-10); };
@@ -181,6 +231,61 @@
     conc.forEach(function (k) {
       out.push(S('customers', 'The FY' + L + ' report tags the ' + (k.group ? 'group' : 'customer') + ' it labels “' + k.label + '” at ' + pct(k.pct, 0) + ' of revenue' + (k.within ? ' (within ' + k.within + ')' : '') + (k.derived ? ', taking the tagged amount as a share of total revenue' : '') + '.', [k.id]));
     });
+    return out;
+  }
+
+  var COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  function computedFrom(n) { return 'computed from ' + (COUNT[n] || n) + ' filed figures'; }
+
+  /* ---------------- cash, capital return, cash and debt ----------------
+   * Sentences for the second half of a company's page, written the same
+   * way: by a template, from figures, with the figures each rests on. */
+  function finInsights(data, c) {
+    var out = [];
+    var cur = c.currency; var L = c.latest; var cid = c.id;
+    var M = function (v) { return money(v, cur); };
+    var at = function (name, fy) { return derived(data, cid, name, fy); };
+    var has = function (fy) { return c.years.indexOf(fy) >= 0; };
+    var fcf = at('fcf', L);
+    if (fcf) {
+      var t = 'Free cash flow was ' + M(fcf.v) + ' in FY' + L + ': operating cash flow of ' + M(fig(data, cid, 'ocf', L).v) + ' less capital spending of ' + M(fig(data, cid, 'capex', L).v) + ' (' + computedFrom(2) + ').';
+      var cites = fcf.cites.slice();
+      var fm = at('fcfMargin', L);
+      if (fm) { t += ' That is ' + pct(fm.v) + ' of revenue.'; cites = cites.concat(fm.cites); }
+      var f5 = has(L - 5) ? at('fcf', L - 5) : null;
+      if (f5) { t += ' In FY' + (L - 5) + ' it was ' + M(f5.v) + '.'; cites = cites.concat(f5.cites); }
+      out.push(S('fcf', t, cites));
+    }
+    var sb = at('sbcShare', L);
+    if (sb) {
+      var st = 'Stock-based compensation was ' + M(fig(data, cid, 'sbc', L).v) + ' in FY' + L + ', ' + share(sb.v) + ' of revenue';
+      var sc = sb.cites.slice();
+      var s5 = has(L - 5) ? at('sbcShare', L - 5) : null;
+      if (s5) { st += ', against ' + share(s5.v) + ' in FY' + (L - 5); sc = sc.concat(s5.cites); }
+      out.push(S('sbc', st + '.', sc));
+    }
+    var bb = fig(data, cid, 'buybacks', L); var dv = fig(data, cid, 'dividends', L);
+    if (bb || dv) {
+      var rc = [].concat(bb ? [id(cid, 'buybacks', L)] : [], dv ? [id(cid, 'dividends', L)] : []);
+      var paid = [].concat(bb && bb.v > 0 ? [M(bb.v) + ' to repurchase its own shares'] : [], dv && dv.v > 0 ? [M(dv.v) + ' in dividends'] : []);
+      var rt = paid.length ? 'In FY' + L + ' the company paid ' + paid.join(' and ') + (paid.length === 2 ? ': ' + M(bb.v + dv.v) + ' together (' + computedFrom(2) + ').' : '.') : 'In FY' + L + ' the company paid nothing to repurchase shares or in dividends, as tagged.';
+      if (paid.length === 1) rt += bb && bb.v > 0 ? (dv ? ' Dividends paid are tagged as zero.' : ' No dividend payment is tagged for the year.') : (bb ? ' Share repurchases are tagged as zero.' : ' No share repurchase is tagged for the year.');
+      if (!paid.length && !(bb && dv)) rt = 'In FY' + L + ' ' + (bb ? 'share repurchases' : 'dividends paid') + ' are tagged as zero; ' + (bb ? 'no dividend payment' : 'no share repurchase') + ' is tagged for the year.';
+      out.push(S('returns', rt, rc));
+    }
+    var ca = fig(data, cid, 'cash', L); var si = fig(data, cid, 'sti', L); var de = at('debt', L);
+    if (ca) {
+      var dt = 'At the end of FY' + L + ' the balance sheet carried ' + M(ca.v) + ' in cash and cash equivalents' + (si ? ' and ' + M(si.v) + ' in short-term investments' : '');
+      var dc = [id(cid, 'cash', L)].concat(si ? [id(cid, 'sti', L)] : []);
+      if (de) {
+        dt += ', and ' + M(de.v) + ' of debt as tagged (' + de.how + ').';
+        dc = dc.concat(de.cites);
+        var nd = at('netDebt', L);
+        dt += nd.v >= 0 ? ' Debt less cash' + (si ? ' and short-term investments' : '') + ' was ' + M(nd.v) : ' Cash' + (si ? ' and short-term investments' : '') + ' exceeded that debt by ' + M(-nd.v);
+        dt += ' (' + computedFrom(nd.cites.length) + ').';
+      } else dt += '. No debt is tagged under the tags read here.';
+      out.push(S('debt', dt, dc));
+    }
     return out;
   }
 
@@ -298,8 +403,9 @@
 
   function writeAll(data) {
     var insights = {};
-    data.companies.forEach(function (c) { insights[c.id] = companyInsights(data, c); });
-    return { insights: insights, patterns: patterns(data) };
+    var fin = {};
+    data.companies.forEach(function (c) { insights[c.id] = companyInsights(data, c); fin[c.id] = finInsights(data, c); });
+    return { insights: insights, patterns: patterns(data), finsights: fin };
   }
 
   /** JSON with every object's keys in sorted order, so a hash does not
@@ -311,7 +417,7 @@
   }
   /** One hash over everything a reader is shown as fact. */
   function integrity(data, sha) {
-    return sha(canonical([data.figures, data.edges, data.insights, data.patterns, data.mixes, data.concentration]));
+    return sha(canonical([data.figures, data.edges, data.insights, data.patterns, data.mixes, data.concentration, data.finsights, data.fin]));
   }
 
   /* ---------------- the published files ----------------
@@ -321,9 +427,11 @@
    *   data/patterns.json  the cross-company patterns and the figures they cite
    *   data/c/<ID>.json    one company's figures, revenue mix, customer
    *                       concentration and insight sentences
+   *   data/f/<ID>.json    the same company's cash, quarterly, forward-looking,
+   *                       pay, insider and risk-factor data, with its sentences
    * The page loads index.json first and the others when a view needs them,
    * merging each into one object the functions above read. */
-  var PART = /^(index|patterns|c\/[A-Z]{1,6})$/;
+  var PART = /^(index|patterns|[cf]\/[A-Z]{1,6})$/;
   function partPath(part) {
     if (!PART.test(String(part))) throw new Error('not a data part: ' + part);
     return 'data/' + part + '.json';
@@ -377,14 +485,16 @@
     data.patterns.forEach(function (p) { pc = pc.concat(chartCites(p)); });
     var pp = pick(data, pc);
     var patternsPart = { part: 'patterns', patterns: data.patterns, figures: pp.figures, filings: pp.filings };
-    var companies = {};
+    var companies = {}; var fins = {};
     data.companies.forEach(function (c) {
-      var mine = Object.keys(data.figures).filter(function (k) { return data.figures[k].c === c.id; });
-      var cp = pick(data, mine);
-      var one = function (o) { var x = {}; x[c.id] = o[c.id] || []; return x; };
-      companies[c.id] = { part: 'c/' + c.id, id: c.id, figures: cp.figures, filings: cp.filings, mixes: one(data.mixes), concentration: one(data.concentration), insights: one(data.insights) };
+      var all = Object.keys(data.figures).filter(function (k) { return data.figures[k].c === c.id; });
+      var cp = pick(data, all.filter(function (k) { return !isFin(data.figures[k]); }));
+      var fp = pick(data, all.filter(function (k) { return isFin(data.figures[k]); }));
+      var one = function (o, d) { var x = {}; x[c.id] = (o || {})[c.id] || d; return x; };
+      companies[c.id] = { part: 'c/' + c.id, id: c.id, figures: cp.figures, filings: cp.filings, mixes: one(data.mixes, []), concentration: one(data.concentration, []), insights: one(data.insights, []) };
+      fins[c.id] = { part: 'f/' + c.id, id: c.id, figures: fp.figures, filings: fp.filings, finsights: one(data.finsights, []), fin: one(data.fin, {}) };
     });
-    return { index: index, patterns: patternsPart, companies: companies };
+    return { index: index, patterns: patternsPart, companies: companies, fins: fins };
   }
   /** The index as the page starts from it, ready for parts to merge into. */
   function start(index) {
@@ -392,14 +502,14 @@
     Object.keys(index).forEach(function (k) { d[k] = index[k]; });
     d.figures = Object.assign({}, index.figures); d.filings = Object.assign({}, index.filings);
     d.edges = index.edges.map(function (e) { var o = {}; Object.keys(e).forEach(function (k) { o[k] = e[k]; }); o.url = index.sources[e.source].url; return o; });
-    d.mixes = {}; d.concentration = {}; d.insights = {}; d.patterns = d.patterns || null;
+    d.mixes = {}; d.concentration = {}; d.insights = {}; d.finsights = {}; d.fin = {}; d.patterns = d.patterns || null;
     return d;
   }
   /** Merge one loaded part into the page's dataset. */
   function merge(d, part) {
     Object.assign(d.figures, part.figures || {});
     Object.assign(d.filings, part.filings || {});
-    ['mixes', 'concentration', 'insights'].forEach(function (k) { if (part[k]) Object.assign(d[k], part[k]); });
+    ['mixes', 'concentration', 'insights', 'finsights', 'fin'].forEach(function (k) { if (part[k]) Object.assign(d[k], part[k]); });
     if (part.patterns) d.patterns = part.patterns;
     return d;
   }
@@ -408,7 +518,7 @@
     METRICS: METRICS, TYPE_NAMES: TYPE_NAMES, DIRECTED: DIRECTED, SYMBOL: SYMBOL,
     fiscalYear: fiscalYear, fig: fig, derived: derived, company: company, money: money, pct: pct, times: times,
     filingUrl: filingUrl, figureSource: figureSource, quoteUrl: quoteUrl, pad10: pad10,
-    companyInsights: companyInsights, patterns: patterns, writeAll: writeAll, integrity: integrity, canonical: canonical,
+    companyInsights: companyInsights, finInsights: finInsights, isFin: isFin, computedFrom: computedFrom, patterns: patterns, writeAll: writeAll, integrity: integrity, canonical: canonical,
     partPath: partPath, split: split, start: start, merge: merge, headIds: headIds,
   };
 }));

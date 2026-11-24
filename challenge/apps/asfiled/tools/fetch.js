@@ -18,10 +18,21 @@
 const fs = require('fs');
 const path = require('path');
 const { FILERS } = require('./companies');
-const { slimFacts } = require('./xbrl');
+const { slimFacts, SLIM } = require('./xbrl');
 const sec = require('./sec');
 
 const ANNUALS = Number(process.env.FILINGS_ANNUALS || 1);   // how many annual reports' text to read
+
+/** Company facts into the cache, cut down (xbrl.slimFacts). A copy cut by
+ *  an older version of the tag list is read again. */
+async function slim(url, rel) {
+  const file = path.join(sec.CACHE, rel);
+  if (fs.existsSync(file) && JSON.parse(fs.readFileSync(file, 'utf8')).slim !== SLIM) fs.unlinkSync(file);
+  await sec.cached(url, rel);
+  const facts = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (facts.slim !== SLIM) fs.writeFileSync(file, JSON.stringify(slimFacts(facts)));
+  return file;
+}
 
 async function main() {
   sec.agent();
@@ -31,14 +42,10 @@ async function main() {
   for (const c of FILERS) {
     if (only && !only.has(c.id)) continue;
     const cik10 = sec.pad10(c.cik);
-    const factsFile = await sec.cached(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, `facts/${c.id}.json`);
-    const facts = JSON.parse(fs.readFileSync(factsFile, 'utf8'));
-    if (!facts.slim) fs.writeFileSync(factsFile, JSON.stringify(slimFacts(facts)));
+    const factsFile = await slim(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, `facts/${c.id}.json`);
     // A previous registrant's company facts (companies.js `priorCiks`).
     for (const p of c.priorCiks || []) {
-      const pf = await sec.cached(`https://data.sec.gov/api/xbrl/companyfacts/CIK${sec.pad10(p.cik)}.json`, `facts/${c.id}.${p.cik}.json`);
-      const pj = JSON.parse(fs.readFileSync(pf, 'utf8'));
-      if (!pj.slim) fs.writeFileSync(pf, JSON.stringify(slimFacts(pj)));
+      await slim(`https://data.sec.gov/api/xbrl/companyfacts/CIK${sec.pad10(p.cik)}.json`, `facts/${c.id}.${p.cik}.json`);
     }
     const subsFile = await sec.cached(`https://data.sec.gov/submissions/CIK${cik10}.json`, `subs/${c.id}.json`);
     const subs = JSON.parse(fs.readFileSync(subsFile, 'utf8'));

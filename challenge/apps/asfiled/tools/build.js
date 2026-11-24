@@ -30,8 +30,12 @@ const YEARS = 12;                       // fiscal years kept per company
 const ANNUAL = new Set(['10-K', '20-F']);
 
 // Tags tried for each number, in order of preference: tools/xbrl.js.
-const { TAGS } = X;
-const INSTANT = new Set(['inventory']);
+const TAGS = X.ALL;
+const INSTANT = new Set(['inventory'].concat(X.FIN_INSTANT));
+// Cash and capital return: amounts over the year for every year shown;
+// balances for the latest two year ends.
+const FIN_FLOWS = ['ocf', 'sbc', 'buybacks', 'dividends'];
+const FIN_BALANCES = ['cash', 'sti', 'debtLong', 'debtCurrent', 'debtShort', 'debtTotal'];
 const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 /** One number per fiscal year for a metric: the value from the EARLIEST
@@ -135,9 +139,17 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
     // Filed under a previous registrant: the filing keeps that CIK, so its link opens it.
     if (row.cik && row.cik !== c.cik) data.filings[row.accn].cik = row.cik;
   };
-  for (const metric of Object.keys(TAGS)) {
+  for (const metric of Object.keys(X.TAGS)) {
     const s = metric === 'revenue' ? rev : series(metric, currency, endSet);
     for (const end of ends) if (s[end]) put(metric, s[end], currency);
+  }
+  for (const metric of FIN_FLOWS) {
+    const s = series(metric, currency, endSet);
+    for (const end of ends) if (s[end]) put(metric, s[end], currency);
+  }
+  for (const metric of FIN_BALANCES) {
+    const s = series(metric, currency, endSet);
+    for (const end of ends.slice(-2)) if (s[end]) put(metric, s[end], currency);
   }
   if (currency !== 'USD') {
     // TSMC also tags its own US-dollar convenience translation of the
@@ -149,6 +161,9 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
     }
   }
 
+  // What the second half of the page shows beyond figures (quotes, lists): filled in by the layers below.
+  data.fin = data.fin || {};
+  data.fin[c.id] = {};
   const docId = `${c.id}-${a.accn}`;
   data.filings[a.accn] = { c: c.id, form: a.form, filed: a.filed };
   const label = (q) => cleanLabel((labels[q] || {}).terse || (labels[q] || {}).std || q.replace(/^.*:/, '').replace(/Member$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'));
@@ -241,7 +256,7 @@ function main() {
   const data = {
     app: 'asfiled', schema: 1, built: new Date().toISOString().slice(0, 10),
     disclaimer: 'From public filings. Not investment advice.',
-    layers: LAYERS, companies: [], others: [], filings: {}, sources: {}, figures: {}, mixes: {}, concentration: {}, edges: [], insights: {}, patterns: [],
+    layers: LAYERS, companies: [], others: [], filings: {}, sources: {}, figures: {}, mixes: {}, concentration: {}, edges: [], insights: {}, patterns: [], finsights: {}, fin: {},
   };
   const report = { built: data.built, companies: 0, figures: 0, edges: { curated: 0, kept: 0, dropped: [] }, insights: { kept: 0, dropped: 0 }, notes: [] };
   const texts = {};          // source id -> normalised text (for the verifier)
@@ -310,6 +325,7 @@ function main() {
   const keep = (s) => { const ok = citedOnly(data, s); if (ok) report.insights.kept += 1; else report.insights.dropped += 1; return ok; };
   for (const id of Object.keys(written.insights)) data.insights[id] = written.insights[id].filter(keep);
   data.patterns = written.patterns.map((p) => ({ ...p, sentences: p.sentences.filter(keep) }));
+  for (const id of Object.keys(written.finsights)) data.finsights[id] = written.finsights[id].filter(keep);
 
   report.figures = Object.keys(data.figures).length;
   data.integrity = Core.integrity(data, (s) => T.sha(s));
@@ -318,17 +334,20 @@ function main() {
   const parts = Core.split(data);
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, 'f'), { recursive: true });
   const write = (rel, obj) => { fs.writeFileSync(path.join(OUT, rel), JSON.stringify(obj)); return fs.statSync(path.join(OUT, rel)).size; };
   const sizes = { index: write('index.json', parts.index), patterns: write('patterns.json', parts.patterns) };
   let biggest = ['', 0];
   for (const [cid, part] of Object.entries(parts.companies)) { const n = write(`c/${cid}.json`, part); if (n > biggest[1]) biggest = [cid, n]; }
-  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] } };
+  let biggestF = ['', 0];
+  for (const [cid, part] of Object.entries(parts.fins)) { const n = write(`f/${cid}.json`, part); if (n > biggestF[1]) biggestF = [cid, n]; }
+  report.sizes = { index: sizes.index, patterns: sizes.patterns, largestCompany: { id: biggest[0], bytes: biggest[1] }, largestFin: { id: biggestF[0], bytes: biggestF[1] } };
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 1)}\n`);
   console.log(`${report.companies} companies, ${report.figures} figures, ${Object.keys(data.filings).length} filings cited`);
   console.log(`edges: ${report.edges.kept} kept of ${report.edges.curated} curated; ${report.edges.dropped.length} dropped`);
   for (const d of report.edges.dropped) console.log(`  dropped ${d.from} -> ${d.to} (${d.type}, said by ${d.by}): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   console.log(`insight sentences: ${report.insights.kept} kept, ${report.insights.dropped} dropped`);
-  console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
+  console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB, largest f/ file ${biggestF[0]} ${(biggestF[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
 }
 
 module.exports = { annualSeries, addCompany, citedOnly, YEARS };

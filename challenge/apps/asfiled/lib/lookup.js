@@ -24,7 +24,7 @@ const Core = require('../public/asfiled-core');
 const { FILERS } = require('../tools/companies');
 const Names = require('./names');
 
-const V = 1;                                      // the stored part's shape
+const V = 2;                                      // the stored part's shape (2: cash, quarters and the rest of f/)
 const LABEL = 'Looked up on request - not in the reviewed set';
 const UNAVAILABLE = 'Lookups are not available right now';
 const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
@@ -214,7 +214,7 @@ function create({ store, now = Date.now, env = process.env } = {}) {
     const legal = String(subs.name || entry.title).slice(0, 120);
     const id = `X${cik}`;
     const c = { id, cik, name: Names.display(legal), legal, layer: 'lookup', form: a.form };
-    const data = { figures: {}, filings: {}, mixes: {}, concentration: {}, companies: [], edges: [] };
+    const data = { figures: {}, filings: {}, mixes: {}, concentration: {}, companies: [], edges: [], fin: {} };
     try {
       B.addCompany(data, c, a, { facts: [{ cik, facts }], inst, labels, currency: currencyOf(facts) });
     } catch (e) {
@@ -229,7 +229,8 @@ function create({ store, now = Date.now, env = process.env } = {}) {
     return {
       v: V, id, cik, ticker: entry.ticker, label: LABEL, company: co,
       figures: data.figures, filings: data.filings, mixes: data.mixes, concentration: data.concentration,
-      insights: { [id]: insights }, sources: { [co.annual.source]: src },
+      insights: { [id]: insights }, finsights: { [id]: Core.finInsights(data, co).filter((s) => B.citedOnly(data, s)) }, fin: { [id]: data.fin[id] || {} },
+      sources: { [co.annual.source]: src },
     };
   }
 

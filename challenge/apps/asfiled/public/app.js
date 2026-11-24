@@ -221,12 +221,13 @@
     var pts = o.points.filter(function (p) { return p.v !== null; });
     if (pts.length < 2) { host.appendChild(h('p', { cls: 'none', text: 'Not tagged in enough years to chart.' })); return; }
     var years = o.years;
-    var max = niceMax(Math.max.apply(null, pts.map(function (p) { return p.v; })));
-    var min = 0;
-    if (o.kind === 'line') {
-      var lo = Math.min.apply(null, pts.map(function (p) { return p.v; }));
-      min = lo < 0 ? -niceMax(-lo) : 0;
-    }
+    var hi = Math.max.apply(null, pts.map(function (p) { return p.v; }));
+    var lo = Math.min.apply(null, pts.map(function (p) { return p.v; }));
+    var max = hi > 0 ? niceMax(hi) : 0;
+    var min = lo < 0 ? -niceMax(-lo) : 0;
+    if (max === min) max = min + 1;
+    var xl = o.xlabel || function (fy) { return '’' + String(fy).slice(2); };
+    var pl = o.plabel || function (fy) { return 'FY' + fy; };
     var pw = W - L - R; var ph = H - T - B;
     var band = pw / years.length;
     var X = function (fy) { return L + band * (years.indexOf(fy) + 0.5); };
@@ -237,9 +238,9 @@
       svg.appendChild(s('line', { cls: 'grid', x1: L, x2: W - R, y1: r1(Y(v)), y2: r1(Y(v)) }));
       svg.appendChild(s('text', { cls: 'axis', x: L - 6, y: r1(Y(v)) + 4, 'text-anchor': 'end', text: o.tick(v) }));
     });
-    var step = Math.ceil(years.length / Math.floor(pw / 34));
+    var step = Math.ceil(years.length / Math.floor(pw / (o.xwidth || 34)));
     years.forEach(function (fy, i) {
-      if ((years.length - 1 - i) % step === 0) svg.appendChild(s('text', { cls: 'axis', x: r1(X(fy)), y: H - 6, 'text-anchor': 'middle', text: '’' + String(fy).slice(2) }));
+      if ((years.length - 1 - i) % step === 0) svg.appendChild(s('text', { cls: 'axis', x: r1(X(fy)), y: H - 6, 'text-anchor': 'middle', text: xl(fy) }));
     });
     if (o.kind === 'bar') {
       var bw = Math.min(band * 0.62, 26);
@@ -260,12 +261,12 @@
     pts.forEach(function (p) {
       var hit = s('rect', {
         cls: 'hit', x: r1(X(p.fy) - band / 2), y: T, width: r1(band), height: ph + B, tabindex: 0, role: 'button',
-        'aria-label': 'FY' + p.fy + ': ' + o.fmt(p.v) + '. Open the source.',
+        'aria-label': pl(p.fy) + ': ' + o.fmt(p.v) + '. Open the source.',
       });
-      var on = function () { tp.show(X(p.fy), Y(Math.max(p.v, 0)), 'FY' + p.fy, o.fmt(p.v), W); };
+      var on = function () { tp.show(X(p.fy), Y(Math.max(p.v, 0)), pl(p.fy), o.fmt(p.v), W); };
       hit.addEventListener('pointerenter', on); hit.addEventListener('focus', on);
       hit.addEventListener('pointerleave', tp.hide); hit.addEventListener('blur', tp.hide);
-      var go = function () { showCites(o.title + ', FY' + p.fy, p.cites); };
+      var go = function () { showCites(o.title + ', ' + pl(p.fy), p.cites); };
       hit.addEventListener('click', go);
       hit.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
       svg.insertBefore(hit, svg.lastChild);
@@ -427,30 +428,32 @@
         m ? h('p', { cls: 'note', text: 'Read from sec.gov on ' + String(m.at).slice(0, 10) + (m.stale ? ' (sec.gov could not be reached for a newer copy)' : '') + ', by the same rules as the reviewed companies: every figure is a number the company tagged, and opens its filing. Nobody has checked this company by hand, and it is not part of the patterns or their sums.' }) : null,
         priorNote(c)));
     var grid = h('div', { cls: 'grid' });
-    page.appendChild(grid);
-    var defs = [
-      { topic: 'revenue', title: 'Revenue', kind: 'bar', get: function (fy) { var f = Core.fig(data, id, 'revenue', fy); return f ? { v: f.v, cites: [id + '.revenue.' + fy] } : null; }, money: true },
-      { topic: 'margin', title: 'Gross margin', kind: 'line', get: function (fy) { return Core.derived(data, id, 'grossMargin', fy); } },
-      { topic: 'rd', title: 'R&D as a share of revenue', kind: 'line', get: function (fy) { return Core.derived(data, id, 'rdIntensity', fy); } },
-      { topic: 'capex', title: 'Capital spending', kind: 'bar', get: function (fy) { var f = Core.fig(data, id, 'capex', fy); return f ? { v: f.v, cites: [id + '.capex.' + fy] } : null; }, money: true },
-      { topic: 'inventory', title: 'Inventory days', kind: 'line', days: true, get: function (fy) { return Core.derived(data, id, 'inventoryDays', fy); } },
-    ];
     var pending = [];
-    defs.forEach(function (d) {
-      var points = c.years.map(function (fy) { var x = d.get(fy); return { fy: fy, v: x ? x.v : null, cites: x ? x.cites : [] }; });
-      var have = points.filter(function (p) { return p.v !== null; });
-      var fmt = d.money ? function (v) { return Core.money(v, c.currency); } : d.days ? function (v) { return Math.round(v) + ' days'; } : function (v) { return Core.pct(v, 1); };
-      var tick = d.money ? function (v) { return Core.money(v, c.currency, true); } : d.days ? function (v) { return String(Math.round(v)); } : function (v) { return Core.pct(v, 0); };
-      var latest = have.length ? have[have.length - 1] : null;
-      var host = h('div', { cls: 'chart-host' });
-      var card = h('section', { cls: 'card pad' },
-        h('h2', { cls: 'card-t', text: d.title }),
-        latest ? h('p', { cls: 'big' }, h('span', { text: fmt(latest.v) }), h('span', { cls: 'big-s', text: ' FY' + latest.fy })) : h('p', { cls: 'none', text: 'Not tagged in this company’s filings.' }),
-        by(d.topic).map(sentence), host,
-        have.length ? tableOf(['Fiscal year', d.title, 'Source'], have.map(function (p) { return ['FY' + p.fy, fmt(p.v), srcButton('Filing', d.title + ', FY' + p.fy, p.cites)]; })) : null);
-      grid.appendChild(card);
-      if (have.length) pending.push(function () { seriesChart(host, { title: d.title, kind: d.kind, points: points, years: c.years, fmt: fmt, tick: tick }); });
+    // The page in sections, so a phone is not one endless scroll: the annual
+    // figures open, the rest closed until asked for. A section is drawn the
+    // first time it opens (a chart needs its real width).
+    var open = openSecs[id] = openSecs[id] || { annual: true };
+    var nav = h('div', { cls: 'chips secnav', role: 'navigation', 'aria-label': 'Sections of this page' });
+    page.appendChild(nav);
+    var addSection = function (sid, title, sub, build) {
+      var body = h('div', { cls: 'sec-body' });
+      var det = h('details', { cls: 'sec', id: 's-' + sid }, h('summary', null, h('span', { cls: 'sec-t', text: title }), h('span', { cls: 'sec-s', text: sub })), body);
+      var drawn = false;
+      var fill = function () { if (drawn) return; drawn = true; var after = build(body); if (after) after(); };
+      det.addEventListener('toggle', function () { open[sid] = det.open; if (det.open) fill(); });
+      if (open[sid]) { det.open = true; pending.push(fill); }
+      nav.appendChild(h('button', { type: 'button', cls: 'chip', text: title, on: { click: function () { det.open = true; fill(); det.scrollIntoView({ block: 'start' }); } } }));
+      page.appendChild(det);
+    };
+    addSection('annual', 'Annual figures', 'Revenue, margins, spending, inventory, customers', function (body) {
+      body.appendChild(grid);
+      var later = [];
+      ANNUAL_DEFS(id).forEach(function (d) { grid.appendChild(chartCard(c, d, by(d.topic), later)); });
+      annualExtras();
+      return function () { later.forEach(function (f) { f(); }); };
     });
+    addSection('cash', 'Cash', 'Free cash flow, pay in stock, repurchases, dividends, cash and debt', function (body) { return cashSection(c, body); });
+    var annualExtras = function () {
     var mixes = data.mixes[id] || [];
     var rev = Core.fig(data, id, 'revenue', c.latest);
     mixes.forEach(function (mix) {
@@ -470,15 +473,100 @@
       conc.length ? [by('customers').map(sentence), barList(conc.map(function (k) { return { label: k.label, sub: k.within ? '(' + k.within + ')' : '', share: k.pct, value: Core.pct(k.pct, 0) + ' of revenue', cites: [k.id] }; })),
         h('p', { cls: 'note', text: 'Labels are the report’s own. Most reports do not name the customer.' })]
         : h('p', { cls: 'none', text: 'The latest annual report tags no single customer’s share of revenue.' })));
+    };
     var mine = data.edges.filter(function (e) { return e.from === id || e.to === id; });
-    page.appendChild(h('section', { cls: 'group' },
+    page.appendChild(h('section', { cls: 'group', id: 's-named' },
       h('h2', { text: 'Named in the filings' }),
       h('p', { cls: 'group-sub', text: 'Relationships a primary document states, with ' + c.name + ' on one side. Tap one for the exact words.' }),
       mine.length ? edgeRows(mine) : (m && !m.relations ? null : h('p', { cls: 'none card pad', text: m ? 'No sentence in ' + c.name + '’s latest annual report passed the check, and no reviewed document names it.' : 'No document in this set names a relationship with ' + c.name + '.' })),
       m ? relationsBox(c, m) : null,
       h('p', { cls: 'more' }, h('a', { cls: 'pill' + (m ? ' line' : ''), href: '#/map/' + id, text: 'Follow ' + c.name + ' on the map' }))));
+    nav.appendChild(h('button', { type: 'button', cls: 'chip', text: 'Named in the filings', on: { click: function () { document.getElementById('s-named').scrollIntoView({ block: 'start' }); } } }));
     page._after = function () { pending.forEach(function (f) { f(); }); };
     return page;
+  }
+
+  var openSecs = {};     // company id -> which sections of its page are open
+  function ANNUAL_DEFS(id) {
+    return [
+      { topic: 'revenue', title: 'Revenue', kind: 'bar', get: function (fy) { var f = Core.fig(data, id, 'revenue', fy); return f ? { v: f.v, cites: [id + '.revenue.' + fy] } : null; }, money: true },
+      { topic: 'margin', title: 'Gross margin', kind: 'line', get: function (fy) { return Core.derived(data, id, 'grossMargin', fy); } },
+      { topic: 'rd', title: 'R&D as a share of revenue', kind: 'line', get: function (fy) { return Core.derived(data, id, 'rdIntensity', fy); } },
+      { topic: 'capex', title: 'Capital spending', kind: 'bar', get: function (fy) { var f = Core.fig(data, id, 'capex', fy); return f ? { v: f.v, cites: [id + '.capex.' + fy] } : null; }, money: true },
+      { topic: 'inventory', title: 'Inventory days', kind: 'line', days: true, get: function (fy) { return Core.derived(data, id, 'inventoryDays', fy); } },
+    ];
+  }
+  /** One measure over the company's fiscal years: the latest value, its
+   *  sentences, a chart (drawn by the function pushed to `later`, once the
+   *  card is on the page) and the same numbers as a table. */
+  function chartCard(c, d, sentences, later) {
+    var points = c.years.map(function (fy) { var x = d.get(fy); return { fy: fy, v: x ? x.v : null, cites: x ? x.cites : [] }; });
+    var have = points.filter(function (p) { return p.v !== null; });
+    var fmt = d.money ? function (v) { return Core.money(v, c.currency); } : d.days ? function (v) { return Math.round(v) + ' days'; } : function (v) { return Core.pct(v, 1); };
+    var tick = d.money ? function (v) { return Core.money(v, c.currency, true); } : d.days ? function (v) { return String(Math.round(v)); } : function (v) { return Core.pct(v, 0); };
+    var latest = have.length ? have[have.length - 1] : null;
+    var host = h('div', { cls: 'chart-host' });
+    if (have.length) later.push(function () { seriesChart(host, { title: d.title, kind: d.kind, points: points, years: c.years, fmt: fmt, tick: tick }); });
+    return h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: d.title }),
+      latest ? h('p', { cls: 'big' }, h('span', { text: fmt(latest.v) }), h('span', { cls: 'big-s', text: ' FY' + latest.fy })) : h('p', { cls: 'none', text: d.none || 'Not tagged in this company’s filings.' }),
+      d.note && latest ? h('p', { cls: 'note', text: d.note }) : null,
+      sentences.map(sentence), host,
+      have.length ? tableOf(['Fiscal year', d.title, 'Source'], have.map(function (p) { return ['FY' + p.fy, fmt(p.v), srcButton(p.cites.length > 1 ? p.cites.length + ' filings' : 'Filing', d.title + ', FY' + p.fy, p.cites)]; })) : null);
+  }
+  /** A list of facts: a label, a value (or "Not tagged"), and its sources. */
+  function factRows(rows) {
+    return h('ul', { cls: 'facts' }, rows.map(function (r) {
+      return h('li', null,
+        h('span', { cls: 'fact-l' }, r.label, r.sub ? h('span', { cls: 'sub', text: ' ' + r.sub }) : null),
+        r.value === null ? h('span', { cls: 'fact-v none-v', text: r.none || 'Not tagged' }) : h('span', { cls: 'fact-v', text: r.value }),
+        r.value !== null && r.cites && r.cites.length ? srcButton(r.cites.length === 1 ? 'Source' : r.cites.length + ' sources', r.label, r.cites) : h('span', { cls: 'fact-x' }));
+    }));
+  }
+
+  /* ---------------- cash and capital return ---------------- */
+
+  function cashSection(c, body) {
+    var id = c.id; var L = c.latest;
+    var fs = data.finsights[id] || [];
+    var by = function (topic) { return fs.filter(function (x) { return x.topic === topic; }); };
+    var M = function (v) { return Core.money(v, c.currency); };
+    var one = function (m, label, sub) { var f = Core.fig(data, id, m, L); return { label: label, sub: sub, value: f ? M(f.v) : null, cites: f ? [id + '.' + m + '.' + L] : [] }; };
+    var der = function (name, label, sub, fmt) { var d = Core.derived(data, id, name, L); return { label: label, sub: d ? (sub ? sub + ' · ' : '') + Core.computedFrom(d.cites.length) : sub, value: d ? (fmt || M)(d.v) : null, cites: d ? d.cites : [], none: 'Not tagged' }; };
+    var debt = Core.derived(data, id, 'debt', L);
+    var grid = h('div', { cls: 'grid' });
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Cash in FY' + L + ', as tagged' }),
+      factRows([
+        one('ocf', 'Operating cash flow'),
+        one('capex', 'Capital spending'),
+        der('fcf', 'Free cash flow', ''),
+        one('sbc', 'Stock-based compensation'),
+        der('sbcShare', 'Stock-based compensation, share of revenue', '', function (v) { return Core.pct(v, 1); }),
+        one('buybacks', 'Share repurchases'),
+        one('dividends', 'Dividends paid'),
+        one('cash', 'Cash and cash equivalents', 'at year end'),
+        one('sti', 'Short-term investments', 'at year end'),
+        der('debt', 'Debt, as tagged', debt ? debt.how : 'current and long-term'),
+        der('netDebt', 'Debt less cash', ''),
+      ]),
+      h('p', { cls: 'note', text: 'Each line is a number the company tagged in its annual report, or is worked out from such numbers and says so. “Not tagged” means no figure under the tags this app reads - not zero. Debt is the sum of the balance-sheet tags named beside it and nothing else; a borrowing tagged another way is not in it.' })));
+    var later = [];
+    grid.appendChild(chartCard(c, { title: 'Free cash flow', kind: 'bar', money: true, get: function (fy) { return Core.derived(data, id, 'fcf', fy); }, note: 'Computed from two filed figures: operating cash flow less capital spending. Each year opens both.', none: 'Operating cash flow and capital spending are not both tagged.' }, by('fcf'), later));
+    grid.appendChild(chartCard(c, { title: 'Stock-based compensation, share of revenue', kind: 'line', get: function (fy) { return Core.derived(data, id, 'sbcShare', fy); } }, by('sbc'), later));
+    var ret = c.years.map(function (fy) { return { fy: fy, b: Core.fig(data, id, 'buybacks', fy), d: Core.fig(data, id, 'dividends', fy) }; }).filter(function (r) { return r.b || r.d; });
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Repurchases and dividends' }),
+      ret.length ? [by('returns').map(sentence), h('div', { cls: 'scroll' }, h('table', null,
+        h('thead', null, h('tr', null, ['Fiscal year', 'Share repurchases', 'Dividends paid', 'Source'].map(function (t) { return h('th', { scope: 'col', text: t }); }))),
+        h('tbody', null, ret.slice().reverse().map(function (r) {
+          var cites = [].concat(r.b ? [id + '.buybacks.' + r.fy] : [], r.d ? [id + '.dividends.' + r.fy] : []);
+          return h('tr', null, h('th', { scope: 'row', text: 'FY' + r.fy }), h('td', { text: r.b ? M(r.b.v) : 'Not tagged' }), h('td', { text: r.d ? M(r.d.v) : 'Not tagged' }), h('td', null, srcButton(cites.length > 1 ? '2 filings' : 'Filing', 'Repurchases and dividends, FY' + r.fy, cites)));
+        }))))] : h('p', { cls: 'none', text: 'Not tagged in this company’s filings.' })));
+    var debtS = by('debt');
+    if (debtS.length) grid.appendChild(h('section', { cls: 'card pad' }, h('h2', { cls: 'card-t', text: 'Cash and debt at the end of FY' + L }), debtS.map(sentence)));
+    body.appendChild(grid);
+    return function () { later.forEach(function (f) { f(); }); };
   }
 
   /* ---------------- relationships for a looked-up company ----------------
@@ -980,7 +1068,9 @@
     if (parts[0] === 'patterns') return 'patterns';
     if (parts[0] === 'c' && parts[1]) {
       var c = Core.company(data, parts[1].toUpperCase());
-      return c && c.filer ? 'c/' + c.id : null;
+      if (!c || !c.filer) return null;
+      // A company's page reads two files: its annual figures, and the rest.
+      return !ready['c/' + c.id] ? 'c/' + c.id : 'f/' + c.id;
     }
     return null;
   }

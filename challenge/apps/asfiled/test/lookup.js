@@ -107,6 +107,16 @@ const TEXT = T.norm(T.htmlToText(DOC));
     assert.deepStrictEqual(part.insights[ID], Core.companyInsights(data, co));
     assert.ok(part.insights[ID].length >= 5 && part.insights[ID].every((s) => s.cites.every((c) => part.figures[c])));
     assert.strictEqual(part.insights[ID][0].text, 'Revenue was $3.2 billion in FY2025, up 6.2% from FY2024. In FY2019 it was $2.1 billion: the FY2025 figure is 1.5 times that.');
+    // Cash: the same templates, from the same kind of figure. Free cash flow
+    // is computed from two filed figures and cites both; debt names its tags.
+    const fdata = { ...data, fin: part.fin };
+    assert.deepStrictEqual(part.finsights[ID], Core.finInsights(fdata, co));
+    assert.deepStrictEqual(part.finsights[ID].map((s) => s.topic), ['fcf', 'sbc', 'returns', 'debt']);
+    assert.strictEqual(part.finsights[ID][0].text, 'Free cash flow was $647 million in FY2025: operating cash flow of $1 billion less capital spending of $356 million (computed from two filed figures). That is 20% of revenue. In FY2020 it was $458 million.');
+    assert.deepStrictEqual(part.finsights[ID][0].cites, [`${ID}.ocf.2025`, `${ID}.capex.2025`, `${ID}.revenue.2025`, `${ID}.ocf.2020`, `${ID}.capex.2020`]);
+    assert.strictEqual(part.figures[`${ID}.ocf.2025`].v - part.figures[`${ID}.capex.2025`].v, Core.derived(fdata, ID, 'fcf', 2025).v);
+    assert.strictEqual(Core.derived(fdata, ID, 'debt', 2025).how, 'LongTermDebtNoncurrent + LongTermDebtCurrent + CommercialPaper');
+    assert.ok(/No dividend payment is tagged for the year\.$/.test(part.finsights[ID][2].text) && !part.figures[`${ID}.dividends.2025`] && !part.figures[`${ID}.sti.2025`]);
     const src = part.sources[co.annual.source];
     assert.deepStrictEqual([src.by, src.form, src.url], [ID, '10-K', 'https://www.sec.gov/Archives/edgar/data/9900001/000990000126000007/hbld-20251231.htm']);
     assert.strictEqual(part.relations, null);

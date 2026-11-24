@@ -93,19 +93,65 @@ const TAGS = {
   inventory: ['us-gaap:InventoryNet', 'ifrs-full:Inventories', 'ifrs-full:CurrentInventories'],
 };
 
+// Cash, capital return, the balance sheet's cash and debt, and what a
+// report tags about the future (Erik, 2026-11-24). Same rule as TAGS: one
+// number per fiscal year, from the earliest annual report that reported it.
+// The debt tags are kept as separate figures and added up on the page, which
+// names every tag in the sum (Core.derived 'debt').
+const FIN = {
+  ocf: ['us-gaap:NetCashProvidedByUsedInOperatingActivities', 'us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations', 'ifrs-full:CashFlowsFromUsedInOperatingActivities'],
+  opinc: ['us-gaap:OperatingIncomeLoss', 'ifrs-full:ProfitLossFromOperatingActivities'],
+  netinc: ['us-gaap:NetIncomeLoss', 'us-gaap:ProfitLoss', 'ifrs-full:ProfitLossAttributableToOwnersOfParent', 'ifrs-full:ProfitLoss'],
+  sbc: ['us-gaap:ShareBasedCompensation', 'us-gaap:AllocatedShareBasedCompensationExpense', 'ifrs-full:AdjustmentsForSharebasedPayments'],
+  buybacks: ['us-gaap:PaymentsForRepurchaseOfCommonStock', 'us-gaap:PaymentsForRepurchaseOfEquity', 'ifrs-full:PaymentsToAcquireOrRedeemEntitysShares'],
+  dividends: ['us-gaap:PaymentsOfDividendsCommonStock', 'us-gaap:PaymentsOfDividends', 'us-gaap:PaymentsOfOrdinaryDividends', 'ifrs-full:DividendsPaidClassifiedAsFinancingActivities', 'ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities'],
+  cash: ['us-gaap:CashAndCashEquivalentsAtCarryingValue', 'ifrs-full:CashAndCashEquivalents'],
+  sti: ['us-gaap:ShortTermInvestments', 'us-gaap:MarketableSecuritiesCurrent', 'us-gaap:AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'us-gaap:DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent'],
+  debtLong: ['us-gaap:LongTermDebtNoncurrent', 'us-gaap:LongTermDebtAndCapitalLeaseObligations', 'us-gaap:ConvertibleNotesPayableNoncurrent', 'us-gaap:ConvertibleDebtNoncurrent', 'us-gaap:ConvertibleLongTermNotesPayable', 'us-gaap:LongTermNotesPayable', 'us-gaap:SeniorLongTermNotes', 'us-gaap:UnsecuredLongTermDebt'],
+  debtCurrent: ['us-gaap:DebtCurrent', 'us-gaap:LongTermDebtCurrent', 'us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent', 'us-gaap:ConvertibleNotesPayableCurrent', 'us-gaap:ConvertibleDebtCurrent', 'us-gaap:SeniorNotesCurrent'],
+  debtShort: ['us-gaap:ShortTermBorrowings', 'us-gaap:CommercialPaper'],
+  debtTotal: ['us-gaap:LongTermDebt', 'us-gaap:DebtLongtermAndShorttermCombinedAmount', 'us-gaap:DebtAndCapitalLeaseObligations'],
+  rpo: ['us-gaap:RevenueRemainingPerformanceObligation'],
+  deferred: ['us-gaap:ContractWithCustomerLiability', 'us-gaap:ContractWithCustomerLiabilityCurrent', 'us-gaap:DeferredRevenue', 'us-gaap:DeferredRevenueCurrent'],
+  impairment: ['us-gaap:GoodwillImpairmentLoss'],
+  restructuring: ['us-gaap:RestructuringCharges', 'us-gaap:RestructuringCostsAndAssetImpairmentCharges'],
+};
+// Balances at the fiscal year end, not amounts over the year.
+const FIN_INSTANT = ['cash', 'sti', 'debtLong', 'debtCurrent', 'debtShort', 'debtTotal', 'rpo', 'deferred'];
+// Read from 10-Qs too, for the latest quarter (tools/build.js quarters).
+const QUARTERLY = ['revenue', 'opinc', 'netinc', 'ocf', 'capex'];
+// The pay-versus-performance table of the proxy statement (DEF 14A), tagged
+// since 2023 (the SEC's `ecd` taxonomy). Company facts carries the facts
+// that have no dimension: a single principal executive officer for the year.
+const PAY = {
+  peoTotal: 'ecd:PeoTotalCompAmt', peoPaid: 'ecd:PeoActuallyPaidCompAmt',
+  neoTotal: 'ecd:NonPeoNeoAvgTotalCompAmt', neoPaid: 'ecd:NonPeoNeoAvgCompActuallyPaidAmt',
+  tsr: 'ecd:TotalShareholderRtnAmt', peerTsr: 'ecd:PeerGroupTotalShareholderRtnAmt',
+};
+const EMPLOYEES = 'dei:EntityNumberOfEmployees';
+const ALL = Object.assign({}, TAGS, FIN);
+
+const SLIM = 3;                        // the cut's version: fetch.js reads a company again when its cached copy is older
+const FORMS = new Set(['10-K', '20-F', '10-Q', 'DEF 14A']);
 /** Company facts (data.sec.gov) cut down to the tags above, same shape.
  *  The build and the verifier read nothing else from it, so the cache keeps
- *  a few hundred kilobytes a company instead of several megabytes. */
+ *  a few hundred kilobytes a company instead of several megabytes. Rows keep
+ *  the six fields that are read, from annual and quarterly reports and the
+ *  proxy statement. */
 function slimFacts(facts) {
-  const keep = new Set([].concat(...Object.values(TAGS)));
-  const out = { cik: facts.cik, entityName: facts.entityName, slim: true, facts: {} };
+  const keep = new Set([].concat(...Object.values(ALL), Object.values(PAY), [EMPLOYEES]));
+  const out = { cik: facts.cik, entityName: facts.entityName, slim: SLIM, facts: {} };
   for (const [tax, tags] of Object.entries(facts.facts || {})) {
     for (const [tag, body] of Object.entries(tags)) {
       if (!keep.has(`${tax}:${tag}`)) continue;
-      (out.facts[tax] = out.facts[tax] || {})[tag] = body;
+      const units = {};
+      for (const [u, rows] of Object.entries(body.units || {})) {
+        units[u] = rows.filter((r) => FORMS.has(r.form)).map((r) => (r.start ? { start: r.start, end: r.end, val: r.val, accn: r.accn, form: r.form, filed: r.filed } : { end: r.end, val: r.val, accn: r.accn, form: r.form, filed: r.filed }));
+      }
+      (out.facts[tax] = out.facts[tax] || {})[tag] = { units };
     }
   }
   return out;
 }
 
-module.exports = { readInstance, readLabels, parseInstance, parseLabels, unescape, TAGS, slimFacts };
+module.exports = { readInstance, readLabels, parseInstance, parseLabels, unescape, TAGS, FIN, FIN_INSTANT, QUARTERLY, PAY, EMPLOYEES, ALL, SLIM, slimFacts };

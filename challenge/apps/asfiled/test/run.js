@@ -22,6 +22,10 @@ const data = Dataset.load();
 const DATA = path.join(ROOT, 'public', 'data');
 const readPart = (rel) => JSON.parse(fs.readFileSync(path.join(DATA, rel), 'utf8'));
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const DATA_DIRS = ['c', 'f', 'index.json', 'patterns.json'];
+const GOOD_PARTS = ['index', 'patterns', 'c/NVDA', 'c/P', 'c/GOOGL', 'f/NVDA', 'f/P'];
+// The form a figure may come from: annual reports, except the quarterly and proxy figures.
+const FORM_OF = () => /^(10-K|20-F)$/;
 const INDEX_MAX = 450 * 1024;          // the phone's first data load (about a sixth of that over the wire, gzipped)
 let n = 0;
 const ok = (m) => { n += 1; console.log(`  ok ${n} - ${m}`); };
@@ -46,7 +50,7 @@ function walk(dir, out = []) {
   for (const [id, f] of Object.entries(data.figures)) {
     assert.ok(ACCN.test(f.a), `${id}: accession number`);
     const filing = data.filings[f.a];
-    assert.ok(filing && /^(10-K|20-F)$/.test(filing.form) && /^\d{4}-\d\d-\d\d$/.test(filing.filed), `${id}: filing`);
+    assert.ok(filing && FORM_OF(f).test(filing.form) && /^\d{4}-\d\d-\d\d$/.test(filing.filed), `${id}: filing`);
     assert.strictEqual(filing.c, f.c, `${id}: the filing is that company's own`);
     assert.ok(Number.isFinite(f.v) && /^\d{4}-\d\d-\d\d$/.test(f.end) && f.fy === Core.fiscalYear(f.end) && f.tag, `${id}: value, period, tag`);
     const src = Core.figureSource(data, id);
@@ -198,9 +202,10 @@ function walk(dir, out = []) {
   /* ---------- the insights ---------- */
   const fresh = Core.writeAll(data);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh.insights)), data.insights);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh.finsights)), data.finsights);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh.patterns)), data.patterns);
   ok('every insight and pattern sentence is rebuilt from the committed figures and matches word for word');
-  const sentences = [].concat(...Object.values(data.insights), ...data.patterns.map((p) => p.sentences));
+  const sentences = [].concat(...Object.values(data.insights), ...Object.values(data.finsights), ...data.patterns.map((p) => p.sentences));
   for (const s of sentences) {
     assert.ok(s.cites.length > 0, `no citation: ${s.text}`);
     for (const c of s.cites) assert.ok(data.figures[c] || ids.has(c), `${c} does not resolve: ${s.text}`);
@@ -212,8 +217,63 @@ function walk(dir, out = []) {
   assert.ok(sentences.length >= 120);
   ok(`all ${sentences.length} sentences cite figures that exist; none forecasts or advises`);
   assert.strictEqual(data.integrity, Core.integrity(data, sha));
-  ok('the integrity hash over figures, edges, insights, patterns, mixes and concentration matches');
+  ok('the integrity hash over figures, edges, insights, patterns, mixes, concentration and the second half of each company page matches');
   assert.strictEqual(data.disclaimer, 'From public filings. Not investment advice.');
+
+  /* ---------- cash and capital return (2026-11-24) ---------- */
+  {
+    const X = require('../tools/xbrl');
+    let fcf = 0; let debts = 0; let nets = 0;
+    for (const c of data.companies) {
+      for (const fy of c.years) {
+        const o = Core.fig(data, c.id, 'ocf', fy); const k = Core.fig(data, c.id, 'capex', fy);
+        const d = Core.derived(data, c.id, 'fcf', fy);
+        // Free cash flow exists exactly when both inputs are tagged, is their
+        // difference to the unit, and cites both.
+        assert.strictEqual(Boolean(d), Boolean(o && k), `${c.id} FY${fy}: free cash flow without both inputs`);
+        if (!d) continue;
+        fcf += 1;
+        assert.strictEqual(d.v, o.v - k.v);
+        assert.deepStrictEqual(d.cites, [`${c.id}.ocf.${fy}`, `${c.id}.capex.${fy}`]);
+        assert.ok(X.FIN.ocf.includes(o.tag) && X.TAGS.capex.includes(k.tag));
+      }
+      const L = c.latest;
+      const debt = Core.derived(data, c.id, 'debt', L);
+      if (debt) {
+        debts += 1;
+        const figs = debt.cites.map((id) => data.figures[id]);
+        assert.ok(figs.every((f) => f && f.end === c.annual.period && /^debt(Long|Current|Short|Total)$/.test(f.m) && X.FIN[f.m].includes(f.tag)), `${c.id}: a debt figure that is not a debt tag at the year end`);
+        assert.strictEqual(debt.v, figs.reduce((a, f) => a + f.v, 0));
+        // The sum names every tag in it, and no tag twice.
+        assert.strictEqual(debt.how, figs.map((f) => f.tag.replace(/^.*:/, '')).join(' + '));
+        assert.strictEqual(new Set(figs.map((f) => f.tag)).size, figs.length);
+        // All debt due within a year (DebtCurrent) is never added to short-term borrowings.
+        assert.ok(!(figs.some((f) => f.tag === 'us-gaap:DebtCurrent') && figs.some((f) => f.m === 'debtShort')), `${c.id}: current debt counted twice`);
+      }
+      const net = Core.derived(data, c.id, 'netDebt', L);
+      if (net) {
+        nets += 1;
+        const cash = Core.fig(data, c.id, 'cash', L); const sti = Core.fig(data, c.id, 'sti', L);
+        assert.strictEqual(net.v, debt.v - cash.v - (sti ? sti.v : 0));
+        assert.strictEqual(net.cites.length, debt.cites.length + 1 + (sti ? 1 : 0));
+      }
+      // What is not tagged has no sentence: nothing is guessed.
+      const topics = (data.finsights[c.id] || []).map((s) => s.topic);
+      assert.strictEqual(topics.includes('fcf'), Boolean(Core.derived(data, c.id, 'fcf', L)), `${c.id}: fcf sentence`);
+      assert.strictEqual(topics.includes('sbc'), Boolean(Core.derived(data, c.id, 'sbcShare', L)));
+      assert.strictEqual(topics.includes('debt'), Boolean(Core.fig(data, c.id, 'cash', L)));
+      for (const s of data.finsights[c.id] || []) {
+        const m = /computed from (\w+) filed figures/.exec(s.text);
+        if (s.topic === 'fcf') assert.ok(/computed from two filed figures/.test(s.text) && s.cites.includes(`${c.id}.ocf.${L}`) && s.cites.includes(`${c.id}.capex.${L}`), `${c.id}: the free cash flow sentence names and cites both inputs`);
+        if (m && s.topic === 'debt') assert.strictEqual(Core.computedFrom(net.cites.length), m[0]);
+      }
+    }
+    assert.ok(fcf > 700 && debts >= 60 && nets >= 60, `${fcf} / ${debts} / ${nets}`);
+    assert.strictEqual(Core.derived(data, 'TSM', 'debt', data.companies.find((c) => c.id === 'TSM').latest), null, 'TSMC tags no debt under the tags read: none is shown');
+    const appjs = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+    assert.ok(/Not tagged/.test(appjs) && /not zero/.test(appjs));
+    ok(`cash: free cash flow is operating cash flow less capital spending wherever both are tagged (${fcf} company-years), cited to both and labelled as computed; debt is the sum of the named balance-sheet tags (${debts} companies), never counted twice; what is not tagged has no number and no sentence`);
+  }
 
   /* ---------- the verifier, on made-up sources ---------- */
   {
@@ -281,9 +341,9 @@ function walk(dir, out = []) {
   assert.ok(/process\.env\.SEC_USER_AGENT/.test(secjs) && /process\.exit\(2\)/.test(secjs) && !/User-Agent'\]\s*=\s*'[^']*@/.test(secjs));
   ok('only tools/sec.js reads SEC_USER_AGENT, from the environment, and refuses to run without it');
   assert.ok(Math.max(...data.edges.map((e) => e.quote.length)) <= 620);
-  assert.deepStrictEqual(fs.readdirSync(DATA).sort(), ['c', 'index.json', 'patterns.json']);
-  assert.deepStrictEqual(fs.readdirSync(path.join(DATA, 'c')).sort(), data.companies.map((c) => `${c.id}.json`).sort());
-  ok('only the derived dataset is committed: an index, the patterns and one file per company; no filing text beyond short quotes');
+  assert.deepStrictEqual(fs.readdirSync(DATA).sort(), DATA_DIRS);
+  for (const d of ['c', 'f']) assert.deepStrictEqual(fs.readdirSync(path.join(DATA, d)).sort(), data.companies.map((c) => `${c.id}.json`).sort());
+  ok('only the derived dataset is committed: an index, the patterns and two files per company; no filing text beyond short quotes');
 
   /* ---------- the split: a small index, the rest on demand ---------- */
   const index = readPart('index.json');
@@ -292,19 +352,25 @@ function walk(dir, out = []) {
   assert.ok(sizeOf('index.json') < INDEX_MAX, `index.json is ${sizeOf('index.json')} bytes`);
   assert.ok(sizeOf('patterns.json') < 600 * 1024, 'patterns.json');
   assert.ok(biggest < 64 * 1024, `largest company file ${biggest} bytes`);
-  ok(`the first load is small: index.json ${(sizeOf('index.json') / 1024).toFixed(0)} KB; patterns.json ${(sizeOf('patterns.json') / 1024).toFixed(0)} KB and company files up to ${(biggest / 1024).toFixed(0)} KB load only when opened`);
+  const biggestF = Math.max(...data.companies.map((c) => sizeOf(`f/${c.id}.json`)));
+  assert.ok(biggestF < 96 * 1024, `largest f/ file ${biggestF} bytes`);
+  ok(`the first load is small: index.json ${(sizeOf('index.json') / 1024).toFixed(0)} KB; patterns.json ${(sizeOf('patterns.json') / 1024).toFixed(0)} KB, company files up to ${(biggest / 1024).toFixed(0)} KB and their second halves up to ${(biggestF / 1024).toFixed(0)} KB load only when opened`);
   const fresh2 = Core.split(data);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.index)), index);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.patterns)), readPart('patterns.json'));
   for (const c of data.companies) assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.companies[c.id])), readPart(`c/${c.id}.json`), c.id);
+  for (const c of data.companies) assert.deepStrictEqual(JSON.parse(JSON.stringify(fresh2.fins[c.id])), readPart(`f/${c.id}.json`), `f/${c.id}`);
   ok('splitting the merged dataset again gives the committed files byte for byte in content: nothing is lost or added between the parts');
   for (const c of index.companies) {
     for (const fid of Core.headIds(c)) if (data.figures[fid]) assert.deepStrictEqual(index.figures[fid], data.figures[fid], `${fid} in the index`);
     assert.deepStrictEqual(c.spark, c.years.map((fy) => { const f = Core.fig(data, c.id, 'revenue', fy); return f ? f.v : null; }), `${c.id}: spark is its revenue figures`);
     const part = readPart(`c/${c.id}.json`);
     assert.ok(Object.values(part.figures).every((f) => f.c === c.id), `${c.id}: only its own figures`);
-    assert.strictEqual(Object.keys(part.figures).length, Object.values(data.figures).filter((f) => f.c === c.id).length, `${c.id}: all its figures`);
+    const fin = readPart(`f/${c.id}.json`);
+    assert.ok(Object.values(fin.figures).every((f) => f.c === c.id && Core.isFin(f)) && Object.values(part.figures).every((f) => !Core.isFin(f)), `${c.id}: each figure in the file it belongs to`);
+    assert.strictEqual(Object.keys(part.figures).length + Object.keys(fin.figures).length, Object.values(data.figures).filter((f) => f.c === c.id).length, `${c.id}: all its figures`);
     for (const f of Object.values(part.figures)) assert.ok(part.filings[f.a], `${c.id}: the filing of every figure`);
+    for (const f of Object.values(fin.figures)) assert.ok(fin.filings[f.a], `${c.id}: the filing of every figure in f/`);
   }
   for (const e of index.edges) if (e.fig) assert.ok(index.figures[e.fig], `${e.id}: its tagged figure is in the index`);
   const edgeFigs = new Set(index.edges.map((e) => e.fig).filter(Boolean));
@@ -313,7 +379,7 @@ function walk(dir, out = []) {
   ok('the index holds every company with its headline figures and sparkline, every edge and source; each company file holds exactly that company\'s figures and their filings');
   // The loader: the page merges parts in whatever order they arrive.
   {
-    const parts = [readPart('patterns.json')].concat(data.companies.map((c) => readPart(`c/${c.id}.json`)));
+    const parts = [readPart('patterns.json')].concat(data.companies.map((c) => readPart(`c/${c.id}.json`)), data.companies.map((c) => readPart(`f/${c.id}.json`)));
     const rev = Core.start(index); parts.slice().reverse().forEach((p) => Core.merge(rev, p));
     const fwd = Core.start(index); parts.forEach((p) => Core.merge(fwd, p));
     assert.strictEqual(Core.integrity(rev, sha), index.integrity);
@@ -321,12 +387,12 @@ function walk(dir, out = []) {
     const only = Core.merge(Core.start(index), readPart('c/NVDA.json'));
     assert.ok(Core.fig(only, 'NVDA', 'rd', only.companies.find((c) => c.id === 'NVDA').latest) && !Core.fig(only, 'AMD', 'rd', 2024) && only.patterns === null);
     assert.ok(Core.companyInsights(only, only.companies.find((c) => c.id === 'NVDA')).length >= 4, 'a company page has what it needs from the index and its own file');
-    for (const good of ['index', 'patterns', 'c/NVDA', 'c/P', 'c/GOOGL']) assert.strictEqual(Core.partPath(good), `data/${good}.json`);
-    for (const bad of ['dataset', 'c/nvda', '../index', 'c/NVDA/../x', 'c/ABCDEFG', 'index.json', '', 'https://x.example.com/index']) assert.throws(() => Core.partPath(bad), bad);
+    for (const good of GOOD_PARTS) assert.strictEqual(Core.partPath(good), `data/${good}.json`);
+    for (const bad of ['dataset', 'c/nvda', 'f/nvda', '../index', 'c/NVDA/../x', 'f/NVDA/../x', 'c/ABCDEFG', 'x/NVDA', 'index.json', '', 'https://x.example.com/index']) assert.throws(() => Core.partPath(bad), bad);
     const twice = Core.merge(Core.merge(Core.start(index), readPart('c/AAPL.json')), readPart('c/AAPL.json'));
     assert.deepStrictEqual(twice.insights.AAPL, data.insights.AAPL);
   }
-  ok('the loader: parts merge in any order to the same integrity hash, a company page works from the index plus its own file, and only data/index.json, patterns.json or c/<TICKER>.json can be requested');
+  ok('the loader: parts merge in any order to the same integrity hash, a company page works from the index plus its own files, and only the named data parts can be requested');
 
   /* ---------- the server, mounted as the lab mounts it ---------- */
   process.env.K_SERVICE = 'x'; process.env.ASFILED_FAKE_AI = '1';
@@ -362,7 +428,7 @@ function walk(dir, out = []) {
     assert.ok(!/XMLHttpRequest|WebSocket|sendBeacon|EventSource/.test(js));
     assert.ok(!/request\(\s*['"](https?:|\/)/.test(js) && !/api\('[A-Z]+', '(https?:|\/)/.test(js), 'an absolute request path');
     ok('the page script builds with textContent only, writes no style, and requests only its own data parts and its own API');
-    for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
+    for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json', 'data/f/NVDA.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
     assert.strictEqual((await fetch(`${base}/asfiled/data/dataset.json`)).headers.get('content-type').startsWith('text/html'), true, 'the old single file is gone');
     {
       const http = require('http');

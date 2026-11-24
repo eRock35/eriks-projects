@@ -1,7 +1,7 @@
 {
- "built": "2026-11-23",
+ "built": "2026-11-24",
  "companies": 81,
- "figures": 7026,
+ "figures": 10850,
  "edges": {
   "curated": 567,
   "kept": 566,
@@ -17,16 +17,20 @@
   ]
  },
  "insights": {
-  "kept": 619,
+  "kept": 931,
   "dropped": 0
  },
  "notes": [],
  "sizes": {
-  "index": 434105,
+  "index": 434106,
   "patterns": 309763,
   "largestCompany": {
    "id": "ZBRA",
    "bytes": 28939
+  },
+  "largestFin": {
+   "id": "AAPL",
+   "bytes": 12549
   }
  }
 }

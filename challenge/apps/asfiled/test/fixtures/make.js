@@ -42,6 +42,15 @@ function company(cik, name, base, accnOf) {
         ResearchAndDevelopmentExpense: series((v, i) => v * (0.08 + 0.004 * i)),
         PaymentsToAcquirePropertyPlantAndEquipment: series((v) => v * 0.11),
         InventoryNet: series((v) => v * 0.03, true),
+        // Cash and capital return. No dividend and no short-term investment
+        // is tagged: the page must say "Not tagged", not zero.
+        NetCashProvidedByUsedInOperatingActivities: series((v) => v * 0.31),
+        ShareBasedCompensation: series((v) => v * 0.05),
+        PaymentsForRepurchaseOfCommonStock: series((v) => v * 0.1),
+        CashAndCashEquivalentsAtCarryingValue: series((v) => v * 0.2, true),
+        LongTermDebtNoncurrent: series((v) => v * 0.5, true),
+        LongTermDebtCurrent: series((v) => v * 0.04, true),
+        CommercialPaper: series((v) => v * 0.01, true),
         Assets: series((v) => v * 2.4, true),          // not a tag the app reads: slimFacts drops it
       },
     },
