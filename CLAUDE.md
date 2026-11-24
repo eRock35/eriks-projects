@@ -509,6 +509,29 @@ object or webhook endpoint was created. Tests: `test/kits.js`,
   record and granted nothing - refund it); pinned kit versions; counting
   activations per key.
 
+## Lab Kits: phases 2 and 3 (2026-11-24)
+
+The kits themselves live in their own **private** repos, not here:
+`eRock35/app-stack-kit` (phase 2) and `eRock35/chief-of-staff-kit` (phase 3),
+working copies in `~/kits/` on the VM. Each has `make test`, `scripts/package.sh`
+(builds `dist/kit.zip` and `dist/scripts.zip`) and MAINTAINERS.md listing what
+has not yet been tried against real services.
+
+- **Switched on 2026-11-24**: `KITS_SECRET` (secret `kits-secret`) and
+  `KITS_BUCKET=metal-celerity-236019-lab-kits` on `landing-page`; both kits'
+  zips are uploaded to `<kit>/kit.zip` and `<kit>/scripts.zip`. The kits'
+  Stripe webhook and products are NOT set up (prices undecided), so licences
+  come only from a manual test record (`stripeSessionId:
+  manual-test-2026-11-24`, email test-licence@example.com) whose key is in
+  `~/.config/lab-secrets/kit-test-license.env` on the VM.
+- **Rebuild and re-upload** a kit's zips after any change to it
+  (`gcloud storage cp dist/*.zip gs://<bucket>/<kit>/`).
+- **Chief-of-Staff copy rule:** `gmail.modify` permits sending; Google has no
+  drafts-only scope. "Never sends" is enforced by the kit's code, and sales
+  copy must not claim the permission prevents it.
+- The pages stay hidden (noindex, not linked) until Erik decides prices,
+  brand, done-for-you and the outside-activity check.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No
