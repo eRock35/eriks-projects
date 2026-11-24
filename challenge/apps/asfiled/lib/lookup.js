@@ -23,6 +23,11 @@ const B = require('../tools/build');
 const Core = require('../public/asfiled-core');
 const { FILERS } = require('../tools/companies');
 const Names = require('./names');
+const T = require('../tools/text');
+const Verify = require('../tools/verify');
+const People = require('../tools/people');
+const Insiders = require('../tools/insiders');
+const Proxy = require('../tools/proxy');
 
 const V = 2;                                      // the stored part's shape (2: cash, quarters and the rest of f/)
 const LABEL = 'Looked up on request - not in the reviewed set';
@@ -32,6 +37,8 @@ const ANNUAL = ['10-K', '20-F'];
 const ACCN = /^\d{10}-\d{2}-\d{6}$/;
 const FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 const MB = 1024 * 1024;
+const MORE_V = 1;                                 // the stored second reading's shape
+const FORM4_MAX = 40;                             // Form 4s read for one looked-up company
 
 class LookupError extends Error {
   constructor(status, message, code) { super(message); this.name = 'LookupError'; this.status = status; this.code = code || 'lookup'; }
@@ -274,7 +281,95 @@ function create({ store, now = Date.now, env = process.env } = {}) {
     return p;
   }
 
-  return { company, resolve, tickers, read, secFail, searches, ipKey, FRESH_MS };
+  /* ---------------- the second reading: what needs the documents ----------------
+   * Employees (one sentence of the latest annual report), risk factors (that
+   * report beside the one before), pay (the latest proxy statement's tagged
+   * table) and insider transactions (the latest Form 4s). Read when a visitor
+   * asks, by the build's own functions and the same verifier; no model. The
+   * reports are held in memory one at a time and never stored. */
+
+  const moreBuilding = new Map();
+
+  async function buildMore(part) {
+    const co = part.company; const id = part.id; const cik = part.cik;
+    const today = new Date(now()).toISOString().slice(0, 10);
+    const subs = JSON.parse(await sec.get(`https://data.sec.gov/submissions/CIK${sec.pad10(cik)}.json`, { maxBytes: 16 * MB }));
+    const r = (subs.filings && subs.filings.recent) || { form: [] };
+    const annual = [];
+    for (let i = 0; i < r.form.length && annual.length < 2; i += 1) {
+      if (r.form[i] !== co.form) continue;
+      const a = { accn: r.accessionNumber[i], form: r.form[i], filed: r.filingDate[i], period: r.reportDate[i], doc: r.primaryDocument[i] };
+      if (ACCN.test(a.accn) && FILE.test(String(a.doc))) annual.push(a);
+    }
+    const cur = annual[0] && annual[0].accn === co.annual.accn ? annual[0] : null;
+    if (!cur) throw new LookupError(409, 'This company has filed a newer annual report. Open it again to read that one.', 'stale');
+    const prior = annual[1] || null;
+    const curId = co.annual.source;
+    const data = { figures: {}, filings: {}, sources: {}, quotes: {}, fin: { [id]: {} } };
+    const rawTexts = {}; const texts = {};
+    const report = async (a) => T.htmlToText(await sec.get(sec.docUrl(cik, a.accn, a.doc), { maxBytes: 40 * MB, timeoutMs: 45000 }));
+    rawTexts[curId] = await report(cur);
+    texts[curId] = T.norm(rawTexts[curId]);
+    data.sources[curId] = { ...part.sources[curId], sha: T.sha(texts[curId]) };
+    const qctx = { sources: data.sources, texts, rawTexts, sectionsOf: {}, ranges: {} };
+    // Employees: proposed by the strict rule, decided by the verifier.
+    const found = People.findEmployees(rawTexts[curId]);
+    if (found) {
+      const q = { c: id, kind: 'employees', n: found.n, quote: found.quote, source: curId };
+      const res = Verify.checkQuote(q, qctx);
+      if (res.ok) data.quotes[`${id}.q.employees`] = { ...q, section: res.section, date: cur.filed, proof: Verify.proof(data.sources[curId].sha, found.quote) };
+    }
+    // Risk factors: this report beside the one before.
+    if (prior) {
+      try { rawTexts[`${id}-${prior.accn}`] = await report(prior); } catch (e) { if (e instanceof sec.SecError && e.code === 'no-agent') throw e; }
+    }
+    const dropped = { quotes: 0, dropped: [] };
+    data.fin[id].risks = B.riskChanges(data, { id, cik, name: co.name }, cur, prior, { texts, rawTexts, qctx, report: dropped });
+    delete rawTexts[curId]; if (prior) delete rawTexts[`${id}-${prior.accn}`];
+    // Pay: the latest proxy statement's own tagged table.
+    try { B.payFigures(data, { id }, await Proxy.read(cik, subs, today, (url, o) => sec.get(url, o))); } catch (e) { if (e instanceof sec.SecError && e.code === 'no-agent') throw e; }
+    // Insiders: the latest Form 4s (at most FORM4_MAX of the last twelve months').
+    const listed = Insiders.listForm4(subs, today);
+    const rec = await Insiders.collect(cik, listed, (url) => sec.get(url, { maxBytes: 4 * MB }), { max: FORM4_MAX });
+    if (listed.list.length > FORM4_MAX) rec.capped = FORM4_MAX;
+    data.fin[id].insiders = Insiders.compact(rec);
+    // The sentences again, now that the quotes and pay figures are there.
+    const all = { figures: { ...part.figures, ...data.figures }, filings: { ...part.filings, ...data.filings }, mixes: part.mixes, concentration: part.concentration, quotes: data.quotes, fin: data.fin, companies: [co], others: [], edges: [] };
+    const finsights = Core.finInsights(all, co).filter((s) => B.citedOnly(all, s));
+    for (const k of Object.keys(data.sources)) if (k !== curId && data.sources[k].kind !== 'prior-annual-report') delete data.sources[k];
+    return { v: MORE_V, id, cik, accn: cur.accn, figures: data.figures, filings: data.filings, quotes: data.quotes, sources: data.sources, fin: data.fin, finsights: { [id]: finsights } };
+  }
+
+  /** The stored second reading for a CIK, if it is of this annual report. */
+  async function readMore(cik, accn) {
+    try {
+      const doc = await store.get('more', String(cik));
+      if (doc && doc.v === MORE_V && doc.accn === accn && typeof doc.json === 'string') return { ...JSON.parse(doc.json), at: new Date(doc.at).toISOString() };
+    } catch (e) { /* treated as not stored */ }
+    return null;
+  }
+
+  /** Read it now (or return the stored one). Counts as a lookup for the limits. */
+  async function more(cikIn, { ip } = {}) {
+    const cik = Number(cikIn);
+    const have = Number.isInteger(cik) && cik > 0 ? await read(cik) : null;
+    if (!have) throw new LookupError(404, 'Look the company up first.', 'not-found');
+    const stored = await readMore(cik, have.part.company.annual.accn);
+    if (stored && now() - Date.parse(stored.at) < FRESH_MS) return stored;
+    if (!sec.available()) { if (stored) return stored; throw new LookupError(503, UNAVAILABLE, 'unavailable'); }
+    if (moreBuilding.has(cik)) return moreBuilding.get(cik);
+    if (!perIp.take(ipKey(ip))) throw new LookupError(429, 'That is a lot of lookups from one place - try again in an hour.', 'limit-ip');
+    if (!perDay.take('all')) throw new LookupError(429, 'Lookups have reached today’s limit. Companies already looked up still open.', 'limit-day');
+    const p = serial(() => buildMore(have.part)).then(async (out) => {
+      const at = now(); const json = JSON.stringify(out);
+      if (json.length < 900000) { try { await store.set('more', String(cik), { v: MORE_V, at, cik, accn: out.accn, json }); } catch (e) { console.error('asfiled: second reading not stored'); } }
+      return { ...out, at: new Date(at).toISOString() };
+    }).catch((e) => { if (stored) return stored; throw secFail(e); }).finally(() => moreBuilding.delete(cik));
+    moreBuilding.set(cik, p);
+    return p;
+  }
+
+  return { company, resolve, tickers, read, more, readMore, secFail, searches, ipKey, FRESH_MS };
 }
 
-module.exports = { create, LookupError, LABEL, UNAVAILABLE, SET, V, ipKey, currencyOf };
+module.exports = { create, LookupError, LABEL, UNAVAILABLE, SET, V, MORE_V, FORM4_MAX, ipKey, currencyOf };

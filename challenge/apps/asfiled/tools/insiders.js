@@ -97,6 +97,20 @@ async function collect(cik, listed, get, { max = Infinity } = {}) {
   return rec;
 }
 
+/** The record as it is published: people named once, a row an array
+ *  [code, person, shares, value, first day, last day, accession, filed, plan]. */
+function compact(rec) {
+  const people = []; const key = {};
+  const rows = rec.rows.slice().sort((a, b) => (a.to < b.to ? 1 : a.to > b.to ? -1 : a.accn < b.accn ? -1 : a.accn > b.accn ? 1 : a.code < b.code ? -1 : 1)).map((r) => {
+    const k = `${r.who}|${r.role}`;
+    if (key[k] === undefined) { key[k] = people.length; people.push([r.who, r.role]); }
+    return [r.code, key[k], r.shares, r.value, r.from, r.to, r.accn, r.filed, r.plan ? 1 : 0];
+  });
+  const out = { from: rec.from, to: rec.to, complete: Boolean(rec.complete), listed: rec.listed, read: rec.read, other: rec.other, failed: rec.failed, odd: rec.odd || 0, people, rows };
+  if (rec.capped) out.capped = rec.capped;
+  return out;
+}
+
 async function main() {
   sec.agent();
   const { FILERS } = require('./companies');
@@ -123,5 +137,5 @@ async function main() {
   }
 }
 
-module.exports = { parseForm4, listForm4, collect, WINDOW_DAYS, CODES, DIR };
+module.exports = { parseForm4, listForm4, collect, compact, WINDOW_DAYS, CODES, DIR };
 if (require.main === module) main().catch((e) => { console.error(e.message); process.exit(1); });

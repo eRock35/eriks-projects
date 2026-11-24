@@ -311,6 +311,62 @@ const TEXT = T.norm(T.htmlToText(DOC));
     console.log(`     (one run on the fixture: ${usage.input_tokens} tokens in, ${usage.output_tokens} out, $${spent.toFixed(6)} at Haiku 5.5 prices)`);
     ok('the run goes through the lab’s AI guard: its cost is recorded from the response’s usage, and over the Claude cap the request is refused (503) before any model call');
 
+    /* ---------- the second reading: employees, risk factors, pay, Form 4s (no model) ---------- */
+    {
+      const Risks = require('../tools/risks');
+      const V2 = require('../tools/verify');
+      // A lookup with its own clock (the fixture's filings are dated around March 2026).
+      const at = Date.parse('2026-03-10T12:00:00Z');
+      const lk = Lookup.create({ store, now: () => at });
+      await store.set('lookups', String(H), { ...(await store.get('lookups', String(H))), at });
+      const calls0 = fakeClient.calls.length;
+      before = sec.stats.requests;
+      const m = await lk.more(H, { ip: '10.0.0.77' });
+      // Submissions, two annual reports, the proxy's index and instance, three Form 4s (the amended one is never asked for).
+      assert.strictEqual(sec.stats.requests - before, 1 + 2 + 2 + 3);
+      assert.strictEqual(fakeClient.calls.length, calls0, 'no model is asked anything');
+      const cur = `${ID}-0009900001-26-000007`; const prev = `${ID}-0009900001-25-000007`;
+      // Employees: one sentence, word for word, with the number in it - and not the lay-off sentence beside it.
+      const emp = m.quotes[`${ID}.q.employees`];
+      assert.deepStrictEqual([emp.n, emp.quote, emp.source, emp.section], [4200, 'As of December 31, 2025, we had approximately 4,200 employees in three countries.', cur, 'Item 1. Business']);
+      assert.strictEqual(emp.proof, V2.proof(m.sources[cur].sha, emp.quote));
+      // Risk factors: one new, one reworded (not new), one gone.
+      const rk = m.fin[ID].risks;
+      assert.deepStrictEqual([rk.compared, rk.prior, rk.threshold, rk.counts], [true, prev, Risks.THRESHOLD, { now: 10, before: 10, same: 8, reworded: 1, elsewhere: 0, new: 1, removed: 1 }]);
+      assert.deepStrictEqual(rk.new.map((q) => m.quotes[q].quote), ['Automated decision tools that use our data are drawing new rules from regulators in several states.']);
+      assert.deepStrictEqual(rk.removed.map((q) => m.quotes[q].quote), ['We may not be able to hire and keep the engineers our products need.']);
+      assert.deepStrictEqual(rk.reworded.map((x) => [m.quotes[x[0]].quote, m.quotes[x[1]].quote]), [['Our international operations expose us to currency, tax and political risks abroad.', 'Our international operations expose us to currency and political risks.']]);
+      assert.deepStrictEqual([m.sources[prev].kind, m.sources[prev].by, m.sources[prev].url], ['prior-annual-report', ID, 'https://www.sec.gov/Archives/edgar/data/9900001/000990000125000007/hbld-20241231.htm']);
+      for (const q of Object.values(m.quotes)) assert.strictEqual(q.proof, V2.proof(m.sources[q.source].sha, q.quote));
+      // Pay: the proxy's tagged table; the fact tagged for one named person (a dimension) is not read.
+      assert.deepStrictEqual([m.figures[`${ID}.pay.peoTotal.2025`].v, m.figures[`${ID}.pay.peoPaid.2025`].v, m.figures[`${ID}.pay.tsr.2024`].v, m.figures[`${ID}.pay.peoTotal.2025`].a, m.filings['0009900001-26-000009'].form], [9100000, 12400000, 118, '0009900001-26-000009', 'DEF 14A']);
+      assert.ok(!Object.values(m.figures).some((f) => f.v === 555));
+      // Insiders: the sale and the purchase; not the tax withholding, the grant or the amended form.
+      const ins = m.fin[ID].insiders;
+      assert.deepStrictEqual([ins.listed, ins.read, ins.rows.length, ins.from, ins.to], [3, 3, 2, '2025-03-10', '2026-03-10']);
+      assert.deepStrictEqual(Core.insiderRows(ins).map((x) => [x.code, x.who, x.role, x.shares, x.value, x.accn]), [['S', 'Marsh Ada', 'Chief Financial Officer', 3000, 151000, '0009900001-26-000005'], ['P', 'Okafor Ben', 'Director', 500, 20000, '0009900001-25-000060']]);
+      assert.strictEqual(Core.insiderSummary(ins, 'USD'), 'From 2025-03-10 to 2026-03-10, 3 Form 4s were filed about the company. 1 reports open-market sales by 1 officer or director: 3,000 shares, $151000 at the prices reported; 1 reports open-market purchases by 1 officer or director: 500 shares, $20000.');
+      // The sentences are the shared templates', now with the pay and the head count.
+      const texts2 = m.finsights[ID].map((x) => x.text);
+      assert.ok(texts2.includes('The proxy statement filed 2026-03-05 gives the principal executive officer’s total pay for FY2025 as $9.1 million in its summary compensation table, and the “compensation actually paid” - the SEC’s measure, which revalues share awards over the year - as $12.4 million.'));
+      assert.ok(texts2.includes('The latest annual report gives the workforce as 4,200 in its own words. FY2025 revenue works out to about $770,000 for each (computed from one filed figure and the number in that sentence).'));
+      assert.ok(texts2.includes('The table puts the value of $100 held in the company’s shares over the years it covers at $141.50 at the end of FY2025, and $128.25 for the peer group the company chose.'));
+      // Stored, and served again without a request; the reports themselves are not kept.
+      before = sec.stats.requests;
+      const again2 = await lk.more(H, { ip: '10.0.0.77' });
+      assert.deepStrictEqual(again2.quotes, m.quotes);
+      assert.strictEqual(sec.stats.requests, before);
+      const kept = await store.get('more', String(H));
+      assert.ok(kept.json.length < 20000 && !kept.json.includes('could affect what we sell'), 'the stored reading holds quotes and figures, not the reports');
+      // Through the server: the route answers the same, and the company's part carries it from then on.
+      const viaRoute = await json(`api/lookup/${H}/more`, '10.0.0.78');
+      assert.strictEqual(viaRoute.status, 200);
+      const part3 = (await json(`api/lookup/${H}`, '10.0.0.78')).body;
+      assert.ok(part3.more && part3.more.quotes[`${ID}.q.employees`] && part3.sic === undefined && part3.company.sic === '7320');
+      assert.strictEqual((await json('api/lookup/9900003/more')).status, 404, 'a company that was never looked up has no second reading');
+    }
+    ok('the second reading of a looked-up company: employees (one verified sentence), risk factors against the year before (new, reworded, gone), the proxy’s pay table and Form 4 purchases and sales, by the build’s own code with no model; stored without the reports and served again without a request');
+
     /* ---------- nothing of the reviewed set moved ---------- */
     const meta = await (await get('api/meta')).json();
     assert.strictEqual(meta.companies, 81);

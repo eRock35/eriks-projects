@@ -11,6 +11,7 @@
     "data:fetch": "node tools/fetch.js",
     "data:peers": "node tools/peers.js",
     "data:insiders": "node tools/insiders.js",
+    "data:proxy": "node tools/proxy.js",
     "data:extract": "node tools/extract.js",
     "data:build": "node tools/build.js",
     "data:verify": "node tools/verify.js"

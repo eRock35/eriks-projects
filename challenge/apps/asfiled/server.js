@@ -124,7 +124,19 @@ app.get('/api/lookup/:cik(\\d{1,10})', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     if (got.inSet) return res.json({ inSet: got.inSet });
     const rel = await relations.read(got.part.cik, got.part.company.annual.accn);
-    res.json({ ...got.part, at: new Date(got.at).toISOString(), stale: Boolean(got.stale), relations: rel });
+    const more = await lookup.readMore(got.part.cik, got.part.company.annual.accn);
+    res.json({ ...got.part, at: new Date(got.at).toISOString(), stale: Boolean(got.stale), relations: rel, more });
+  } catch (e) { failed(res, e); }
+});
+
+// The second reading of a looked-up company - what needs its documents:
+// employees, risk factors, pay and Form 4s. No model; the build's own code
+// and verifier, inside this request, under the lookup limits.
+app.get('/api/lookup/:cik(\\d{1,10})/more', async (req, res) => {
+  try {
+    const out = await lookup.more(req.params.cik, { ip: req.ip });
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
   } catch (e) { failed(res, e); }
 });
 

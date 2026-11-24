@@ -121,8 +121,8 @@ const FIN_INSTANT = ['cash', 'sti', 'debtLong', 'debtCurrent', 'debtShort', 'deb
 // Read from 10-Qs too, for the latest quarter (tools/build.js quarters).
 const QUARTERLY = ['revenue', 'opinc', 'netinc', 'ocf', 'capex'];
 // The pay-versus-performance table of the proxy statement (DEF 14A), tagged
-// since 2023 (the SEC's `ecd` taxonomy). Company facts carries the facts
-// that have no dimension: a single principal executive officer for the year.
+// since 2023 (the SEC's `ecd` taxonomy). Read from the proxy's own XBRL
+// instance (tools/proxy.js); only facts with no dimension are kept.
 const PAY = {
   peoTotal: 'ecd:PeoTotalCompAmt', peoPaid: 'ecd:PeoActuallyPaidCompAmt',
   neoTotal: 'ecd:NonPeoNeoAvgTotalCompAmt', neoPaid: 'ecd:NonPeoNeoAvgCompActuallyPaidAmt',
@@ -138,7 +138,7 @@ const FORMS = new Set(['10-K', '20-F', '10-Q', 'DEF 14A']);
  *  the six fields that are read, from annual and quarterly reports and the
  *  proxy statement. */
 function slimFacts(facts) {
-  const keep = new Set([].concat(...Object.values(ALL), Object.values(PAY)));
+  const keep = new Set([].concat(...Object.values(ALL)));
   const out = { cik: facts.cik, entityName: facts.entityName, slim: SLIM, facts: {} };
   for (const [tax, tags] of Object.entries(facts.facts || {})) {
     for (const [tag, body] of Object.entries(tags)) {

@@ -63,13 +63,23 @@ function company(cik, name, base, accnOf) {
     },
   };
 }
-function submissions(cik, name, ticker, annual) {
+function submissions(cik, name, ticker, annual, more) {
+  const c10 = String(cik).padStart(10, '0');
+  // `more`: the filings the second reading uses - a proxy statement, three
+  // Form 4s (one amended, which is not read) and the annual report before.
+  const extra = more ? [
+    [`${c10}-26-000009`, 'DEF 14A', '2026-03-05', '2025-12-31', 'hbld-def14a.htm'],
+    [`${c10}-26-000005`, '4', '2026-01-15', '2026-01-13', 'xslF345X06/form4.xml'],
+    [`${c10}-26-000004`, '4/A', '2026-01-10', '2026-01-08', 'xslF345X06/form4.xml'],
+    [`${c10}-25-000060`, '4', '2025-11-20', '2025-11-18', 'xslF345X06/form4.xml'],
+    [`${c10}-25-000059`, '4', '2025-11-19', '2025-11-18', 'xslF345X06/form4.xml'],
+    [`${c10}-25-000007`, '10-K', '2025-02-20', '2024-12-31', 'hbld-20241231.htm'],
+  ] : [];
+  const rows = [[`${c10}-26-000011`, '8-K', '2026-03-02', '2026-03-01', 'hbld-8k.htm'], [annual.accn, '10-K', '2026-02-20', '2025-12-31', annual.doc], [`${c10}-25-000041`, '10-Q', '2025-10-24', '2025-09-30', 'q3.htm']].concat(extra).sort((a, b) => (a[2] < b[2] ? 1 : -1));
   return {
-    cik: String(cik), name, tickers: [ticker], fiscalYearEnd: '1231',
+    cik: String(cik), name, tickers: [ticker], fiscalYearEnd: '1231', sic: '7320', sicDescription: 'Services-Consumer Credit Reporting, Collection Agencies',
     filings: { recent: {
-      accessionNumber: [`${String(cik).padStart(10, '0')}-26-000011`, annual.accn, `${String(cik).padStart(10, '0')}-25-000041`],
-      form: ['8-K', '10-K', '10-Q'], filingDate: ['2026-03-02', '2026-02-20', '2025-10-24'], reportDate: ['2026-03-01', '2025-12-31', '2025-09-30'],
-      primaryDocument: ['hbld-8k.htm', annual.doc, 'q3.htm'],
+      accessionNumber: rows.map((x) => x[0]), form: rows.map((x) => x[1]), filingDate: rows.map((x) => x[2]), reportDate: rows.map((x) => x[3]), primaryDocument: rows.map((x) => x[4]),
     } },
   };
 }
@@ -79,7 +89,7 @@ const H = 9900001; const HA = (fy) => `0009900001-${String(fy + 1).slice(2)}-000
 const accn = HA(2025); const dir = `www.sec.gov/Archives/edgar/data/${H}/${accn.replace(/-/g, '')}`;
 const hf = company(H, 'HARBORLIGHT DATA INC', 2.1e9, HA);
 write(`data.sec.gov/api/xbrl/companyfacts/CIK${String(H).padStart(10, '0')}.json`, hf);
-write(`data.sec.gov/submissions/CIK${String(H).padStart(10, '0')}.json`, submissions(H, 'HARBORLIGHT DATA INC', 'HBLD', { accn, doc: 'hbld-20251231.htm' }));
+write(`data.sec.gov/submissions/CIK${String(H).padStart(10, '0')}.json`, submissions(H, 'HARBORLIGHT DATA INC', 'HBLD', { accn, doc: 'hbld-20251231.htm' }, true));
 write(`${dir}/index.json`, { directory: { name: `/Archives/edgar/data/${H}/${accn.replace(/-/g, '')}`, item: [{ name: 'hbld-20251231.htm', type: 'text.gif' }, { name: 'hbld-20251231_htm.xml', type: 'text.gif' }, { name: 'hbld-20251231_lab.xml', type: 'text.gif' }] } });
 
 const total = hf.facts['us-gaap'].Revenues.units.USD.find((r) => r.end === '2025-12-31' && r.start === '2025-01-01').val;
@@ -103,6 +113,13 @@ ${lab('hbld_ConsumerInformationMember', 'Consumer Information [Member]', 2)}
 </link:labelLink></link:linkbase>
 `);
 const P = (s) => `<p>${s}</p>`;
+// Risk factors as a report sets them out: a one-sentence heading, then its
+// discussion. 2025 rewords one of 2024's, drops one and adds one.
+const TALK = (n) => `The matter described under this heading could affect what we sell, what it costs us to operate and how lenders and employers use our data, and the effect could be material in a given year (${n}). `.repeat(10);
+const RISKS = (heads) => heads.map((h, i) => P(h) + P(TALK(i))).join('\n');
+const RISKS_BOTH = ['A breach of our systems could expose consumer data and lead to claims against us.', 'Laws that govern consumer credit reporting are changing and may limit what we sell.', 'Our data comes from lenders and employers who can stop providing it.', 'A downturn in mortgage lending reduces demand for our verification services.', 'We compete on price with larger providers of consumer credit data.', 'Interruptions at our data centers could stop us from delivering reports.', 'Errors in our records can harm consumers and lead to regulatory action.', 'We carry debt that limits how we can respond to changes in our business.'];
+const RISKS_2024 = RISKS_BOTH.concat(['Our international operations expose us to currency and political risks.', 'We may not be able to hire and keep the engineers our products need.']);
+const RISKS_2025 = RISKS_BOTH.concat(['Our international operations expose us to currency, tax and political risks abroad.', 'Automated decision tools that use our data are drawing new rules from regulators in several states.']);
 write(`${dir}/hbld-20251231.htm`, `<html><head><title>hbld-20251231</title><style>p{margin:0}</style></head><body>
 <div>${P('UNITED STATES SECURITIES AND EXCHANGE COMMISSION')}${P('FORM 10-K')}${P('HARBORLIGHT DATA INC')}</div>
 ${P('Item 1. Business')}
@@ -114,15 +131,52 @@ ${P('Customers')}
 ${P('Quillfeather Systems accounted for 12% of our revenue in 2025 under a multi-year data licensing contract.')}
 ${P('Technology')}
 ${P('We rely on AWS to host our data platform under an agreement that runs through 2028.')}
+${P('Human Capital')}
+${P('As of December 31, 2025, we had approximately 4,200 employees in three countries. In 2025 we closed one office and let go of 150 employees.')}
 ${P('Item 1A. Risk Factors')}
 ${P('Summit conditions in our Target markets may change what our suppliers charge us, and we may not be able to pass those costs on.')}
 ${P('We depend on a limited number of data suppliers, and the loss of any one of them could harm our business.')}
+${RISKS(RISKS_2025)}
 ${P('Item 3. Legal Proceedings')}
 ${P('In 2024 Tidewater Analytics filed a complaint against us in federal court alleging infringement of two of its patents.')}
 ${P('Item 9A. Controls and Procedures')}
 ${P('Our management concluded that our disclosure controls and procedures were effective as of December 31, 2025.')}
 </body></html>
 `);
+
+/* Harborlight, the year before: the annual report as a document only (its risk factors are compared). */
+const prevDir = `www.sec.gov/Archives/edgar/data/${H}/${HA(2024).replace(/-/g, '')}`;
+write(`${prevDir}/hbld-20241231.htm`, `<html><head><title>hbld-20241231</title></head><body>
+${P('FORM 10-K')}${P('HARBORLIGHT DATA INC')}
+${P('Item 1. Business')}
+${P('Harborlight Data Inc. collects and sells employment, income and consumer credit data to lenders and employers in the United States.')}
+${P('Item 1A. Risk Factors')}
+${RISKS(RISKS_2024)}
+${P('Item 3. Legal Proceedings')}
+${P('None.')}
+</body></html>
+`);
+/* Its proxy statement: the tagged pay-versus-performance table, two years. */
+const pxDir = `www.sec.gov/Archives/edgar/data/${H}/000990000126000009`;
+write(`${pxDir}/index.json`, { directory: { name: pxDir, item: [{ name: 'hbld-def14a.htm' }, { name: 'hbld-def14a_htm.xml' }] } });
+const pctx = (idn, fy, member) => `<xbrli:context id="${idn}"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0009900001</xbrli:identifier>${member ? `<xbrli:segment><xbrldi:explicitMember dimension="ecd:IndividualAxis">${member}</xbrldi:explicitMember></xbrli:segment>` : ''}</xbrli:entity><xbrli:period><xbrli:startDate>${fy}-01-01</xbrli:startDate><xbrli:endDate>${fy}-12-31</xbrli:endDate></xbrli:period></xbrli:context>`;
+const pay = (tag, c, v) => `<ecd:${tag} contextRef="${c}" unitRef="usd" decimals="0">${v}</ecd:${tag}>`;
+write(`${pxDir}/hbld-def14a_htm.xml`, `<?xml version="1.0" encoding="UTF-8"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:ecd="http://xbrl.sec.gov/ecd/2025">
+${pctx('y25', 2025)}${pctx('y24', 2024)}${pctx('y25m', 2025, 'hbld:FormerCeoMember')}
+<xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+${pay('PeoTotalCompAmt', 'y25', 9100000)}${pay('PeoActuallyPaidCompAmt', 'y25', 12400000)}${pay('NonPeoNeoAvgTotalCompAmt', 'y25', 2600000)}${pay('NonPeoNeoAvgCompActuallyPaidAmt', 'y25', 3100000)}${pay('TotalShareholderRtnAmt', 'y25', 141.5)}${pay('PeerGroupTotalShareholderRtnAmt', 'y25', 128.25)}
+${pay('PeoTotalCompAmt', 'y24', 8700000)}${pay('PeoActuallyPaidCompAmt', 'y24', 7900000)}${pay('TotalShareholderRtnAmt', 'y24', 118)}
+${pay('PeoTotalCompAmt', 'y25m', 555)}
+</xbrli:xbrl>
+`);
+/* Three Form 4s: a sale by the finance chief, a purchase by a director, and a grant (no purchase or sale). The amended one is never asked for. */
+const tx = (code, shares, price, ad, date) => `<nonDerivativeTransaction><securityTitle><value>Common Stock</value></securityTitle><transactionDate><value>${date}</value></transactionDate><transactionCoding><transactionFormType>4</transactionFormType><transactionCode>${code}</transactionCode></transactionCoding><transactionAmounts><transactionShares><value>${shares}</value></transactionShares><transactionPricePerShare><value>${price}</value></transactionPricePerShare><transactionAcquiredDisposedCode><value>${ad}</value></transactionAcquiredDisposedCode></transactionAmounts></nonDerivativeTransaction>`;
+const form4 = (name, rel, body) => `<?xml version="1.0"?><ownershipDocument><documentType>4</documentType><issuer><issuerCik>0009900001</issuerCik><issuerName>HARBORLIGHT DATA INC</issuerName></issuer><reportingOwner><reportingOwnerId><rptOwnerName>${name}</rptOwnerName></reportingOwnerId><reportingOwnerRelationship>${rel}</reportingOwnerRelationship></reportingOwner><nonDerivativeTable>${body}</nonDerivativeTable></ownershipDocument>`;
+const f4 = (a, body) => write(`www.sec.gov/Archives/edgar/data/${H}/${a.replace(/-/g, '')}/form4.xml`, body);
+f4('0009900001-26-000005', form4('Marsh Ada', '<isDirector>0</isDirector><isOfficer>1</isOfficer><officerTitle>Chief Financial Officer</officerTitle>', tx('S', 2000, 50, 'D', '2026-01-12') + tx('S', 1000, 51, 'D', '2026-01-13') + tx('F', 300, 50, 'D', '2026-01-13')));
+f4('0009900001-25-000060', form4('Okafor Ben', '<isDirector>1</isDirector><isOfficer>0</isOfficer>', tx('P', 500, 40, 'A', '2025-11-18')));
+f4('0009900001-25-000059', form4('Marsh Ada', '<isDirector>0</isDirector><isOfficer>1</isOfficer><officerTitle>Chief Financial Officer</officerTitle>', tx('A', 9000, 0, 'A', '2025-11-18')));
 
 /* Tidewater: figures only (no filing index: revenue mix is then simply absent). */
 const TW = 9900002; const TA = (fy) => `0009900002-${String(fy + 1).slice(2)}-000004`;

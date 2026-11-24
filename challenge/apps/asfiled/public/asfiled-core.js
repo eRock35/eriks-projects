@@ -19,6 +19,9 @@
     ocf: 'Operating cash flow', sbc: 'Stock-based compensation', buybacks: 'Share repurchases', dividends: 'Dividends paid',
     cash: 'Cash and cash equivalents', sti: 'Short-term investments',
     opinc: 'Operating income', netinc: 'Net income',
+    'pay.peoTotal': 'Principal executive officer: total, summary compensation table', 'pay.peoPaid': 'Principal executive officer: compensation actually paid',
+    'pay.neoTotal': 'Other named executive officers: average total', 'pay.neoPaid': 'Other named executive officers: average compensation actually paid',
+    'pay.tsr': 'Value of $100 in the company’s shares (total shareholder return)', 'pay.peerTsr': 'Value of $100 in the peer group the company chose',
     rpo: 'Remaining performance obligations', deferred: 'Deferred revenue (contract liabilities)', impairment: 'Goodwill impairment', restructuring: 'Restructuring charges',
     debtLong: 'Long-term debt, beyond a year', debtCurrent: 'Debt due within a year', debtShort: 'Short-term borrowings', debtTotal: 'Long-term debt, with its current portion',
   };
@@ -133,6 +136,8 @@
   function commas(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   /** Revenue for each employee: to the nearest thousand below a million. */
   function perHead(v, cur) { return v >= 1e6 ? money(v, cur) : (SYMBOL[cur] || cur + ' ') + commas(Math.round(v / 1000) * 1000); }
+  /** Dollars and cents, as a proxy statement gives the value of a $100 holding. */
+  function dollars(v) { var s = Math.abs(v).toFixed(2).split('.'); return (v < 0 ? '-' : '') + '$' + commas(Number(s[0])) + '.' + s[1]; }
   function pct(v, d) { return trim(v * 100, d === undefined ? 1 : d) + '%'; }
   /** A share for a sentence: one decimal, and never a bare "0%" for a share that is not zero. */
   function share(v) { return v > 0 && v < 0.0005 ? 'under 0.1%' : pct(v); }
@@ -309,6 +314,49 @@
     return view;
   }
 
+  /* ---------------- insiders: Form 4, the last twelve months ----------------
+   * Filed by insiders; not a signal or advice. Only open-market purchases
+   * (code P) and sales (code S) by officers and directors are kept. */
+  var CODE_NAMES = { P: 'Open-market purchase', S: 'Open-market sale' };
+  function insiderRows(ins) {
+    return ins.rows.map(function (r) {
+      var p = ins.people[r[1]];
+      return { code: r[0], who: p[0], role: p[1], shares: r[2], value: r[3], from: r[4], to: r[5], accn: r[6], filed: r[7], plan: Boolean(r[8]) };
+    });
+  }
+  function insiderTotals(ins) {
+    var t = { P: { n: 0, shares: 0, value: 0, people: 0 }, S: { n: 0, shares: 0, value: 0, people: 0 } };
+    var seen = { P: {}, S: {} };
+    ins.rows.forEach(function (r) {
+      var x = t[r[0]]; x.n += 1; x.shares += r[2]; x.value += r[3];
+      if (!seen[r[0]][r[1]]) { seen[r[0]][r[1]] = 1; x.people += 1; }
+    });
+    return t;
+  }
+  function plural(n, one, many) { return commas(n) + ' ' + (n === 1 ? one : many); }
+  /** What the Form 4s add up to, in one templated paragraph. */
+  function insiderSummary(ins, cur) {
+    var t = insiderTotals(ins);
+    var s = 'From ' + ins.from + ' to ' + ins.to + ', ' + plural(ins.listed, 'Form 4 was', 'Form 4s were') + ' filed about the company' + (ins.capped ? ' (the ' + ins.read + ' most recent were read)' : '') + '. ';
+    s += (t.S.n ? commas(t.S.n) + ' ' + (t.S.n === 1 ? 'reports' : 'report') + ' open-market sales by ' + plural(t.S.people, 'officer or director', 'officers and directors') + ': ' + plural(Math.round(t.S.shares), 'share', 'shares') + ', ' + money(t.S.value, cur || 'USD') + ' at the prices reported' : 'None reports an open-market sale by an officer or director');
+    s += '; ' + (t.P.n ? commas(t.P.n) + ' ' + (t.P.n === 1 ? 'reports' : 'report') + ' open-market purchases by ' + plural(t.P.people, 'officer or director', 'officers and directors') + ': ' + plural(Math.round(t.P.shares), 'share', 'shares') + ', ' + money(t.P.value, cur || 'USD') : 'none reports an open-market purchase') + '.';
+    if (!ins.complete) s += ' The SEC’s list of the company’s recent filings does not reach back the full twelve months.';
+    if (ins.failed) s += ' ' + plural(ins.failed, 'form', 'forms') + ' could not be read.';
+    return s;
+  }
+
+  /* ---------------- risk factors, this year beside last ---------------- */
+  /** What the comparison found, in words. `r` is a company's `risks` record. */
+  function riskSummary(r) {
+    var k = r.counts;
+    var s = 'Of the ' + k.now + ' one-sentence headings in the latest report’s risk factors, ' + k.same + (k.same === 1 ? ' is' : ' are') + ' word for word in the report before';
+    s += ', ' + k.reworded + (k.reworded === 1 ? ' was' : ' were') + ' reworded';
+    if (k.elsewhere) s += ', ' + k.elsewhere + (k.elsewhere === 1 ? ' is' : ' are') + ' said there in other places';
+    s += ' and ' + (k.new === 0 ? 'none has' : k.new === 1 ? '1 has' : k.new + ' have') + ' nothing close to ' + (k.new === 1 ? 'it' : 'them') + ' there.';
+    s += ' ' + (k.removed === 0 ? 'None' : k.removed) + ' of the ' + k.before + ' in the report before ' + (k.removed === 1 ? 'has' : 'have') + ' nothing close in the latest.';
+    return s;
+  }
+
   var COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
   function computedFrom(n) { return 'computed from ' + (COUNT[n] || n) + ' filed figures'; }
 
@@ -371,6 +419,19 @@
       }
       var tf = qv.ttm.fcf;
       if (tf) out.push(S('ttm', 'Free cash flow over the same four quarters was ' + M(tf.v) + ': operating cash flow of ' + M(qv.ttm.ocf.v) + ' less capital spending of ' + M(qv.ttm.capex.v) + ' (' + computedFrom(tf.cites.length) + ').', tf.cites));
+    }
+    // Pay versus performance: the latest year the latest proxy statement tags.
+    var payFy = null;
+    Object.keys(data.figures).forEach(function (k) { var f = data.figures[k]; if (f.c === cid && /^pay\./.test(f.m) && (payFy === null || f.fy > payFy)) payFy = f.fy; });
+    if (payFy !== null) {
+      var pay = function (k) { return fig(data, cid, 'pay.' + k, payFy); };
+      var filed = (data.filings[(pay('peoTotal') || pay('tsr') || pay('peoPaid') || {}).a] || {}).filed;
+      var pT = pay('peoTotal'); var pP = pay('peoPaid');
+      if (pT && pP) out.push(S('pay', 'The proxy statement filed ' + filed + ' gives the principal executive officer’s total pay for FY' + payFy + ' as ' + M(pT.v) + ' in its summary compensation table, and the “compensation actually paid” - the SEC’s measure, which revalues share awards over the year - as ' + M(pP.v) + '.', [id(cid, 'pay.peoTotal', payFy), id(cid, 'pay.peoPaid', payFy)]));
+      var nT = pay('neoTotal'); var nP = pay('neoPaid');
+      if (nT && nP) out.push(S('pay', 'For the other named executive officers the same table gives an average of ' + M(nT.v) + ' in total and ' + M(nP.v) + ' actually paid.', [id(cid, 'pay.neoTotal', payFy), id(cid, 'pay.neoPaid', payFy)]));
+      var ts = pay('tsr'); var pe = pay('peerTsr');
+      if (ts) out.push(S('pay', 'The table puts the value of $100 held in the company’s shares over the years it covers at ' + dollars(ts.v) + ' at the end of FY' + payFy + (pe ? ', and ' + dollars(pe.v) + ' for the peer group the company chose' : '') + '.', [id(cid, 'pay.tsr', payFy)].concat(pe ? [id(cid, 'pay.peerTsr', payFy)] : [])));
     }
     var was = function (m) { return has(L - 1) ? fig(data, cid, m, L - 1) : null; };
     var rp = fig(data, cid, 'rpo', L);
@@ -655,6 +716,13 @@
   function headIds(c) {
     return ['revenue', 'revenueUsd', 'gross', 'cost'].map(function (m) { return id(c.id, m, c.latest); });
   }
+  /** The sources the index carries: every one but a previous year's report,
+   *  which only its own company's risk comparison reads (it is in f/<ID>). */
+  function indexSources(data) {
+    var o = {};
+    Object.keys(data.sources).forEach(function (k) { if (data.sources[k].kind !== 'prior-annual-report') o[k] = data.sources[k]; });
+    return o;
+  }
   /** A whole dataset -> its published parts. */
   function split(data) {
     var head = [];
@@ -670,7 +738,7 @@
       }),
       // An edge's link is its source's link: not repeated per edge here
       // (start() puts it back).
-      others: data.others, sources: data.sources,
+      others: data.others, sources: indexSources(data),
       edges: data.edges.map(function (e) { var o = {}; Object.keys(e).forEach(function (k) { if (k !== 'url') o[k] = e[k]; }); return o; }),
       figures: hp.figures, filings: hp.filings,
       peers: data.peers || null,
@@ -689,7 +757,8 @@
       var one = function (o, d) { var x = {}; x[c.id] = (o || {})[c.id] || d; return x; };
       companies[c.id] = { part: 'c/' + c.id, id: c.id, figures: cp.figures, filings: cp.filings, mixes: one(data.mixes, []), concentration: one(data.concentration, []), insights: one(data.insights, []) };
       var qs = {}; Object.keys(data.quotes || {}).forEach(function (k) { if (data.quotes[k].c === c.id) qs[k] = data.quotes[k]; });
-      fins[c.id] = { part: 'f/' + c.id, id: c.id, figures: fp.figures, filings: fp.filings, finsights: one(data.finsights, []), fin: one(data.fin, {}), quotes: qs };
+      var ps = {}; Object.keys(data.sources).forEach(function (k) { if (data.sources[k].kind === 'prior-annual-report' && data.sources[k].by === c.id) ps[k] = data.sources[k]; });
+      fins[c.id] = { part: 'f/' + c.id, id: c.id, figures: fp.figures, filings: fp.filings, finsights: one(data.finsights, []), fin: one(data.fin, {}), quotes: qs, sources: ps };
     });
     return { index: index, patterns: patternsPart, companies: companies, fins: fins };
   }
@@ -697,7 +766,7 @@
   function start(index) {
     var d = {};
     Object.keys(index).forEach(function (k) { d[k] = index[k]; });
-    d.figures = Object.assign({}, index.figures); d.filings = Object.assign({}, index.filings);
+    d.figures = Object.assign({}, index.figures); d.filings = Object.assign({}, index.filings); d.sources = Object.assign({}, index.sources);
     d.edges = index.edges.map(function (e) { var o = {}; Object.keys(e).forEach(function (k) { o[k] = e[k]; }); o.url = index.sources[e.source].url; return o; });
     d.mixes = {}; d.concentration = {}; d.insights = {}; d.finsights = {}; d.fin = {}; d.quotes = {}; d.patterns = d.patterns || null;
     return d;
@@ -707,6 +776,7 @@
     Object.assign(d.figures, part.figures || {});
     Object.assign(d.filings, part.filings || {});
     if (part.quotes) { d.quotes = d.quotes || {}; Object.assign(d.quotes, part.quotes); }
+    if (part.sources && /^f\//.test(String(part.part))) Object.assign(d.sources, part.sources);
     ['mixes', 'concentration', 'insights', 'finsights', 'fin'].forEach(function (k) { if (part[k]) Object.assign(d[k], part[k]); });
     if (part.patterns) d.patterns = part.patterns;
     return d;
@@ -714,7 +784,8 @@
 
   return {
     METRICS: METRICS, TYPE_NAMES: TYPE_NAMES, DIRECTED: DIRECTED, SYMBOL: SYMBOL,
-    commas: commas, perHead: perHead, share: share,
+    riskSummary: riskSummary,
+    commas: commas, perHead: perHead, share: share, dollars: dollars, CODE_NAMES: CODE_NAMES, insiderRows: insiderRows, insiderTotals: insiderTotals, insiderSummary: insiderSummary,
     fiscalYear: fiscalYear, fig: fig, derived: derived, company: company, money: money, pct: pct, times: times,
     filingUrl: filingUrl, figureSource: figureSource, quoteUrl: quoteUrl, pad10: pad10,
     PEER_METRICS: PEER_METRICS, peerValue: peerValue, peerCites: peerCites, peerRanks: peerRanks, peerDefinition: peerDefinition, peerSentence: peerSentence, ordinal: ordinal,

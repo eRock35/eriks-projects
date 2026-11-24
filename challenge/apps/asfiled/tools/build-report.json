@@ -1,7 +1,7 @@
 {
  "built": "2026-11-24",
  "companies": 81,
- "figures": 14920,
+ "figures": 16106,
  "quotes": {
   "employees": {
    "curated": 78,
@@ -37,10 +37,32 @@
   ]
  },
  "insights": {
-  "kept": 1399,
+  "kept": 1602,
   "dropped": 0
  },
  "notes": [],
+ "risks": {
+  "compared": 66,
+  "notCompared": [
+   "MSFT: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "AMZN: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "TSM: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "LRCX: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "ASML: The risk-factor section could not be found in both reports.",
+   "Q: Only one annual report is on file to read.",
+   "GLW: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "FLEX: The two reports set out their risk factors too differently to compare heading by heading.",
+   "CIEN: The two reports set out their risk factors too differently to compare heading by heading.",
+   "FFIV: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "ZBRA: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "TRMB: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "ORCL: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "IBM: The risk factors of one or both reports are not set out as headings this reader can line up.",
+   "IT: The risk factors of one or both reports are not set out as headings this reader can line up."
+  ],
+  "quotes": 794,
+  "dropped": []
+ },
  "peers": {
   "frame": "CY2025",
   "files": 393,
@@ -55,15 +77,15 @@
   ]
  },
  "sizes": {
-  "index": 435291,
+  "index": 435292,
   "patterns": 309763,
   "largestCompany": {
    "id": "ZBRA",
    "bytes": 28939
   },
   "largestFin": {
-   "id": "ORCL",
-   "bytes": 27593
+   "id": "DELL",
+   "bytes": 53057
   },
   "peers": {
    "files": 393,

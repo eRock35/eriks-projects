@@ -75,6 +75,7 @@
     Object.keys(part.sources).forEach(function (k) { data.sources[k] = part.sources[k]; });
     meta[part.id] = { cik: part.cik, at: part.at, stale: part.stale, relations: null };
     mergeRelations(part.id, part.relations);
+    mergeMore(part.id, part.more);
     remember(part);
     return part;
   }
@@ -94,6 +95,22 @@
       list.unshift({ cik: part.cik, name: String(part.company.name).slice(0, 80), ticker: String(part.ticker || '').slice(0, 12) });
       localStorage.setItem('asfiled-lookups', JSON.stringify(list.slice(0, 8)));
     } catch (e) { /* private mode: the list is simply not kept */ }
+  }
+  // The second reading of a looked-up company: its documents (one request, shared).
+  var mores = {};
+  function loadMore(c) {
+    var cik = meta[c.id].cik;
+    if (!mores[cik]) {
+      mores[cik] = api('GET', 'api/lookup/' + cik + '/more').then(function (p) { mergeMore(c.id, p); return p; });
+      mores[cik].catch(function () { delete mores[cik]; });
+    }
+    return mores[cik];
+  }
+  function mergeMore(id, p) {
+    if (!p) return;
+    Core.merge(data, p);
+    Object.keys(p.sources || {}).forEach(function (k) { data.sources[k] = p.sources[k]; });
+    meta[id].more = true;
   }
   function loadMe() { return api('GET', 'api/auth/me').then(function (m) { me = m; return m; }, function () { me = { signedIn: false }; return me; }); }
 
@@ -146,7 +163,7 @@
   document.getElementById('sheet-close').addEventListener('click', function () { sheet.close(); });
   sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
 
-  function valueText(f) { return f.u === 'share' ? Core.pct(f.v, 1) : Core.money(f.v, f.u); }
+  function valueText(f) { return f.u === 'share' ? Core.pct(f.v, 1) : /^pay\.(tsr|peerTsr)$/.test(f.m) ? Core.dollars(f.v) : Core.money(f.v, f.u); }
   function figLabel(f) { return Core.METRICS[f.m] || Core.METRICS[String(f.m).replace(/^d\./, '')] || (f.m === 'revenueUsd' ? 'Revenue (company’s own US-dollar translation)' : f.m === 'capexUsd' ? 'Capital spending (company’s own US-dollar translation)' : f.tag.charAt(0).toUpperCase() + f.tag.slice(1)); }
   function periodName(f) { var n = Core.daysBetween(f.start, f.end); return n <= 100 ? 'three months' : n < 200 ? 'six months' : n < 290 ? 'nine months' : 'fiscal year'; }
   function figureCard(fid) {
@@ -157,7 +174,7 @@
       h('p', { cls: 'src-l', text: figLabel(f) + (Core.METRICS[f.m] || /Usd$/.test(f.m) || /^(d|pay)\./.test(f.m) ? ' (XBRL tag ' + f.tag + ')' : '') }),
       h('dl', { cls: 'kv' },
         h('dt', { text: 'Filing' }), h('dd', { text: 'Form ' + src.form + ', filed ' + src.filed }),
-        h('dt', { text: 'Period' }), h('dd', { text: f.start && /^d\./.test(f.m) ? f.start + ' to ' + f.end + ' (' + periodName(f) + ')' : 'Fiscal year ended ' + f.end }),
+        h('dt', { text: 'Period' }), h('dd', { text: /^pay\./.test(f.m) ? 'Fiscal year ended ' + f.end + ', as the proxy statement’s pay-versus-performance table reports it' : f.start && /^d\./.test(f.m) ? f.start + ' to ' + f.end + ' (' + periodName(f) + ')' : 'Fiscal year ended ' + f.end }),
         h('dt', { text: 'Accession no.' }), h('dd', { text: src.accn }),
         src.prior ? [h('dt', { text: 'Registrant' }), h('dd', { text: src.prior.legal + ' (CIK ' + src.prior.cik + '), the company’s earlier SEC registrant' })] : null),
       h('p', null, ext(src.url, 'Open this filing on sec.gov')));
@@ -475,6 +492,8 @@
     addSection('cash', 'Cash', 'Free cash flow, pay in stock, repurchases, dividends, cash and debt', function (body) { return cashSection(c, body); });
     addSection('quarter', 'Latest quarter', 'The newest three months and the last four quarters, from 10-Qs', function (body) { return quarterSection(c, body); });
     addSection('people', 'Backlog & people', 'Revenue under contract, deferred revenue, employees, flagged charges', function (body) { return peopleSection(c, body); });
+    addSection('pay', 'Pay & insiders', 'The proxy statement’s pay table; Form 4 purchases and sales', function (body) { return paySection(c, body); });
+    addSection('risks', 'What’s new in risks', 'The latest report’s risk factors beside the year before’s', function (body) { return risksSection(c, body); });
     addSection('peers', 'Peers', 'Rank among filers that share its SIC code', function (body) { peersSection(c, body); });
     var annualExtras = function () {
     var mixes = data.mixes[id] || [];
@@ -618,12 +637,123 @@
         h('blockquote', null, '“' + q.quote + '”'),
         by('people').map(sentence),
         factRows([{ label: 'Revenue for each employee', sub: per ? 'FY' + L + ' revenue ÷ that number · computed' : '', value: per ? 'about ' + Core.perHead(per.v, c.currency) : null, cites: per ? per.cites : [] }])]
-        : h('p', { cls: 'none', text: c.lookup ? 'The automatic reader found no sentence in the latest annual report that states the number of employees plainly. None is shown.' : 'No sentence in the latest annual report states the number of employees in a form that could be quoted with its number. None is shown.' })));
+        : c.lookup && !meta[id].more ? pending(c, 'The annual report is read from sec.gov when asked for.') : h('p', { cls: 'none', text: c.lookup ? 'The automatic reader found no sentence in the latest annual report that states the number of employees plainly. None is shown.' : 'No sentence in the latest annual report states the number of employees in a form that could be quoted with its number. None is shown.' })));
     grid.appendChild(h('section', { cls: 'card pad' },
       h('h2', { cls: 'card-t', text: 'Flagged charges, FY' + L }),
       by('flags').map(sentence),
       factRows([one('impairment', 'Goodwill impairment'), one('restructuring', 'Restructuring charges')]),
       h('p', { cls: 'note', text: 'Shown when the annual report tags them. “Not tagged” is not the same as none.' })));
+    body.appendChild(grid);
+    return null;
+  }
+
+  /* ---------------- pay and insiders ---------------- */
+
+  var INSIDER_LABEL = 'Filed by insiders; not a signal or advice.';
+  function paySection(c, body) {
+    var id = c.id;
+    var fs = data.finsights[id] || [];
+    var pays = fs.filter(function (x) { return x.topic === 'pay'; });
+    var years = {};
+    Object.keys(data.figures).forEach(function (k) { var f = data.figures[k]; if (f.c === id && /^pay\./.test(f.m)) years[f.fy] = 1; });
+    var fys = Object.keys(years).map(Number).sort(function (a, b) { return b - a; });
+    var grid = h('div', { cls: 'grid' });
+    var KEYS = [['peoTotal', 'Principal executive officer, total', 'summary compensation table'], ['peoPaid', 'Principal executive officer, “actually paid”', 'the SEC’s measure'], ['neoTotal', 'Other named officers, average total', ''], ['neoPaid', 'Other named officers, average “actually paid”', ''], ['tsr', 'Value of $100 in the company’s shares', 'over the years the table covers'], ['peerTsr', 'Value of $100 in its chosen peer group', '']];
+    var cell = function (k, fy) { var f = Core.fig(data, id, 'pay.' + k, fy); return f ? (/tsr/i.test(k) ? Core.dollars(f.v) : Core.money(f.v, 'USD')) : null; };
+    var filing = fys.length ? data.filings[(Core.fig(data, id, 'pay.peoTotal', fys[0]) || Core.fig(data, id, 'pay.tsr', fys[0]) || Core.fig(data, id, 'pay.peoPaid', fys[0]) || {}).a] : null;
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'Pay versus performance' + (fys.length ? ', FY' + fys[0] : '') }),
+      fys.length ? [pays.map(sentence),
+        factRows(KEYS.map(function (k) { var v = cell(k[0], fys[0]); return { label: k[1], sub: k[2], value: v, cites: v ? [id + '.pay.' + k[0] + '.' + fys[0]] : [] }; })),
+        fys.length > 1 ? h('details', { cls: 'tbl' }, h('summary', { text: 'Earlier years in the same table' }), h('div', { cls: 'scroll' }, h('table', null,
+          h('thead', null, h('tr', null, h('th', { scope: 'col', text: 'Measure' }), fys.map(function (fy) { return h('th', { scope: 'col', text: 'FY' + fy }); }))),
+          h('tbody', null, KEYS.map(function (k) { return h('tr', null, h('th', { scope: 'row', text: k[1] }), fys.map(function (fy) { var v = cell(k[0], fy); return h('td', null, v ? srcButton(v, k[1] + ', FY' + fy, [id + '.pay.' + k[0] + '.' + fy]) : 'Not tagged'); })); }))))) : null,
+        h('p', { cls: 'note', text: 'From the tagged pay-versus-performance table of the proxy statement (Form DEF 14A) filed ' + (filing ? filing.filed : '') + '. “Compensation actually paid” is a figure the SEC defines; it is not cash received. A year with more than one principal executive officer is tagged person by person and is not shown.' })]
+        : c.lookup && !meta[id].more ? pending(c, 'The proxy statement is read from sec.gov when asked for.') : h('p', { cls: 'none', text: c.form === '20-F' ? c.name + ' files its annual report on Form 20-F and files no proxy statement (Form DEF 14A) with the SEC, so no tagged pay table exists.' : 'No tagged pay-versus-performance table was read from a proxy statement (Form DEF 14A) filed in the last 18 months.' })));
+    var ins = (data.fin[id] || {}).insiders;
+    var card = h('section', { cls: 'card pad' }, h('h2', { cls: 'card-t', text: 'Insider transactions, the last twelve months' }), h('p', { cls: 'flag', text: INSIDER_LABEL }));
+    if (ins) insiderCard(c, ins, card);
+    else if (c.lookup) moreBox(c, card, 'Form 4s are read from sec.gov when asked for.');
+    else card.appendChild(h('p', { cls: 'none', text: 'No Form 4 data was read for this company.' }));
+    grid.appendChild(card);
+    body.appendChild(grid);
+    return null;
+  }
+  function insiderCard(c, ins, card) {
+    var rows = Core.insiderRows(ins);
+    var t = Core.insiderTotals(ins);
+    var line = function (x, label) { return { label: label, sub: x.n ? Core.commas(x.n) + (x.n === 1 ? ' filing · ' : ' filings · ') + Core.commas(Math.round(x.shares)) + ' shares' : '', value: x.n ? Core.money(x.value, 'USD') : 'None reported', cites: [] }; };
+    var table = function (list) {
+      return h('div', { cls: 'scroll' }, h('table', { cls: 'wrap' },
+        h('thead', null, h('tr', null, ['Date', 'Who', 'What', 'Shares', 'Value', 'Form 4'].map(function (x) { return h('th', { scope: 'col', text: x }); }))),
+        h('tbody', null, list.map(function (r) {
+          return h('tr', null,
+            h('th', { scope: 'row', text: r.from === r.to ? r.to : r.from + ' to ' + r.to }),
+            h('td', null, r.who, h('span', { cls: 'sub', text: ' ' + r.role })),
+            h('td', { text: Core.CODE_NAMES[r.code] + (r.plan ? ' (the form marks a Rule 10b5-1 plan)' : '') }),
+            h('td', { text: Core.commas(Math.round(r.shares)) }),
+            h('td', { text: Core.money(r.value, 'USD') }),
+            h('td', null, ext(Core.filingUrl(c.cik, r.accn), 'Filed ' + r.filed)));
+        }))));
+    };
+    add(card, [
+      h('p', { cls: 'say', text: Core.insiderSummary(ins, 'USD') }),
+      factRows([line(t.S, 'Open-market sales'), line(t.P, 'Open-market purchases')]),
+      rows.length ? h('details', { cls: 'tbl' }, h('summary', { text: 'Show the ' + rows.length + (rows.length === 1 ? ' filing' : ' filings') }), table(rows)) : null,
+      h('p', { cls: 'note', text: 'Only open-market purchases (transaction code P) and sales (code S) of shares by a person the form marks as an officer or a director. Grants, option exercises, shares withheld for tax, gifts, and holders who are only ten-percent owners are left out (' + ins.other + ' of the ' + ins.read + ' forms read had no officer or director, or were about another issuer); amended forms (4/A) are not read. A value is shares times the price on each line of the form, added up. Many sales are made under plans arranged in advance.' })]);
+  }
+  /** For a company looked up on request: the parts that need its documents
+   *  (employees, risk factors, pay, Form 4s) are read when asked for. */
+  function pending(c, why) { var d = h('div', null); moreBox(c, d, why); return d; }
+  function moreBox(c, card, why) {
+    var msg = h('p', { cls: 'note', 'aria-live': 'polite', text: why });
+    var btn = h('button', { type: 'button', cls: 'pill line', text: 'Read them now' });
+    btn.addEventListener('click', function () {
+      btn.disabled = true; msg.textContent = 'Reading from sec.gov… this can take up to a minute.';
+      loadMore(c).then(function () { route(); }, function (e) { btn.disabled = false; msg.textContent = e.message; });
+    });
+    add(card, [msg, h('p', { cls: 'more' }, btn)]);
+  }
+
+  /* ---------------- risk factors, year on year ---------------- */
+
+  function risksSection(c, body) {
+    var r = (data.fin[c.id] || {}).risks;
+    if (!r) {
+      var card0 = h('section', { cls: 'card pad' }, h('h2', { cls: 'card-t', text: 'Risk factors, this year and last' }));
+      if (c.lookup) moreBox(c, card0, 'The two annual reports are read from sec.gov when asked for.');
+      else card0.appendChild(h('p', { cls: 'none', text: 'No comparison was made for this company.' }));
+      body.appendChild(card0);
+      return null;
+    }
+    if (!r.compared) { body.appendChild(h('p', { cls: 'none card pad', text: r.why + ' Nothing is shown rather than guessed.' })); return null; }
+    var cur = data.sources[c.annual.source]; var prev = data.sources[r.prior];
+    var quote = function (qid, label) {
+      var q = data.quotes[qid];
+      return h('li', null, h('blockquote', null, '“' + q.quote + '”'), h('div', { cls: 'bar-src' }, srcButton(label || 'Source', 'Risk factor', [qid])));
+    };
+    var grid = h('div', { cls: 'grid' });
+    grid.appendChild(h('section', { cls: 'card pad' },
+      h('h2', { cls: 'card-t', text: 'New in the report for the year ended ' + cur.period }),
+      h('p', { cls: 'say', text: Core.riskSummary(r) }),
+      r.new.length ? h('ul', { cls: 'quotes' }, r.new.map(function (id) { return quote(id); })) : h('p', { cls: 'none', text: 'No heading in the latest report is without a close match in the one before.' }),
+      r.counts.new > r.new.length ? h('p', { cls: 'note', text: 'The first ' + r.new.length + ' of ' + r.counts.new + ' are shown.' }) : null));
+    var others = h('section', { cls: 'card pad' }, h('h2', { cls: 'card-t', text: 'Reworded, and no longer there' }));
+    if (r.reworded.length) {
+      others.appendChild(h('details', { cls: 'tbl' }, h('summary', { text: 'Reworded: the ' + r.reworded.length + ' most changed' + (r.counts.reworded > r.reworded.length ? ' of ' + r.counts.reworded : '') }),
+        h('ul', { cls: 'quotes' }, r.reworded.map(function (x) {
+          return h('li', null, h('p', { cls: 'src-l', text: 'Now (' + Core.pct(x[2], 0) + ' of its word pairs shared with last year’s):' }), h('blockquote', null, '“' + data.quotes[x[0]].quote + '”'),
+            h('p', { cls: 'src-l', text: 'The closest heading the year before:' }), h('blockquote', { cls: 'was' }, '“' + data.quotes[x[1]].quote + '”'),
+            h('div', { cls: 'bar-src' }, srcButton('2 sources', 'Risk factor, reworded', [x[0], x[1]])));
+        }))));
+    }
+    if (r.removed.length) {
+      others.appendChild(h('details', { cls: 'tbl' }, h('summary', { text: 'In the report before, with nothing close now: ' + r.counts.removed }),
+        h('ul', { cls: 'quotes' }, r.removed.map(function (id) { return quote(id); }))));
+    }
+    if (!r.reworded.length && !r.removed.length) others.appendChild(h('p', { cls: 'none', text: 'Nothing was reworded or dropped.' }));
+    add(others, h('p', { cls: 'note', text: 'How this is read: a “heading” is a single sentence on a line of its own in the risk-factor section, followed by its discussion. Two are “the same” when their words match; “reworded” when they share at least ' + Core.pct(r.threshold, 0) + ' of their adjacent word pairs; a heading is “new” only when no heading and no sentence of the earlier section comes that close. Compared: ' + cur.title + ' and ' + (prev ? prev.title : 'the report before') + '. A new heading is a change in what the company wrote, not a judgement of the risk.' }));
+    grid.appendChild(others);
     body.appendChild(grid);
     return null;
   }

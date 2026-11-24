@@ -24,6 +24,9 @@ const X = require('./xbrl');
 const V = require('./verify');
 const Core = require('../public/asfiled-core');
 const Peers = require('./peers');
+const Insiders = require('./insiders');
+const Proxy = require('./proxy');
+const Risks = require('./risks');
 
 const OUT = path.join(__dirname, '..', 'public', 'data');
 const REPORT = path.join(__dirname, 'build-report.json');
@@ -137,6 +140,28 @@ function quarterFigures(data, c, factsList, unit) {
   }
 }
 
+/** Pay versus performance, from the latest proxy statement (DEF 14A) in
+ *  its own XBRL instance (tools/proxy.js): the facts with no dimension, for
+ *  the latest PAY_YEARS years that one proxy reports. A year with two principal executive officers is
+ *  tagged per person and is not in company facts: nothing is shown for it. */
+const PAY_YEARS = 3;
+function payFigures(data, c, proxy) {
+  if (!proxy || !proxy.facts || !proxy.facts.length) return;
+  const byKey = {};
+  for (const [key, q] of Object.entries(X.PAY)) byKey[key] = proxy.facts.filter((f) => f.tag === q && Number.isFinite(f.val) && days(f.start, f.end) >= 340 && days(f.start, f.end) <= 380);
+  const ends = new Set(byKey.peoTotal.concat(byKey.tsr).map((f) => f.end));
+  const keep = [...ends].sort().slice(-PAY_YEARS);
+  for (const [key, list] of Object.entries(byKey)) {
+    for (const end of keep) {
+      const hits = list.filter((f) => f.end === end);
+      // One fact for the year, or none: two different values are not chosen between.
+      if (!hits.length || hits.some((f) => f.val !== hits[0].val)) continue;
+      data.figures[`${c.id}.pay.${key}.${Core.fiscalYear(end)}`] = { c: c.id, m: `pay.${key}`, fy: Core.fiscalYear(end), end, v: hits[0].val, u: 'USD', tag: X.PAY[key], a: proxy.accn, p: 1 };
+      data.filings[proxy.accn] = { c: c.id, form: 'DEF 14A', filed: proxy.filed };
+    }
+  }
+}
+
 /** One company's part of the dataset, from its company facts (its own
  *  registrant first, then any prior one), its latest annual report `a`
  *  ({accn, form, filed, period}) and that report's XBRL instance and labels:
@@ -144,7 +169,7 @@ function quarterFigures(data, c, factsList, unit) {
  *  add up, customer concentration, and the company record. Written into
  *  `data`. The build calls it for each of the reviewed companies; the
  *  on-request lookup (lib/lookup.js) calls the same function for one more. */
-function addCompany(data, c, a, { facts, inst, labels, currency }) {
+function addCompany(data, c, a, { facts, inst, labels, currency, proxy }) {
   const series = (metric, unit, ends) => {
     const s = annualSeries(facts, metric, unit, ends);
     if (s[a.period]) return s;
@@ -209,6 +234,7 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
   data.fin = data.fin || {};
   data.fin[c.id] = {};
   quarterFigures(data, c, facts, currency);
+  payFigures(data, c, proxy);
 
   const docId = `${c.id}-${a.accn}`;
   data.filings[a.accn] = { c: c.id, form: a.form, filed: a.filed };
@@ -296,6 +322,42 @@ function addCompany(data, c, a, { facts, inst, labels, currency }) {
   if (/^\d{4}$/.test(String(c.sic || ''))) data.companies[data.companies.length - 1].sic = String(c.sic);
 }
 
+/** One company's risk-factor comparison, as the page shows it. `cur` and
+ *  `prior` are {accn, form, filed, period, doc}; the texts are read from
+ *  `ctx.rawTexts` (source id -> raw text). Adds the prior report as a source
+ *  and each quoted heading as a quote; returns the `risks` record. */
+function riskChanges(data, c, cur, prior, ctx) {
+  const curId = `${c.id}-${cur.accn}`;
+  if (!prior) return { compared: false, why: 'Only one annual report is on file to read.' };
+  const priorId = `${c.id}-${prior.accn}`;
+  const now = ctx.rawTexts[curId]; const before = ctx.rawTexts[priorId] !== undefined ? ctx.rawTexts[priorId] : T.sourceText(priorId);
+  if (!now || !before) return { compared: false, why: 'The previous annual report could not be read.' };
+  const r = Risks.compare(now, before, cur.form);
+  if (!r.compared) return { compared: false, why: r.why };
+  ctx.rawTexts[priorId] = before;
+  ctx.texts[priorId] = ctx.texts[priorId] || T.norm(before);
+  data.sources[priorId] = { kind: 'prior-annual-report', by: c.id, form: prior.form, period: prior.period, date: prior.filed, accn: prior.accn, title: `${c.name} ${prior.form} for the fiscal year ended ${prior.period}`, url: sec.docUrl(c.cik, prior.accn, prior.doc), sha: T.sha(ctx.texts[priorId]) };
+  const qctx = ctx.qctx;
+  qctx.sources = data.sources; qctx.texts = ctx.texts; qctx.rawTexts = ctx.rawTexts;
+  qctx.ranges[curId] = Risks.normRange(now, r.ranges.now);
+  qctx.ranges[priorId] = Risks.normRange(before, r.ranges.before);
+  const put = (id, kind, quote, source) => {
+    const res = V.checkQuote({ c: c.id, kind, quote, source, section: 'Risk factors' }, qctx);
+    if (!res.ok) { ctx.report.dropped.push({ id, why: res.why }); return null; }
+    data.quotes[id] = { c: c.id, kind, quote: T.norm(quote), source, section: 'Risk factors', date: data.sources[source].date, proof: V.proof(data.sources[source].sha, quote) };
+    ctx.report.quotes += 1;
+    return id;
+  };
+  const out = { compared: true, prior: priorId, threshold: r.threshold, counts: r.counts, new: [], removed: [], reworded: [] };
+  r.new.forEach((q, i) => { const id = put(`${c.id}.q.risk.${i}`, 'risk', q, curId); if (id) out.new.push(id); });
+  r.removed.forEach((q, i) => { const id = put(`${c.id}.q.riskgone.${i}`, 'risk-was', q, priorId); if (id) out.removed.push(id); });
+  r.reworded.forEach((x, i) => {
+    const a = put(`${c.id}.q.riskrw.${i}`, 'risk', x.quote, curId); const b = put(`${c.id}.q.riskrwwas.${i}`, 'risk-was', x.was, priorId);
+    if (a && b) out.reworded.push([a, b, x.sim]);
+  });
+  return out;
+}
+
 /** A sentence is kept only when every figure or edge it cites is there. */
 const citedOnly = (data, s) => s.cites.length > 0 && s.cites.every((id) => data.figures[id] || (data.quotes || {})[id] || data.edges.some((e) => e.id === id));
 
@@ -327,7 +389,9 @@ function main() {
     const inst = a.instance ? X.readInstance(path.join(dir, a.instance)) : { facts: [] };
     const labels = a.labels ? X.readLabels(path.join(dir, a.labels)) : {};
     const subs = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'subs', `${c.id}.json`), 'utf8'));
-    addCompany(data, { ...c, sic: subs.sic }, a, { facts, inst, labels, currency });
+    const proxyFile = path.join(Proxy.DIR, `${c.id}.json`);
+    const proxy = fs.existsSync(proxyFile) ? JSON.parse(fs.readFileSync(proxyFile, 'utf8')) : null;
+    addCompany(data, { ...c, sic: subs.sic }, a, { facts, inst, labels, currency, proxy });
 
     // The latest annual report: its text, its XBRL instance, its labels.
     const docId = `${c.id}-${a.accn}`;
@@ -340,6 +404,10 @@ function main() {
       texts[`${docId}.labels`] = T.norm(labText);
       data.sources[`${docId}.labels`] = { kind: 'xbrl', by: c.id, form: a.form, period: a.period, date: a.filed, accn: a.accn, title: `${c.name} ${a.form} for the fiscal year ended ${a.period} - XBRL data labels`, url: sec.filingIndexUrl(c.cik, a.accn), sha: T.sha(texts[`${docId}.labels`]) };
     }
+
+    // Insider transactions (tools/insiders.js): Form 4s of the last twelve months, cut down.
+    const insFile = path.join(Insiders.DIR, `${c.id}.json`);
+    if (fs.existsSync(insFile)) data.fin[c.id].insiders = Insiders.compact(JSON.parse(fs.readFileSync(insFile, 'utf8')));
 
     report.companies += 1;
   }
@@ -365,6 +433,7 @@ function main() {
   report.edges.kept = data.edges.length;
   // A report's XBRL labels are a source only where an edge quotes them.
   for (const [id, src] of Object.entries(data.sources)) if (src.kind === 'xbrl' && !data.edges.some((e) => e.source === id)) delete data.sources[id];
+  for (const id of Object.keys(texts)) if (!data.sources[id]) delete texts[id];
   // A company outside the set is on the map only because an edge names it.
   data.others = OTHERS.filter((o) => usedOthers.has(o.id)).map((o) => ({ id: o.id, name: o.name, layer: o.layer, filer: false }));
 
@@ -385,6 +454,16 @@ function main() {
     report.quotes.employees.kept += 1;
   }
   report.quotes.employees.none = data.companies.filter((c) => !data.quotes[`${c.id}.q.employees`]).map((c) => c.id);
+
+  // Risk factors, this year's annual report beside last year's (tools/risks.js).
+  // Each heading shown is a quote and goes through the same check.
+  report.risks = { compared: 0, notCompared: [], quotes: 0, dropped: [] };
+  for (const c of data.companies) {
+    const man = manifest[c.id];
+    const res = riskChanges(data, c, man.annual[0], man.prior, { texts, rawTexts, qctx, report: report.risks });
+    data.fin[c.id].risks = res;
+    if (res.compared) report.risks.compared += 1; else report.risks.notCompared.push(`${c.id}: ${res.why}`);
+  }
 
   // Insights and cross-company patterns: written from the figures by the
   // shared core, each sentence with the figures or edges it rests on.
@@ -420,6 +499,7 @@ function main() {
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 1)}\n`);
   console.log(`${report.companies} companies, ${report.figures} figures, ${Object.keys(data.filings).length} filings cited`);
   console.log(`edges: ${report.edges.kept} kept of ${report.edges.curated} curated; ${report.edges.dropped.length} dropped`);
+  console.log(`risk factors: ${report.risks.compared} companies compared with the year before, ${report.risks.quotes} headings quoted, ${report.risks.dropped.length} dropped by the verifier; not compared: ${report.risks.notCompared.length}`);
   console.log(`employee sentences: ${report.quotes.employees.kept} kept of ${report.quotes.employees.curated} curated; none for ${report.quotes.employees.none.join(', ') || 'nobody'}`);
   for (const d of report.quotes.employees.dropped) console.log(`  dropped ${d.id} (${d.n} employees): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
   for (const d of report.edges.dropped) console.log(`  dropped ${d.from} -> ${d.to} (${d.type}, said by ${d.by}): ${d.why}${d.tripwire ? ' [the tripwire: expected]' : ''}`);
@@ -427,5 +507,5 @@ function main() {
   console.log(`index ${(sizes.index / 1024).toFixed(0)} KB, patterns ${(sizes.patterns / 1024).toFixed(0)} KB, largest company file ${biggest[0]} ${(biggest[1] / 1024).toFixed(0)} KB, largest f/ file ${biggestF[0]} ${(biggestF[1] / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), OUT)}`);
 }
 
-module.exports = { annualSeries, addCompany, quarterFigures, citedOnly, YEARS, QUARTERS };
+module.exports = { annualSeries, addCompany, quarterFigures, payFigures, riskChanges, citedOnly, YEARS, QUARTERS, PAY_YEARS };
 if (require.main === module) main();

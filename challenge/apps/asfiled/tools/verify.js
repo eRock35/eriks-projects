@@ -143,6 +143,14 @@ function recheck(data) {
     if (e.lead && !text.includes(T.norm(e.lead))) problems.push(`${e.id}: lead-in not found verbatim`);
     if (proof(data.sources[e.source].sha, e.quote) !== e.proof) problems.push(`${e.id}: proof does not match its quote`);
   }
+  // Insider transactions: exactly the cut of the Form 4s that is in the cache.
+  for (const [cid, fin] of Object.entries(data.fin || {})) {
+    if (!fin.insiders) continue;
+    const Insiders = require('./insiders');
+    const file = path.join(Insiders.DIR, `${cid}.json`);
+    if (!fs.existsSync(file)) { problems.push(`${cid}: its Form 4 cut is not in the cache`); continue; }
+    if (JSON.stringify(Insiders.compact(JSON.parse(fs.readFileSync(file, 'utf8')))) !== JSON.stringify(fin.insiders)) problems.push(`${cid}: insider transactions differ from the cached Form 4 cut`);
+  }
   // Quotes that are not relationships: found verbatim, proof intact, and the kind's own rule.
   for (const [id, q] of Object.entries(data.quotes || {})) {
     const text = texts[q.source];
@@ -151,10 +159,37 @@ function recheck(data) {
     if (proof(data.sources[q.source].sha, q.quote) !== q.proof) problems.push(`${id}: proof does not match its quote`);
     if (q.kind === 'employees' && !require('./people').statesHeadcount(q.quote, q.n)) problems.push(`${id}: the quote does not state ${q.n}`);
   }
+  // Risk factors: the comparison run again from the cached texts gives the
+  // same counts, and every quoted heading lies inside its report's risk section.
+  for (const [cid, fin] of Object.entries(data.fin || {})) {
+    const r = fin.risks;
+    if (!r || !r.compared) continue;
+    const Risks = require('./risks');
+    const co = data.companies.find((c) => c.id === cid);
+    const now = T.sourceText(co.annual.source); const before = T.sourceText(r.prior);
+    if (!now || !before) { problems.push(`${cid}: a report of its risk comparison is not in the cache`); continue; }
+    const again = Risks.compare(now, before, co.form);
+    if (!again.compared || JSON.stringify(again.counts) !== JSON.stringify(r.counts)) { problems.push(`${cid}: the risk-factor comparison does not come out the same from the cache`); continue; }
+    const ranges = { [co.annual.source]: Risks.normRange(now, again.ranges.now), [r.prior]: Risks.normRange(before, again.ranges.before) };
+    const ctx = { sources: data.sources, texts, ranges, sectionsOf: {} };
+    for (const id of r.new.concat(r.removed, ...r.reworded.map((x) => [x[0], x[1]]))) {
+      const q = data.quotes[id];
+      const res = q ? checkQuote(q, ctx) : { ok: false, why: 'missing' };
+      if (!res.ok) problems.push(`${id}: ${res.why}`);
+    }
+  }
   const facts = {}; const inst = {};
   const manifest = JSON.parse(fs.readFileSync(path.join(sec.CACHE, 'manifest.json'), 'utf8'));
   const X = require('./xbrl');
   for (const [id, f] of Object.entries(data.figures)) {
+    if (f.p) {
+      // Pay versus performance: re-read from the cut of the proxy statement's own instance.
+      const Proxy = require('./proxy');
+      const pf = path.join(Proxy.DIR, `${f.c}.json`);
+      const px = fs.existsSync(pf) ? JSON.parse(fs.readFileSync(pf, 'utf8')) : null;
+      if (!px || px.accn !== f.a || !(px.facts || []).some((x) => x.tag === f.tag && x.end === f.end && x.val === f.v)) problems.push(`${id}: no such value in the proxy statement's XBRL instance`);
+      continue;
+    }
     if (f.x) {
       const a = manifest[f.c].annual[0];
       inst[f.c] = inst[f.c] || X.readInstance(path.join(sec.CACHE, 'docs', f.c, a.accn, a.instance)).facts;

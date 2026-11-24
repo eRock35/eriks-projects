@@ -110,7 +110,8 @@ function walk(dir, out = []) {
     const curated = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'curated-edges.json'), 'utf8'));
     assert.ok(!curated.some((e) => e.doc), 'a curated edge names a document other than the speaker\'s annual report');
     assert.ok(!Object.keys(data.sources).some((k) => /APPLE-SUPPLIER-LIST/.test(k)));
-    assert.ok(Object.values(data.sources).every((s) => s.kind === 'annual-report' || s.kind === 'xbrl'), 'a source that is not an annual report or its XBRL labels');
+    assert.ok(Object.values(data.sources).every((s) => s.kind === 'annual-report' || s.kind === 'xbrl' || s.kind === 'prior-annual-report'), 'a source that is not an annual report or its XBRL labels');
+    assert.ok(data.edges.every((e) => data.sources[e.source].kind !== 'prior-annual-report'), 'an edge rests on last year\'s report');
     assert.ok(!fs.existsSync(path.join(ROOT, 'tools', 'pdftext.js')));
     for (const f of ['tools/build.js', 'tools/fetch.js', 'tools/extract.js', 'tools/verify.js', 'public/app.js', 'public/asfiled-core.js', 'public/index.html']) {
       const body = fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -392,6 +393,137 @@ function walk(dir, out = []) {
       assert.strictEqual(topics.filter((t) => t === 'flags').length, fl.length, `${c.id}: a flag only for a charge tagged above zero`);
     }
     ok(`backlog and people: ${emp.length} companies' head counts, each a sentence quoted word for word from the latest annual report with the number in it (none for ${report.quotes.employees.none.join(', ')}); the fake NVIDIA sentence was dropped; remaining performance obligations tagged by ${rpo}, deferred revenue by ${def}; ${flags} flagged charges`);
+  }
+
+  /* ---------- pay and insiders (2026-11-24) ---------- */
+  {
+    const X = require('../tools/xbrl');
+    const Insiders = require('../tools/insiders');
+    const { PAY_YEARS } = require('../tools/build');
+    const ADVICE = /\b(will|forecast|expect|predict|should|undervalued|overvalued|buy|sell|buying|selling|bullish|bearish|target price|signal|confidence|dumping|insider tip|opportunity)\b/i;
+    let paid = 0;
+    for (const c of data.companies) {
+      const pay = Object.entries(data.figures).filter(([, f]) => f.c === c.id && /^pay\./.test(f.m));
+      if (pay.length) paid += 1;
+      // One proxy statement a company, cited by its accession number; a few years of one table.
+      assert.ok(new Set(pay.map(([, f]) => f.a)).size <= 1, `${c.id}: pay figures from two proxy statements`);
+      for (const [id, f] of pay) {
+        const key = f.m.slice(4);
+        assert.ok(f.p === 1 && f.tag === X.PAY[key] && data.filings[f.a].form === 'DEF 14A' && id === `${c.id}.pay.${key}.${f.fy}`, id);
+      }
+      for (const key of Object.keys(X.PAY)) assert.ok(pay.filter(([, f]) => f.m === `pay.${key}`).length <= PAY_YEARS);
+      const ins = data.fin[c.id].insiders;
+      assert.ok(ins, `${c.id}: Form 4s read`);
+      assert.strictEqual(Math.round((Date.parse(ins.to) - Date.parse(ins.from)) / 86400000), Insiders.WINDOW_DAYS);
+      assert.ok(ins.read + ins.failed === ins.listed && ins.other <= ins.read && ins.failed === 0, `${c.id}: every listed Form 4 was read`);
+      const rows = Core.insiderRows(ins);
+      const t = { P: { n: 0, shares: 0, value: 0 }, S: { n: 0, shares: 0, value: 0 } };
+      rows.forEach((r, i) => {
+        // Open-market purchases and sales only, by a named officer or director, each with its Form 4.
+        assert.ok((r.code === 'P' || r.code === 'S') && r.who && r.role && r.shares > 0 && r.value > 0, `${c.id}: row ${i}`);
+        assert.ok(/^\d{10}-\d{2}-\d{6}$/.test(r.accn) && r.filed >= ins.from && r.filed <= ins.to && r.from <= r.to && r.to <= r.filed, `${c.id}: row ${i} dates`);
+        assert.ok(/^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/\d{10}-\d{2}-\d{6}-index\.htm$/.test(Core.filingUrl(c.cik, r.accn)));
+        if (i) assert.ok(rows[i - 1].to >= r.to, `${c.id}: newest first`);
+        t[r.code].n += 1; t[r.code].shares += r.shares; t[r.code].value += r.value;
+      });
+      const got = Core.insiderTotals(ins);
+      for (const k of ['P', 'S']) assert.deepStrictEqual([got[k].n, got[k].shares, got[k].value], [t[k].n, t[k].shares, t[k].value], `${c.id}: totals are the rows added up`);
+      const text = Core.insiderSummary(ins, 'USD');
+      assert.ok(text.includes(`From ${ins.from} to ${ins.to}`) && text.includes(Core.commas(ins.listed)) && /[.]$/.test(text) && !ADVICE.test(text), `${c.id}: ${text}`);
+      if (t.S.n) assert.ok(text.includes(`${Core.commas(t.S.n)} report${t.S.n === 1 ? 's' : ''} open-market sales`) && text.includes(Core.money(t.S.value, 'USD')));
+    }
+    assert.ok(paid >= 70, `${paid} companies with a tagged pay table`);
+    for (const id of ['TSM', 'ASML']) assert.ok(!Object.values(data.figures).some((f) => f.c === id && /^pay\./.test(f.m)), `${id} files no proxy statement`);
+    assert.strictEqual(data.fin.ASML.insiders.listed, 0, 'no Form 4 is filed about ASML');
+    const appjs = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+    assert.ok(appjs.includes("var INSIDER_LABEL = 'Filed by insiders; not a signal or advice.';") && /cls: 'flag', text: INSIDER_LABEL/.test(appjs), 'the insider section is labelled plainly');
+    // The section's own copy passes the no-advice list too ("not a signal or advice" is the label itself).
+    const sectionCopy = appjs.slice(appjs.indexOf('/* ---------------- pay and insiders'), appjs.indexOf('/* ---------------- peers ----------------')).replace("'Filed by insiders; not a signal or advice.'", '');
+    for (const str of sectionCopy.match(/'[^'\n]{12,}'/g) || []) assert.ok(!ADVICE.test(str), `advice or forecast in the pay and insiders section: ${str}`);
+    for (const v of Object.values(Core.CODE_NAMES)) assert.ok(!ADVICE.test(v));
+    // The Form 4 reader, on made-up forms.
+    {
+      const tx = (code, shares, price, ad, date = '2026-03-02') => `<nonDerivativeTransaction><securityTitle><value>Common Stock</value></securityTitle><transactionDate><value>${date}</value></transactionDate><transactionCoding><transactionFormType>4</transactionFormType><transactionCode>${code}</transactionCode></transactionCoding><transactionAmounts><transactionShares><value>${shares}</value></transactionShares><transactionPricePerShare><value>${price}</value></transactionPricePerShare><transactionAcquiredDisposedCode><value>${ad}</value></transactionAcquiredDisposedCode></transactionAmounts></nonDerivativeTransaction>`;
+      const form = ({ type = '4', issuer = 77, officer = 1, director = 0, ten = 0, body = '', deriv = '' }) => `<ownershipDocument><documentType>${type}</documentType><issuer><issuerCik>00000000${issuer}</issuerCik></issuer><reportingOwner><reportingOwnerId><rptOwnerName>Doe Jane</rptOwnerName></reportingOwnerId><reportingOwnerRelationship><isDirector>${director}</isDirector><isOfficer>${officer}</isOfficer><isTenPercentOwner>${ten}</isTenPercentOwner><officerTitle>Chief Financial Officer</officerTitle></reportingOwnerRelationship></reportingOwner><aff10b5One>1</aff10b5One><nonDerivativeTable>${body}</nonDerivativeTable><derivativeTable>${deriv}</derivativeTable></ownershipDocument>`;
+      const p = Insiders.parseForm4(form({ body: tx('S', 100, 10, 'D') + tx('S', 50, 12, 'D', '2026-03-03') + tx('A', 9000, 0, 'A') + tx('F', 40, 11, 'D') + tx('M', 500, 3, 'A') + tx('G', 10, 0, 'D') + tx('P', 5, 20, 'A'), deriv: tx('S', 7777, 1, 'D').replace(/nonDerivative/g, 'derivative') }));
+      assert.deepStrictEqual(p.rows.map((r) => [r.code, r.shares, r.value, r.from, r.to, r.lines, r.who, r.role, r.plan]).sort(), [['P', 5, 100, '2026-03-02', '2026-03-02', 1, 'Doe Jane', 'Chief Financial Officer', true], ['S', 150, 1600, '2026-03-02', '2026-03-03', 2, 'Doe Jane', 'Chief Financial Officer', true]]);
+      assert.deepStrictEqual(Insiders.parseForm4(form({ officer: 0, director: 0, ten: 1, body: tx('S', 100, 10, 'D') })).rows, [], 'a holder who is only a ten-percent owner is left out');
+      assert.strictEqual(Insiders.parseForm4(form({ type: '4/A', body: tx('S', 100, 10, 'D') })), null, 'an amended form is not read');
+      assert.strictEqual(Insiders.parseForm4(form({ officer: 0, director: 1, body: tx('S', 100, 10, 'D') })).rows[0].role, 'Director');
+      assert.deepStrictEqual(Insiders.parseForm4(form({ body: tx('S', 100, 10, 'A') })).rows, [], 'a sale that acquires is not a sale');
+      const subs = { filings: { recent: { form: ['4', '4/A', '4', '10-K', '4'], filingDate: ['2026-06-01', '2026-05-01', '2025-01-01', '2026-02-01', '2026-01-05'], accessionNumber: ['0000000001-26-000001', '0000000001-26-000002', '0000000001-25-000003', '0000000001-26-000004', '0000000001-26-000005'], primaryDocument: ['xslF345X06/a.xml', 'xslF345X06/b.xml', 'c.xml', 'k.htm', 'xslF345X05/e.xml'] } } };
+      const listed = Insiders.listForm4(subs, '2026-11-23');
+      assert.deepStrictEqual(listed.list.map((f) => [f.accn, f.doc]), [['0000000001-26-000001', 'a.xml'], ['0000000001-26-000005', 'e.xml']]);
+      const fetched = [];
+      const rec = await Insiders.collect(77, listed, async (url) => { fetched.push(url); return url.endsWith('a.xml') ? form({ body: tx('S', 100, 10, 'D') }) : form({ issuer: 88, body: tx('S', 1, 1, 'D') }); });
+      assert.deepStrictEqual([rec.listed, rec.read, rec.other, rec.rows.length, rec.rows[0].accn], [2, 2, 1, 1, '0000000001-26-000001']);
+      assert.ok(fetched.every((u) => /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/77\/\d{18}\/[ae]\.xml$/.test(u)));
+      const c = Insiders.compact(rec);
+      assert.deepStrictEqual([c.people, c.rows], [[['Doe Jane', 'Chief Financial Officer']], [['S', 0, 100, 1000, '2026-03-02', '2026-03-02', '0000000001-26-000001', '2026-06-01', 1]]]);
+      assert.strictEqual(Core.insiderSummary(c, 'USD'), 'From 2025-11-23 to 2026-11-23, 2 Form 4s were filed about the company. 1 reports open-market sales by 1 officer or director: 100 shares, $1000 at the prices reported; none reports an open-market purchase.');
+    }
+    ok(`pay and insiders: ${paid} companies' pay-versus-performance figures, each from one proxy statement's tagged table and cited to its accession number; Form 4s of the last twelve months for all ${data.companies.length}, open-market purchases and sales by officers and directors only, totals equal to the rows; the section is labelled "Filed by insiders; not a signal or advice." and its copy passes the no-advice list`);
+  }
+
+  /* ---------- what is new in the risk factors (2026-11-24) ---------- */
+  {
+    const Risks = require('../tools/risks');
+    let compared = 0; let quoted = 0; let fresh = 0; const not = [];
+    for (const c of data.companies) {
+      const r = data.fin[c.id].risks;
+      assert.ok(r, `${c.id}: a risk record`);
+      if (!r.compared) { not.push(c.id); assert.ok(r.why && !Object.keys(data.quotes).some((k) => k.startsWith(`${c.id}.q.risk`)), `${c.id}: says why, and shows nothing`); continue; }
+      compared += 1;
+      const prior = data.sources[r.prior];
+      assert.ok(prior && prior.kind === 'prior-annual-report' && prior.by === c.id && prior.period < c.annual.period && prior.accn !== c.annual.accn, `${c.id}: the report before, the company's own`);
+      assert.ok(/^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d{18}\/[A-Za-z0-9._-]+$/.test(prior.url));
+      assert.strictEqual(r.threshold, Risks.THRESHOLD);
+      const k = r.counts;
+      assert.strictEqual(k.same + k.reworded + k.elsewhere + k.new, k.now, `${c.id}: every heading is counted once`);
+      assert.ok(k.new <= k.now * 0.5 && k.removed <= k.before * 0.5 && r.new.length === Math.min(k.new, Risks.MAX_LISTED) && r.removed.length === Math.min(k.removed, Risks.MAX_LISTED));
+      const check = (id, kind, source) => {
+        const q = data.quotes[id];
+        assert.ok(q && q.c === c.id && q.kind === kind && q.source === source && q.quote === T.norm(q.quote) && q.quote.length >= 40 && q.quote.length <= 620, `${id}`);
+        assert.strictEqual(q.proof, V.proof(data.sources[source].sha, q.quote), `${id}: the quote is the one that was verified`);
+        quoted += 1;
+        return q.quote;
+      };
+      for (const id of r.new) { check(id, 'risk', c.annual.source); fresh += 1; }
+      for (const id of r.removed) check(id, 'risk-was', r.prior);
+      for (const [a, b, sim] of r.reworded) {
+        const now = check(a, 'risk', c.annual.source); const was = check(b, 'risk-was', r.prior);
+        // "Reworded", not new: at or above the threshold, and not the same words.
+        assert.ok(sim >= Risks.THRESHOLD && sim < 1 && Math.abs(Risks.similarity(now, was) - sim) < 0.006 && Risks.key(now) !== Risks.key(was), `${c.id}: ${a}`);
+      }
+      const text = Core.riskSummary(r);
+      assert.ok(text.includes(`Of the ${k.now} one-sentence headings`) && text.includes(`${k.reworded} ${k.reworded === 1 ? 'was' : 'were'} reworded`) && /[.]$/.test(text) && !/\b(will|forecast|expect|predict|should|buy|sell|bullish|bearish|worse|safer|riskier)\b/i.test(text), text);
+    }
+    assert.ok(compared >= 60 && compared + not.length === data.companies.length);
+    assert.strictEqual(Object.values(data.quotes).filter((q) => /^risk/.test(q.kind)).length, quoted, 'a risk quote nothing shows');
+    assert.deepStrictEqual([report.risks.compared, report.risks.quotes, report.risks.dropped.length], [compared, quoted, 0]);
+    // The comparison itself, on two made-up reports.
+    {
+      const body = (n) => `${'This paragraph discusses the matter at some length so that the reader can tell a heading from the discussion under it. '.repeat(3)}(${n})`;
+      const report = (heads) => `Item 1. Business\nWe make things.\nItem 1A. Risk Factors\n${heads.map((h, i) => `${h}\n${body(i)}`).join('\n')}\n${'Filler discussion of risks in general. '.repeat(420)}\nItem 1B. Unresolved Staff Comments\nNone.\nItem 2. Properties\nWe own a building.`;
+      const base = ['We depend on a small number of suppliers for key components.', 'Our revenue is concentrated in a few large customers.', 'Changes in tax law could raise the taxes we pay.', 'We may not be able to protect our intellectual property.', 'A failure of our information systems could disrupt operations.', 'Competition in our markets is intense and may increase.', 'We are exposed to fluctuations in currency exchange rates.', 'Our business could suffer if we lose key personnel.', 'Litigation could result in substantial costs to the company.'];
+      const before = report(base);
+      const now = report(base.slice(0, 8).concat(['We depend on a small number of outside suppliers for key components and materials.', 'Tariffs announced this year could make our products cost more in several countries.']).slice(1));
+      const res = Risks.compare(now, before, '10-K');
+      assert.ok(res.compared, JSON.stringify(res));
+      assert.deepStrictEqual(res.new, ['Tariffs announced this year could make our products cost more in several countries.'], 'only the heading with nothing close is new');
+      assert.deepStrictEqual(res.reworded.map((x) => x.quote), ['We depend on a small number of outside suppliers for key components and materials.'], 'a few changed words are a rewording, not a new risk');
+      assert.deepStrictEqual(res.removed, ['Litigation could result in substantial costs to the company.']);
+      assert.deepStrictEqual(res.counts, { now: 9, before: 9, same: 7, reworded: 1, elsewhere: 0, new: 1, removed: 1 });
+      // The check a quoted heading goes through: inside the risk section, word for word.
+      const ctx = { sources: { N: { by: 'NVDA', kind: 'annual-report', form: '10-K', sha: sha(T.norm(now)) } }, texts: { N: T.norm(now) }, ranges: { N: Risks.normRange(now, res.ranges.now) }, sectionsOf: {} };
+      const q = (o) => ({ c: 'NVDA', kind: 'risk', source: 'N', section: 'Risk factors', quote: res.new[0], ...o });
+      assert.ok(V.checkQuote(q({}), ctx).ok);
+      assert.ok(/not found verbatim/.test(V.checkQuote(q({ quote: 'Tariffs announced this year will make our products cost more in several countries.' }), ctx).why), 'a made-up risk factor is dropped');
+      assert.ok(/not inside the risk-factor section/.test(V.checkQuote(q({ quote: 'Item 2. Properties We own a building.' }), ctx).why), 'a sentence from another section is not a risk factor');
+      assert.ok(!Risks.compare(now, 'Item 1A. Risk Factors\nSee our annual report.\nItem 1B. None.', '10-K').compared, 'no section, no comparison');
+      assert.ok(!Risks.compare(report(base.map((h) => `Entirely different words number ${h.length} about ${h.split(' ').reverse().join(' ')}`)), before, '10-K').compared, 'two reports with nothing in common are not compared');
+    }
+    ok(`risk factors: ${compared} companies' latest annual report compared with the one before, heading by heading (${fresh} new headings shown, ${quoted} quotes in all, each word for word inside its report's risk section); a few changed words are "reworded", not new (threshold ${Risks.THRESHOLD}); ${not.length} not compared, each saying why (${not.join(', ')})`);
   }
 
   /* ---------- peers: rank among filers sharing a SIC code (2026-11-24) ---------- */
