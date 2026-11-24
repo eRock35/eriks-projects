@@ -6,8 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "ASFILED_DEV_MOUNT=/asfiled ASFILED_MEMORY=1 ASFILED_FAKE_AI=1 PORT=8187 node server.js",
-    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 ASFILED_MEMORY=1 ASFILED_FAKE_AI=1 node test/run.js",
+    "dev": "ASFILED_DEV_MOUNT=/asfiled ASFILED_MEMORY=1 ASFILED_FAKE_AI=1 ASFILED_FAKE_SEC=test/fixtures/sec SEC_USER_AGENT=local-dev PORT=8187 node server.js",
+    "test": "REQUIRE_VERIFIED_FOR_FREE_AI=0 ASFILED_MEMORY=1 ASFILED_FAKE_AI=1 node test/run.js && REQUIRE_VERIFIED_FOR_FREE_AI=0 node test/lookup.js",
     "data:fetch": "node tools/fetch.js",
     "data:extract": "node tools/extract.js",
     "data:build": "node tools/build.js",

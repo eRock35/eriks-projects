@@ -36,6 +36,9 @@
   function company(data, cid) {
     for (var i = 0; i < data.companies.length; i += 1) if (data.companies[i].id === cid) return data.companies[i];
     for (var j = 0; j < data.others.length; j += 1) if (data.others[j].id === cid) return data.others[j];
+    // Companies looked up on request (the page only): never among the reviewed set.
+    var x = data.lookups || [];
+    for (var k = 0; k < x.length; k += 1) if (x[k].id === cid) return x[k];
     return null;
   }
 
@@ -66,7 +69,7 @@
   function trim(n, d) { return n.toFixed(d).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1'); }
   /** "$416.2 billion", "€32.7 billion", "NT$3.81 trillion". */
   function money(v, cur, short) {
-    var s = SYMBOL[cur] || '';
+    var s = SYMBOL[cur] || (cur ? cur + ' ' : '');
     var a = Math.abs(v);
     var sign = v < 0 ? '-' : '';
     var unit; var n;

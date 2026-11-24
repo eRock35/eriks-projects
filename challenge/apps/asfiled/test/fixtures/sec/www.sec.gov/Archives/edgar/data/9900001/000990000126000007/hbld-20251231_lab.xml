@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink"><link:labelLink xlink:type="extended" xlink:role="http://www.xbrl.org/2003/role/link">
+<link:loc xlink:type="locator" xlink:href="hbld-20251231.xsd#hbld_WorkforceSolutionsMember" xlink:label="loc_1"/><link:label xlink:type="resource" xlink:label="lab_1" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="en-US">Workforce Solutions [Member]</link:label><link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label" xlink:from="loc_1" xlink:to="lab_1"/>
+<link:loc xlink:type="locator" xlink:href="hbld-20251231.xsd#hbld_ConsumerInformationMember" xlink:label="loc_2"/><link:label xlink:type="resource" xlink:label="lab_2" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="en-US">Consumer Information [Member]</link:label><link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label" xlink:from="loc_2" xlink:to="lab_2"/>
+</link:labelLink></link:linkbase>

@@ -356,9 +356,12 @@ function walk(dir, out = []) {
     const js = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
     assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\.style\.|setAttribute\('style'|eval\(/.test(js));
     const fetches = js.match(/fetch\([^)]*\)/g) || [];
-    assert.deepStrictEqual(fetches, ['fetch(BASE + Core.partPath(part)']);
+    // Two requests, both to this app's own base: a data part, and its own API
+    // (a company looked up on request, the shared account). Never another origin.
+    assert.deepStrictEqual(fetches, ['fetch(BASE + Core.partPath(part)', 'fetch(BASE + path, opts)']);
     assert.ok(!/XMLHttpRequest|WebSocket|sendBeacon|EventSource/.test(js));
-    ok('the page script builds with textContent only, writes no style, and requests only its own data parts');
+    assert.ok(!/request\(\s*['"](https?:|\/)/.test(js) && !/api\('[A-Z]+', '(https?:|\/)/.test(js), 'an absolute request path');
+    ok('the page script builds with textContent only, writes no style, and requests only its own data parts and its own API');
     for (const f of ['app.js', 'app.css', 'asfiled-core.js', 'verify-banner.js', 'icon.svg', 'manifest.webmanifest', 'data/index.json', 'data/patterns.json', 'data/c/NVDA.json', 'data/c/P.json']) assert.strictEqual((await fetch(`${base}/asfiled/${f}`)).status, 200, f);
     assert.strictEqual((await fetch(`${base}/asfiled/data/dataset.json`)).headers.get('content-type').startsWith('text/html'), true, 'the old single file is gone');
     {
@@ -377,8 +380,11 @@ function walk(dir, out = []) {
     assert.strictEqual((await fetch(`${base}/asfiled/c/NVDA`)).status, 200);
     ok('assets, the dataset, /api/meta and the shared account answer; nothing else is an API');
     const srv = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
-    assert.ok(!/anthropic|messages\.create|fetch\(|https?\.request|sec\.gov\/|generateContent/i.test(srv.replace(/\/\/.*$/gm, '')));
-    ok('the server calls no model and makes no outbound request');
+    // The server makes no request of its own: sec.gov only through tools/sec.js
+    // (lib/lookup.js), a model only in the relations route (test/lookup.js holds both).
+    assert.ok(!/fetch\(|https?\.request|sec\.gov\/|generateContent/i.test(srv.replace(/\/\/.*$/gm, '')));
+    assert.strictEqual((srv.replace(/\/\/.*$/gm, '').match(/messages\.create/g) || []).length, 1);
+    ok('the server makes no request of its own, and calls a model in one route only');
     const css = fs.readFileSync(path.join(ROOT, 'public', 'app.css'), 'utf8');
     assert.ok(!/@import|url\(|@font-face/.test(css) && /prefers-color-scheme: dark/.test(css));
     const motion = css.slice(0, css.indexOf('@media (prefers-reduced-motion: no-preference)'));
