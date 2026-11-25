@@ -156,7 +156,7 @@ const local = (url) => base + new URL(url).pathname + new URL(url).search;
   ok('...and has a download link on this site that names its lifetime', Boolean(link) && /works for 48 hours/.test(mail.text));
   ok('...and the one-line Cloud Shell start with this buyer\'s own key (App-Stack self-setup)',
      mail.text.includes(`curl -fsSL https://strongtechnicalconsulting.com/kits/install.sh | bash -s -- ${key}`)
-       && /shell\.cloud\.google\.com\/\?show=terminal/.test(mail.text) && mail.html.includes(`bash -s -- ${key}`) && /Press Enter twice/.test(mail.text));
+       && /shell\.cloud\.google\.com\/\?show=terminal/.test(mail.text) && mail.html.includes(`bash -s -- ${key}`) && /Press Enter three times/.test(mail.text));
 
   /* ---------- idempotency ---------- */
   r = await hook('checkout.session.completed', s1, { id: 'evt_buy_1' });

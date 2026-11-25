@@ -81,9 +81,9 @@ const SITE = path.join(__dirname, '..', 'site');
   ok('Chief-of-Staff is self-host only: no hosted tier', !/<h3>Hosted<\/h3>/.test(cos) && /<h3>Hosted<\/h3>/.test(stack) && /Not open yet/.test(stack));
   ok('Chief-of-Staff shows the three commands', /\.\/setup\.sh\n/.test(cos) && /\.\/setup\.sh --doctor/.test(cos) && /\.\/setup\.sh --update/.test(cos));
   // App-Stack 1.1+: the one-line start in Cloud Shell (2026-11-25), and the commands still named.
-  ok('App-Stack shows Open in Cloud Shell, the one line and Enter twice',
+  ok('App-Stack shows Open in Cloud Shell, the one line and Enter three times',
      /href="https:\/\/shell\.cloud\.google\.com\/\?show=terminal"/.test(stack) && /kits\/install\.sh \| bash -s -- lk_your_license_key/.test(stack)
-       && /Press Enter twice/.test(stack) && /--doctor/.test(stack) && /--update/.test(stack));
+       && /Press Enter three times/.test(stack) && /--doctor/.test(stack) && /--update/.test(stack));
   const sh = await fetch(base + '/kits/install.sh');
   const shText = await sh.text();
   ok('/kits/install.sh is the bootstrap, as plain text, not cached, noindex',
