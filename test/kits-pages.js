@@ -79,7 +79,16 @@ const SITE = path.join(__dirname, '..', 'site');
   const cos = (await get('/kits/chief-of-staff')).html;
   const stack = (await get('/kits/app-stack')).html;
   ok('Chief-of-Staff is self-host only: no hosted tier', !/<h3>Hosted<\/h3>/.test(cos) && /<h3>Hosted<\/h3>/.test(stack) && /Not open yet/.test(stack));
-  ok('each kit page shows the three commands', [cos, stack].every((x) => /\.\/setup\.sh\n/.test(x) && /\.\/setup\.sh --doctor/.test(x) && /\.\/setup\.sh --update/.test(x)));
+  ok('Chief-of-Staff shows the three commands', /\.\/setup\.sh\n/.test(cos) && /\.\/setup\.sh --doctor/.test(cos) && /\.\/setup\.sh --update/.test(cos));
+  // App-Stack 1.1+: the one-line start in Cloud Shell (2026-11-25), and the commands still named.
+  ok('App-Stack shows Open in Cloud Shell, the one line and Enter twice',
+     /href="https:\/\/shell\.cloud\.google\.com\/\?show=terminal"/.test(stack) && /kits\/install\.sh \| bash -s -- lk_your_license_key/.test(stack)
+       && /Press Enter twice/.test(stack) && /--doctor/.test(stack) && /--update/.test(stack));
+  const sh = await fetch(base + '/kits/install.sh');
+  const shText = await sh.text();
+  ok('/kits/install.sh is the bootstrap, as plain text, not cached, noindex',
+     sh.status === 200 && /^text\/plain/.test(sh.headers.get('content-type') || '') && sh.headers.get('cache-control') === 'no-cache'
+       && sh.headers.get('x-content-type-options') === 'nosniff' && /^#!/.test(shText) && /license\/check|licence\/check|license/.test(shText));
   ok('...and "Coming soon" where a button would be', (stack.match(/class="soon">Coming soon</g) || []).length === 4 && (cos.match(/class="soon">Coming soon</g) || []).length === 4);
 
   /* ---------- buy buttons ---------- */

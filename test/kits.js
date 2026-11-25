@@ -154,6 +154,9 @@ const local = (url) => base + new URL(url).pathname + new URL(url).search;
   ok('...says what the refund policy and the update terms are', /Refunds: 14 days, no questions/.test(mail.text) && /--update/.test(mail.text) && /--doctor/.test(mail.text));
   const link = linkIn(mail);
   ok('...and has a download link on this site that names its lifetime', Boolean(link) && /works for 48 hours/.test(mail.text));
+  ok('...and the one-line Cloud Shell start with this buyer\'s own key (App-Stack self-setup)',
+     mail.text.includes(`curl -fsSL https://strongtechnicalconsulting.com/kits/install.sh | bash -s -- ${key}`)
+       && /shell\.cloud\.google\.com\/\?show=terminal/.test(mail.text) && mail.html.includes(`bash -s -- ${key}`) && /Press Enter twice/.test(mail.text));
 
   /* ---------- idempotency ---------- */
   r = await hook('checkout.session.completed', s1, { id: 'evt_buy_1' });
@@ -168,6 +171,7 @@ const local = (url) => base + new URL(url).pathname + new URL(url).search;
   ok('a claim left two minutes ago is taken over', r.status === 200 && (await licenses()).length === 2 && sent.length === 2);
   const scriptsKey = keyIn(sent[1]);
   ok('the scripts tier has no updates, and its mail says so', (await db.get(kits.LICENSES, kits.hashKey(scriptsKey))).updatesUntil === null && /does not include updates/.test(sent[1].text));
+  ok('...and no one-line installer, which the scripts tier does not include', !/kits\/install\.sh/.test(sent[1].text));
 
   /* ---------- paying later, and a mail that fails ---------- */
   const slow = session({ payment_status: 'unpaid' });
