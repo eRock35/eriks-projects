@@ -533,7 +533,7 @@
         delayed: ins.concat(outs).filter(function (t) { return stateOf(t) === 'delayed'; }).length,
         noRide: v.trips.filter(function (t) { return wantsRide(t) && !driverOf(v, t); }).length,
       },
-      zone: zoneCity(v.tz) + ' time (' + zoneAbbr(now, v.tz) + ')',
+      zone: zoneCity(v.tz) + ' time' + (zoneAbbr(now, v.tz) && zoneAbbr(now, v.tz) !== zoneCity(v.tz) ? ' (' + zoneAbbr(now, v.tz) + ')' : ''),
     };
   }
 

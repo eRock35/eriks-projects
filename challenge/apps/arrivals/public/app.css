@@ -282,3 +282,4 @@ button.item { width: 100%; background: none; border: 0; text-align: left; }
 .sheet .btn-row + .field { margin-top: 16px; }
 .ribbon .link-btn, .card.warn .link-btn { min-height: 0; padding: 13px 0; margin: -13px 0; }
 @media (max-width: 479.98px) { .seg button { font-size: var(--t5); white-space: nowrap; padding: 0 2px; } }
+.sheet h2 { min-height: 44px; display: flex; align-items: center; }
