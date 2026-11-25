@@ -56,6 +56,19 @@ const near = (a, b) => Math.abs(a - b) < 1e-9;
   r = await get('/admin/ai', admin);
   const html = await r.text();
   ok('the owner gets the page, with a strict script CSP', r.status === 200 && /script-src 'self'/.test(r.headers.get('content-security-policy') || ''));
+  // A second account of the owner's, carrying the shared owner flag rather than
+  // being ADMIN_EMAIL, is an owner here too (2026-11-25), as in Football, Trip
+  // Planner and the Lab.
+  r = await post('/api/id/register', { email: 'second@example.com', password: 'a-long-password-3' });
+  const second = jar(r);
+  const secondKey = 'users/' + uidOf('second@example.com');
+  r = await fetch(B + '/admin/ai', { redirect: 'manual', headers: { cookie: second } });
+  ok('...an account without the flag is not', r.status === 302 || r.status === 404, String(r.status));
+  users().set(secondKey, { ...users().get(secondKey), admin: true });
+  r = await fetch(B + '/admin/ai', { redirect: 'manual', headers: { cookie: second } });
+  ok('...but one carrying the owner flag is', r.status === 200, String(r.status));
+  r = await get('/api/admin/ai?email=friend@example.com', second);
+  ok('...and may use the API', r.status === 200, String(r.status));
   ok('...no inline script and no email address in it', !/<script>/.test(html) && !/[\w.+-]+@[\w-]+\.[\w.]+/.test(html));
   r = await get('/api/admin/ai?email=friend@example.com', friend);
   ok('a non-owner cannot look anyone up (404, not advertised)', r.status === 404, String(r.status));

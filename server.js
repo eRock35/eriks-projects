@@ -413,10 +413,15 @@ identity.mount(app);
 // Price and record every model call this app makes.
 ai.useMeter(identity.meter);
 
-/** The shared account that owns the admin surface. One address, named by
- *  ADMIN_EMAIL - an ordinary signed-in user is not an admin. */
+/** A shared account that owns the admin surface: the one named by
+ *  ADMIN_EMAIL, or any account carrying the owner flag (`admin: true`), the
+ *  same flag Football, Trip Planner and the Lab apps read (Erik, 2026-11-25:
+ *  "all of mine ... so it stays consistent"). The flag is only ever set by
+ *  hand on the identity record; an ordinary signed-in user is not an admin. */
 function isIdentityAdmin(req) {
-  return Boolean(ADMIN_EMAIL && req.user && req.user.email === ADMIN_EMAIL);
+  if (!req.user) return false;
+  if (req.user.admin === true) return true;
+  return Boolean(ADMIN_EMAIL && req.user.email === ADMIN_EMAIL);
 }
 
 app.post('/api/admin/logout', (req, res) => {
