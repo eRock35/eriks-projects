@@ -653,8 +653,11 @@
     if (it.kind === 'twoplaces') return it.a.who + ' at ' + it.a.hub + ' (' + c(it.a) + ') and ' + it.b.who + ' at ' + it.b.hub + ' (' + c(it.b) + ') are ' + (it.gap ? it.gap + ' minutes apart' : 'at the same time') + ' at different places - that takes two drivers.';
     return it.a.who + (it.a.dir === 'out' ? ' needs a lift to ' : ' needs a ride from ') + (it.a.hub || 'their ' + MODES[it.a.mode].label.toLowerCase()) + (it.a.dir === 'out' ? ' - there by ' : ' - ') + c(it.a) + '.';
   }
-  function comboText(v, c) {
-    return listNames(c.trips.map(function (t) { return t.who + ' (' + clockAt(meetAt(t), v.tz) + ')'; })) + (c.trips.length === 2 ? ' are both at ' : ' are all at ') + c.hub + ' within ' + (c.span || 1) + ' minutes - one run could ' + (c.trips.every(function (t) { return t.dir === 'out'; }) ? 'take ' : 'get ') + (c.trips.length === 2 ? 'both' : 'everyone') + ' (' + plural(c.people, 'person', 'people') + ').';
+  /** With `today` (a zone day), a run on another day starts with its day:
+   *  "Sunday, Nov 29: Ana (3:15 PM) and Ben (3:40 PM) ...". */
+  function comboText(v, c, today) {
+    var day = today ? zoneDay(meetAt(c.trips[0]), v.tz) : '';
+    return (today && day !== today ? dayLabel(day, today) + ': ' : '') + listNames(c.trips.map(function (t) { return t.who + ' (' + clockAt(meetAt(t), v.tz) + ')'; })) + (c.trips.length === 2 ? ' are both at ' : ' are all at ') + c.hub + ' within ' + (c.span || 1) + ' minutes - one run could ' + (c.trips.every(function (t) { return t.dir === 'out'; }) ? 'take ' : 'get ') + (c.trips.length === 2 ? 'both' : 'everyone') + ' (' + plural(c.people, 'person', 'people') + ').';
   }
   /** One day's plan in plain lines, for the host to read or send: every
    *  arrival and departure that day in the gathering's zone, who is

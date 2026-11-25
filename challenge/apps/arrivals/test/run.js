@@ -378,6 +378,8 @@ test('runs that could be one: rides at the same place within 45 minutes of the f
   let c = C.combos(v, NOON);
   assert.deepStrictEqual(c.map((x) => [x.hub, x.trips.map((t) => t.who), x.people, x.span, x.driver]), [['ORD', ['Ana', 'Ben'], 4, 25, null]]);
   assert.strictEqual(C.comboText(v, c[0]), 'Ana (3:10 PM) and Ben (3:35 PM) are both at ORD within 25 minutes - one run could get both (4 people).');
+  assert.strictEqual(C.comboText(v, c[0], C.zoneDay(C.meetAt(c[0].trips[0]), v.tz)), 'Ana (3:10 PM) and Ben (3:35 PM) are both at ORD within 25 minutes - one run could get both (4 people).', 'today: no day in front');
+  assert.match(C.comboText(v, c[0], '2000-01-01'), /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d+: Ana \(3:10 PM\)/, 'another day: its day in front');
   assert.strictEqual(C.combos(vw(g2({ local: at('15:55') })), NOON).length, 1, '45 minutes');
   assert.strictEqual(C.combos(vw(g2({ local: at('15:56') })), NOON).length, 0, '46 is two runs');
   assert.strictEqual(C.combos(vw(g2({ driver: 'mmei3333' })), NOON)[0].driver, 'mmei3333', 'Mei is already going: she could take both');

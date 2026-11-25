@@ -263,7 +263,7 @@
     if (combos.length) {
       html += '<section class="section"><div class="section-title"><h2>Could be one run</h2></div>' + combos.map(function (c) {
         var d = c.driver ? C.memberOf(g, c.driver) : null, ids = c.trips.map(function (t) { return t.id; }).join(',');
-        return '<div class="card"><p>' + esc(C.comboText(g, c)) + '</p><div class="btn-row"><button class="btn small" type="button" data-act="combine" data-ids="' + esc(ids) + '" data-mid="' + esc(d && !d.me ? d.id : '') + '">' + esc(d && !d.me ? d.name + ' takes ' + (c.trips.length === 2 ? 'both' : 'them all') : 'I’ll take ' + (c.trips.length === 2 ? 'both' : 'them all')) + '</button></div></div>';
+        return '<div class="card"><p>' + esc(C.comboText(g, c, C.zoneDay(n, g.tz))) + '</p><div class="btn-row"><button class="btn small" type="button" data-act="combine" data-ids="' + esc(ids) + '" data-mid="' + esc(d && !d.me ? d.id : '') + '">' + esc(d && !d.me ? d.name + ' takes ' + (c.trips.length === 2 ? 'both' : 'them all') : 'I’ll take ' + (c.trips.length === 2 ? 'both' : 'them all')) + '</button></div></div>';
       }).join('') + '</section>';
     }
     var mine = C.runs(g, g.me, n), others = C.drivers(g, n).filter(function (d) { return !d.m.me; });
