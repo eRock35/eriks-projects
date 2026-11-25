@@ -774,7 +774,8 @@ function walk(dir, out = []) {
   const lab = require('../../../lab.js');
   const me = lab.get('asfiled');
   assert.ok(me && me.status === 'testing' && me.dropped === '2026-11-23' && me.features.length === 4);
-  assert.strictEqual(lab.APPS[lab.APPS.length - 1].slug, 'asfiled');
+  // (It was the newest entry when it shipped; the daily drops after it are
+  // added below it, so only its place after Punch is held.)
   assert.strictEqual(lab.APPS.findIndex((a) => a.slug === 'asfiled'), lab.APPS.findIndex((a) => a.slug === 'punch') + 1);
   assert.strictEqual(lab.APPS.filter((a) => a.emoji === me.emoji).length, 1);
   ok('the lab entry is the drop after Punch, with an emoji no other card has');
