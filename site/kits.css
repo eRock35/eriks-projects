@@ -158,6 +158,9 @@ h1.plain { font-size: clamp(32px, 5vw, 48px); line-height: 1.08; letter-spacing:
 .steps li + li { padding-left: 22px; border-left: 1px solid var(--line); }
 .steps li::before { content: "0" counter(step); display: block; margin-bottom: 10px; font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.14em; color: var(--link); }
 .steps p { margin-top: 6px; font-size: 16px; color: var(--ink-2); }
+/* The App-Stack install: three steps, and the command wraps so it can be read whole. */
+@media (min-width: 1001px) { .steps.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.term.wrap-cmd { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; }
 
 /* What a kit sets up. */
 .parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
