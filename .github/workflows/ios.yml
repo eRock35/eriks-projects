@@ -83,6 +83,13 @@ jobs:
       # passing reads do not prove it is accepted; the step says so.
       - uses: actions/checkout@v7
 
+      # Trimmed once here; every later step reads the clean values.
+      - name: Clean the key ID and issuer ID
+        env:
+          RAW_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          RAW_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: bash mobile/scripts/asc_ids.sh
+
       - name: App Store Connect key
         env:
           APPSTORE_KEY_P8: ${{ secrets.APPSTORE_KEY_P8 }}
@@ -101,9 +108,6 @@ jobs:
 
       - name: App Store Connect answers (read-only)
         working-directory: mobile
-        env:
-          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
-          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
           python3 -m venv "$RUNNER_TEMP/asc"
           "$RUNNER_TEMP/asc/bin/pip" install --quiet pyjwt cryptography
@@ -147,12 +151,21 @@ jobs:
     concurrency:
       group: ios-${{ matrix.app }}
       cancel-in-progress: false
+    # APPSTORE_KEY_ID / APPSTORE_ISSUER_ID are NOT set here: a job-level env
+    # would override the trimmed values the first step writes to GITHUB_ENV.
     env:
-      APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
-      APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v7
+
+      # Trimmed once per job, so Signing, the upload's xcodebuild and the
+      # cleanup all use the same clean values (72fedb9 trimmed them only
+      # inside asc_signing.py).
+      - name: Clean the key ID and issuer ID
+        env:
+          RAW_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          RAW_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: bash mobile/scripts/asc_ids.sh
 
       - name: Use Xcode 26
         run: |
