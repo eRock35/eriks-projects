@@ -1,0 +1,10 @@
+{
+  "name": "Arrivals",
+  "short_name": "Arrivals",
+  "description": "Who lands when, and who's picking them up - the whole family's arrival board on every phone.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8660d6",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

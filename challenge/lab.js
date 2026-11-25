@@ -1138,6 +1138,29 @@ const APPS = [
     audience: 'Investors, analysts, students and anyone curious how big tech connects',
     status: 'testing',
   },
+  {
+    slug: 'arrivals',
+    name: 'Arrivals',
+    // The landing plane (U+1F6EC), on no other card.
+    emoji: '\u{1F6EC}',
+    // Searched over the whole RGB cube against today's 70 cards: with white
+    // text held at 4.5:1, the only regions still 20+ in CIE Lab from every
+    // card are an olive green and a band of violets and orchids. A dusk
+    // sky, then - the hour the Wednesday flights land. A dusk violet,
+    // #8660d6: 20.2 from Jars's #5b2fb3, 20.5 from Duo Hunt's #3b3fc4, 20.6
+    // from Spotted's #7b5dae. An orchid, #be44a8: 21.8 from Inside Joke's
+    // #a21caf, 21.9 from Feedfix's #a3136a and Sorted's #7a2f8f. The two are
+    // 32.3 apart. White text holds 4.51:1 and 4.58:1. The app's one accent
+    // is the violet, deepened to #6a46c9 where it carries text on white.
+    color: '#8660d6',
+    color2: '#be44a8',
+    dropped: '2026-11-25',
+    tagline: 'Who lands when, and who’s picking them up - the whole family’s arrival board on every phone.',
+    blurb: 'For families and friends converging on one house - a holiday, a wedding, a reunion, a weekend away. Name the gathering, send one link, and everyone adds their own flight, train, bus or drive - or one person adds them all. The board sorts every arrival by time in the house’s own time zone, whatever zone it was typed in, and one tap says on the way, delayed 40 minutes, landed or here. Pickups shows who still needs a ride, two pickups at different airports in the same hour, and which ones could be a single run; a driver claims a ride in a tap and sees their own runs for the day. Paste or screenshot a booking confirmation and it fills in the arrival as a draft to check. Free, no sign-in, no phone numbers or emails collected, and the gathering deletes itself two weeks after it ends.',
+    features: ['A live arrivals board, by day, in the house’s time zone', 'One tap: on the way, delayed, landed, here', 'Who needs a ride, clashes, and pickups that could be one run', 'Paste or screenshot a confirmation to fill in a draft'],
+    audience: 'Families and friends travelling to one place',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
