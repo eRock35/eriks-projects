@@ -1,0 +1,10 @@
+{
+  "name": "Baste",
+  "short_name": "Baste",
+  "description": "One oven, nine dishes, dinner at four - the whole day worked backward, on every phone in the kitchen.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#5c8200",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

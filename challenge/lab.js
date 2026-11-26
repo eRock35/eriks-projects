@@ -1161,6 +1161,31 @@ const APPS = [
     audience: 'Families and friends travelling to one place',
     status: 'testing',
   },
+  {
+    // The 2026-11-26 Thanksgiving holiday drop: the job the day creates.
+    slug: 'baste',
+    name: 'Baste',
+    // The turkey (U+1F983), on no other card.
+    emoji: '\u{1F983}',
+    // Searched over the whole RGB cube against today's 71 cards: with white
+    // text held at 4.5:1, what is still 20+ in CIE Lab from every card is a
+    // sliver of olive green and a band of magentas and violets. So: the
+    // herbs and the cranberry. A sage green, #5c8200: 20.1 from Dibs's and
+    // Chorus's #3f6212, 21.0 from Trek's #218721, 27.2 from Reset's. A
+    // cranberry magenta, #dc00ae (the nearest free colour to cranberry):
+    // 22.0 from Stars's #da0185 and Arrivals's #be44a8, 23.1 from Inside
+    // Joke's #a21caf. The two are 140.8 apart. White text holds 4.52:1 and
+    // 4.51:1. The app's one accent is the green, deepened to #476800 where
+    // it carries text on white.
+    color: '#5c8200',
+    color2: '#dc00ae',
+    dropped: '2026-11-26',
+    tagline: 'One oven, nine dishes, dinner at four - the whole day worked backward, on every phone in the kitchen.',
+    blurb: 'For whoever is cooking the big dinner - Thanksgiving today, Christmas and Easter after it. Say when you eat, how many ovens you have and what you’re making: a turkey by weight, stuffed or not, ham, the sides, the rolls, the pies, or your own dishes. Baste works every dish backward from dinner into one timeline - prep, in, out, rest - and fits the oven: two dishes that need it at different temperatures at once are flagged with fixes to tap, like using the turkey’s rest for the sides, sharing at one temperature with the time marked as an estimate, making it ahead or moving it to the stovetop. On the day it is a live now-and-next list with countdowns; “running late” pushes everything that depends on it, and if dinner has to move it says so. Helpers join with one link, see the same timeline, claim a dish or a step, and guests add what they’re bringing. Paste or photograph a recipe and it fills in a dish as a draft to check. Free, no sign-in, in Fahrenheit or Celsius; times are estimates - use a thermometer.',
+    features: ['The whole day worked backward from dinner, fitted to your oven', 'Oven conflicts flagged, each with fixes to tap', 'A live now-and-next list; “running late” pushes what depends on it', 'One link for helpers: claim a dish, tick a step, add what you’re bringing'],
+    audience: 'Whoever is cooking the big holiday dinner, and their helpers',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
