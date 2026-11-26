@@ -257,6 +257,10 @@ button.item { width: 100%; background: none; border: 0; text-align: left; }
 .sheet .body { clear: none; }
 .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70; max-width: calc(100vw - 32px); padding: 12px 18px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: var(--t4); font-weight: 600; box-shadow: var(--shadow-float); text-align: center; }
 
+@media (max-width: 599.98px) {
+  .step-main { grid-template-columns: 76px minmax(0, 1fr); }
+  .step-main .chip { grid-column: 2; justify-self: start; }
+}
 @media (max-width: 359.98px) {
   .wrap { padding: 20px 16px 0; }
   .step-main { grid-template-columns: 64px minmax(0, 1fr); }

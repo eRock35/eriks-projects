@@ -698,7 +698,9 @@
     function push(x, kind, key, at, due, extra) {
       var d = doneAt(v, key);
       var s = { key: key, kind: kind, id: x.id, name: x.name, at: d !== null ? d : at, due: due, done: d !== null ? { at: d, by: v.done[key].by || '' } : null, who: own(v.claims, key) ? v.claims[key] : (x.d.who || ''), claimed: own(v.claims, key), oven: x.oven };
-      s.overdue = now !== null && d === null && now - due >= MIN ? Math.floor((now - due) / MIN) : 0;
+      // Overdue is said only of a step that is due now - not of one that has
+      // been pushed into the future by what comes before it.
+      s.overdue = now !== null && d === null && now - due >= MIN && s.at <= now + MIN ? Math.floor((now - due) / MIN) : 0;
       if (extra) for (var k in extra) if (own(extra, k)) s[k] = extra[k];
       steps.push(s);
       return s;
