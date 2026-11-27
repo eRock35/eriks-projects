@@ -1,0 +1,10 @@
+{
+  "name": "Doorbuster",
+  "short_name": "Doorbuster",
+  "description": "Will this deal make money? Know your break-even before the sign goes up.",
+  "start_url": "./", "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#c009f9",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

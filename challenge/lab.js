@@ -1186,6 +1186,30 @@ const APPS = [
     audience: 'Whoever is cooking the big holiday dinner, and their helpers',
     status: 'testing',
   },
+  {
+    // The 2026-11-27 Black Friday holiday drop: the job the day creates for
+    // a small shop.
+    slug: 'doorbuster',
+    name: 'Doorbuster',
+    // The shopping bags (U+1F6CD U+FE0F), on no other card.
+    emoji: '\u{1F6CD}\u{FE0F}',
+    // Searched over the whole RGB cube against today's 72 cards: with white
+    // text held at 4.5:1, what is still 20+ in CIE Lab from every card is
+    // one sliver of electric violet and magenta. So both colours come from
+    // it. An electric violet, #c009f9: 20.1 from As Filed's #8200fe, 26.0
+    // from Settle's #6d28d9. A magenta, #cf06d5: 20.1 from Inside Joke's
+    // #a21caf, 23.1 from Baste's #dc00ae. The two are 20.7 apart. White
+    // text holds 4.52:1 and 4.53:1. The app's one accent is the violet,
+    // deepened to #8f00c2 where it carries text on white.
+    color: '#c009f9',
+    color2: '#cf06d5',
+    dropped: '2026-11-27',
+    tagline: 'Will this deal make money? Know your break-even before the sign goes up.',
+    blurb: 'For the shop owner who feels they have to run a Black Friday deal - a gift shop, a boutique, a bakery, a bike shop, a bookshop. Add what you sell (the price, what it costs you, how many you’d usually sell) and type the deal you’re thinking of: percent off, an amount off, buy 2 get 1, a bundle, or spend and save. Doorbuster shows what the shopper pays, what you make on each before and after, and the break-even in plain words - “you usually sell 20 and make $240; at 30% off you need to sell 45, 2.3x as many, before this makes you a cent more”. It says when a deal sells below cost and what each one needs in the same basket to pay for itself, when the stock can’t reach the break-even, and offers up to three kinder shapes of the same deal from your own items, to apply in a tap and undo. Then it prints an honest shelf sign, and on the day every phone at the counter taps +1: a bar to break-even, the stock left, and afterwards what the sale really made. Staff join with one link and see prices and stock - never your costs. Paste or photograph a price list and it fills in draft items to check. Free, no sign-in; every figure is an estimate from your own usual numbers.',
+    features: ['The break-even for every deal, in plain words, before the sign goes up', 'Up to three kinder shapes of the same deal, to apply in a tap and undo', 'An honest printable sign, a post and a one-line text for each deal', 'A live +1 tally on every phone at the counter - staff never see costs'],
+    audience: 'Small shop owners planning a Black Friday or Small Business Saturday deal, and their staff',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }
