@@ -1210,6 +1210,31 @@ const APPS = [
     audience: 'Small shop owners planning a Black Friday or Small Business Saturday deal, and their staff',
     status: 'testing',
   },
+  {
+    // The 2026-11-28 Small Business Saturday holiday drop: the job the day
+    // creates for a street of shops.
+    slug: 'stroll',
+    name: 'Stroll',
+    // The admission tickets (U+1F39F U+FE0F), on no other card.
+    emoji: '\u{1F39F}\u{FE0F}',
+    // Searched over the whole RGB cube against today's 73 cards: with white
+    // text held at 4.5:1, NOTHING is 20+ in CIE Lab from every card any
+    // more (Doorbuster took the last sliver), so the rule is loosened to
+    // the two colours FARTHEST from every card that are also far from each
+    // other. A main-street brick, #b16045: 19.0 from First Day's #a8401a,
+    // the nearest. An awning sage, #667b5a: 18.9 from Sprout's #2d6a3e, the
+    // nearest. The two are 46.8 apart. White text holds 4.54:1 and 4.62:1.
+    // The app's one accent is the brick, deepened to #9c4a2f where it
+    // carries text on white.
+    color: '#b16045',
+    color2: '#667b5a',
+    dropped: '2026-11-28',
+    tagline: 'A shop-local passport for your street: a stamp at every counter, a prize at the end.',
+    blurb: 'For whoever is rallying a street of independent shops for Small Business Saturday - a main-street association, a market organizer, or the one shop owner who said they’d sort it. Name the passport, list the shops, say how many stamps finish it and what the prize is. Stroll makes a sign for every counter, each with its own square to scan and a four-letter code, and one poster to start a passport - they print one to a page. Shoppers point their phone’s camera at a sign: no app, no sign-up, just a first name, and the stamp lands on their passport. Each shop can offer passport holders a perk. Finished passports go into the prize draw, with one more entry for every extra shop; the server rolls the dice, and the winner’s phone shows a claim code to match against yours. You see what a paper card never told you: how many passports, how many stamps, and visits shop by shop and day by day. Free, no sign-in, no AI; Stroll never asks a shopper for an email or a phone number, and a passport deletes itself a month after its last day.',
+    features: ['A printable sign for every counter - scan the square for a stamp', 'No app, no sign-up for shoppers: a first name is all it keeps', 'A fair prize draw, with a claim code on the winner’s phone', 'Live counts for the organizer: passports, stamps, visits by shop'],
+    audience: 'Main-street associations, market organizers and shop owners running a shop-local event',
+    status: 'testing',
+  },
 ];
 
 function slugs() { return APPS.map((a) => a.slug); }

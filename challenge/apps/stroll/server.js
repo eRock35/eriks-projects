@@ -255,12 +255,14 @@ app.post('/api/strolls', route('Could not start the passport.', async (req, res)
   const now = Date.now();
   const stamp = new Date(now).toISOString();
   const gid = G.newGid();
-  const key = mintKey(req, res);
-  let doc = { id: gid, code: await freshCode(), ...g, v: 1, host: { name, keyHash: G.tagOf(key, gid) }, shops: {}, winners: {}, createdAt: stamp, updatedAt: stamp };
+  let doc = { id: gid, code: '', ...g, v: 1, host: { name }, shops: {}, winners: {}, createdAt: stamp, updatedAt: stamp };
   const list = Array.isArray(b.shops) ? b.shops : [];
   if (list.length) {
     doc = Core.patch(doc, Core.act(doc, { t: 'addshops', shops: list }, { now, today: today(), ids: list.map(() => Core.newId(G.rand, 8, 's')), codes: stampCodes(list.length) }));
   }
+  // Only now - everything typed was accepted - is this browser given a key.
+  doc.code = await freshCode();
+  doc.host.keyHash = G.tagOf(mintKey(req, res), gid);
   await store.transact('strolls', gid, (cur) => { if (cur) throw httpError(409, 'Try again.'); return doc; });
   newStrolls.hit(ip);
   res.set('Cache-Control', 'no-store');

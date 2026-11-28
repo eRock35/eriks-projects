@@ -2,8 +2,8 @@
  *
  * The rules (what a passport holds, when stamping is open, how far a card
  * has got, the draw, the words on a sign) are StrollCore's; what this phone
- * remembers goes through stroll-store.js (localStorage, with a memory
- * fallback). The made-up street is changed by the same rules, in memory,
+ * remembers goes through stroll-store.js (the phone's own storage, with a
+ * memory fallback). The made-up street is changed by the same rules, in memory,
  * and is never kept or sent.
  *
  * The requests this page makes: a passport (start, join with a code and a

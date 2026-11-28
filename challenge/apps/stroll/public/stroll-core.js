@@ -253,7 +253,7 @@
     return out;
   }
   /** Pick one. `pick(n)` returns a whole number from 0 to n-1 - the server
-   *  hands in crypto.randomInt. Every ENTRY has the same chance. */
+   *  hands in its own dice. Every ENTRY has the same chance. */
   function draw(doc, cards, pick) {
     if (Object.keys(doc.winners || {}).length >= LIMITS.winners) throw fail(409, 'That’s ' + LIMITS.winners + ' winners - the most one passport draws.');
     var list = entrants(doc, cards);
@@ -278,7 +278,7 @@
    * ------------------------------------------------------------------ */
 
   function freeCodes(doc, codes, n) {
-    var used = {}; shopIds(doc).forEach(function (id) { used[doc.shops[id].k] = 1; });
+    var used = Object.create(null); shopIds(doc).forEach(function (id) { used[doc.shops[id].k] = 1; });
     var out = [];
     (codes || []).forEach(function (c) { if (out.length < n && isStamp(c) && !used[c]) { used[c] = 1; out.push(c); } });
     if (out.length < n) throw fail(503, 'Could not make a counter code. Try again.');
@@ -297,7 +297,7 @@
       var list = Array.isArray(a.shops) ? a.shops : [];
       if (!list.length) throw fail(400, 'Type at least one shop.');
       if (list.length > LIMITS.batch || ids.length + list.length > LIMITS.shops) throw fail(400, 'A passport holds up to ' + LIMITS.shops + ' shops.');
-      var codes = freeCodes(doc, ctx.codes, list.length), seen = {};
+      var codes = freeCodes(doc, ctx.codes, list.length), seen = Object.create(null);
       list.forEach(function (raw, i) {
         var s = cleanShop(raw), n = norm(s.name);
         if (taken(s.name) || seen[n]) throw fail(409, '“' + s.name + '” is on the passport already.');

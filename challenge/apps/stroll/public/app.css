@@ -71,6 +71,8 @@
   --shadow-float: 0 0 0 1px rgba(255, 255, 255, .06), 0 8px 24px rgba(0, 0, 0, .5);
   color-scheme: dark;
 }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
@@ -171,6 +173,13 @@ button.item { width: 100%; background: none; border: 0; text-align: left; }
 .hero h1 { font-size: clamp(2rem, 7vw, 2.75rem); letter-spacing: -.035em; max-width: 14em; }
 .hero .lede { margin: 16px 0 24px; }
 .steps { display: grid; gap: 16px; margin-top: 12px; }
+.steps li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; }
+.steps .n { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line2); display: grid; place-items: center; font-size: var(--t5); font-weight: 600; color: var(--muted); }
+
+/* ---- a passport's head ---- */
+.g-head h1 { margin-bottom: 4px; }
+.g-head .sub { color: var(--muted); font-size: var(--t4); margin: 0; }
+.quietline { padding: 12px 0 0; margin: 0; }
 .okline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .empty { padding: 40px 0 16px; color: var(--muted); }
 .addbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
@@ -203,7 +212,7 @@ button.item { width: 100%; background: none; border: 0; text-align: left; }
 .stampbar { margin: 28px 0 0; }
 .stampbar .btn { min-height: 60px; font-size: 1.0625rem; }
 .codebox { font-size: 2rem; font-weight: 650; letter-spacing: .3em; text-align: center; text-transform: uppercase; min-height: 64px; font-variant-numeric: tabular-nums; }
-.won { border: 1px solid var(--good-bg); background: var(--good-bg); color: var(--good); border-radius: var(--radius); padding: 16px; margin: 0 0 20px; }
+.won { border: 1px solid var(--good-bg); background: var(--good-bg); color: var(--good); border-radius: var(--radius); padding: 16px; margin: 16px 0 20px; }
 .won .code { color: var(--good); }
 .won p { margin: 0 0 6px; }
 
@@ -262,11 +271,6 @@ button.item { width: 100%; background: none; border: 0; text-align: left; }
   .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
   .sheet { bottom: auto; top: 50%; transform: translateY(-50%); border-radius: 16px; padding: 24px 28px 28px; max-height: 88vh; }
   .toast { bottom: 32px; }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .btn, .chip, .item, .tabbar button, .seg button, .topnav button, .pick, .fix, .kind, .plus, .minus { transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease; }
-  .btn:active, .plus:active { opacity: .8; }
   .stamps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 12px; }
   .stamp { width: 92px; height: 92px; }
 }
