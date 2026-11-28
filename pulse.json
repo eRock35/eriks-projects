@@ -1,0 +1,134 @@
+{
+ "asc": {
+  "ok": false,
+  "reason": "auth"
+ },
+ "ci": {
+  "at": "2026-11-28T07:40:17Z",
+  "branch": "main",
+  "conclusion": "success",
+  "jobs": [
+   {
+    "conclusion": "success",
+    "failedStep": null,
+    "name": "test"
+   }
+  ],
+  "run": 460,
+  "url": "https://github.com/eRock35/eriks-projects/actions/runs/46122167638",
+  "workflow": "ci.yml"
+ },
+ "generatedAt": "2026-11-28T08:23:28Z",
+ "github": {
+  "ok": true
+ },
+ "iphone": {
+  "apps": [
+   {
+    "asc": {
+     "ok": false,
+     "reason": "auth"
+    },
+    "bundleId": "com.strongtechnicalconsulting.trip",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": null,
+    "latest": {
+     "at": "2026-11-24T15:16:52Z",
+     "conclusion": "failure",
+     "failedStep": "App Store Connect answers (read-only)",
+     "failure": "secrets",
+     "run": 147,
+     "stoppedInPlan": true,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/45423608084/job/138549461047"
+    },
+    "slug": "trip"
+   },
+   {
+    "asc": {
+     "ok": false,
+     "reason": "auth"
+    },
+    "bundleId": "com.strongtechnicalconsulting.hopscotch",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": null,
+    "latest": {
+     "at": "2026-11-24T15:16:52Z",
+     "conclusion": "failure",
+     "failedStep": "App Store Connect answers (read-only)",
+     "failure": "secrets",
+     "run": 147,
+     "stoppedInPlan": true,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/45423608084/job/138549461047"
+    },
+    "slug": "hopscotch"
+   },
+   {
+    "asc": {
+     "ok": false,
+     "reason": "auth"
+    },
+    "bundleId": "com.strongtechnicalconsulting.flight",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": null,
+    "latest": {
+     "at": "2026-11-24T15:16:52Z",
+     "conclusion": "failure",
+     "failedStep": "App Store Connect answers (read-only)",
+     "failure": "secrets",
+     "run": 147,
+     "stoppedInPlan": true,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/45423608084/job/138549461047"
+    },
+    "slug": "flight"
+   },
+   {
+    "asc": {
+     "ok": false,
+     "reason": "auth"
+    },
+    "bundleId": "com.strongtechnicalconsulting.football",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": null,
+    "latest": {
+     "at": "2026-11-24T15:16:52Z",
+     "conclusion": "failure",
+     "failedStep": "App Store Connect answers (read-only)",
+     "failure": "secrets",
+     "run": 147,
+     "stoppedInPlan": true,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/45423608084/job/138549461047"
+    },
+    "slug": "football"
+   },
+   {
+    "asc": {
+     "ok": false,
+     "reason": "auth"
+    },
+    "bundleId": "com.strongtechnicalconsulting.insidejoke",
+    "expiresBeforeNextBuild": false,
+    "lastUpload": null,
+    "latest": {
+     "at": "2026-11-24T15:16:52Z",
+     "conclusion": "failure",
+     "failedStep": "App Store Connect answers (read-only)",
+     "failure": "secrets",
+     "run": 147,
+     "stoppedInPlan": true,
+     "url": "https://github.com/eRock35/eriks-projects/actions/runs/45423608084/job/138549461047"
+    },
+    "slug": "insidejoke"
+   }
+  ],
+  "lastRun": {
+   "at": "2026-11-25T18:57:39Z",
+   "checkOnly": true,
+   "conclusion": "failure",
+   "event": "workflow_dispatch",
+   "number": 148,
+   "url": "https://github.com/eRock35/eriks-projects/actions/runs/45680394244"
+  },
+  "nextScheduled": "2026-12-01T09:23:00Z"
+ },
+ "schema": 1
+}
