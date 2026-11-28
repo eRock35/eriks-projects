@@ -1219,15 +1219,18 @@ const APPS = [
     emoji: '\u{1F39F}\u{FE0F}',
     // Searched over the whole RGB cube against today's 73 cards: with white
     // text held at 4.5:1, NOTHING is 20+ in CIE Lab from every card any
-    // more (Doorbuster took the last sliver), so the rule is loosened to
-    // the two colours FARTHEST from every card that are also far from each
-    // other. A main-street brick, #b16045: 19.0 from First Day's #a8401a,
-    // the nearest. An awning sage, #667b5a: 18.9 from Sprout's #2d6a3e, the
-    // nearest. The two are 46.8 apart. White text holds 4.54:1 and 4.62:1.
+    // more (Doorbuster took the last sliver). So the rule is loosened, as
+    // little as it can be: 20+ from every card whose own test demands 20
+    // of every other card (Snug, Ladle, Spotted, Reset, Trek, Stars, Punch,
+    // Arrivals, Baste, Doorbuster), and otherwise the colours FARTHEST from
+    // every card. A main-street brick, #b06042: 18.3 from First Day's
+    // #a8401a, the nearest; 20.6 from Snug's #924a4c. An awning sage,
+    // #647c5c: 18.4 from Sprout's #2d6a3e, the nearest; 20.6 from Rush's
+    // #826c4a. The two are 47.9 apart. White text holds 4.57:1 and 4.59:1.
     // The app's one accent is the brick, deepened to #9c4a2f where it
     // carries text on white.
-    color: '#b16045',
-    color2: '#667b5a',
+    color: '#b06042',
+    color2: '#647c5c',
     dropped: '2026-11-28',
     tagline: 'A shop-local passport for your street: a stamp at every counter, a prize at the end.',
     blurb: 'For whoever is rallying a street of independent shops for Small Business Saturday - a main-street association, a market organizer, or the one shop owner who said they’d sort it. Name the passport, list the shops, say how many stamps finish it and what the prize is. Stroll makes a sign for every counter, each with its own square to scan and a four-letter code, and one poster to start a passport - they print one to a page. Shoppers point their phone’s camera at a sign: no app, no sign-up, just a first name, and the stamp lands on their passport. Each shop can offer passport holders a perk. Finished passports go into the prize draw, with one more entry for every extra shop; the server rolls the dice, and the winner’s phone shows a claim code to match against yours. You see what a paper card never told you: how many passports, how many stamps, and visits shop by shop and day by day. Free, no sign-in, no AI; Stroll never asks a shopper for an email or a phone number, and a passport deletes itself a month after its last day.',

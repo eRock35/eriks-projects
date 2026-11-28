@@ -359,7 +359,7 @@ test('what the phone keeps: a list, the last name used and the last copy - clean
  * The look, the page's promises, the copy
  * ================================================================== */
 
-test('every text colour holds 4.5:1 on its surface in both themes; the lab card’s two colours hold white text, are the farthest free colours from every other card (18+ in CIE Lab) and its emoji is on no other card - drop #74 on 2026-11-28; 44px targets; motion only when asked for; no gradients', () => {
+test('every text colour holds 4.5:1 on its surface in both themes; the lab card’s two colours hold white text, are the farthest free colours from every other card (18+ in CIE Lab, 20+ from the cards that demand it) and its emoji is on no other card - drop #74 on 2026-11-28; 44px targets; motion only when asked for; no gradients', () => {
   const css = read('public/app.css');
   const tokens = (block) => Object.fromEntries([...block.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1], m[2].toLowerCase()]));
   const light = tokens(css.slice(css.indexOf(':root {'), css.indexOf('@media (prefers-color-scheme: dark)')));
@@ -379,19 +379,28 @@ test('every text colour holds 4.5:1 on its surface in both themes; the lab card�
   const LAB = require('../../../lab');
   const lab = LAB.get('stroll');
   assert.ok(lab, 'Stroll is in lab.js');
-  assert.deepStrictEqual([lab.dropped, lab.status, LAB.APPS.indexOf(lab) + 1, LAB.APPS[LAB.APPS.length - 1].slug], ['2026-11-28', 'testing', 74, 'stroll']);
-  assert.deepStrictEqual([lab.color, lab.color2, light.brand], ['#b16045', '#667b5a', '#b16045']);
+  assert.deepStrictEqual([lab.dropped, lab.status, LAB.APPS.indexOf(lab) + 1], ['2026-11-28', 'testing', 74]);
+  assert.deepStrictEqual([lab.color, lab.color2, light.brand], ['#b06042', '#647c5c', '#b06042']);
   assert.ok(ratio('#ffffff', lab.color) >= 4.5 && ratio('#ffffff', lab.color2) >= 4.5, 'the lab card colours hold white text');
-  const others = LAB.APPS.filter((a) => a.slug !== 'stroll');
-  for (const a of others) {
-    assert.notStrictEqual(a.emoji, lab.emoji, `${a.slug} has the same emoji`);
-    for (const c of [a.color, a.color2]) for (const mine of [lab.color, lab.color2]) assert.ok(labDist(mine, c) >= 18, `${mine} is ${labDist(mine, c).toFixed(1)} from ${a.slug}'s ${c}`);
-  }
+  // No colour is 20+ from every card any more. Held instead: 18+ from every
+  // card that existed when Stroll dropped, and 20+ from each card whose own
+  // test demands 20 of every other card.
+  const STRICT = ['snug', 'ladle', 'spotted', 'reset', 'trek', 'stars', 'punch', 'arrivals', 'baste', 'doorbuster'];
+  const mineAt = LAB.APPS.indexOf(lab);
+  LAB.APPS.forEach((a, i) => {
+    if (a.slug === 'stroll') return;
+    assert.notStrictEqual(a.emoji.replace(/\uFE0F/g, ''), lab.emoji.replace(/\uFE0F/g, ''), `${a.slug} has the same emoji`);
+    if (i > mineAt) return; // a later card answers for its own distance
+    const min = STRICT.includes(a.slug) ? 20 : 18;
+    for (const c of [a.color, a.color2]) for (const mine of [lab.color, lab.color2]) assert.ok(labDist(mine, c) >= min, `${mine} is ${labDist(mine, c).toFixed(1)} from ${a.slug}'s ${c}`);
+  });
   // What the comment in lab.js says was measured.
-  assert.strictEqual(labDist(lab.color, LAB.get('firstday').color).toFixed(1), '19.0');
-  assert.strictEqual(labDist(lab.color2, LAB.get('sprout').color).toFixed(1), '18.9');
-  assert.strictEqual(labDist(lab.color, lab.color2).toFixed(1), '46.8');
-  assert.deepStrictEqual([ratio('#ffffff', lab.color).toFixed(2), ratio('#ffffff', lab.color2).toFixed(2)], ['4.54', '4.62']);
+  assert.strictEqual(labDist(lab.color, LAB.get('firstday').color).toFixed(1), '18.3');
+  assert.strictEqual(labDist(lab.color2, LAB.get('sprout').color).toFixed(1), '18.4');
+  assert.strictEqual(labDist(lab.color, LAB.get('snug').color).toFixed(1), '20.6');
+  assert.strictEqual(labDist(lab.color2, LAB.get('rush').color).toFixed(1), '20.6');
+  assert.strictEqual(labDist(lab.color, lab.color2).toFixed(1), '47.9');
+  assert.deepStrictEqual([ratio('#ffffff', lab.color).toFixed(2), ratio('#ffffff', lab.color2).toFixed(2)], ['4.57', '4.59']);
   assert.strictEqual(lab.features.length, 4);
   assert.ok(read('public/icon.svg').includes(lab.color) && read('public/manifest.webmanifest').includes(lab.color));
   // Targets.

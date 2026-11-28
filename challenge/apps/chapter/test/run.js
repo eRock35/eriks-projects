@@ -1250,7 +1250,9 @@ test('older clubs keep working: a club, its notes and its seats stored in the sh
   const keyA = 'A'.repeat(22), keyB = 'B'.repeat(22);
   const old = {
     name: 'The Old Guard', code: 'QLDCLB', tz: 'America/New_York', createdAt: '2026-11-07T14:00:00.000Z', updatedAt: new Date(Date.now() - 3 * 86400000).toISOString(), v: 41,
-    book: { id: 'boldbook', started: '2026-11-07', ratings: { mold2: 4 }, title: 'Middlemarch', author: 'George Eliot', chapters: 86, pages: null },
+    // Started 15 days before whenever this runs (it was written as a fixed 2026-11-07, 15 days before 2026-11-22):
+    // with the meeting 6 days out, a fixed start made the straight line pass chapter 30 on 2026-11-27 and the nudge turn to 'behind'.
+    book: { id: 'boldbook', started: C.addDays(realToday(), -15), ratings: { mold2: 4 }, title: 'Middlemarch', author: 'George Eliot', chapters: 86, pages: null },
     members: {
       mold1: { name: 'Robin', emoji: '\u{1F989}', host: true, joinedAt: '2026-11-07T14:00:00.000Z', pos: 30, done: false, at: '2026-11-18T09:00:00.000Z', keyHash: K.keyHash(keyA, id) },
       mold2: { name: 'Kit', emoji: '\u{1F41D}', host: false, joinedAt: '2026-11-07T15:00:00.000Z', pos: 86, done: true, at: '2026-11-20T09:00:00.000Z', keyHash: K.keyHash(keyB, id), acct: 'tag-of-some-account-000000', move: { hash: K.secretHash('S'.repeat(22)), exp: new Date(Date.now() + 20 * 60000).toISOString() } },

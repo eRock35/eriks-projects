@@ -190,7 +190,7 @@ so.
 The lab's house style (`public/app.css` opens with the rules): a pure white
 page (true black in the dark theme), hairlines, system fonts, one accent -
 a main-street brick, `#9c4a2f` where it carries text on white (`#f3b9a3` in
-the dark theme), the lab card's `#b16045` as the brand dot. On phones a
+the dark theme), the lab card's `#b06042` as the brand dot. On phones a
 floating pill: four items for the organizer (Overview, Shops, Signs, Draw),
 three for a shopper (Passport, Shops, Prize); from 900px the same in the
 header. Sheets are bottom sheets on phones and dialogs from 900px. The one
@@ -200,10 +200,14 @@ attribute anywhere: a stamp's tilt is a class (`.r0`-`.r4`), a bar's width
 is a class (`.p0`-`.p20`). Signs print one to a page through `@media
 print`.
 
-**The lab card's colours** are a brick and an awning sage, `#b16045` and
-`#667b5a`. No colour is 20+ in CIE Lab from every other card any more
-(Doorbuster's notes said so), so these are the two FARTHEST free ones: 19.0
-and 18.9 from their nearest neighbours. The test holds 18+.
+**The lab card's colours** are a brick and an awning sage, `#b06042` and
+`#647c5c`. No colour is 20+ in CIE Lab from every other card any more
+(Doorbuster's notes said so), so the rule was loosened as little as it could
+be: 20+ from every card whose own test demands 20 of every other card (the
+ten from Snug to Doorbuster - their suites fail otherwise), and for the
+rest the two FARTHEST free colours, 18.3 and 18.4 from their nearest
+neighbours. Stroll's own test holds 18+ against the cards that existed when
+it dropped and asks nothing of later ones.
 
 ## Local run and tests
 

@@ -244,6 +244,7 @@ build session had no deploy key to read the usage records on 2026-11-20).
 | Arrivals | one builder agent | 32.9M | 31.6M | 203K | 1 | 54 min | exact up to the commit (the agent recorded its own run, so its last few minutes are not in it) |
 | Baste | one builder agent (the Thanksgiving holiday drop) | 22.0M | 20.6M | 220K | 1 | 46 min | exact up to the commit (the agent recorded its own run, so its last few minutes are not in it) |
 | Doorbuster | one builder agent (the Black Friday holiday drop) | 14.0M | 13.2M | 247K | 1 | 44 min | exact |
+| Stroll | one builder agent (the Small Business Saturday holiday drop) | 23.8M | 23.4M | 163K | 1 | 38 min | exact up to the commit (the agent recorded its own run, so the shipping at the end is not in it) |
 
 Rush's builder stopped twice at the account's usage limit (about 7 hours in
 all) and was resumed; the agent time leaves those hours out, so its row is

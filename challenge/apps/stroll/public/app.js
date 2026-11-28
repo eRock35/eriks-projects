@@ -623,7 +623,7 @@
     else if (a === 'join') joinSheet('', '');
     else if (a === 'demo') startDemo();
     else if (a === 'leavedemo') leaveDemo();
-    else if (a === 'demoswap') { state.demoRole = state.demoRole === 'host' ? 'card' : 'host'; demoView(); closeSheet(true); state.view = firstTab(state.g); history.replaceState(null, '', BASE + '#' + state.view); draw(); scrollTo(0, 0); }
+    else if (a === 'demoswap') { $$('.toast').forEach(function (t) { t.remove(); }); state.demoRole = state.demoRole === 'host' ? 'card' : 'host'; demoView(); closeSheet(true); state.view = firstTab(state.g); history.replaceState(null, '', BASE + '#' + state.view); draw(); scrollTo(0, 0); }
     else if (a === 'open') enter(id);
     else if (a === 'stamp') stampSheet();
     else if (a === 'demostamp') { s = state.demo && state.demo.doc.shops[id]; if (s) doStamp(s.k, $('#formErr')); }

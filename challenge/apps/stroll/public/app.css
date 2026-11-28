@@ -10,7 +10,7 @@
      count and a sign's headline are the display sizes above them); tabular
      numbers wherever counts line up; spacing on a 4/8 scale;
    - ONE accent, a main-street brick (#9c4a2f where it carries text on
-     white, #f3b9a3 in the dark theme; the lab card's #b16045 as the brand
+     white, #f3b9a3 in the dark theme; the lab card's #b06042 as the brand
      dot) - the primary action, links, the active nav item, a stamp, a bar.
      Status colours are for status only and always sit beside a word.
    Navigation: on phones a floating translucent pill (line icons, a label
@@ -34,7 +34,7 @@
   --accent: #9c4a2f;
   --accent-ink: #ffffff;
   --accent-bg: #fbeee9;
-  --brand: #b16045;
+  --brand: #b06042;
   --link: #9c4a2f;
   --good: #17663a;
   --good-bg: #e3f3e8;
@@ -56,7 +56,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #000000; --card2: #1c1c1e; --sheet: #1c1c1e; --line: #2c2c2e; --line2: #48484a; --text: #f5f5f7; --muted: #aeaeb2;
-    --accent: #f3b9a3; --accent-ink: #3a170b; --accent-bg: #3a170b; --brand: #b16045; --link: #f7c7b5;
+    --accent: #f3b9a3; --accent-ink: #3a170b; --accent-bg: #3a170b; --brand: #b06042; --link: #f7c7b5;
     --good: #86dfa4; --good-bg: #12301f; --warn: #f6c46a; --warn-bg: #382a0f; --bad: #ffa196; --bad-bg: #3c1814;
     --tab: rgba(28, 28, 30, .78);
     --shadow-float: 0 0 0 1px rgba(255, 255, 255, .06), 0 8px 24px rgba(0, 0, 0, .5);
@@ -65,7 +65,7 @@
 }
 :root[data-theme="dark"] {
   --bg: #000000; --card2: #1c1c1e; --sheet: #1c1c1e; --line: #2c2c2e; --line2: #48484a; --text: #f5f5f7; --muted: #aeaeb2;
-  --accent: #f3b9a3; --accent-ink: #3a170b; --accent-bg: #3a170b; --brand: #b16045; --link: #f7c7b5;
+  --accent: #f3b9a3; --accent-ink: #3a170b; --accent-bg: #3a170b; --brand: #b06042; --link: #f7c7b5;
   --good: #86dfa4; --good-bg: #12301f; --warn: #f6c46a; --warn-bg: #382a0f; --bad: #ffa196; --bad-bg: #3c1814;
   --tab: rgba(28, 28, 30, .78);
   --shadow-float: 0 0 0 1px rgba(255, 255, 255, .06), 0 8px 24px rgba(0, 0, 0, .5);
